@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 750" width="1000" height="750" style="background:#0f172a; font-family:'Segoe UI', sans-serif;">
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" stroke-width="1"/>
+    </pattern>
+  </defs>
+  
+  <rect width="1000" height="750" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="500" y="45" font-size="22" font-weight="bold" fill="#f8fafc" text-anchor="middle">4개조 통합 프로젝트 경기장 맵 확장안 비교 검토</text>
+  <text x="500" y="75" font-size="14" fill="#94a3b8" text-anchor="middle">강의실 공간(10m x 14m) 내 최적 경기장 배치를 위한 [세로 2배 확장] vs [가로 1.5배 확장] 분석</text>
+
+  <!-- Left: Current (Original) -->
+  <g transform="translate(60, 130)">
+    <rect x="0" y="0" width="236" height="128" fill="#1e293b" stroke="#38bdf8" stroke-width="3" rx="4"/>
+    <text x="118" y="-12" font-size="13" font-weight="bold" fill="#38bdf8" text-anchor="middle">현재 기본 규격 (Map5 / PRD_v2)</text>
+    <text x="118" y="60" font-size="15" font-weight="bold" fill="#f1f5f9" text-anchor="middle">2.36 m × 1.28 m</text>
+    <text x="118" y="85" font-size="12" fill="#94a3b8" text-anchor="middle">단일 반시계 루프 (236 × 128 px)</text>
+    <rect x="0" y="140" width="236" height="70" fill="#0f172a" rx="4" stroke="#334155"/>
+    <text x="10" y="160" font-size="11" fill="#cbd5e1">• 2팀 운영 시 적합</text>
+    <text x="10" y="180" font-size="11" fill="#f87171">• 4개조 동시 투입 시 외길 병목 심각</text>
+    <text x="10" y="200" font-size="11" fill="#94a3b8">• ROS 해상도: 0.01 m/px (1cm)</text>
+  </g>
+
+  <!-- Middle: Horizontal 1.5x -->
+  <g transform="translate(60, 420)">
+    <rect x="0" y="0" width="354" height="128" fill="#1e293b" stroke="#fbbf24" stroke-width="3" rx="4"/>
+    <text x="177" y="-12" font-size="13" font-weight="bold" fill="#fbbf24" text-anchor="middle">가로 1.5배 확장안 (3.54 m × 1.28 m)</text>
+    <text x="177" y="60" font-size="16" font-weight="bold" fill="#f1f5f9" text-anchor="middle">3.54 m × 1.28 m</text>
+    <text x="177" y="85" font-size="12" fill="#94a3b8" text-anchor="middle">가로 직선 주행 구간 1.18m 연장 (354 × 128 px)</text>
+    <rect x="0" y="140" width="354" height="80" fill="#0f172a" rx="4" stroke="#334155"/>
+    <text x="10" y="160" font-size="11" fill="#cbd5e1">✓ 장점: 기존 단일 루프 주행 FSM 시나리오 100% 동일 유지</text>
+    <text x="10" y="180" font-size="11" fill="#cbd5e1">✓ 장점: 스테이션(S1~S4) 일렬 배치 용이</text>
+    <text x="10" y="200" font-size="11" fill="#f87171">✗ 단점: 세로 폭(1.28m)이 좁아 추월/우회 차선 공간 여전히 부족</text>
+  </g>
+
+  <!-- Right: Vertical 2x (Recommended!) -->
+  <g transform="translate(560, 130)">
+    <!-- 2.36 x 2.56 scaled -->
+    <rect x="0" y="0" width="370" height="400" fill="#1e293b" stroke="#4ade80" stroke-width="4" rx="6"/>
+    <!-- Zone partition lines (dotted) -->
+    <line x1="0" y1="200" x2="370" y2="200" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <line x1="185" y1="0" x2="185" y2="400" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+    <text x="185" y="-14" font-size="15" font-weight="bold" fill="#4ade80" text-anchor="middle">★ [추천] 세로 2배 확장안 (2.36 m × 2.56 m)</text>
+    <text x="185" y="180" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">2.36 m × 2.56 m</text>
+    <text x="185" y="215" font-size="13" font-weight="bold" fill="#4ade80" text-anchor="middle">[도로 제외 오픈 필드 맵 생성 완료]</text>
+    <text x="185" y="240" font-size="12" fill="#cbd5e1" text-anchor="middle">그리드 크기: 236 × 256 px (해상도 0.01 m/px)</text>
+
+    <!-- 4 Zone labels -->
+    <text x="92" y="90" font-size="14" fill="#a7f3d0" font-weight="bold" text-anchor="middle">1조 구역</text>
+    <text x="277" y="90" font-size="14" fill="#a7f3d0" font-weight="bold" text-anchor="middle">2조 구역</text>
+    <text x="92" y="320" font-size="14" fill="#a7f3d0" font-weight="bold" text-anchor="middle">3조 구역</text>
+    <text x="277" y="320" font-size="14" fill="#a7f3d0" font-weight="bold" text-anchor="middle">4조 구역</text>
+    <circle cx="185" cy="200" r="30" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+    <text x="185" y="204" font-size="10" fill="#38bdf8" text-anchor="middle">중앙 교차</text>
+
+    <!-- Analysis Box -->
+    <rect x="0" y="420" width="370" height="150" fill="#0f172a" rx="6" stroke="#22c55e"/>
+    <text x="15" y="445" font-size="13" font-weight="bold" fill="#4ade80">🎯 세로 2배 확장이 4개조에 최적인 근거</text>
+    <text x="15" y="470" font-size="11.5" fill="#e2e8f0">1. [2x2 조별 구역화]: 4개 조가 독립 스테이션/하차장 점유 가능</text>
+    <text x="15" y="490" font-size="11.5" fill="#e2e8f0">2. [더블 루프 / 8자 주행]: 외길 병목 없는 입체적 동선 설계</text>
+    <text x="15" y="510" font-size="11.5" fill="#e2e8f0">3. [천장 카메라 최적 종횡비]: 1:1.08 비율로 광각 왜곡 최소화</text>
+    <text x="15" y="530" font-size="11.5" fill="#e2e8f0">4. [강의장 수용성]: 10m x 14m 강의실 바닥에 여유 있게 안착</text>
+    <text x="15" y="550" font-size="11.5" fill="#e2e8f0">5. [현장 설치]: 1.25m 롤장판 2장을 나란히 붙이면 2.50m 즉시 시공</text>
+  </g>
+</svg>

@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 950" width="1200" height="950" style="background:#0b1120; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;">
+  <defs>
+    <pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="majorGrid" width="100" height="100" patternUnits="userSpaceOnUse">
+      <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#334155" stroke-width="1.2"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowPlow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- Background Grids -->
+  <rect width="1200" height="950" fill="url(#gridPattern)"/>
+  <rect width="1200" height="950" fill="url(#majorGrid)"/>
+
+  <!-- Main Header -->
+  <rect x="50" y="30" width="1100" height="65" fill="#0f172a" rx="8" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="75" y="68" font-size="22" font-weight="bold" fill="#f8fafc">4조(PinkyTeam4) 공식 경기장 맵 확장안 및 시스템 배치 제안도</text>
+  <text x="75" y="86" font-size="12" fill="#94a3b8">규격: 2.36 m × 2.56 m | 실물 핑키 3대(주문 2대 + 회수 1대) &amp; 로봇팔 3대 최적 배치안</text>
+  <rect x="990" y="45" width="140" height="35" fill="#0284c7" rx="4"/>
+  <text x="1060" y="68" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">VER 1.0 (PROPOSAL)</text>
+
+  <!-- Left: Blueprint Arena (Scale: 1m = 230px, Arena: 2.36m x 2.56m -> 543px x 589px) -->
+  <!-- Arena Origin: translate(80, 140) -->
+  <g transform="translate(80, 140)">
+    <!-- Dimension Guides (Outer) -->
+    <!-- Top Width Dimension -->
+    <line x1="0" y1="-25" x2="543" y2="-25" stroke="#94a3b8" stroke-width="1.5"/>
+    <line x1="0" y1="-35" x2="0" y2="-15" stroke="#94a3b8" stroke-width="1.5"/>
+    <line x1="543" y1="-35" x2="543" y2="-15" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="271" y="-30" font-size="13" font-weight="bold" fill="#38bdf8" text-anchor="middle">가로 2.36 m (236 px @ 0.01m/px)</text>
+
+    <!-- Left Height Dimension -->
+    <line x1="-25" y1="0" x2="-25" y2="589" stroke="#94a3b8" stroke-width="1.5"/>
+    <line x1="-35" y1="0" x2="-15" y2="0" stroke="#94a3b8" stroke-width="1.5"/>
+    <line x1="-35" y1="589" x2="-15" y2="589" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="-32" y="295" font-size="13" font-weight="bold" fill="#38bdf8" text-anchor="middle" transform="rotate(-90 -32 295)">세로 2.56 m (256 px @ 0.01m/px)</text>
+
+    <!-- Arena Boundary Wall -->
+    <rect x="0" y="0" width="543" height="589" fill="#1e293b" fill-opacity="0.8" stroke="#4ade80" stroke-width="4" rx="4"/>
+
+    <!-- ==================== TOP ZONE: S1 / S2 LOADING (Y: 0 to 1.28m -> 0 to 295px) ==================== -->
+    <rect x="10" y="10" width="523" height="225" fill="#0f172a" fill-opacity="0.5" stroke="#334155" stroke-dasharray="4,4"/>
+    <text x="25" y="35" font-size="14" font-weight="bold" fill="#60a5fa">[상단 구역] 상차 및 주문 스테이션 (S1, S2)</text>
+
+    <!-- Station 1 (S1): X = 0.50m (115px), Y = 0.15m (35px) -->
+    <g transform="translate(80, 45)">
+      <!-- Station Dock Area -->
+      <rect x="0" y="0" width="100" height="60" fill="#1e3a8a" stroke="#38bdf8" stroke-width="1.5" rx="4"/>
+      <text x="50" y="25" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">S1 스테이션</text>
+      <!-- OMX 1 Arm -->
+      <circle cx="50" cy="45" r="12" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+      <text x="50" y="49" font-size="9" font-weight="bold" fill="#000000" text-anchor="middle">OMX 1</text>
+      <!-- Supply Cells -->
+      <rect x="10" y="-15" width="80" height="12" fill="#047857" rx="2"/>
+      <text x="50" y="-6" font-size="8" fill="#ffffff" text-anchor="middle">공급셀 (A·B·C)</text>
+    </g>
+
+    <!-- Station 2 (S2): X = 1.60m (368px), Y = 0.15m (35px) -->
+    <g transform="translate(360, 45)">
+      <rect x="0" y="0" width="100" height="60" fill="#1e3a8a" stroke="#38bdf8" stroke-width="1.5" rx="4"/>
+      <text x="50" y="25" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">S2 스테이션</text>
+      <circle cx="50" cy="45" r="12" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+      <text x="50" y="49" font-size="9" font-weight="bold" fill="#000000" text-anchor="middle">OMX 2</text>
+      <rect x="10" y="-15" width="80" height="12" fill="#047857" rx="2"/>
+      <text x="50" y="-6" font-size="8" fill="#ffffff" text-anchor="middle">공급셀 (D·E·F)</text>
+    </g>
+
+    <!-- Top Loading Lane (P1, P2 Transit) -->
+    <path d="M 40 140 L 500 140" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+    <text x="270" y="132" font-size="11" fill="#38bdf8" text-anchor="middle">상차 통행로 (S1 ➔ S2 이동 동선)</text>
+
+    <!-- ==================== MIDDLE ZONE: WIRE RACEWAY & RAMP (Y: 236 to 353px) ==================== -->
+    <!-- Ramp Area (50cm width -> 115px height, center at 295px) -->
+    <rect x="4" y="238" width="535" height="114" fill="#0284c7" fill-opacity="0.18" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="20" y="254" font-size="11" font-weight="bold" fill="#38bdf8">▲ 오르막 경사로 (25cm 슬로프, 5.71°)</text>
+    <text x="20" y="342" font-size="11" font-weight="bold" fill="#38bdf8">▼ 내리막 경사로 (25cm 슬로프, 5.71°)</text>
+
+    <!-- Center Aluminum Wire Pipe (Y = 295px) -->
+    <line x1="4" y1="295" x2="539" y2="295" stroke="#f43f5e" stroke-width="3.5"/>
+    <text x="470" y="291" font-size="9" font-weight="bold" fill="#f43f5e">바닥 전선관 ø25</text>
+
+    <!-- Outlet Obstacle Boxes (3 Locations) -->
+    <!-- Outlet 1: x=0.40m -> 92px -->
+    <rect x="85" y="278" width="16" height="34" fill="#e11d48" stroke="#ffffff" stroke-width="1.5" rx="2"/>
+    <text x="93" y="272" font-size="9" fill="#fda4af" text-anchor="middle">콘센트 1</text>
+
+    <!-- Outlet 2: x=1.18m -> 271px -->
+    <rect x="263" y="278" width="16" height="34" fill="#e11d48" stroke="#ffffff" stroke-width="1.5" rx="2"/>
+    <text x="271" y="272" font-size="9" fill="#fda4af" text-anchor="middle">콘센트 2</text>
+
+    <!-- Outlet 3: x=1.96m -> 450px -->
+    <rect x="442" y="278" width="16" height="34" fill="#e11d48" stroke="#ffffff" stroke-width="1.5" rx="2"/>
+    <text x="450" y="272" font-size="9" fill="#fda4af" text-anchor="middle">콘센트 3</text>
+
+    <!-- Designated Safe Robot Passages across Ramp -->
+    <!-- Passage A (Left): between Outlet 1 & 2 -> X: 140 to 220 (Width ~35cm) -->
+    <rect x="135" y="238" width="90" height="114" fill="#22c55e" fill-opacity="0.25" stroke="#22c55e" stroke-width="2"/>
+    <text x="180" y="299" font-size="11" font-weight="bold" fill="#4ade80" text-anchor="middle">통행로 A<br/>(폭 39cm)</text>
+
+    <!-- Passage B (Right): between Outlet 2 & 3 -> X: 315 to 395 (Width ~35cm) -->
+    <rect x="315" y="238" width="90" height="114" fill="#22c55e" fill-opacity="0.25" stroke="#22c55e" stroke-width="2"/>
+    <text x="360" y="299" font-size="11" font-weight="bold" fill="#4ade80" text-anchor="middle">통행로 B<br/>(폭 39cm)</text>
+
+    <!-- ==================== BOTTOM ZONE: HOME & UNLOADING & DISPOSAL ==================== -->
+    <rect x="10" y="365" width="523" height="214" fill="#0f172a" fill-opacity="0.5" stroke="#334155" stroke-dasharray="4,4"/>
+    <text x="25" y="390" font-size="14" font-weight="bold" fill="#a78bfa">[하단 구역] Home 하차장, 회수 포켓 및 출고 격리함</text>
+
+    <!-- Home Dock & OMX 3 (West Wall) -->
+    <g transform="translate(40, 420)">
+      <rect x="0" y="0" width="120" height="130" fill="#312e81" stroke="#818cf8" stroke-width="1.5" rx="4"/>
+      <text x="60" y="25" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">Home 하차 도크</text>
+      <!-- OMX 3 Arm -->
+      <circle cx="60" cy="65" r="14" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+      <text x="60" y="70" font-size="10" font-weight="bold" fill="#000000" text-anchor="middle">OMX 3</text>
+      
+      <!-- Outbound Box & Isolation Box -->
+      <rect x="10" y="90" width="45" height="30" fill="#059669" rx="2"/>
+      <text x="32" y="108" font-size="9" fill="#ffffff" text-anchor="middle">출고함</text>
+
+      <rect x="65" y="90" width="45" height="30" fill="#dc2626" rx="2"/>
+      <text x="87" y="108" font-size="9" fill="#ffffff" text-anchor="middle">격리함</text>
+    </g>
+
+    <!-- Recovery Pocket (Home Pocket for Plow Sweep) -->
+    <g transform="translate(180, 420)">
+      <rect x="0" y="0" width="80" height="50" fill="#854d0e" stroke="#facc15" stroke-width="1.5" rx="3"/>
+      <text x="40" y="22" font-size="11" font-weight="bold" fill="#fef08a" text-anchor="middle">회수 포켓</text>
+      <text x="40" y="38" font-size="9" fill="#fef08a" text-anchor="middle">(밀대 유입)</text>
+    </g>
+
+    <!-- Pinky 3 Waiting Spot (Plow Robot Standby) -->
+    <g transform="translate(400, 440)">
+      <rect x="0" y="0" width="90" height="70" fill="#78350f" stroke="#f59e0b" stroke-width="1.5" rx="4"/>
+      <text x="45" y="25" font-size="11" font-weight="bold" fill="#fef3c7" text-anchor="middle">P3 회수 핑키</text>
+      <text x="45" y="42" font-size="9" fill="#fde68a" text-anchor="middle">(V자 밀대 대기)</text>
+      <!-- Plow symbol -->
+      <path d="M 25 55 L 45 65 L 65 55" fill="none" stroke="#f59e0b" stroke-width="2"/>
+    </g>
+
+    <!-- Transit Flow Arrows (Order Robots P1, P2) -->
+    <!-- Downward Crossing via Passage B -->
+    <path d="M 360 145 L 360 410" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="375" y="215" font-size="10" fill="#38bdf8">하향 진입 (P1/P2)</text>
+
+    <!-- Upward Crossing via Passage A -->
+    <path d="M 180 410 L 180 150" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="120" y="365" font-size="10" fill="#38bdf8">상향 복귀 (P1/P2)</text>
+
+    <!-- Recovery Sweep Path (P3 with Plow) -->
+    <path d="M 440 430 L 440 220 L 260 220 L 220 415" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrowPlow)"/>
+    <text x="445" y="330" font-size="9" fill="#f59e0b">P3 밀대 회수 동선</text>
+  </g>
+
+  <!-- Right Side: Specifications & Team Task Interface Panels (X: 670, Y: 140) -->
+  <g transform="translate(670, 140)">
+    <!-- Panel 1: Physical & Map Data Specs -->
+    <rect x="0" y="0" width="480" height="235" fill="#0f172a" rx="8" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="20" y="30" font-size="15" font-weight="bold" fill="#38bdf8">📋 1. 경기장 맵 공식 제안 데이터 규격</text>
+    
+    <text x="20" y="60" font-size="12" fill="#e2e8f0">• <tspan font-weight="bold">물리 크기:</tspan> 가로 2.36 m × 세로 2.56 m (오픈 아레나)</text>
+    <text x="20" y="82" font-size="12" fill="#e2e8f0">• <tspan font-weight="bold">그리드 맵:</tspan> 236 × 256 px @ 0.01 m/px (map_vertical_2x_with_ramp)</text>
+    <text x="20" y="104" font-size="12" fill="#e2e8f0">• <tspan font-weight="bold">좌표 원점:</tspan> [-0.01, -0.01, 0.0] (ROS 2 Nav2 표준 매핑)</text>
+    <text x="20" y="126" font-size="12" fill="#e2e8f0">• <tspan font-weight="bold">중앙 경사로:</tspan> Y = 1.03 ~ 1.53 m (폭 50cm 슬로프, 경사각 5.71°)</text>
+    <text x="20" y="148" font-size="12" fill="#f43f5e">• <tspan font-weight="bold">콘센트 박스:</tspan> 3개소 (벽체 장애물 '0' 처리, 5cm 안전 버퍼)</text>
+    <text x="20" y="170" font-size="12" fill="#4ade80">• <tspan font-weight="bold">안전 통행로:</tspan> 통행로 A(x=0.61~1.00m), 통행로 B(x=1.39~1.78m)</text>
+    <text x="20" y="195" font-size="11" fill="#94a3b8">※ MuJoCo 3D 실측 결과: 핑키 배 걸림 마진 +3.1~5.6mm로 완전 통과 확인!</text>
+    <text x="20" y="215" font-size="11" fill="#facc15">※ 공 뻥튀기 안정 기준: 트레이 뒤 턱 6mm 이상 또는 오목 컵 장착 필수</text>
+
+    <!-- Panel 2: Part-specific Work Interface (What each person starts) -->
+    <rect x="0" y="255" width="480" height="334" fill="#0f172a" rx="8" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="20" y="285" font-size="15" font-weight="bold" fill="#4ade80">🚀 2. 맵 확정 시 각 파트별 즉시 착수 항목</text>
+
+    <!-- Part A: Nav2 / Driving -->
+    <text x="20" y="315" font-size="13" font-weight="bold" fill="#60a5fa">① 주행 / Nav2 트랙 (Waypoints &amp; Costmap)</text>
+    <text x="35" y="335" font-size="11.5" fill="#cbd5e1">• map_vertical_2x_with_ramp.yaml 로딩 및 정적 맵 등록</text>
+    <text x="35" y="353" font-size="11.5" fill="#cbd5e1">• 통행로 A/B 경유 글로벌 웨이포인트(상차 ➔ 하차 ➔ 복귀) 생성</text>
+    <text x="35" y="371" font-size="11.5" fill="#cbd5e1">• 경사로 구간(Y=1.03~1.53m) 감속(v ≤ 0.08m/s) Costmap 설정</text>
+
+    <!-- Part B: Arm / Hardware -->
+    <text x="20" y="405" font-size="13" font-weight="bold" fill="#f59e0b">② 로봇팔 / 하드웨어 트랙 (IK &amp; Tray Modification)</text>
+    <text x="35" y="425" font-size="11.5" fill="#cbd5e1">• S1, S2, Home 도크 좌표 기준 OMX 1·2·3 도달 각도 티칭</text>
+    <text x="35" y="443" font-size="11.5" fill="#cbd5e1">• 핑키 트레이 뒤 턱 6mm 림(Rim) 장착 또는 컵 접시 제작</text>
+    <text x="35" y="461" font-size="11.5" fill="#cbd5e1">• P3 핑키 전면 V자 밀대(폭 0.22m) 장착 및 정렬</text>
+
+    <!-- Part C: Vision / Camera -->
+    <text x="20" y="495" font-size="13" font-weight="bold" fill="#f43f5e">③ 비전 / 관제 트랙 (우리 파트 &amp; 김지혜 트랙)</text>
+    <text x="35" y="515" font-size="11.5" fill="#cbd5e1">• 천장 카메라(2.15m) 중심 좌표 설정 (정사각형 1:1.08 화각)</text>
+    <text x="35" y="533" font-size="11.5" fill="#cbd5e1">• 측면 저각도 보조 카메라(USB웹캠/노트10) S1·S2 도크 거치</text>
+    <text x="35" y="551" font-size="11.5" fill="#cbd5e1">• 핑키 3대 FSM: 상차 낙하 즉시 재파지 + 램프 단독 통행 인터락</text>
+
+    <!-- Sign-off Call to Action -->
+    <rect x="0" y="605" width="480" height="60" fill="#1e293b" rx="6" stroke="#facc15" stroke-width="1.5"/>
+    <text x="240" y="630" font-size="13" font-weight="bold" fill="#facc15" text-anchor="middle">📢 팀원 회의 결정 요청 (Sign-off Item)</text>
+    <text x="240" y="650" font-size="11.5" fill="#e2e8f0" text-anchor="middle">"세로 2배(2.36m × 2.56m) + 전선관 경사로 통행로 A, B안으로 확정"</text>
+  </g>
+
+  <!-- Bottom Legend / Info -->
+  <g transform="translate(80, 755)">
+    <rect x="0" y="0" width="1070" height="155" fill="#0f172a" rx="6" stroke="#334155"/>
+    <text x="20" y="30" font-size="13" font-weight="bold" fill="#38bdf8">📌 핑키 3대 운용 체제 (PRD_v2 공식 준수) 요약</text>
+    <text x="20" y="55" font-size="11.5" fill="#cbd5e1">1. <tspan font-weight="bold" fill="#ffffff">P1 (1호기 - 주문 배송):</tspan> S1 상차 ➔ 통행로 B(내리막) ➔ Home 하차 ➔ 통행로 A(오르막) 복귀 루프 전담</text>
+    <text x="20" y="78" font-size="11.5" fill="#cbd5e1">2. <tspan font-weight="bold" fill="#ffffff">P2 (2호기 - 주문 배송):</tspan> S2 상차 ➔ 통행로 B(내리막) ➔ Home 하차 ➔ 통행로 A(오르막) 복귀 루프 전담 (P1과 교차 통행)</text>
+    <text x="20" y="101" font-size="11.5" fill="#cbd5e1">3. <tspan font-weight="bold" fill="#ffffff">P3 (3호기 - 자가치유 밀대):</tspan> 하단 대기석 대기 ➔ 낙하 사고 발생 시 통행로 A/B 경유하여 상차 라인 sweep ➔ Home 회수 포켓 골인</text>
+    <text x="20" y="125" font-size="11" fill="#94a3b8">※ 관제 안전 규칙: 전선관 램프(Y=1.03~1.53m) 구간은 충돌 및 추돌 방지를 위해 1회 1대만 통과하는 '단독 점유 구역(Single Occupancy Zone)'으로 운영.</text>
+  </g>
+</svg>

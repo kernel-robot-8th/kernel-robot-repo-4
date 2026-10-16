@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 850" width="1100" height="850" style="background:#0f172a; font-family:'Segoe UI', sans-serif;">
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="rampGradUp" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="rampGradDown" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1100" height="850" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="550" y="45" font-size="22" font-weight="bold" fill="#f8fafc" text-anchor="middle">세로 2배 확장 경기장 바닥 전선관 경사로(Ramp) 및 콘센트 회피 설계도</text>
+  <text x="550" y="75" font-size="14" fill="#94a3b8" text-anchor="middle">강의장 실측 배관(ø25mm 알루미늄 덕트) 극복을 위한 5.7° 완만 슬로프 및 3D 시뮬레이션 지오메트리 규격</text>
+
+  <!-- Left Side: Top-down Map Layout (X: 60, Y: 120, Scale: 1.8) -->
+  <g transform="translate(60, 120)">
+    <rect x="0" y="0" width="425" height="461" fill="#1e293b" stroke="#4ade80" stroke-width="4" rx="6"/>
+    
+    <!-- Zone Labels -->
+    <text x="212" y="110" font-size="16" font-weight="bold" fill="#64748b" text-anchor="middle">상단 구역 (1·2조 아레나: 2.36m × 1.28m)</text>
+    <text x="212" y="380" font-size="16" font-weight="bold" fill="#64748b" text-anchor="middle">하단 구역 (3·4조 아레나: 2.36m × 1.28m)</text>
+
+    <!-- Ramp Zone (Y = 186 to 276, 50cm width) -->
+    <rect x="5" y="186" width="415" height="90" fill="#0284c7" fill-opacity="0.25" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4,4"/>
+    <text x="212" y="205" font-size="12" font-weight="bold" fill="#38bdf8" text-anchor="middle">▲ 진입 오르막 슬로프 (폭 25cm, 경사 5.7°)</text>
+    <text x="212" y="270" font-size="12" font-weight="bold" fill="#38bdf8" text-anchor="middle">▼ 진출 내리막 슬로프 (폭 25cm, 경사 5.7°)</text>
+
+    <!-- Wire Raceway (Center line) -->
+    <line x1="5" y1="230" x2="420" y2="230" stroke="#f43f5e" stroke-width="4"/>
+    <text x="25" y="226" font-size="10" font-weight="bold" fill="#f43f5e">바닥 전선관 (ø25mm)</text>
+
+    <!-- Floor Outlets (3 Boxes) -->
+    <!-- Outlet 1 -->
+    <rect x="68" y="216" width="11" height="28" fill="#e11d48" stroke="#ffffff" stroke-width="1.5" rx="2"/>
+    <text x="73" y="208" font-size="9" fill="#fda4af" text-anchor="middle">콘센트 1</text>
+    <!-- Outlet 2 -->
+    <rect x="207" y="216" width="11" height="28" fill="#e11d48" stroke="#ffffff" stroke-width="1.5" rx="2"/>
+    <text x="212" y="208" font-size="9" fill="#fda4af" text-anchor="middle">콘센트 2</text>
+    <!-- Outlet 3 -->
+    <rect x="345" y="216" width="11" height="28" fill="#e11d48" stroke="#ffffff" stroke-width="1.5" rx="2"/>
+    <text x="350" y="208" font-size="9" fill="#fda4af" text-anchor="middle">콘센트 3</text>
+
+    <!-- Safe Robot Passages (Lanes) -->
+    <rect x="110" y="186" width="70" height="90" fill="#22c55e" fill-opacity="0.2" stroke="#22c55e" stroke-width="2"/>
+    <text x="145" y="234" font-size="11" font-weight="bold" fill="#4ade80" text-anchor="middle">통행로 A</text>
+
+    <rect x="250" y="186" width="70" height="90" fill="#22c55e" fill-opacity="0.2" stroke="#22c55e" stroke-width="2"/>
+    <text x="285" y="234" font-size="11" font-weight="bold" fill="#4ade80" text-anchor="middle">통행로 B</text>
+
+    <!-- Legend -->
+    <rect x="0" y="480" width="425" height="100" fill="#0f172a" rx="6" stroke="#334155"/>
+    <text x="15" y="505" font-size="12" font-weight="bold" fill="#e2e8f0">📌 평면 범례 및 제원</text>
+    <text x="15" y="528" font-size="11" fill="#94a3b8">• 맵 전체 크기: 2.36 m × 2.56 m (236 × 256 px @ 0.01m/px)</text>
+    <text x="15" y="548" font-size="11" fill="#f43f5e">• 붉은 상자: 돌출 콘센트 박스 (높이 4~5cm, 통행 금지 장애물 0)</text>
+    <text x="15" y="568" font-size="11" fill="#4ade80">• 녹색 영역: 로봇 전선관 도하 안전 통행로 (폭 35~40cm 확보)</text>
+  </g>
+
+  <!-- Right Side: Cross-Section Diagram & Dynamics (X: 530, Y: 120) -->
+  <g transform="translate(530, 120)">
+    <!-- Cross Section Frame -->
+    <rect x="0" y="0" width="510" height="280" fill="#1e293b" rx="6" stroke="#38bdf8" stroke-width="2"/>
+    <text x="25" y="35" font-size="16" font-weight="bold" fill="#38bdf8">🔍 경사로(Ramp) 측면 단면도 및 치수</text>
+
+    <!-- Base Floor -->
+    <line x1="30" y1="210" x2="480" y2="210" stroke="#64748b" stroke-width="4"/>
+    <text x="30" y="235" font-size="11" fill="#94a3b8">강의실 바닥 (장판 기준선 Z = 0)</text>
+
+    <!-- Left Slope (25cm) -->
+    <polygon points="80,210 255,150 255,210" fill="url(#rampGradUp)" opacity="0.8"/>
+    <!-- Right Slope (25cm) -->
+    <polygon points="255,150 430,210 255,210" fill="url(#rampGradDown)" opacity="0.8"/>
+
+    <!-- Center Wire Pipe -->
+    <circle cx="255" cy="180" r="18" fill="#cbd5e1" stroke="#475569" stroke-width="2"/>
+    <text x="255" y="185" font-size="10" font-weight="bold" fill="#0f172a" text-anchor="middle">ø25</text>
+
+    <!-- Dimension Labels -->
+    <!-- Height -->
+    <line x1="285" y1="210" x2="285" y2="150" stroke="#f43f5e" stroke-width="2" stroke-dasharray="2,2"/>
+    <text x="295" y="185" font-size="12" font-weight="bold" fill="#f43f5e">h = 25 mm</text>
+
+    <!-- Slope Length -->
+    <line x1="80" y1="225" x2="255" y2="225" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="167" y="242" font-size="12" fill="#38bdf8" text-anchor="middle">오르막 250 mm</text>
+
+    <line x1="255" y1="225" x2="430" y2="225" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="342" y="242" font-size="12" fill="#38bdf8" text-anchor="middle">내리막 250 mm</text>
+
+    <!-- Angle -->
+    <text x="110" y="195" font-size="13" font-weight="bold" fill="#facc15">θ = 5.71°</text>
+
+    <!-- Robot on Ramp (Illustration) -->
+    <g transform="translate(140, 125) rotate(-5.7)">
+      <!-- Robot Body -->
+      <rect x="0" y="0" width="70" height="40" fill="#0284c7" stroke="#ffffff" stroke-width="1.5" rx="4"/>
+      <!-- Wheels -->
+      <circle cx="15" cy="40" r="12" fill="#334155" stroke="#94a3b8" stroke-width="2"/>
+      <circle cx="55" cy="40" r="12" fill="#334155" stroke="#94a3b8" stroke-width="2"/>
+      <!-- Tray with item -->
+      <rect x="15" y="-10" width="40" height="10" fill="#e2e8f0"/>
+      <circle cx="35" cy="-16" r="6" fill="#f59e0b"/>
+      <text x="35" y="24" font-size="9" fill="#ffffff" text-anchor="middle">핑키 로봇</text>
+    </g>
+
+    <!-- Physical Analysis Details -->
+    <rect x="0" y="300" width="510" height="280" fill="#0f172a" rx="6" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="20" y="330" font-size="15" font-weight="bold" fill="#4ade80">⚡ 동역학 시뮬레이션 및 안전 통제 파라미터</text>
+
+    <text x="20" y="360" font-size="12" font-weight="bold" fill="#f1f5f9">1. 로봇 배 걸림(High-centering) 마진:</text>
+    <text x="35" y="380" font-size="11.5" fill="#cbd5e1">• 핑키 최저 지상고 12mm ≪ 경사로 정상부 통과 여유 +13mm (완전 해소)</text>
+
+    <text x="20" y="410" font-size="12" font-weight="bold" fill="#f1f5f9">2. 적재 물품(원판/공) 미끄러짐 방지 한계 속도:</text>
+    <text x="35" y="430" font-size="11.5" fill="#cbd5e1">• 경사 진입 시 정적 마찰 계수 μ ≥ tan(5.7°) = 0.10 (원판 장판 마찰 0.3으로 안전)</text>
+    <text x="35" y="450" font-size="11.5" fill="#f87171">• 구형 공: 턱 통과 시 롤링 가속 방지 위해 진입 속도 v ≤ 0.08 m/s 제한 필수</text>
+
+    <text x="20" y="480" font-size="12" font-weight="bold" fill="#f1f5f9">3. Nav2 및 FMS 제어 규칙:</text>
+    <text x="35" y="500" font-size="11.5" fill="#cbd5e1">• Costmap Incline 레이어: Y = 103~153 구간 속도 스케일링 (0.5x)</text>
+    <text x="35" y="520" font-size="11.5" fill="#cbd5e1">• 콘센트 박스 외곽 5cm 안전 버퍼(Inflation) 적용</text>
+    <text x="35" y="540" font-size="11.5" fill="#cbd5e1">• 전선관 도하 중 정지 금지 (경사면 위 재출발 슬립 방지)</text>
+  </g>
+</svg>
