@@ -15,6 +15,7 @@ find_package(rosidl_default_generators REQUIRED)
 set(msg_files
   "msg/DropEvent.msg"
   "msg/RobotStatus.msg"
+  "msg/FleetCommand.msg"
 )
 
 set(action_files
