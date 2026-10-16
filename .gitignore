@@ -218,3 +218,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ROS 2 build artifacts
+install/
+log/
+*.mcap
+*.bag
+*.pt
+*.onnx
+*.pth
+
