@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRD_3 통합 시스템 요구사항 정의서 (SR-01 ~ SR-21)</title>
+  <style>
+    :root {
+      --primary: #1976d2;
+      --primary-light: #e3f2fd;
+      --success: #2e7d32;
+      --warning: #ed6c02;
+      --danger: #d32f2f;
+      --border: #e0e0e0;
+      --bg: #f8f9fa;
+      --text: #212529;
+      --text-muted: #6c757d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg);
+      margin: 0;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 32px 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0 0 12px 0;
+      font-size: 26px;
+      color: #0d47a1;
+    }
+    .meta-box {
+      background: var(--primary-light);
+      border-left: 5px solid var(--primary);
+      padding: 14px 20px;
+      border-radius: 4px;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    .meta-box p { margin: 4px 0; }
+    h2 {
+      font-size: 20px;
+      color: #1565c0;
+      margin-top: 36px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 16px;
+      color: #2c3e50;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      margin-bottom: 24px;
+      font-size: 13.5px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      background-color: #f1f3f5;
+      font-weight: 600;
+      color: #343a40;
+    }
+    tr:nth-child(even) { background-color: #fafbfc; }
+    tr:hover { background-color: #f1f5f9; }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .badge-must {
+      background-color: #e8f5e9;
+      color: var(--success);
+      border: 1px solid #c8e6c9;
+    }
+    .badge-should {
+      background-color: #fff3e0;
+      color: var(--warning);
+      border: 1px solid #ffe0b2;
+    }
+    .badge-new {
+      background-color: #e3f2fd;
+      color: #0d47a1;
+      border: 1px solid #bbdefb;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+    .text-center { text-align: center; }
+    ul { margin: 6px 0; padding-left: 20px; }
+    li { margin-bottom: 4px; }
+    code {
+      background-color: #eceff1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: Consolas, monospace;
+      color: #c2185b;
+    }
+    .callout {
+      background: #fff8e1;
+      border-left: 4px solid #ffb300;
+      padding: 12px 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+      font-size: 13.5px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>📋 신발 매장 픽업 자동화 시스템: 통합 시스템 요구사항 (SR-01 ~ SR-21)</h1>
+    <div class="meta-box">
+      <p><strong>문서 상태:</strong> <strong>팀원 의견 수렴 및 아키텍처 안전 규칙 통합 최종안 (Consensus Approved)</strong> &middot; <strong>버전:</strong> v4.0</p>
+      <p><strong>작성자:</strong> 강건한 &middot; 4조 전체 (Pinky_Team4) &middot; <strong>최종 갱신:</strong> 2026-10-19</p>
+      <p><strong>연계 문서:</strong>
+        <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3801308" target="_blank">[3801308] Confluence 공식 SR</a> &middot;
+        <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/229825" target="_blank">[229825] User Requirements (UR-01~27)</a> &middot;
+        <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3899424" target="_blank">[3899424] PRD_3 신발 매장 시스템</a>
+      </p>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. 팀원 의견 수렴 및 통합 설계 근거 (Consensus Rationale)</h2>
+
+    <h3>1.1 기본 구조 수렴 근거: 팀원의 <code>SR-01 ~ SR-18</code> 체계 채택</h3>
+    <ul>
+      <li><strong>사용자 요구사항(UR-01~27) 흐름과의 직관적 정합성</strong>: 주문 접수부터 상차, 주행, 하차, 회수, 완료까지 실제 현장 운용 흐름에 맞추어 번호가 배열되어 있어 팀원 전체가 개발 태스크를 직관적으로 파악하기 용이합니다.</li>
+      <li><strong>병목 지점의 독립 SR 분리 반영</strong>: 팀원 제안에서 <code>SR-16 (하차 대기열 관리)</code>과 <code>SR-17 (빈 박스 및 반품 회수 관리)</code>을 일반 주행과 별도의 기능으로 분리한 것은 현장 다중 로봇 병목 제어의 핵심을 짚은 매우 뛰어난 구조적 결정이므로 이를 원안 그대로 채택하였습니다.</li>
+      <li><strong>협업 마찰 최소화</strong>: 기존의 5대 영문 코드 방식(SR-ORD, SR-NAV 등) 대신 팀원들이 이미 작성하고 검토한 <code>SR-01 ~ SR-18</code>을 메인 식별자로 유지하여 커뮤니케이션 비용을 최소화하였습니다.</li>
+    </ul>
+
+    <h3>1.2 기존 항목 내 7대 안전 인터락 보완 근거 (Invariants 보강)</h3>
+    <p>팀원 초안의 기본 기능 정의에, 실제 로봇 2대와 로봇팔 3대가 물리적으로 충돌하거나 파손되는 사고를 방지하기 위해 4대 시퀀스 도면의 필수 안전 조건을 1줄씩 보강하였습니다.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 140px;">대상 SR</th>
+          <th style="width: 220px;">팀원 원안 핵심</th>
+          <th>보완·보강된 안전 규칙 (Invariants)</th>
+          <th style="width: 130px; text-align: center;">근거 도면</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>SR-01</strong><br>(주문 관리)</td>
+          <td>주문 접수, 진행 상태 및 결과 조회</td>
+          <td>• <strong>원격 카트 호출 요청 접수</strong><br>• <strong>동일 주문 중복 클릭/재요청 방지 (멱등성 키 <code>idempotency_key</code> 검증)</strong></td>
+          <td class="text-center"><code>CALL</code>, <code>S02</code></td>
+        </tr>
+        <tr>
+          <td><strong>SR-05</strong><br>(다중 로봇 통행)</td>
+          <td>출발 순서 관리, 공유 경로 점유, 충돌 방지 대기</td>
+          <td>• <strong>통로 진입 전 출구 공간 확보 여부 사전 확인 (데드락 방지)</strong><br>• <strong>게이트 카메라 기반 후미 완전 퇴장(Tail Exit) 확인 후 점유 해제</strong><br>• <strong>통신 단절·시간 초과 시 자동 해제 금지 및 즉시 진입 차단 (<code>UNKNOWN_BLOCKED</code>)</strong></td>
+          <td class="text-center"><code>H08</code>, <code>N08</code>, <code>S05</code></td>
+        </tr>
+        <tr>
+          <td><strong>SR-07</strong><br>(비전 인식)</td>
+          <td>사람·신발·박스 인식, QR 인식</td>
+          <td>• <strong>영상 프레임 신선도(지연 &le; 200ms·화면 동결 여부) 확인</strong><br>• <strong>실물(<code>REAL</code>) 영상만 제어에 반영 (카메라 장애 시 합성 영상 대체 폴백 금지)</strong></td>
+          <td class="text-center"><code>N05</code>, <code>N07</code>, <code>M05</code></td>
+        </tr>
+        <tr>
+          <td><strong>SR-08</strong><br>(정차 위치 확인)</td>
+          <td>정차 오차 확인, 재정차 또는 보정 요청</td>
+          <td>• <strong>1차 주행 정차(&plusmn;5cm) 후 비전 마커 정합을 통한 최종 작업 공차(&plusmn;10mm) 확인</strong><br>• <strong>정차 확인 완료 시 상·하차 중 바퀴 이동을 막는 주행 모터 잠금(<code>BASE_HOLD</code>)</strong></td>
+          <td class="text-center"><code>H04</code>, <code>S04</code></td>
+        </tr>
+        <tr>
+          <td><strong>SR-10</strong><br>(적재·완료 확인)</td>
+          <td>적재함 내 박스 정상 적재 확인, 단계별 완료 전달</td>
+          <td>• <strong>[핵심] 박스 정상 적재 확인 + 로봇팔이 안전 위치($Z \ge 280\text{mm}$)로 완전 퇴피(<code>ARM_RETRACT_SAFE</code>)한 것을 모두 확인한 후에만 핑키 출발 허가</strong></td>
+          <td class="text-center"><code>H04</code>, <code>S04</code></td>
+        </tr>
+        <tr>
+          <td><strong>SR-13</strong><br>(사용자 작업 제어)</td>
+          <td>작업 일시정지, 재개, 비상정지</td>
+          <td>• <strong>사용자 역할(고객/직원/관제사)에 따른 제어 권한 분리</strong><br>• <strong>비상정지 해제(Reset) 시 즉시 출발하지 않고 안전 대기(<code>DISARMED</code>) 전환 후 별도 시작(<code>START</code>) 승인으로 재개 (<code>RESET != START</code>)</strong></td>
+          <td class="text-center"><code>H07</code>, <code>S01</code>, <code>S08</code></td>
+        </tr>
+        <tr>
+          <td><strong>SR-14</strong><br>(오류·통신 장애)</td>
+          <td>QR/파지 실패·통신 장애 시 재시도 및 안전 정지</td>
+          <td>• <strong>통신 두절 200ms 초과 시 상위 서버와 무관하게 로봇 로컬 워치독으로 즉시 자체 정지</strong><br>• <strong>장애 복구 시 현장 실물 상태와 시스템 원장 대조(Reconcile) 및 관제사 2단계 승인 후 잠금 해제</strong></td>
+          <td class="text-center"><code>H02</code>, <code>N09</code>, <code>S09</code>, <code>M03</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>1.3 시스템 인프라 3대 요구사항 (<code>SR-19 ~ SR-21</code>) 신규 추가 근거</h3>
+    <ul>
+      <li><strong>SR-19 (네트워크 분리 및 단일 제어권 관리 기능)</strong>: 현장 AP <code>pinky_team4</code>(<code>172.16.0.1/21</code>) 대역 내에서 서버·스테이션(<code>172.16.1.x</code>)과 핑키(<code>172.16.2.x</code>) 서브넷을 격리하고, <code>ROS_DOMAIN_ID</code>(10: 실물 구동, 12: Nav2)를 분리하여 대역폭 포화 및 토픽 간섭을 차단. 통로/주문 원장은 FMS만, 로봇팔은 Station PC만, 모터 출력은 핑키 온보드 가드만 단독 기록하는 단일 기록자(Single Writer) 원칙을 확립 (UR-04, UR-26 연계).</li>
+      <li><strong>SR-20 (명령 유효성 검증 및 구 권한 차단 기능)</strong>: 관제 서버 재시작이나 일시적 통신 지연 시 이전 세션의 통행권이나 명령이 뒤늦게 도착하여 로봇이 충돌하는 사고를 방지하기 위해 세션 번호(<code>epoch</code>), TTL(5000ms), 맵 해시 검증을 의무화하는 세션 펜싱(Session Fencing) 체계를 구축 (UR-04, UR-19, UR-26 연계).</li>
+      <li><strong>SR-21 (물리 완료 검증 및 이력 역추적 기능)</strong>: 단순 통신 수신 응답(ACK)만으로 동작 완료를 간주할 경우 발생하는 모터 탈조, 그리퍼 흡착 누기 등의 물리적 실패를 방지하기 위해 엔코더 속도 0, 그리퍼 압력 센서 등의 물리 피드백을 필수 검증하고 단일 감사 원장(Single Ledger)에 불변 기록 (UR-24, UR-25, UR-27 연계).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>2. 통합 시스템 요구사항 정의서 (SR-01 ~ SR-21 전체 명세)</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 80px; text-align: center;">SR ID</th>
+          <th style="width: 170px;">SR Name</th>
+          <th>SR Description (팀원 초안 + 아키텍처 안전 규칙 통합)</th>
+          <th style="width: 80px; text-align: center;">Priority</th>
+          <th style="width: 130px; text-align: center;">UR ID</th>
+          <th style="width: 110px; text-align: center;">연관 도면</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="text-center"><strong>SR-01</strong></td>
+          <td><strong>주문 관리 기능</strong></td>
+          <td>원격으로 카트 호출 및 주문을 접수하고 주문 정보를 관리하는 기능<br>
+            • <strong>[주문 정보]</strong> 신발 종류, 주문 수량, 배송할 매장 위치<br>
+            • <strong>[관리]</strong> 원격 카트 호출 및 주문 접수, <strong>중복 주문 방지(멱등성 확인)</strong>, 주문별 진행 상태 및 처리 결과 조회
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-01, UR-25</td>
+          <td class="text-center">CALL, S02</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-02</strong></td>
+          <td><strong>재고 및 대상 박스 확인 기능</strong></td>
+          <td>주문에 해당하는 재고 위치와 적재 대상 박스를 확인하는 기능<br>
+            • 재고 수량 및 보관 위치 조회 (재고 가점유)<br>
+            • QR 정보와 주문 상품 일치 여부 1:1 확인
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-02, UR-07</td>
+          <td class="text-center">O02, V01</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-03</strong></td>
+          <td><strong>로봇 작업 배정 기능</strong></td>
+          <td>작업 가능한 핑키 로봇을 확인하여 운송 작업을 자동 배정하는 기능<br>
+            • 로봇별 작업 상태(<code>IDLE</code> 여부) 및 위치 확인<br>
+            • 배터리 부족(&le; 20%) 및 통신 장애 로봇 배정 제외<br>
+            • 주문(P1·P2 우선) 및 회수(P3 우선) 운송 작업 배정
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-02, UR-05, UR-23, UR-26</td>
+          <td class="text-center">O03, O04, S02</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-04</strong></td>
+          <td><strong>자율주행 및 운송 기능</strong></td>
+          <td>핑키 로봇이 지정된 지점 사이를 자율주행하여 박스를 운송하는 기능<br>
+            • <strong>[이동 지점]</strong> 창고 상차 지점, 단일 통로 게이트, 매장 하차 지점, 대기 및 복귀 위치<br>
+            • <strong>[운송]</strong> 2.4×2.4m 평면 맵 기반 상위 웨이포인트 미션 자율주행, 상차 후 매장 운송, 회수 박스의 창고 운송, 작업 완료 및 배터리 부족 시 지정 위치 복귀
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-03, UR-10, UR-23, UR-27</td>
+          <td class="text-center">N01, N02, M01</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-05</strong></td>
+          <td><strong>다중 로봇 통행 관리 기능</strong></td>
+          <td>여러 핑키 로봇의 이동 순서와 단일 통로(0.8m) 점유를 관리하는 기능<br>
+            • 로봇별 출발 순서 및 <strong>진입 전 출구 공간 확보 여부 확인(데드락 방지)</strong><br>
+            • 공유 통로의 단독 점유 허가(Permit) 및 반대편 로봇 대기 제어<br>
+            • <strong>게이트 카메라 기반 후미 완전 퇴장(Tail Exit) 확인 후 점유 해제</strong><br>
+            • <strong>통신 단절·시간 초과 시 자동 해제 금지 및 통로 진입 차단(<code>UNKNOWN_BLOCKED</code>)</strong>
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-04</td>
+          <td class="text-center">H08, N08, S05</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-06</strong></td>
+          <td><strong>로봇 상태 모니터링 기능</strong></td>
+          <td>원격 화면에서 각 핑키 로봇과 시스템 상태를 실시간으로 확인하는 기능<br>
+            • <strong>[상태 정보]</strong> 현재 위치 및 주행 상태, 배터리 잔량, 작업 진행 단계, 통로 점유 상태, 통신 연결 상태
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-05, UR-06, UR-26</td>
+          <td class="text-center">M02, O06</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-07</strong></td>
+          <td><strong>비전 인식 기능</strong></td>
+          <td>카메라를 통해 작업 대상과 사람을 인식하고 영상 신뢰도를 검증하는 기능<br>
+            • 사람, 신발 및 박스 인식, 창고 QR 코드 인식 (손목 동적 좌표계 반영)<br>
+            • <strong>영상 프레임 신선도(지연 &le; 200ms·동결 여부) 및 실물(<code>REAL</code>) 출처 확인 (합성 영상 대체 금지)</strong><br>
+            • 주행 및 로봇팔 안전 제어에 실시간 인식 결과 제공
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-07, UR-13, UR-14, UR-16</td>
+          <td class="text-center">N05, N07, M05</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-08</strong></td>
+          <td><strong>정차 위치 확인 기능</strong></td>
+          <td>상차·하차 작업을 위한 핑키 로봇의 정차 위치와 주행 잠금을 관리하는 기능<br>
+            • 1차 주행 정차(&plusmn;5cm) 후 비전 마커 정합을 통한 최종 작업 오차(&plusmn;10mm) 확인<br>
+            • 허용 범위 초과 시 재정차 또는 로봇팔 위치 오프셋 보정 요청<br>
+            • <strong>정차 위치 확정 시 상·하차 중 이동을 막는 주행 모터 잠금(<code>BASE_HOLD</code>)</strong>
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-12</td>
+          <td class="text-center">H04, S04</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-09</strong></td>
+          <td><strong>로봇팔 상차·하차 기능</strong></td>
+          <td>로봇팔로 신발 박스와 회수 박스를 옮기는 기능<br>
+            • 창고 OMX 1·2의 박스 파지(20° 쐐기 그리퍼, 250g 한계) 및 핑키 상차<br>
+            • 매장 OMX 3의 핑키 적재 박스 하차 및 진열대 안착<br>
+            • 창고 로봇팔의 회수 박스 지정 위치 적재
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-08, UR-11, UR-23</td>
+          <td class="text-center">A02~A05</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-10</strong></td>
+          <td><strong>적재 및 작업 완료 확인 기능</strong></td>
+          <td>박스 적재 상태와 로봇팔 퇴피 여부를 확인하여 출발을 허가하는 기능<br>
+            • 핑키 적재함 내 박스 정상 적재(안착 센서/전류 피드백) 확인<br>
+            • <strong>로봇팔이 간섭 구역 밖 안전 위치($Z \ge 280\text{mm}$)로 완전 퇴피(<code>ARM_RETRACT_SAFE</code>)했는지 확인 후 출발 허가</strong><br>
+            • 단계별 완료 결과를 작업 관리 기능에 전달
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-09, UR-11, UR-23, UR-24</td>
+          <td class="text-center">H04, S04</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-11</strong></td>
+          <td><strong>주행 안전 제어 기능</strong></td>
+          <td>사람이나 장애물 접근 시 핑키 로봇의 주행을 제어하는 기능<br>
+            • 비전 및 거리 센서 기반 접근 감지<br>
+            • 위험 거리 단계별 감속(0.8m) 또는 즉시 정지(0.4m)<br>
+            • 장애물 제거 및 안전 조건 충족 후 주행 재개
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-14, UR-15</td>
+          <td class="text-center">N03, N04</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-12</strong></td>
+          <td><strong>로봇팔 안전 제어 기능</strong></td>
+          <td>작업 영역에 사람이 진입하면 로봇팔 동작을 중단하는 기능<br>
+            • 상단 카메라(Ttop) 비전 인식 결과로 작업 반경 내 사람/손 진입 확인<br>
+            • 사람 진입 시 로봇팔 동작 즉시 중단(<code>HOLD</code>) 및 작업 영역 내 체류 중 동작 제한
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-13, UR-16</td>
+          <td class="text-center">A08, S08</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-13</strong></td>
+          <td><strong>사용자 작업 제어 기능</strong></td>
+          <td>권한이 부여된 사용자가 UI에서 로봇 작업을 제어하는 기능<br>
+            • <strong>사용자 역할(고객/직원/관제사)별 제어 권한 분리</strong><br>
+            • 로봇 작업 일시정지, 재개 및 비상정지(하드웨어 전원 릴레이 차단)<br>
+            • <strong>비상정지 해제(Reset) 시 안전 대기(<code>DISARMED</code>)로만 전환하고 별도 시작(<code>START</code>) 명령으로 재개 (<code>RESET != START</code>)</strong>
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-17, UR-18</td>
+          <td class="text-center">H07, S01, S08</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-14</strong></td>
+          <td><strong>오류 및 통신 장애 대응 기능</strong></td>
+          <td>작업 오류와 통신 장애를 감지하고 안전하게 격리·복구하는 기능<br>
+            • <strong>[오류 유형]</strong> QR 인식 실패, 박스 파지 실패, 통신 장애, 관제 재시작<br>
+            • <strong>[대응]</strong> 오류별 사전 정의된 재시도 수행, <strong>통신 두절(200ms 초과) 시 로컬 워치독 기반 자체 즉시 정지</strong>, <strong>복구 시 실물 상태와 원장 대조(Reconcile) 및 관제사 2단계 승인 후 재개</strong>, 오류 결과 기록
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-19, UR-26</td>
+          <td class="text-center">H02, N09, S09, M03</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-15</strong></td>
+          <td><strong>오류 알림 기능</strong></td>
+          <td>로봇 오류 및 예외 발생 정보를 UI로 알리는 기능<br>
+            • 오류 발생 로봇, 잠금 상태(<code>UNKNOWN_BLOCKED</code>) 및 오류 내용 실시간 표시<br>
+            • 통신 장애 및 카메라 입력 결손 알림<br>
+            • 오류 및 예외 발생·조치 내역 조회
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-20, UR-26</td>
+          <td class="text-center">M02, M03</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-16</strong></td>
+          <td><strong>하차 대기열 관리 기능</strong></td>
+          <td>매장 도착 순서에 따라 핑키 로봇의 하차 작업을 관리하는 기능<br>
+            • 매장 도착 순서 기록(FIFO)<br>
+            • 하차 작업 중 후속 로봇 지정 대기 위치 대기<br>
+            • 선행 로봇 하차 및 이탈 완료 후 다음 로봇 하차 진행
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-21</td>
+          <td class="text-center">N06, S06</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-17</strong></td>
+          <td><strong>빈 박스 및 반품 회수 관리 기능</strong></td>
+          <td>사용자의 박스 회수 요청과 창고 복귀 작업을 관리하는 기능<br>
+            • 빈 박스 또는 반품 박스 회수 요청 접수 (예비 로봇 P3 할당)<br>
+            • 회수 대상의 창고 운송 관리 및 창고 지정 위치 적재 완료 확인 (통로 바닥 낙하물은 수동 회수 호출)
+          </td>
+          <td class="text-center"><span class="badge badge-should">R</span></td>
+          <td class="text-center">UR-22, UR-23, UR-24</td>
+          <td class="text-center">S07, S10</td>
+        </tr>
+        <tr>
+          <td class="text-center"><strong>SR-18</strong></td>
+          <td><strong>작업 흐름 및 주문 완료 관리 기능</strong></td>
+          <td>전체 작업 단계와 주문의 최종 완료 상태를 관리하는 기능<br>
+            • <strong>[작업 단계]</strong> 접수 &rarr; 배정 &rarr; 상차 &rarr; 이송 &rarr; 하차 &rarr; 고객 인계 확인, 반품 회수 및 로봇 복귀<br>
+            • <strong>[관리]</strong> 단계별 진행 및 완료 여부 관리, 소요 시간 및 실패 원인 기록, 필수 작업과 로봇 복귀 완료 후 주문 최종 완료 처리
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-10, UR-24, UR-25, UR-27</td>
+          <td class="text-center">O05, S03</td>
+        </tr>
+        <tr style="background-color: #f0f7ff;">
+          <td class="text-center"><strong>SR-19</strong></td>
+          <td><span class="badge badge-new">신규</span><strong>네트워크 분리 및 단일 제어권 관리 기능</strong></td>
+          <td>장비별 단일 제어 권한과 통신 네트워크 경계를 분리하여 관리하는 기능<br>
+            • <strong>[네트워크 분리]</strong> 현장 AP(<code>pinky_team4</code>, <code>172.16.0.1/21</code>) 기준 서버·스테이션(<code>172.16.1.x</code>)과 핑키 로봇(<code>172.16.2.x</code>) 서브넷 분리<br>
+            • <code>ROS_DOMAIN_ID</code> 분리(10: 실물 구동, 12: 자율주행) 및 OMX 로봇팔의 Station PC(4~6) USB 직결 제어<br>
+            • <strong>[단일 제어권 (Single Writer)]</strong> 통로·주문 원장은 중앙 FMS(OMEN-A)만, 로봇팔 시리얼은 연결된 Station PC만, 모터 출력은 핑키 온보드 가드만 단독 기록
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-04, UR-26</td>
+          <td class="text-center">H01, N01, N10</td>
+        </tr>
+        <tr style="background-color: #f0f7ff;">
+          <td class="text-center"><strong>SR-20</strong></td>
+          <td><span class="badge badge-new">신규</span><strong>명령 유효성 검증 및 구 권한 차단 기능</strong></td>
+          <td>비정상 명령 실행과 재시작 후 이전 권한 충돌을 차단하는 기능<br>
+            • 명령 수신 시 세션 번호(<code>epoch</code>), 시퀀스 번호, 유효 기한(TTL), 맵 해시 일치 여부 검증 (거부된 명령은 워치독 미갱신)<br>
+            • 관제 서버 재시작 또는 통신 복구 시 <code>epoch</code>를 갱신하여 지연 도착한 이전 세션의 구 명령·통행권을 자동 폐기(Session Fencing)
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-04, UR-19, UR-26</td>
+          <td class="text-center">N03, N09</td>
+        </tr>
+        <tr style="background-color: #f0f7ff;">
+          <td class="text-center"><strong>SR-21</strong></td>
+          <td><span class="badge badge-new">신규</span><strong>물리 완료 검증 및 이력 역추적(원장) 기능</strong></td>
+          <td>명령 수락과 실제 물리 동작을 대조하고 전체 실행 이력을 보존하는 기능<br>
+            • 단순 통신 수신 응답(ACK)과 실제 물리 구동 완료 피드백(엔코더 정지 속도, 그리퍼 전류, 적재 센서)을 분리 검증<br>
+            • 모든 결과 이벤트를 원인 명령(<code>order_id</code>, <code>task_id</code>, <code>command_id</code>)까지 역추적(Traceability)할 수 있도록 단일 감사 원장에 기록 및 보존
+          </td>
+          <td class="text-center"><span class="badge badge-must">O</span></td>
+          <td class="text-center">UR-24, UR-25, UR-27</td>
+          <td class="text-center">M01, M02, M08</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+</body>
+</html>
