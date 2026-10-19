@@ -120,13 +120,12 @@
       font-family: Consolas, monospace;
       color: #c2185b;
     }
-    .callout {
-      background: #fff8e1;
-      border-left: 4px solid #ffb300;
-      padding: 12px 16px;
-      margin: 16px 0;
-      border-radius: 4px;
-      font-size: 13.5px;
+    .guide-box {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
     }
   </style>
 </head>
@@ -136,16 +135,142 @@
   <header>
     <h1>📋 신발 매장 픽업 자동화 시스템: 통합 시스템 요구사항 (SR-01 ~ SR-21)</h1>
     <div class="meta-box">
-      <p><strong>문서 상태:</strong> <strong>팀원 의견 수렴 및 아키텍처 안전 규칙 통합 최종안 (Consensus Approved)</strong> &middot; <strong>버전:</strong> v4.0</p>
+      <p><strong>문서 상태:</strong> <strong>팀원 의견 수렴 및 아키텍처 안전 규칙 통합 최종안 (Consensus Approved)</strong> &middot; <strong>버전:</strong> v5.0</p>
       <p><strong>작성자:</strong> 강건한 &middot; 4조 전체 (Pinky_Team4) &middot; <strong>최종 갱신:</strong> 2026-10-19</p>
       <p><strong>연계 문서:</strong>
-        <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3801308" target="_blank">[3801308] Confluence 공식 SR</a> &middot;
+        <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3801308" target="_blank">[3801308] Confluence 공식 SR (v5)</a> &middot;
         <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/229825" target="_blank">[229825] User Requirements (UR-01~27)</a> &middot;
         <a href="https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3899424" target="_blank">[3899424] PRD_3 신발 매장 시스템</a>
       </p>
     </div>
   </header>
 
+  <!-- 0. 공통 가이드 -->
+  <section>
+    <h2>0. 📖 공통 가이드: ID 규칙, 핵심 용어 해석, Git 사용 및 커밋 단위 규칙</h2>
+
+    <h3>0.1 ID 명명 규칙 및 기호 해석</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 150px;">구분</th>
+          <th style="width: 220px;">ID 및 접두어</th>
+          <th>의미 및 상세 설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>상위 요구사항</strong></td>
+          <td><code>UR-01 ~ UR-27</code></td>
+          <td><strong>User Requirements (사용자 요구사항)</strong>: 사용자와 고객의 관점에서 매장 서비스가 제공해야 하는 기능적/비기능적 요구사항</td>
+        </tr>
+        <tr>
+          <td><strong>시스템 요구사항</strong></td>
+          <td><code>SR-01 ~ SR-21</code></td>
+          <td><strong>System Requirements (시스템 요구사항)</strong>: UR을 실현하기 위해 FMS 관제, Nav2 주행, 로봇팔 제어, 비전 AI, 네트워크/안전 서브시스템이 실제로 구현해야 하는 기술 스펙</td>
+        </tr>
+        <tr>
+          <td><strong>우선순위 표기</strong></td>
+          <td><code>O</code> / <code>R</code> / <code>X</code></td>
+          <td>
+            • <span class="badge badge-must">O</span> <strong>Must Have</strong>: 1차 실물 통합 시연을 위해 필수 구현되어야 하는 항목 (총 18건)<br>
+            • <span class="badge badge-should">R</span> <strong>Should/Could Have</strong>: 2차 고도화 또는 예외 복구 권장 항목 (총 3건: SR-17 회수 등)<br>
+            • <strong>X Scope Out</strong>: 프로젝트 범위에서 공식 제외된 항목 (UR-28 신발 상자 자동 개봉)
+          </td>
+        </tr>
+        <tr>
+          <td><strong>도면 연계 기호</strong><br>(4대 통합 시퀀스)</td>
+          <td><code>O</code>, <code>N</code>, <code>A</code>, <code>V</code>,<br><code>S</code>, <code>H</code>, <code>M</code>, <code>CALL</code></td>
+          <td>
+            • <code>O (Order)</code>: 주문 접수, 배정, 라이프사이클 관리 (O01~O07)<br>
+            • <code>N (Navigation)</code>: 경로 계획, 단일 통로 점유/제어, 장애물 회피 (N01~N10)<br>
+            • <code>A (Arm)</code>: 로봇팔 파지, 그리퍼 흡착, 상하차, 안전 고도 퇴피 (A01~A08)<br>
+            • <code>V (Vision)</code>: 박스 QR 검증, ArUco 도킹 마커, 사람/작업영역 감지 (V01~V05)<br>
+            • <code>S (Safety)</code>: 비상정지(ESTOP), 하트비트, 안전 인터록, 상태 복구 (S01~S10)<br>
+            • <code>H (Hardware)</code>: 하드웨어 결선, 네트워크 서브넷, 릴레이 전원 차단, USB 직결 (H01~H08)<br>
+            • <code>M (Monitoring)</code>: 실시간 FMS 대시보드, 단일 감사 원장, 텔레메트리 (M01~M08)<br>
+            • <code>CALL</code>: 원격 카트/로봇 호출 요청 인터페이스
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>0.2 아키텍처 핵심 용어 해석 (Glossary)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 200px;">핵심 용어</th>
+          <th>개념 및 설계 적용 해석</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Invariants (불변식)</strong></td>
+          <td>시스템이 어떠한 예외, 통신 장애, 센서 결손 상황에서도 <strong>반드시 참(True)으로 유지되어야 하는 절대적 안전/동작 조건</strong> (예: 로봇팔이 Z&ge;280mm 위로 빠지기 전까지 핑키 바퀴는 절대 굴러가지 않는다).</td>
+        </tr>
+        <tr>
+          <td><strong>Lease Protocol</strong></td>
+          <td>폭 0.8m 단일 중앙 통로와 같은 한정된 공유 자원에 대해 특정 유효기간(TTL=5000ms) 동안 <strong>단 1대의 로봇에게만 독점 점유 허가(Permit)를 대여하는 통신 규약</strong>.</td>
+        </tr>
+        <tr>
+          <td><strong>Session Fencing (<code>epoch</code>)</strong></td>
+          <td>FMS 관제 서버가 재시작되거나 네트워크가 끊겼다 복구될 때, <code>epoch + 1</code>을 올려 <strong>이전 세션에서 발행되었던 잔존 구 명령이나 오래된 통행권을 일괄 무효화(폐기)</strong>하여 로봇 간 충돌을 방지하는 격리 기법.</td>
+        </tr>
+        <tr>
+          <td><strong>Idempotency Key (멱등성 키)</strong></td>
+          <td>동일한 주문 요청이 네트워크 지연이나 사용자의 더블 클릭으로 여러 번 서버에 인입되어도 <strong>장부에는 단 1번만 처리되고 중복 실행되지 않도록 보장</strong>하는 고유 식별 키.</td>
+        </tr>
+        <tr>
+          <td><strong><code>BASE_HOLD</code></strong></td>
+          <td>Nav2 주행 완료 후 상·하차 작업이나 비상정지 상황에서 로봇 바퀴의 외력 밀림을 방지하기 위해 <strong>핑키 온보드 MCU가 휠 모터를 강제로 잠그는(Brake) 상태</strong>.</td>
+        </tr>
+        <tr>
+          <td><strong><code>ARM_RETRACT_SAFE</code></strong></td>
+          <td>로봇팔이 물품 상차를 완료한 후 핑키 적재함 및 상부 간섭 구역 밖인 <strong>안전 높이($Z \ge 280\text{mm}$)로 완전히 빠져나왔음을 보증하는 하드웨어 안전 인터록 신호</strong>.</td>
+        </tr>
+        <tr>
+          <td><strong>Tail Exit (후미 완전 퇴장)</strong></td>
+          <td>로봇 전두부만 빠져나간 상태에서 점유를 해제하는 오류를 막기 위해, <strong>차량 본체와 적재물 후미까지 통로/게이트 영역을 완전히 빠져나갔음을 센서/카메라로 검증</strong>하는 조건.</td>
+        </tr>
+        <tr>
+          <td><strong>Reconcile (원장 대조)</strong></td>
+          <td>통신 두절이나 비상정지 복구 시, 시스템 데이터베이스의 논리적 상태와 <strong>현장 경기장의 실제 물리적 로봇/재고 위치를 1:1 대조하여 불일치를 해소하는 검증 절차</strong>.</td>
+        </tr>
+        <tr>
+          <td><strong><code>RESET != START</code></strong></td>
+          <td>비상정지(ESTOP) 물리 스위치를 해제하더라도 로봇이 즉시 자율주행을 재개하지 않고, <strong>안전 대기(<code>DISARMED</code>) 상태로만 복귀하며 관제사의 명시적 시작(<code>START</code>) 명령이 있어야만 구동</strong>되는 안전 원칙.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>0.3 Git 협업 및 서비스 커밋 단위 규칙 (Git &amp; Commit Convention)</h3>
+    <div class="guide-box">
+      <p><strong>1) 브랜치 전략 (Branching Strategy)</strong></p>
+      <ul>
+        <li><code>main</code>: 언제든 배포 및 시연 가능한 최종 검증 Stable 브랜치 (직접 push 절대 금지, Pull Request 필수)</li>
+        <li><code>feature/&lt;domain&gt;-&lt;topic&gt;</code>: 서브시스템별 작업 브랜치 (예: <code>feature/nav-corridor-lease</code>, <code>feature/arm-vacuum-control</code>, <code>feature/setup-fleet-msgs-structure</code>)</li>
+        <li><code>fix/&lt;issue-name&gt;</code>: 결함 및 긴급 버그 수정 브랜치</li>
+      </ul>
+      <p><strong>2) 원자적 커밋 단위 (Atomic Commits)</strong></p>
+      <ul>
+        <li><strong>1 Commit = 1 Logical Change</strong>: 하나의 커밋에는 단 하나의 논리적 변경만 포함하며, 항상 빌드가 통과하는 독립 상태를 유지합니다.</li>
+        <li><strong>서브시스템 간 파일 혼합 금지</strong>: Nav2 파라미터 수정과 로봇팔 IK 스크립트 수정을 한 커밋에 묶지 않습니다.</li>
+        <li><strong>SR 추적 태그 포함</strong>: 기능 및 인터페이스 수정 시 반드시 연관된 <code>SR-xx</code> 및 <code>UR-xx</code> ID를 커밋 메시지에 명시합니다.</li>
+      </ul>
+      <p><strong>3) 커밋 메시지 컨벤션 (Conventional Commits)</strong></p>
+      <code>&lt;type&gt;(&lt;scope&gt;): &lt;subject&gt; (SR-xx)</code>
+      <ul>
+        <li><code>feat(nav): implement single corridor lease protocol (SR-05, UR-04)</code></li>
+        <li><code>feat(arm): add z-height retract safe interlock signal (SR-10)</code></li>
+        <li><code>fix(saf): enforce disarmed state on estop reset (SR-13)</code></li>
+        <li><code>docs(sr): finalize integrated system requirements specification (SR-01~21)</code></li>
+        <li><code>test(vision): add 200ms frame age freshness verification test (SR-07)</code></li>
+        <li><code>refactor(fms): separate network ACK from physical feedback ledger (SR-21)</code></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 1. 수렴 근거 -->
   <section>
     <h2>1. 팀원 의견 수렴 및 통합 설계 근거 (Consensus Rationale)</h2>
 
@@ -157,8 +282,6 @@
     </ul>
 
     <h3>1.2 기존 항목 내 7대 안전 인터락 보완 근거 (Invariants 보강)</h3>
-    <p>팀원 초안의 기본 기능 정의에, 실제 로봇 2대와 로봇팔 3대가 물리적으로 충돌하거나 파손되는 사고를 방지하기 위해 4대 시퀀스 도면의 필수 안전 조건을 1줄씩 보강하였습니다.</p>
-
     <table>
       <thead>
         <tr>
@@ -222,6 +345,7 @@
     </ul>
   </section>
 
+  <!-- 2. 전체 명세표 -->
   <section>
     <h2>2. 통합 시스템 요구사항 정의서 (SR-01 ~ SR-21 전체 명세)</h2>
 

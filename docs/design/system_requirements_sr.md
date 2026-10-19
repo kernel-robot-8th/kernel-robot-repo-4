@@ -1,15 +1,66 @@
 # 📋 통합 시스템 요구사항 정의서 (System Requirements, SR-01 ~ SR-21)
 
 * **문서 상태**: **팀원 의견 수렴 및 아키텍처 안전 규칙 통합 최종안 (Consensus Approved)**
-* **버전**: v4.0
+* **버전**: v5.0
 * **작성자**: 강건한 & 4조 전체 (Pinky_Team4)
 * **최종 갱신일**: 2026-10-19
 * **연계 문서**:
-  * Confluence 공식 문서: [[3801308] System Requirements (SR) - 팀원 의견 통합안 (v4)](https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3801308)
+  * Confluence 공식 문서: [[3801308] System Requirements (SR) - 팀원 의견 통합안 (v5)](https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3801308)
   * 상위 사용자 요구사항: [[229825] User Requirements (UR-01 ~ UR-27)](https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/229825)
   * 시스템 PRD: [[3899424] PRD_3: 신발 매장 픽업 자동화 시스템](https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3899424)
   * 맵 및 비전 확정안: [[3899586] 2D 플랫 아레나(2.4×2.4m) 맵 데이터 & 9대 비전·웨이포인트 정의서](https://pinkyteam4.atlassian.net/wiki/spaces/PinkyTeam4/pages/3899586)
 * **HTML 버전**: [`docs/design/system_requirements_integrated.html`](system_requirements_integrated.html)
+
+---
+
+## 0. 📖 공통 가이드: ID 규칙, 핵심 용어 해석, Git 사용 및 커밋 단위 규칙
+
+### 0.1 ID 명명 규칙 및 기호 해석
+
+| 구분 | ID 및 접두어 | 의미 및 상세 설명 |
+|:---|:---|:---|
+| **상위 요구사항** | `UR-01 ~ UR-27` | **User Requirements (사용자 요구사항)**: 사용자와 고객의 관점에서 매장 서비스가 제공해야 하는 기능적/비기능적 요구사항 |
+| **시스템 요구사항** | `SR-01 ~ SR-21` | **System Requirements (시스템 요구사항)**: UR을 실현하기 위해 FMS 관제, Nav2 주행, 로봇팔 제어, 비전 AI, 네트워크/안전 서브시스템이 실제로 구현해야 하는 기술 스펙 |
+| **우선순위 표기** | `O` / `R` / `X` | • **O (Must Have)**: 1차 실물 통합 시연을 위해 필수 구현되어야 하는 항목 (총 18건)<br>• **R (Should/Could Have)**: 2차 고도화 또는 예외 복구 권장 항목 (총 3건: SR-17 회수 등)<br>• **X (Scope Out)**: 프로젝트 범위에서 공식 제외된 항목 (UR-28 신발 상자 자동 개봉) |
+| **도면 연계 기호**<br>(4대 통합 시퀀스) | `O`, `N`, `A`, `V`,<br>`S`, `H`, `M`, `CALL` | • `O (Order)`: 주문 접수, 배정, 라이프사이클 관리 (`O01~O07`)<br>• `N (Navigation)`: 경로 계획, 단일 통로 점유/제어, 장애물 회피 (`N01~N10`)<br>• `A (Arm)`: 로봇팔 파지, 그리퍼 흡착, 상하차, 안전 고도 퇴피 (`A01~A08`)<br>• `V (Vision)`: 박스 QR 검증, ArUco 도킹 마커, 사람/작업영역 감지 (`V01~V05`)<br>• `S (Safety)`: 비상정지(ESTOP), 하트비트, 안전 인터록, 상태 복구 (`S01~S10`)<br>• `H (Hardware)`: 하드웨어 결선, 네트워크 서브넷, 릴레이 전원 차단, USB 직결 (`H01~H08`)<br>• `M (Monitoring)`: 실시간 FMS 대시보드, 단일 감사 원장, 텔레메트리 (`M01~M08`)<br>• `CALL`: 원격 카트/로봇 호출 요청 인터페이스 |
+
+---
+
+### 0.2 아키텍처 핵심 용어 해석 (Glossary)
+
+* **Invariants (불변식)**: 시스템이 어떠한 예외, 통신 장애, 센서 결손 상황에서도 **반드시 참(True)으로 유지되어야 하는 절대적 안전/동작 조건** (예: 로봇팔이 $Z \ge 280\text{mm}$ 위로 빠지기 전까지 핑키 바퀴는 절대 굴러가지 않는다).
+* **Lease Protocol**: 폭 0.8m 단일 중앙 통로와 같은 한정된 공유 자원에 대해 특정 유효기간(TTL=5000ms) 동안 **단 1대의 로봇에게만 독점 점유 허가(Permit)를 대여하는 통신 규약**.
+* **Session Fencing (`epoch`)**: FMS 관제 서버가 재시작되거나 네트워크가 끊겼다 복구될 때, `epoch + 1`을 올려 **이전 세션에서 발행되었던 잔존 구 명령이나 오래된 통행권을 일괄 무효화(폐기)**하여 로봇 간 충돌을 방지하는 격리 기법.
+* **Idempotency Key (멱등성 키)**: 동일한 주문 요청이 네트워크 지연이나 사용자의 더블 클릭으로 여러 번 서버에 인입되어도 **장부에는 단 1번만 처리되고 중복 실행되지 않도록 보장**하는 고유 식별 키.
+* **`BASE_HOLD`**: Nav2 주행 완료 후 상·하차 작업이나 비상정지 상황에서 로봇 바퀴의 외력 밀림을 방지하기 위해 **핑키 온보드 MCU가 휠 모터를 강제로 잠그는(Brake) 상태**.
+* **`ARM_RETRACT_SAFE`**: 로봇팔이 물품 상차를 완료한 후 핑키 적재함 및 상부 간섭 구역 밖인 **안전 높이($Z \ge 280\text{mm}$)로 완전히 빠져나왔음을 보증하는 하드웨어 안전 인터록 신호**.
+* **Tail Exit (후미 완전 퇴장)**: 로봇 전두부만 빠져나간 상태에서 점유를 해제하는 오류를 막기 위해, **차량 본체와 적재물 후미까지 통로/게이트 영역을 완전히 빠져나갔음을 센서/카메라로 검증**하는 조건.
+* **Reconcile (원장 대조)**: 통신 두절이나 비상정지 복구 시, 시스템 데이터베이스의 논리적 상태와 **현장 경기장의 실제 물리적 로봇/재고 위치를 1:1 대조하여 불일치를 해소하는 검증 절차**.
+* **`RESET != START`**: 비상정지(ESTOP) 물리 스위치를 해제하더라도 로봇이 즉시 자율주행을 재개하지 않고, **안전 대기(`DISARMED`) 상태로만 복귀하며 관제사의 명시적 시작(`START`) 명령이 있어야만 구동**되는 안전 원칙.
+
+---
+
+### 0.3 Git 협업 및 서비스 커밋 단위 규칙 (Git & Commit Convention)
+
+#### 1) 브랜치 전략 (Branching Strategy)
+* `main`: 언제든 배포 및 시연 가능한 최종 검증 Stable 브랜치 (직접 push 절대 금지, Pull Request 필수)
+* `feature/<domain>-<topic>`: 서브시스템별 작업 브랜치
+  * 예: `feature/nav-corridor-lease`, `feature/arm-vacuum-control`, `feature/setup-fleet-msgs-structure`
+* `fix/<issue-name>`: 결함 및 긴급 버그 수정 브랜치
+
+#### 2) 원자적 커밋 단위 (Atomic Commits)
+* **1 Commit = 1 Logical Change**: 하나의 커밋에는 단 하나의 논리적 변경(기능 구현, 인터페이스 정의, 버그 수정 등)만 포함하며, 항상 빌드가 통과하는 독립 상태를 유지해야 합니다.
+* **서브시스템 간 파일 혼합 금지**: Nav2 파라미터 수정과 로봇팔 IK 스크립트 수정을 한 커밋에 묶지 않습니다.
+* **SR 추적 태그 포함**: 기능 및 인터페이스 수정 시 반드시 연관된 `SR-xx` 및 `UR-xx` ID를 커밋 메시지에 명시합니다.
+
+#### 3) 커밋 메시지 컨벤션 (Conventional Commits)
+형식: `<type>(<scope>): <subject> (SR-xx)`
+* `feat(nav): implement single corridor lease protocol (SR-05, UR-04)`
+* `feat(arm): add z-height retract safe interlock signal (SR-10)`
+* `fix(saf): enforce disarmed state on estop reset (SR-13)`
+* `docs(sr): finalize integrated system requirements specification (SR-01~21)`
+* `test(vision): add 200ms frame age freshness verification test (SR-07)`
+* `refactor(fms): separate network ACK from physical feedback ledger (SR-21)`
 
 ---
 
@@ -23,8 +74,6 @@
 ---
 
 ### 1.2 기존 항목 내 7대 안전 인터락 보완 근거 (Invariants 보강)
-
-팀원 초안의 기본 기능 정의에, 실제 로봇 2대와 로봇팔 3대가 물리적으로 충돌하거나 파손되는 사고를 방지하기 위해 4대 시퀀스 도면의 필수 안전 조건을 1줄씩 보강하였습니다.
 
 | 대상 SR | 팀원 원안 핵심 | 🔧 보완·보강된 안전 규칙 (Invariants) | 수렴 근거 및 도면 |
 |:---|:---|:---|:---:|
@@ -40,14 +89,12 @@
 
 ### 1.3 시스템 인프라 3대 요구사항(`SR-19 ~ SR-21`) 신규 추가 근거
 
-사용자 시나리오(UR)에는 표면적으로 드러나지 않으나, 실제 분산 컴퓨팅(FMS OMEN-A, Station PC 6대, 핑키 로봇 3대, OMX 3대) 환경에서 **네트워크 충돌, 명령 꼬임, 물리적 오작동**을 원천 차단하기 위해 반드시 명세되어야 하는 인프라 핵심 요구사항 3건을 정식 SR로 추가하였습니다.
-
 1. **SR-19 (네트워크 분리 및 단일 제어권 관리 기능)**
-   * **근거**: 현장 AP `pinky_team4`(`172.16.0.1/21`) 대역 내에서 서버·스테이션(`172.16.1.x`)과 핑키(`172.16.2.x`) 서브넷을 격리하고, `ROS_DOMAIN_ID`(10: 실물 구동, 12: Nav2)를 분리하여 대역폭 포화 및 토픽 간섭을 차단합니다. 통로/주문 원장은 FMS만, 로봇팔은 Station PC만, 모터 출력은 핑키 온보드 가드만 단독 기록하는 단일 기록자(Single Writer) 원칙을 확립합니다 (`UR-04`, `UR-26` 연계).
+   * 현장 AP `pinky_team4`(`172.16.0.1/21`) 대역 내에서 서버·스테이션(`172.16.1.x`)과 핑키(`172.16.2.x`) 서브넷을 격리하고, `ROS_DOMAIN_ID`(10: 실물 구동, 12: Nav2)를 분리하여 대역폭 포화 및 토픽 간섭을 차단합니다. 통로/주문 원장은 FMS만, 로봇팔은 Station PC만, 모터 출력은 핑키 온보드 가드만 단독 기록하는 단일 기록자(Single Writer) 원칙을 확립합니다 (`UR-04`, `UR-26` 연계).
 2. **SR-20 (명령 유효성 검증 및 구 권한 차단 기능)**
-   * **근거**: 관제 서버 재시작이나 일시적 통신 지연 시 이전 세션의 통행권이나 명령이 뒤늦게 도착하여 로봇이 충돌하는 사고를 방지하기 위해 세션 번호(`epoch`), TTL(5000ms), 맵 해시 검증을 의무화하는 세션 펜싱(Session Fencing) 체계를 구축합니다 (`UR-04`, `UR-19`, `UR-26` 연계).
+   * 관제 서버 재시작이나 일시적 통신 지연 시 이전 세션의 통행권이나 명령이 뒤늦게 도착하여 로봇이 충돌하는 사고를 방지하기 위해 세션 번호(`epoch`), TTL(5000ms), 맵 해시 검증을 의무화하는 세션 펜싱(Session Fencing) 체계를 구축합니다 (`UR-04`, `UR-19`, `UR-26` 연계).
 3. **SR-21 (물리 완료 검증 및 이력 역추적 원장 기능)**
-   * **근거**: 단순 통신 수신 응답(ACK)만으로 동작 완료를 간주할 경우 발생하는 모터 탈조, 그리퍼 흡착 누기 등의 물리적 실패를 방지하기 위해 엔코더 속도 0, 그리퍼 압력 센서 등의 물리 피드백을 필수 검증하고 단일 감사 원장(Single Ledger)에 불변 기록합니다 (`UR-24`, `UR-25`, `UR-27` 연계).
+   * 단순 통신 수신 응답(ACK)만으로 동작 완료를 간주할 경우 발생하는 모터 탈조, 그리퍼 흡착 누기 등의 물리적 실패를 방지하기 위해 엔코더 속도 0, 그리퍼 압력 센서 등의 물리 피드백을 필수 검증하고 단일 감사 원장(Single Ledger)에 불변 기록합니다 (`UR-24`, `UR-25`, `UR-27` 연계).
 
 ---
 
