@@ -6,7 +6,7 @@
 - 프로젝트명: <프로젝트 이름> (패키지 접두사: `<proj>`)
 - 목적: <한두 문장으로 프로젝트 목적 작성>
 - 대상 하드웨어/로봇: <예: 모바일 베이스 + 매니퓰레이터>
-- 환경: Ubuntu 24.04 / ROS2 Jazzy / Python 3.12
+- 환경: Ubuntu 24.04 / ROS2 Jazzy / Python 3.12 / C++17 (C++ 패키지 사용 시)
 - 시뮬레이터: <예: Gazebo Harmonic, 사용 안 함>
 - 팀 역할: 비전 / 주행 / 매니퓰레이터 / 관제 / GUI
 
@@ -74,7 +74,6 @@
 - 새 노드는 `setup.py`의 `entry_points`(`console_scripts`)에 등록해야 `ros2 run`으로 실행됩니다.
 - `launch/`, `config/` 폴더는 `setup.py`의 `data_files`에 등록해야 install 됩니다.
 - 알고리즘 로직은 ROS 객체와 분리해 단독 테스트가 가능하게 작성합니다.
-- PRD 문서는 docs 파일에 보관하고 <이름>.md 형식으로 작성합니다.
 
 ### 3-3. C++ 패키지 구조 (`ament_cmake`)
 ```
@@ -107,8 +106,8 @@
 ### 3-5. bringup 패키지 (`<proj>_bringup`)
 **전체 시스템을 한 번에 켜는 스위치** 역할을 하는 패키지입니다.
 
-- 전체 실행은 `launch/bringup.launch.py`, 시뮬레이션용은 `launch/sim.launch.py`로 둡니다.
-- 각 패키지의 launch 파일을 불러와 묶기만 합니다. (`IncludeLaunchDescription`)
+- 전체 실행은 `launch/bringup.launch.xml`, 시뮬레이션용은 `launch/sim.launch.xml`로 둡니다.
+- 각 패키지의 launch 파일을 `<include>` 태그로 불러와 묶기만 합니다.
 - 기능 코드(노드 로직)는 bringup 안에 넣지 않습니다.
 - 팀 공통 설정값(네임스페이스, 공통 파라미터)은 `config/` 한곳에서 관리합니다.
 
@@ -154,7 +153,7 @@ colcon build --symlink-install --packages-up-to <pkg>   # 의존 패키지 포�
 source install/setup.bash
 colcon test --packages-select <pkg>
 colcon test-result --verbose
-ros2 launch <proj>_bringup bringup.launch.py
+ros2 launch <proj>_bringup bringup.launch.xml
 ```
 - 코드 수정 후에는 반드시 해당 패키지를 빌드하고 테스트를 실행해 검증합니다.
 - 린트: `ament_flake8`, `ament_pep257`, `ament_cpplint`, `ament_uncrustify` 모두 통과해야 합니다.
@@ -194,7 +193,7 @@ ros2 launch <proj>_bringup bringup.launch.py
 - 역할별 토픽 접두사 예: `/vision/...`, `/navigation/...`, `/manipulation/...`, `/control_center/...`
 - GUI·관제가 별도 PC에서 실행되면 `ROS_DOMAIN_ID`와 네임스페이스 규칙을 `docs/`에 명시합니다.
 - QoS: 센서 데이터는 `SensorDataQoS`, 상태/설정성 데이터는 필요 시 `transient_local`을 명시
-- launch 파일은 Python(`*.launch.py`)으로 통일합니다.
+- launch 파일은 XML(`*.launch.xml`)로 통일합니다.
 - 의존성 추가 시 `package.xml`과 `CMakeLists.txt`(또는 `setup.py`)를 **모두** 수정합니다.
 - 좌표계(frame)는 REP-103/105를 따르고, TF frame 이름은 `docs/`에 정의된 것만 사용합니다.
 
@@ -227,6 +226,7 @@ ros2 launch <proj>_bringup bringup.launch.py
   5. 검증 방법 (빌드 → 테스트 → 린트)
   6. 실제 로봇 구동 여부와 위험 요소
 - 승인된 범위를 벗어나는 변경이 필요하면 작업을 멈추고 계획을 수정해 다시 승인받습니다.
+- **Plan 승인과 별개로 `sudo`, `rm -rf`, 로봇 구동(9번의 확인 대상 포함)은 실행 직전에 다시 확인받습니다.**
 - 단순 질문이나 코드 설명처럼 파일을 바꾸지 않는 요청은 Plan 없이 답변합니다.
 - 팀 공통 `.claude/settings.json`에 `"permissions": { "defaultMode": "plan" }`을 설정해 기본 모드를 Plan으로 합니다.
 
