@@ -195,14 +195,67 @@ button:hover {
   filter: brightness(1.15);
 }
 
-button:active {
-  transform: scale(0.98);
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
 }
 
-.btn-record-start { background-color: var(--accent-rose); color: #fff; }
-.btn-record-save { background-color: var(--accent-emerald); color: #fff; }
-.btn-record-discard { background-color: var(--bg-card-sub); border: 1px solid var(--border-color); color: var(--text-muted); }
+.btn-bringup {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  color: #fff;
+  font-weight: 700;
+  padding: 8px 16px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-server-off {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  color: #fff;
+  font-weight: 700;
+  padding: 8px 16px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-record-start { background-color: var(--accent-cyan); color: #000; font-weight: 700; }
+.btn-record-success { background-color: var(--accent-emerald); color: #fff; font-weight: 700; }
+.btn-record-fail { background-color: #f97316; color: #fff; font-weight: 700; }
+.btn-record-discard { background-color: #64748b; color: #fff; }
 .btn-preset { background-color: var(--bg-card-sub); border: 1px solid var(--border-color); color: var(--text-main); font-size: 0.8rem; padding: 6px 12px; }
+
+.save-path-card {
+  background: var(--bg-card-sub);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.save-path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bringup-alert-banner {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bringup-alert-banner.active-ok {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--accent-emerald);
+  color: var(--accent-emerald);
+}
+
 
 /* Preset Pose Grid */
 .preset-bar {

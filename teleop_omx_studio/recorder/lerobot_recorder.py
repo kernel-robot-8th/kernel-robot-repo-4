@@ -149,10 +149,19 @@ class LeRobotDatasetRecorder:
         if wrist_frame is not None:
             self.buffer_wrist_frames.append(wrist_frame.copy())
 
-    def stop_and_save(self) -> Optional[Dict[str, Any]]:
+    def set_output_dir(self, new_dir: str):
+        """Allows dynamically configuring output directory at session start"""
+        self.output_dir = os.path.expanduser(new_dir)
+        self._init_storage()
+        logger.info(f"Updated LeRobot output directory to: {self.output_dir}")
+
+    def stop_and_save(self, status: str = "success") -> Optional[Dict[str, Any]]:
         """
         Finalizes recording buffer, writes Parquet table & MP4 videos,
         appends to episodes.jsonl, and returns summary metadata.
+        
+        Args:
+            status: "success" (Success button) or "fail" (Fail button - saved but tagged as failure).
         """
         if not self.recording:
             logger.warning("stop_and_save called but not recording.")
@@ -171,8 +180,9 @@ class LeRobotDatasetRecorder:
 
         ep_id = self.current_episode_index
         ep_name = f"episode_{ep_id:06d}"
+        is_success = (status.lower() == "success")
 
-        # 1. Save Parquet
+        # 1. Save Parquet with explicit success and status columns
         parquet_path = os.path.join(self.output_dir, "data", "chunk-000", f"{ep_name}.parquet")
         table = pa.Table.from_arrays(
             [
@@ -182,12 +192,17 @@ class LeRobotDatasetRecorder:
                 pa.array(self.buffer_actions, type=pa.list_(pa.float32(), 6)),
                 pa.array(self.buffer_dones, type=pa.bool_()),
                 pa.array([ep_id] * num_steps, type=pa.int64()),
+                pa.array([is_success] * num_steps, type=pa.bool_()),
+                pa.array([status.lower()] * num_steps, type=pa.string()),
             ],
-            names=["timestamp", "index", "observation.state", "action", "next.done", "episode_index"]
+            names=[
+                "timestamp", "index", "observation.state", "action",
+                "next.done", "episode_index", "success", "status"
+            ]
         )
         pq.write_table(table, parquet_path, compression="snappy")
 
-        # 2. Save MP4 Videos
+        # 2. Save MP4 Videos (Both Success and Fail episodes retain video!)
         top_video_path = os.path.join(
             self.output_dir, "videos", "observation.images.top", "chunk-000", f"{ep_name}.mp4"
         )
@@ -198,10 +213,12 @@ class LeRobotDatasetRecorder:
         self._encode_video(self.buffer_top_frames, top_video_path, default_w=1280, default_h=720)
         self._encode_video(self.buffer_wrist_frames, wrist_video_path, default_w=640, default_h=480)
 
-        # 3. Update episodes.jsonl
+        # 3. Update episodes.jsonl with success/fail status
         ep_meta = {
             "episode_index": ep_id,
             "task": self.task_name,
+            "success": is_success,
+            "status": status.lower(),
             "length": num_steps,
             "duration_sec": round(self.buffer_timestamps[-1], 2),
             "parquet_file": os.path.relpath(parquet_path, self.output_dir),
