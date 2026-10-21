@@ -1,0 +1,743 @@
+import queue
+import threading
+from pathlib import Path
+
+from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
+    QAbstractSpinBox,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from core import hub
+from core.cameras import CameraManager
+from core.config import (
+    APP_DIR,
+    CAMERA_ROLES,
+    MOTORS,
+    load_config,
+    load_poses,
+    save_config,
+    save_poses,
+)
+from core.recorder import Recorder
+from core.robot_ctrl import Mode, RobotController
+from ui.camera_dialog import CameraPickerDialog, to_pixmap
+
+VCODECS = ["libsvtav1", "h264", "hevc", "auto"]
+COLS = ["리더", "팔로워", "차이", "속도", "전류", "온도(°C)", "전압(V)"]
+
+STYLE_GREEN = "background:#2e7d32;color:white;font-weight:bold;"
+STYLE_RED = "background:#c62828;color:white;font-weight:bold;"
+STYLE_ORANGE = "background:#ef6c00;color:white;font-weight:bold;"
+STYLE_BLUE = "background:#1565c0;color:white;font-weight:bold;"
+STYLE_GRAY = "background:#616161;color:white;font-weight:bold;"
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("OMX 모방학습 데이터 수집")
+        self.resize(1500, 920)
+
+        self.cfg = load_config()
+        self.poses = load_poses()
+        self.cameras = CameraManager()
+        self.recorder = Recorder()
+        self.ctrl = RobotController(self.cameras, self.recorder)
+        self.ui_events: queue.Queue = queue.Queue()
+        self.session: dict | None = None
+        self.uploading = False
+        self.last_task_text = self.cfg["session"]["task_text"]
+        self.counts = {"success": 0, "fail": 0}
+
+        tabs = QTabWidget()
+        tabs.addTab(self._build_dashboard(), "대시보드")
+        tabs.addTab(self._build_settings(), "설정")
+        self.setCentralWidget(tabs)
+        self._load_settings_to_ui()
+
+        QApplication.instance().installEventFilter(self)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.timer.start(50)
+        self._refresh()
+
+    # ================================================================== UI build
+    def _build_dashboard(self) -> QWidget:
+        root = QWidget()
+        v = QVBoxLayout(root)
+
+        # --- session bar
+        sbox = QGroupBox("세션")
+        sh = QHBoxLayout(sbox)
+        self.ed_output = QLineEdit()
+        btn_browse = QPushButton("폴더 선택")
+        btn_browse.clicked.connect(self._browse_output)
+        self.ed_task_name = QLineEdit()
+        self.ed_task_name.setPlaceholderText("태스크명 (폴더·repo 이름)")
+        self.btn_session = QPushButton("세션 시작")
+        self.btn_session.clicked.connect(self._start_session)
+        self.lbl_session = QLabel("세션 없음")
+        sh.addWidget(QLabel("저장 경로"))
+        sh.addWidget(self.ed_output, 3)
+        sh.addWidget(btn_browse)
+        sh.addWidget(QLabel("태스크명"))
+        sh.addWidget(self.ed_task_name, 1)
+        sh.addWidget(self.btn_session)
+        sh.addWidget(self.lbl_session, 2)
+        v.addWidget(sbox)
+
+        body = QHBoxLayout()
+        v.addLayout(body, 1)
+
+        # --- left: cameras + status
+        left = QVBoxLayout()
+        cam_row = QHBoxLayout()
+        self.cam_labels = {}
+        for role in CAMERA_ROLES:
+            box = QGroupBox(role)
+            bl = QVBoxLayout(box)
+            lbl = QLabel("카메라 없음")
+            lbl.setFixedSize(480, 360)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("background:#111;color:#888;")
+            bl.addWidget(lbl)
+            self.cam_labels[role] = lbl
+            cam_row.addWidget(box)
+        left.addLayout(cam_row)
+
+        self.lbl_banner = QLabel()
+        self.lbl_banner.setAlignment(Qt.AlignCenter)
+        self.lbl_banner.setMinimumHeight(56)
+        f = QFont()
+        f.setPointSize(16)
+        f.setBold(True)
+        self.lbl_banner.setFont(f)
+        left.addWidget(self.lbl_banner)
+
+        info = QHBoxLayout()
+        self.lbl_counts = QLabel()
+        self.lbl_loop = QLabel()
+        self.lbl_ee = QLabel()
+        for w in (self.lbl_counts, self.lbl_loop):
+            w.setStyleSheet("font-size:14px;")
+        info.addWidget(self.lbl_counts)
+        info.addStretch()
+        info.addWidget(self.lbl_loop)
+        left.addLayout(info)
+        self.lbl_ee.setStyleSheet("font-family:monospace;font-size:13px;")
+        left.addWidget(self.lbl_ee)
+
+        self.table = QTableWidget(len(MOTORS), len(COLS))
+        self.table.setHorizontalHeaderLabels(COLS)
+        self.table.setVerticalHeaderLabels(MOTORS)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setFocusPolicy(Qt.NoFocus)
+        for r in range(len(MOTORS)):
+            for c in range(len(COLS)):
+                it = QTableWidgetItem("-")
+                it.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(r, c, it)
+        left.addWidget(self.table)
+        body.addLayout(left, 3)
+
+        # --- right: controls
+        right = QVBoxLayout()
+        cbox = QGroupBox("제어")
+        cg = QGridLayout(cbox)
+        self.btn_bringup = QPushButton("BringUp")
+        self.btn_servo_off = QPushButton("Servo OFF")
+        self.btn_init = QPushButton("현재 자세 → Init 저장")
+        self.btn_rest = QPushButton("현재 자세 → Rest 저장")
+        self.btn_record = QPushButton("녹화  [Space]")
+        self.btn_success = QPushButton("Success  [S]")
+        self.btn_fail = QPushButton("Fail  [F]")
+        self.btn_discard = QPushButton("Discard  [D]")
+        self.btn_upload = QPushButton("HF Hub 업로드")
+        for b in (self.btn_bringup, self.btn_servo_off, self.btn_record, self.btn_success, self.btn_fail, self.btn_discard):
+            b.setMinimumHeight(48)
+            b.setFocusPolicy(Qt.NoFocus)
+        for b in (self.btn_init, self.btn_rest, self.btn_upload):
+            b.setFocusPolicy(Qt.NoFocus)
+        self.btn_bringup.clicked.connect(self._bringup)
+        self.btn_servo_off.clicked.connect(self._servo_off)
+        self.btn_init.clicked.connect(lambda: self.ctrl.capture_pose("init"))
+        self.btn_rest.clicked.connect(lambda: self.ctrl.capture_pose("rest"))
+        self.btn_record.clicked.connect(self._record)
+        self.btn_success.clicked.connect(lambda: self._end("success"))
+        self.btn_fail.clicked.connect(lambda: self._end("fail"))
+        self.btn_discard.clicked.connect(lambda: self._end("discard"))
+        self.btn_upload.clicked.connect(self._upload)
+        cg.addWidget(self.btn_bringup, 0, 0)
+        cg.addWidget(self.btn_servo_off, 0, 1)
+        cg.addWidget(self.btn_init, 1, 0)
+        cg.addWidget(self.btn_rest, 1, 1)
+        cg.addWidget(self.btn_record, 2, 0, 1, 2)
+        cg.addWidget(self.btn_success, 3, 0)
+        cg.addWidget(self.btn_fail, 3, 1)
+        cg.addWidget(self.btn_discard, 4, 0, 1, 2)
+        cg.addWidget(self.btn_upload, 5, 0, 1, 2)
+        right.addWidget(cbox)
+
+        tbox = QGroupBox("에피소드 태스크 문장")
+        tl = QVBoxLayout(tbox)
+        self.ed_task_text = QLineEdit()
+        self.ed_task_text.setPlaceholderText("예: 신발 상자를 핑키 위로 옮겨")
+        self.ed_task_text.returnPressed.connect(self.ed_task_text.clearFocus)
+        self.lbl_pose = QLabel()
+        tl.addWidget(self.ed_task_text)
+        tl.addWidget(QLabel("Enter로 입력 완료 · 비우면 이전 문장 사용"))
+        tl.addWidget(self.lbl_pose)
+        right.addWidget(tbox)
+
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setFocusPolicy(Qt.ClickFocus)
+        self.log.setMaximumBlockCount(2000)
+        right.addWidget(QLabel("로그"))
+        right.addWidget(self.log, 1)
+        body.addLayout(right, 2)
+        return root
+
+    def _build_settings(self) -> QWidget:
+        root = QWidget()
+        h = QHBoxLayout(root)
+        col1, col2 = QVBoxLayout(), QVBoxLayout()
+        h.addLayout(col1)
+        h.addLayout(col2)
+        self.settings_boxes = []
+
+        # robot
+        rbox = QGroupBox("로봇")
+        rf = QFormLayout(rbox)
+        self.ed_fport, self.ed_fid = QLineEdit(), QLineEdit()
+        self.ed_lport, self.ed_lid = QLineEdit(), QLineEdit()
+        rf.addRow("팔로워 포트", self.ed_fport)
+        rf.addRow("팔로워 ID", self.ed_fid)
+        rf.addRow("리더 포트", self.ed_lport)
+        rf.addRow("리더 ID", self.ed_lid)
+        col1.addWidget(rbox)
+
+        # cameras
+        cbox = QGroupBox("카메라")
+        cf = QGridLayout(cbox)
+        self.cam_edits = {}
+        cf.addWidget(QLabel("역할"), 0, 0)
+        for j, t in enumerate(["index / 경로", "width", "height", "fps"]):
+            cf.addWidget(QLabel(t), 0, j + 1)
+        for i, role in enumerate(CAMERA_ROLES, start=1):
+            ed = QLineEdit()
+            w, hh, fp = QSpinBox(), QSpinBox(), QSpinBox()
+            w.setRange(160, 3840)
+            hh.setRange(120, 2160)
+            fp.setRange(1, 120)
+            cf.addWidget(QLabel(role), i, 0)
+            cf.addWidget(ed, i, 1)
+            cf.addWidget(w, i, 2)
+            cf.addWidget(hh, i, 3)
+            cf.addWidget(fp, i, 4)
+            self.cam_edits[role] = (ed, w, hh, fp)
+        self.btn_find_cam = QPushButton("카메라 찾기")
+        self.btn_find_cam.clicked.connect(self._find_cameras)
+        cf.addWidget(self.btn_find_cam, len(CAMERA_ROLES) + 1, 0, 1, 5)
+        col1.addWidget(cbox)
+
+        # record
+        recbox = QGroupBox("녹화")
+        recf = QFormLayout(recbox)
+        self.sp_fps = QSpinBox()
+        self.sp_fps.setRange(1, 120)
+        self.sp_status = QDoubleSpinBox()
+        self.sp_status.setRange(0.1, 30)
+        self.sp_status.setSingleStep(0.5)
+        self.cb_vcodec = QComboBox()
+        self.cb_vcodec.addItems(VCODECS)
+        recf.addRow("녹화 주기 (Hz)", self.sp_fps)
+        recf.addRow("온도·전압 주기 (Hz)", self.sp_status)
+        recf.addRow("비디오 코덱", self.cb_vcodec)
+        col1.addWidget(recbox)
+        col1.addStretch()
+
+        # motion
+        mbox = QGroupBox("동작")
+        mf = QFormLayout(mbox)
+        self.sp_move = QDoubleSpinBox()
+        self.sp_move.setRange(0.5, 20)
+        self.sp_tol_j = QDoubleSpinBox()
+        self.sp_tol_j.setRange(0.5, 50)
+        self.sp_tol_g = QDoubleSpinBox()
+        self.sp_tol_g.setRange(0.5, 100)
+        self.sp_hold = QDoubleSpinBox()
+        self.sp_hold.setRange(0.0, 5)
+        self.sp_hold.setSingleStep(0.1)
+        self.sp_step = QDoubleSpinBox()
+        self.sp_step.setRange(0.0, 100)
+        mf.addRow("Init/Rest 이동 시간 (s)", self.sp_move)
+        mf.addRow("정렬 허용오차 - 관절", self.sp_tol_j)
+        mf.addRow("정렬 허용오차 - 그리퍼", self.sp_tol_g)
+        mf.addRow("정렬 유지 시간 (s)", self.sp_hold)
+        mf.addRow("프레임당 최대 이동량 (0=제한 없음)", self.sp_step)
+        col2.addWidget(mbox)
+
+        # hub
+        hbox = QGroupBox("Hugging Face Hub")
+        hf = QFormLayout(hbox)
+        self.ed_hub_user = QLineEdit()
+        self.ck_private = QCheckBox("비공개(private) 업로드")
+        btn_login = QPushButton("로그인 확인")
+        btn_login.clicked.connect(self._check_login)
+        hf.addRow("계정", self.ed_hub_user)
+        hf.addRow("", self.ck_private)
+        hf.addRow("", btn_login)
+        col2.addWidget(hbox)
+
+        # fk
+        fbox = QGroupBox("EE 포즈 (FK) 보정")
+        ff = QFormLayout(fbox)
+        self.ed_fk_signs = QLineEdit()
+        self.ed_fk_offsets = QLineEdit()
+        ff.addRow("관절 부호 (5개)", self.ed_fk_signs)
+        ff.addRow("관절 오프셋 deg (5개)", self.ed_fk_offsets)
+        col2.addWidget(fbox)
+
+        btn_save = QPushButton("설정 저장")
+        btn_save.clicked.connect(self._save_settings)
+        col2.addWidget(btn_save)
+        col2.addStretch()
+
+        self.settings_boxes = [rbox, cbox, recbox, mbox, fbox]
+        return root
+
+    # ================================================================== settings io
+    def _load_settings_to_ui(self):
+        c = self.cfg
+        self.ed_output.setText(c["session"]["output_dir"])
+        self.ed_task_name.setText(c["session"]["task_name"])
+        self.ed_task_text.setText(c["session"]["task_text"])
+        r = c["robot"]
+        self.ed_fport.setText(r["follower_port"])
+        self.ed_fid.setText(r["follower_id"])
+        self.ed_lport.setText(r["leader_port"])
+        self.ed_lid.setText(r["leader_id"])
+        for role, (ed, w, h, fp) in self.cam_edits.items():
+            cc = c["cameras"][role]
+            ed.setText(str(cc.get("index_or_path", "")))
+            w.setValue(int(cc["width"]))
+            h.setValue(int(cc["height"]))
+            fp.setValue(int(cc["fps"]))
+        self.sp_fps.setValue(int(c["record"]["fps"]))
+        self.sp_status.setValue(float(c["record"]["status_hz"]))
+        self.cb_vcodec.setCurrentText(c["record"]["vcodec"])
+        m = c["motion"]
+        self.sp_move.setValue(float(m["move_duration_s"]))
+        self.sp_tol_j.setValue(float(m["align_tol_joint"]))
+        self.sp_tol_g.setValue(float(m["align_tol_gripper"]))
+        self.sp_hold.setValue(float(m["align_hold_s"]))
+        self.sp_step.setValue(float(m["max_step"]))
+        self.ed_hub_user.setText(c["hub"]["user"])
+        self.ck_private.setChecked(bool(c["hub"]["private"]))
+        self.ed_fk_signs.setText(", ".join(str(int(s)) for s in c["fk"]["signs"]))
+        self.ed_fk_offsets.setText(", ".join(f"{o:g}" for o in c["fk"]["offsets_deg"]))
+
+    def _collect_settings(self) -> dict:
+        c = self.cfg
+        c["session"]["output_dir"] = self.ed_output.text().strip() or "./output"
+        c["session"]["task_name"] = self.ed_task_name.text().strip()
+        c["session"]["task_text"] = self.last_task_text
+        c["robot"].update(
+            follower_port=self.ed_fport.text().strip(),
+            follower_id=self.ed_fid.text().strip(),
+            leader_port=self.ed_lport.text().strip(),
+            leader_id=self.ed_lid.text().strip(),
+        )
+        for role, (ed, w, h, fp) in self.cam_edits.items():
+            c["cameras"][role] = {
+                "index_or_path": ed.text().strip(),
+                "width": w.value(),
+                "height": h.value(),
+                "fps": fp.value(),
+            }
+        c["record"].update(fps=self.sp_fps.value(), status_hz=self.sp_status.value(), vcodec=self.cb_vcodec.currentText())
+        c["motion"].update(
+            move_duration_s=self.sp_move.value(),
+            align_tol_joint=self.sp_tol_j.value(),
+            align_tol_gripper=self.sp_tol_g.value(),
+            align_hold_s=self.sp_hold.value(),
+            max_step=self.sp_step.value(),
+        )
+        c["hub"].update(user=self.ed_hub_user.text().strip(), private=self.ck_private.isChecked())
+        signs = [int(float(x)) for x in self.ed_fk_signs.text().replace(" ", "").split(",") if x]
+        offs = [float(x) for x in self.ed_fk_offsets.text().replace(" ", "").split(",") if x]
+        if len(signs) != 5 or len(offs) != 5:
+            raise ValueError("FK 부호/오프셋은 5개 값을 쉼표로 구분해 입력하세요.")
+        c["fk"].update(signs=signs, offsets_deg=offs)
+        return c
+
+    def _save_settings(self) -> bool:
+        try:
+            self._collect_settings()
+        except ValueError as e:
+            QMessageBox.warning(self, "설정 오류", str(e))
+            return False
+        save_config(self.cfg)
+        self._log("설정 저장 완료")
+        if self.session and not self.ctrl.running:
+            self._connect_cameras()
+        return True
+
+    # ================================================================== actions
+    def _browse_output(self):
+        start = str(self._resolve(self.ed_output.text() or "./output"))
+        d = QFileDialog.getExistingDirectory(self, "저장 폴더 선택", start)
+        if d:
+            self.ed_output.setText(d)
+
+    @staticmethod
+    def _resolve(p: str) -> Path:
+        path = Path(p).expanduser()
+        return path if path.is_absolute() else (Path.cwd() / path)
+
+    def _start_session(self):
+        name = self.ed_task_name.text().strip()
+        if not name or any(ch in name for ch in r'/\ '):
+            QMessageBox.warning(self, "태스크명", "태스크명을 공백·슬래시 없이 입력하세요.")
+            return
+        if not self._save_settings():
+            return
+        task_dir = self._resolve(self.cfg["session"]["output_dir"]) / name
+        task_dir.mkdir(parents=True, exist_ok=True)
+        self.session = {"task_dir": str(task_dir), "task_name": name}
+        self.counts = Recorder.disk_counts(task_dir)
+        self.lbl_session.setText(f"세션: {task_dir}")
+        self._log(f"세션 시작: {task_dir} (기존 Success {self.counts['success']} / Fail {self.counts['fail']})")
+        self._connect_cameras()
+        self._refresh()
+
+    def _connect_cameras(self):
+        errs = self.cameras.connect(self.cfg["cameras"])
+        for e in errs:
+            self._log(e, error=True)
+        roles = self.cameras.roles
+        self._log(f"카메라 연결: {', '.join(roles) if roles else '없음'}")
+
+    def _find_cameras(self):
+        if self.ctrl.running:
+            return
+        self.cameras.disconnect()
+        cur = {r: {"index_or_path": self.cam_edits[r][0].text()} for r in CAMERA_ROLES}
+        dlg = CameraPickerDialog(cur, self)
+        if dlg.exec():
+            for role in CAMERA_ROLES:
+                self.cam_edits[role][0].setText(str(dlg.result_map.get(role, "")))
+            self._save_settings()
+        if self.session:
+            self._connect_cameras()
+
+    def _bringup(self):
+        if not self.session or self.ctrl.running:
+            return
+        if not self._save_settings():
+            return
+        if not self.cameras.roles:
+            if QMessageBox.question(self, "카메라 없음", "연결된 카메라가 없습니다. 영상 없이 진행할까요?") != QMessageBox.Yes:
+                return
+        self._log("BringUp 시작")
+        self.ctrl.bringup(self.cfg, self.poses, self.session)
+
+    def _servo_off(self):
+        self.ctrl.servo_off()
+
+    def _current_task_text(self) -> str:
+        t = self.ed_task_text.text().strip()
+        if t:
+            self.last_task_text = t
+        else:
+            self.ed_task_text.setText(self.last_task_text)
+        return self.last_task_text
+
+    def _record(self):
+        if not self.btn_record.isEnabled():
+            return
+        task = self._current_task_text()
+        if not task:
+            QMessageBox.warning(self, "태스크 문장", "에피소드 태스크 문장을 입력하세요.")
+            return
+        self.cfg["session"]["task_text"] = task
+        save_config(self.cfg)
+        self.ctrl.start_record(task)
+
+    def _end(self, outcome: str):
+        btn = {"success": self.btn_success, "fail": self.btn_fail, "discard": self.btn_discard}[outcome]
+        if btn.isEnabled():
+            self.ctrl.end_episode(outcome)
+
+    def _check_login(self):
+        name = hub.whoami()
+        if name is None:
+            token, ok = QInputDialog.getText(self, "HF 로그인", "Hugging Face 토큰 (write 권한):", QLineEdit.Password)
+            if not ok or not token.strip():
+                return
+            try:
+                name = hub.login(token.strip())
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.warning(self, "로그인 실패", str(e))
+                return
+        if name:
+            self.ed_hub_user.setText(name)
+            self._save_settings()
+            self._log(f"HF 로그인: {name}")
+
+    def _upload(self):
+        if not self.session or self.uploading:
+            return
+        user = self.ed_hub_user.text().strip() or hub.whoami()
+        if not user:
+            QMessageBox.warning(self, "HF Hub", "설정 탭에서 '로그인 확인'을 먼저 하세요.")
+            return
+        private = self.ck_private.isChecked()
+        msg = f"{user}/{self.session['task_name']}_success, _fail 로 업로드합니다. ({'비공개' if private else '공개'})"
+        if QMessageBox.question(self, "HF Hub 업로드", msg) != QMessageBox.Yes:
+            return
+        self.uploading = True
+        sess = dict(self.session)
+
+        def work():
+            try:
+                pushed = hub.push_task(sess["task_dir"], sess["task_name"], user, private, log=lambda s: self.ui_events.put(("log", s)))
+                self.ui_events.put(("log", f"[HF] 완료: {', '.join(pushed) if pushed else '업로드할 데이터 없음'}"))
+            except Exception as e:  # noqa: BLE001
+                self.ui_events.put(("error", f"[HF] 업로드 실패: {e}"))
+            finally:
+                self.ui_events.put(("upload_done", None))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    # ================================================================== loop
+    def _tick(self):
+        for q in (self.ctrl.events, self.ui_events):
+            while True:
+                try:
+                    kind, payload = q.get_nowait()
+                except queue.Empty:
+                    break
+                self._handle_event(kind, payload)
+        for role, lbl in self.cam_labels.items():
+            img = self.cameras.latest(role)
+            if img is not None:
+                lbl.setPixmap(to_pixmap(img, lbl.width(), lbl.height()))
+            elif role not in self.cameras.roles:
+                lbl.clear()
+                lbl.setText("카메라 없음")
+        self._refresh()
+
+    def _handle_event(self, kind, payload):
+        if kind == "log":
+            self._log(payload)
+        elif kind == "error":
+            self._log(payload, error=True)
+        elif kind == "counts":
+            self.counts = payload
+        elif kind == "saved":
+            o = payload["outcome"]
+            if o == "discard":
+                self._log(f"Discard ({payload['frames']} 프레임 폐기)")
+            else:
+                self._log(f"{o.upper()} 저장 완료: episode {payload['episode_index']} ({payload['frames']} 프레임)")
+            if self.recorder.is_open:
+                self.counts = self.recorder.counts()
+        elif kind == "record_started":
+            self._log(f"녹화 시작: \"{self.last_task_text}\"")
+        elif kind == "aligned":
+            self._log("정렬 완료 — 원격조종 시작, 녹화 가능")
+        elif kind == "pose_captured":
+            which, pose = payload
+            self.poses[which] = pose
+            save_poses(self.poses)
+            self._log(f"{which.capitalize()} 자세 저장: " + ", ".join(f"{m}={v:.1f}" for m, v in pose.items()))
+        elif kind == "servo_off_done":
+            self._log("Servo OFF 완료")
+            if self.session:
+                self.counts = Recorder.disk_counts(Path(self.session["task_dir"]))
+        elif kind == "upload_done":
+            self.uploading = False
+
+    def _refresh(self):
+        s = self.ctrl.snapshot()
+        mode = s.get("mode", Mode.DISCONNECTED)
+        running = self.ctrl.running
+        recording = s.get("recording", False)
+        pending = s.get("pending", False)
+        saving = self.recorder.busy
+        active = running and mode in (Mode.MOVING, Mode.ALIGNING, Mode.TELEOP, Mode.FAULT)
+
+        self.btn_session.setEnabled(not running)
+        self.ed_output.setEnabled(not running)
+        self.ed_task_name.setEnabled(not running)
+        for b in self.settings_boxes:
+            b.setEnabled(not running)
+        self.btn_bringup.setEnabled(bool(self.session) and not running)
+        self.btn_servo_off.setEnabled(active and not recording and mode != Mode.MOVING)
+        pose_ok = running and mode in (Mode.ALIGNING, Mode.TELEOP) and not recording and not pending
+        self.btn_init.setEnabled(pose_ok)
+        self.btn_rest.setEnabled(pose_ok)
+        can_record = running and mode == Mode.TELEOP and not recording and not pending and not saving
+        self.btn_record.setEnabled(can_record)
+        self.btn_success.setEnabled(recording or pending)
+        self.btn_fail.setEnabled(recording or pending)
+        self.btn_discard.setEnabled(recording or pending)
+        self.btn_upload.setEnabled(bool(self.session) and not self.uploading and not recording and not pending and not saving)
+
+        if recording:
+            t = s.get("rec_seconds", 0.0)
+            self.btn_record.setText(f"● 녹화 중  {int(t // 60):02d}:{t % 60:04.1f}")
+            self.btn_record.setStyleSheet(STYLE_RED)
+        else:
+            self.btn_record.setText("녹화  [Space]")
+            self.btn_record.setStyleSheet(STYLE_GREEN if can_record else "")
+        self.btn_success.setStyleSheet(STYLE_BLUE if (recording or pending) else "")
+        self.btn_fail.setStyleSheet(STYLE_ORANGE if (recording or pending) else "")
+        self.btn_discard.setStyleSheet(STYLE_GRAY if (recording or pending) else "")
+        self.btn_bringup.setStyleSheet(STYLE_GREEN if self.btn_bringup.isEnabled() else "")
+
+        # banner
+        if not self.session:
+            txt, sty = "세션을 시작하세요", STYLE_GRAY
+        elif not running:
+            txt, sty = "BringUp 대기", STYLE_GRAY
+        elif mode == Mode.CONNECTING:
+            txt, sty = "연결 중...", STYLE_BLUE
+        elif mode == Mode.FAULT:
+            txt, sty = "FAULT — 통신 오류", STYLE_RED
+        elif mode == Mode.STOPPING:
+            txt, sty = "종료 중...", STYLE_GRAY
+        elif recording:
+            txt, sty = f"● 녹화 중  ({s.get('rec_frames', 0)} 프레임)", STYLE_RED
+        elif pending:
+            txt, sty = "결과를 선택하세요 (S / F / D)", STYLE_ORANGE
+        elif mode == Mode.MOVING:
+            txt, sty = "자세 이동 중...", STYLE_BLUE
+        elif mode == Mode.ALIGNING:
+            txt, sty = "리더암을 Init 자세에 맞추세요", STYLE_ORANGE
+        elif saving:
+            txt, sty = "원격조종 중 · 에피소드 저장 중...", STYLE_BLUE
+        else:
+            txt, sty = "원격조종 중 · 녹화 가능", STYLE_GREEN
+        self.lbl_banner.setText(txt)
+        self.lbl_banner.setStyleSheet(sty)
+
+        self.lbl_counts.setText(f"Success {self.counts.get('success', 0)}   ·   Fail {self.counts.get('fail', 0)}")
+        self.lbl_loop.setText(f"루프 {s.get('loop_hz', 0):.1f} Hz" if running else "")
+        self.lbl_pose.setText(
+            f"Init: {'저장됨' if self.poses.get('init') else '미설정'}   ·   Rest: {'저장됨' if self.poses.get('rest') else '미설정(Init 사용)'}"
+        )
+
+        ee = s.get("ee")
+        if running and ee:
+            self.lbl_ee.setText(
+                f"EE  x {ee[0]*1000:7.1f} mm  y {ee[1]*1000:7.1f} mm  z {ee[2]*1000:7.1f} mm   "
+                f"roll {ee[3]:+.2f}  pitch {ee[4]:+.2f}  yaw {ee[5]:+.2f} rad"
+            )
+        else:
+            self.lbl_ee.setText("EE  -")
+
+        lead, fol = s.get("leader"), s.get("follower")
+        if running and lead and fol:
+            tj, tg = s.get("tol_joint", 5), s.get("tol_grip", 10)
+            for r, m in enumerate(MOTORS):
+                d = lead[m] - fol[m]
+                vals = [
+                    f"{lead[m]:.1f}",
+                    f"{fol[m]:.1f}",
+                    f"{d:+.1f}",
+                    f"{s['velocity'][m]:.0f}",
+                    f"{s['current'][m]:.0f}",
+                    f"{s['temperature'][m]:.0f}",
+                    f"{s['voltage'][m]:.1f}",
+                ]
+                for c, v in enumerate(vals):
+                    self.table.item(r, c).setText(v)
+                ok = abs(d) <= (tg if m == "gripper" else tj)
+                self.table.item(r, 2).setBackground(QColor("#c8e6c9") if ok else QColor("#ffcdd2"))
+        else:
+            for r in range(len(MOTORS)):
+                for c in range(len(COLS)):
+                    self.table.item(r, c).setText("-")
+                self.table.item(r, 2).setBackground(QColor(Qt.transparent))
+
+    # ================================================================== misc
+    def _log(self, msg: str, error: bool = False):
+        from time import strftime
+
+        line = f"[{strftime('%H:%M:%S')}] {'[오류] ' if error else ''}{msg}"
+        self.log.appendPlainText(line)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress and not event.isAutoRepeat() and self.isActiveWindow():
+            key = event.key()
+            focus = QApplication.focusWidget()
+            editing = isinstance(focus, (QLineEdit, QAbstractSpinBox, QComboBox, QPlainTextEdit)) and not (
+                isinstance(focus, QPlainTextEdit) and focus.isReadOnly()
+            )
+            if key == Qt.Key_Escape and focus is not None:
+                focus.clearFocus()
+                return True
+            if not editing:
+                if key == Qt.Key_Space:
+                    self._record()
+                    return True
+                if key == Qt.Key_S:
+                    self._end("success")
+                    return True
+                if key == Qt.Key_F:
+                    self._end("fail")
+                    return True
+                if key == Qt.Key_D:
+                    self._end("discard")
+                    return True
+        return super().eventFilter(obj, event)
+
+    def closeEvent(self, event):
+        s = self.ctrl.snapshot()
+        if self.ctrl.running:
+            if s.get("recording") or s.get("pending"):
+                QMessageBox.warning(self, "종료", "녹화 중이거나 결과 선택 대기 중입니다. 먼저 정리하세요.")
+                event.ignore()
+                return
+            if QMessageBox.question(self, "종료", "Servo OFF 후 종료할까요?") != QMessageBox.Yes:
+                event.ignore()
+                return
+            self._log("Servo OFF 후 종료 중...")
+            QApplication.processEvents()
+            self.ctrl.shutdown(timeout=60)
+        self.recorder.close()
+        self.cameras.disconnect()
+        try:
+            self._collect_settings()
+            save_config(self.cfg)
+        except Exception:  # noqa: BLE001
+            pass
+        event.accept()

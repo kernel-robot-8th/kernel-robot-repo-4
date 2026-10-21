@@ -1,0 +1,46 @@
+session:
+  output_dir: ./output
+  task_name: omx_task
+  task_text: ''
+robot:
+  follower_port: /dev/omx_follower
+  follower_id: omx_follower_arm
+  leader_port: /dev/omx_leader
+  leader_id: omx_leader_arm
+cameras:
+  wrist:
+    index_or_path: ''
+    width: 640
+    height: 480
+    fps: 30
+  top:
+    index_or_path: ''
+    width: 640
+    height: 480
+    fps: 30
+record:
+  fps: 30
+  status_hz: 1.0
+  vcodec: libsvtav1
+motion:
+  move_duration_s: 3.0
+  align_tol_joint: 5.0
+  align_tol_gripper: 10.0
+  align_hold_s: 0.3
+  max_step: 3.0
+hub:
+  user: ''
+  private: true
+fk:
+  signs:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  offsets_deg:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
