@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OMX Teleop & LeRobot Studio [PT-23]</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation & Status Bar -->
+  <header>
+    <div class="logo-area">
+      <span style="font-size: 1.4rem;">🦾</span>
+      <span class="logo-title">OMX Teleop & LeRobot Studio</span>
+      <span id="modeBadge" class="badge badge-cyan">CONNECTING...</span>
+      <span id="btnTorqueToggle" class="badge badge-emerald" style="cursor: pointer;">TORQUE: ON</span>
+    </div>
+
+    <div class="header-status">
+      <span id="gamepadStatus" class="badge badge-amber">Gamepad: Checking...</span>
+      <span>Sprint 2 MVP &middot; PT-23</span>
+    </div>
+  </header>
+
+  <!-- Main 2-Column Studio Grid -->
+  <main class="main-container">
+
+    <!-- LEFT COLUMN: Dual Video + LeRobot Recorder -->
+    <div class="panel">
+      
+      <!-- Dual Camera Viewport -->
+      <div class="panel-title">
+        <span>📹 실시간 카메라 뷰포트 (Dual Video Stream)</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">작은 화면 클릭 시 메인 화면과 전환</span>
+      </div>
+
+      <div class="video-viewport">
+        <!-- Main Video -->
+        <img id="mainVideo" class="main-video" src="/video_feed/top" alt="Main Camera Stream">
+        <span id="mainLabel" class="camera-label">TOP CAMERA (Work Table 720p)</span>
+
+        <!-- Picture-in-Picture (PiP) Video -->
+        <div id="pipContainer" class="pip-video-container" title="클릭하여 화면 전환">
+          <img id="pipVideo" class="pip-video" src="/video_feed/wrist" alt="PiP Camera Stream">
+          <span id="pipLabel" class="camera-label" style="top: 4px; left: 4px; font-size: 0.65rem;">WRIST CAM</span>
+        </div>
+      </div>
+
+      <!-- LeRobot Imitation Learning Episode Recorder -->
+      <div class="panel-title" style="margin-top: 6px;">
+        <span>🎯 LeRobot 모방학습 데이터 레코더 (30Hz ACT 규격)</span>
+        <span id="episodeCounterText" class="badge badge-cyan">0 Saved</span>
+      </div>
+
+      <div class="recorder-box">
+        <div class="task-select-row">
+          <label style="font-size: 0.85rem; font-weight: 600; min-width: 70px;">태스크:</label>
+          <select id="taskSelect">
+            <option value="task_load_s1">상차 스테이션 1 (task_load_s1)</option>
+            <option value="task_load_s2">상차 스테이션 2 (task_load_s2)</option>
+            <option value="task_unload_home">하차 홈 구역 (task_unload_home)</option>
+            <option value="task_sort_normal">회수품 &rarr; 정상품 분류 (task_sort_normal)</option>
+            <option value="task_sort_defect">회수품 &rarr; 격리존 분류 (task_sort_defect)</option>
+          </select>
+        </div>
+
+        <div class="recorder-btn-group">
+          <button id="btnRecordStart" class="btn-record-start">
+            <span>●</span> 녹화 시작 (Space / R1)
+          </button>
+          <button id="btnRecordSave" class="btn-record-save" disabled>
+            <span>■</span> 저장 완료 (Enter / L1)
+          </button>
+          <button id="btnRecordDiscard" class="btn-record-discard" disabled>
+            <span>✕</span> 폐기 (Backspace / B)
+          </button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 4px;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span id="recordStatusText" class="badge badge-cyan">IDLE</span>
+            <span style="color: var(--text-muted);">녹화 시간:</span>
+            <strong id="recordTimerText" style="color: var(--accent-cyan); font-family: monospace; font-size: 1.05rem;">0.0s</strong>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">HDF5/Parquet + MP4 즉시 생성</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Preset Buttons + Joint Sliders + Diagnostics -->
+    <div class="panel">
+
+      <!-- Preset Quick Bar -->
+      <div class="panel-title">
+        <span>⚡ 프리셋 자세 (Preset Poses)</span>
+      </div>
+      <div class="preset-bar">
+        <button class="btn-preset" data-preset="home">🏠 Home (0°)</button>
+        <button class="btn-preset" data-preset="ready">🎯 Ready 대기</button>
+        <button class="btn-preset" data-preset="pick_approach">📦 Pick 접근</button>
+        <button class="btn-preset" data-preset="retract_safe">🛡️ Retract 안전퇴피 (Z&ge;280mm)</button>
+      </div>
+
+      <!-- Joint Sliders -->
+      <div class="panel-title" style="margin-top: 6px;">
+        <span>🎛️ 관절별 실시간 제어 (Joint Sliders)</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">키보드 WASD / 게임패드로도 조작 가능</span>
+      </div>
+
+      <div id="jointsContainer" style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Dynamically rendered by app.js -->
+      </div>
+
+      <!-- Telemetry Diagnostics HUD -->
+      <div class="panel-title" style="margin-top: 6px;">
+        <span>📊 모터 진단 텔레메트리 (Hardware Diagnostics)</span>
+      </div>
+
+      <div class="telemetry-grid">
+        <div class="telemetry-item">
+          <div class="telemetry-label">평균 모터 온도</div>
+          <div id="hudTemp" class="telemetry-val" style="color: var(--accent-emerald);">35.0°C</div>
+        </div>
+        <div class="telemetry-item">
+          <div class="telemetry-label">인가 전압</div>
+          <div id="hudVolt" class="telemetry-val" style="color: var(--accent-cyan);">12.1 V</div>
+        </div>
+        <div class="telemetry-item">
+          <div class="telemetry-label">최대 부하 전류</div>
+          <div id="hudCurrent" class="telemetry-val" style="color: var(--accent-amber);">15 mA</div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

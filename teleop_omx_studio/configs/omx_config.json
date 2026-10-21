@@ -1,0 +1,108 @@
+{
+  "serial": {
+    "device_name": "/dev/ttyUSB0",
+    "baudrate": 1000000,
+    "protocol_version": 2.0
+  },
+  "joints": {
+    "1": {
+      "name": "joint_base",
+      "model": "XM430-W350",
+      "min_rad": -3.1415,
+      "max_rad": 3.1415,
+      "default_p": 800,
+      "default_i": 0,
+      "default_d": 0,
+      "profile_vel": 100,
+      "profile_accel": 30
+    },
+    "2": {
+      "name": "joint_shoulder",
+      "model": "XM430-W350",
+      "min_rad": -1.7453,
+      "max_rad": 1.7453,
+      "default_p": 800,
+      "default_i": 0,
+      "default_d": 0,
+      "profile_vel": 100,
+      "profile_accel": 30
+    },
+    "3": {
+      "name": "joint_elbow",
+      "model": "XM430-W350",
+      "min_rad": -1.6580,
+      "max_rad": 1.5707,
+      "default_p": 800,
+      "default_i": 0,
+      "default_d": 0,
+      "profile_vel": 100,
+      "profile_accel": 30
+    },
+    "4": {
+      "name": "joint_wrist_pitch",
+      "model": "XL430-W250",
+      "min_rad": -1.8325,
+      "max_rad": 1.8325,
+      "default_p": 800,
+      "default_i": 0,
+      "default_d": 0,
+      "profile_vel": 100,
+      "profile_accel": 30
+    },
+    "5": {
+      "name": "joint_wrist_roll",
+      "model": "XL430-W250",
+      "min_rad": -3.1415,
+      "max_rad": 3.1415,
+      "default_p": 800,
+      "default_i": 0,
+      "default_d": 0,
+      "profile_vel": 100,
+      "profile_accel": 30
+    },
+    "6": {
+      "name": "gripper",
+      "model": "XL430-W250",
+      "min_rad": 0.0,
+      "max_rad": 0.05,
+      "default_p": 800,
+      "default_i": 0,
+      "default_d": 0,
+      "profile_vel": 100,
+      "profile_accel": 30,
+      "default_current_limit_ma": 250,
+      "grip_detect_threshold_ma": 80
+    }
+  },
+  "presets": {
+    "home": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "ready": [0.0, -0.35, 0.52, 0.0, 0.0, 0.045],
+    "pick_approach": [0.0, 0.52, -0.25, 0.45, 0.0, 0.045],
+    "retract_safe": [0.0, -0.75, 1.10, -0.35, 0.0, 0.0]
+  },
+  "cameras": {
+    "top": {
+      "device_index": 0,
+      "width": 1280,
+      "height": 720,
+      "fps": 30
+    },
+    "wrist": {
+      "device_index": 2,
+      "width": 640,
+      "height": 480,
+      "fps": 30
+    }
+  },
+  "livekit": {
+    "url": "ws://127.0.0.1:7880",
+    "api_key": "devkey",
+    "api_secret": "secret",
+    "room_name": "omx_teleop_room"
+  },
+  "safety": {
+    "watchdog_timeout_ms": 100,
+    "max_packet_age_ms": 50,
+    "command_frequency_hz": 30
+  }
+}
