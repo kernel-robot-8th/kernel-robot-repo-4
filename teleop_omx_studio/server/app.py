@@ -163,15 +163,6 @@ class TorqueRequest(BaseModel):
 class LeaseRequest(BaseModel):
     operator_id: str
 
-import yaml
-
-# BringUp & System Gating State
-is_brought_up = False
-INIT_POSE_YAML = os.path.join(os.path.dirname(__file__), "..", "configs", "omx_init_pose.yaml")
-
-class SavePathRequest(BaseModel):
-    output_dir: str
-
 class RecordStartRequest(BaseModel):
     task_name: str
     metadata: Optional[Dict[str, Any]] = None
@@ -185,8 +176,6 @@ def get_status():
     return {
         "status": "online",
         "mock_mode": hw.mock,
-        "is_brought_up": is_brought_up,
-        "save_path": recorder.output_dir,
         "positions": states["positions"],
         "velocities": states["velocities"],
         "currents": states["currents"],
@@ -207,90 +196,8 @@ def get_status():
         }
     }
 
-@app.post("/api/bringup")
-def bringup_robot():
-    """
-    Requirement 1 & 2: BringUp button energizes motors (torque/current) and moves to Init pose from YAML.
-    """
-    global is_brought_up
-    try:
-        if os.path.exists(INIT_POSE_YAML):
-            with open(INIT_POSE_YAML, "r", encoding="utf-8") as f:
-                cfg = yaml.safe_load(f)
-        else:
-            cfg = {}
-
-        init_pose_cfg = cfg.get("init_pose", {})
-        targets = [
-            float(init_pose_cfg.get("joint_base", 0.0)),
-            float(init_pose_cfg.get("joint_shoulder", -0.35)),
-            float(init_pose_cfg.get("joint_elbow", 0.52)),
-            float(init_pose_cfg.get("joint_wrist_pitch", 0.0)),
-            float(init_pose_cfg.get("joint_wrist_roll", 0.0)),
-            float(init_pose_cfg.get("gripper", 0.045))
-        ]
-
-        torque_cfg = cfg.get("torque", {})
-        grip_limit = torque_cfg.get("gripper_current_limit_ma", 250)
-
-        # 1. Energize motors (Torque ON)
-        hw.set_torque_enable(True)
-        hw.set_gripper_current_limit(grip_limit)
-
-        # 2. Set profile speed
-        profile_cfg = cfg.get("profile", {})
-        vel = profile_cfg.get("velocity", 60)
-        accel = profile_cfg.get("acceleration", 20)
-        for jid in hw.joint_ids:
-            hw.set_profile(jid, vel, accel)
-
-        # 3. Drive to Init Pose
-        hw.sync_write_goals(targets)
-
-        is_brought_up = True
-        logger.info(f"OMX BringUp successful! Moved to init pose: {targets}")
-        return {
-            "success": True,
-            "is_brought_up": True,
-            "message": "OMX BringUp successful. Init pose applied.",
-            "init_pose": targets
-        }
-    except Exception as e:
-        logger.error(f"BringUp failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/server_off")
-def server_off():
-    """
-    Requirement 4: Server OFF (opposite of BringUp) kills torque and de-energizes all motors.
-    """
-    global is_brought_up
-    if recorder.recording:
-        recorder.discard_episode()
-
-    # Kill torque to all motors to stop heat & lock
-    hw.set_torque_enable(False)
-    is_brought_up = False
-    logger.info("OMX Server OFF: Torque killed. System in Standby.")
-    return {
-        "success": True,
-        "is_brought_up": False,
-        "message": "Server OFF: All motor torques killed. System in Standby."
-    }
-
-@app.post("/api/config/save_path")
-def set_save_path(req: SavePathRequest):
-    """
-    Requirement 1: Sets custom storage directory for dataset recording sessions.
-    """
-    recorder.set_output_dir(req.output_dir)
-    return {"success": True, "output_dir": recorder.output_dir}
-
 @app.post("/api/arm/jog")
 def jog_joint(req: JogRequest):
-    if not is_brought_up:
-        raise HTTPException(status_code=400, detail="Robot is not brought up. Click [BringUp] first!")
-
     if req.joint_index < 0 or req.joint_index >= len(hw.joint_ids):
         raise HTTPException(status_code=400, detail="Invalid joint index")
 
@@ -305,9 +212,6 @@ def jog_joint(req: JogRequest):
 
 @app.post("/api/arm/target")
 def set_target(req: TargetRequest):
-    if not is_brought_up:
-        raise HTTPException(status_code=400, detail="Robot is not brought up. Click [BringUp] first!")
-
     if len(req.targets) != 6:
         raise HTTPException(status_code=400, detail="Expected exactly 6 joint targets")
     hw.sync_write_goals(req.targets)
@@ -315,9 +219,6 @@ def set_target(req: TargetRequest):
 
 @app.post("/api/arm/preset/{preset_name}")
 def apply_preset(preset_name: str):
-    if not is_brought_up:
-        raise HTTPException(status_code=400, detail="Robot is not brought up. Click [BringUp] first!")
-
     presets = CONFIG.get("presets", {})
     if preset_name not in presets:
         raise HTTPException(status_code=404, detail=f"Preset '{preset_name}' not found")
@@ -364,40 +265,22 @@ def get_livekit_token(identity: str = Query("operator_web")):
         return {"error": str(e), "message": "LiveKit API token generation failed"}
 
 # ------------------------------------------------------------------------------
-# LeRobot Recorder Endpoints (Requirement 3: Success, Discard, Fail)
+# LeRobot Recorder Endpoints
 # ------------------------------------------------------------------------------
 @app.post("/api/record/start")
 def start_record(req: RecordStartRequest):
-    if not is_brought_up:
-        raise HTTPException(status_code=400, detail="Cannot record before BringUp. Click [BringUp] first!")
-
     recorder.start_episode(req.task_name, req.metadata)
     return {"success": True, "episode_index": recorder.current_episode_index, "task": req.task_name}
 
-@app.post("/api/record/stop_success")
-def stop_record_success():
-    """Requirement 3: Success save button. Parquet includes success=True and video is saved."""
-    info = recorder.stop_and_save(status="success")
-    if info is None:
-        return {"success": False, "message": "Episode was too short or empty, discarded"}
-    return {"success": True, "status": "success", "episode_info": info}
-
-@app.post("/api/record/stop_fail")
-def stop_record_fail():
-    """Requirement 3: Fail button. Video & data are saved, but Parquet explicitly records success=False."""
-    info = recorder.stop_and_save(status="fail")
-    if info is None:
-        return {"success": False, "message": "Episode was too short or empty, discarded"}
-    return {"success": True, "status": "fail", "episode_info": info}
-
 @app.post("/api/record/stop")
-def stop_record_default():
-    """Default save (alias to success)"""
-    return stop_record_success()
+def stop_record():
+    info = recorder.stop_and_save()
+    if info is None:
+        return {"success": False, "message": "Episode was too short or empty, discarded"}
+    return {"success": True, "episode_info": info}
 
 @app.post("/api/record/discard")
 def discard_record():
-    """Requirement 3: Discard button. Drops memory buffer with zero disk saving."""
     recorder.discard_episode()
     return {"success": True, "message": "Current recording buffer discarded"}
 
