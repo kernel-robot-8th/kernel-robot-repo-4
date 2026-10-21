@@ -111,7 +111,7 @@ async def camera_loop():
         # Record step if recording
         if recorder.recording:
             states = hw.sync_read_states()
-            obs_state = states["positions"] + states["velocities"][:5] + [states["currents"][-1]]
+            obs_state = states["positions"] + states["velocities"] + [states["currents"][-1]]
             target_action = [hw.goal_positions[jid] for jid in hw.joint_ids]
             recorder.record_step(obs_state, target_action, current_top_frame, current_wrist_frame)
 
