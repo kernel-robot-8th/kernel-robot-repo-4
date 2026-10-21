@@ -14,8 +14,7 @@ OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하�
 
 **설치**
 ```bash
-unzip omx_collector.zip
-cd omx_collector
+cd omx_recoder
 source ~/venv/il/bin/activate
 pip install -r requirements.txt
 ```
