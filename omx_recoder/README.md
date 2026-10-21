@@ -80,6 +80,14 @@ python main.py
 
 ## 4. 주의 사항
 
+- **실행 직후 대시보드가 꺼질 때**: Python 3.10.22 / PySide6 6.12.0 환경에서
+  `Fatal Python error: none_dealloc: deallocating None` 종료를 재현했습니다.
+  `QLabel.setText()` 반복 호출만으로도 발생하며, PySide6 6.8.3에서는 같은 현상이
+  발생하지 않았습니다. `requirements.txt`의 검증 버전을 사용하세요.
+  활성화된 가상환경에서 `python -m pip install -r requirements.txt`로 설치합니다.
+  별도 설치된 `PySide6-Pdf` / `PySide6-WebEngine`이 6.12.0을 요구하는 환경에서는
+  해당 패키지의 의존성도 함께 정리해야 합니다. 이 대시보드는 두 패키지를 사용하지 않습니다.
+  다른 종료 원인을 확인하려면 터미널에서 `python -X faulthandler main.py`로 실행하세요.
 - **단축키가 안 먹을 때**: 입력창에 커서가 있는 상태입니다. `Enter` 또는 `Esc`로 빠져나오세요.
 - **녹화 버튼이 안 켜질 때**: 리더암 자세가 Init과 다릅니다. 빨간색 관절을 맞추세요.
   - 너무 맞추기 어려우면 설정 탭의 `정렬 허용오차`를 늘리세요.
