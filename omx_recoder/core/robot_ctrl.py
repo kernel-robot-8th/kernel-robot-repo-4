@@ -6,7 +6,7 @@ import traceback
 
 import numpy as np
 
-from .config import MOTORS
+from .config import ARM_MOTORS, MOTORS
 from .kinematics import EEPoseCalculator
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class Mode:
     DISCONNECTED = "DISCONNECTED"
     CONNECTING = "CONNECTING"
     MOVING = "MOVING"
-    ALIGNING = "ALIGNING"
+    HOLD = "HOLD"  # both arms held at the init pose, leader body torque ON
     TELEOP = "TELEOP"
     STOPPING = "STOPPING"
     FAULT = "FAULT"
@@ -73,6 +73,9 @@ class RobotController:
 
     def capture_pose(self, which: str) -> None:
         self._cmds.put(("capture", which))
+
+    def free_leader(self) -> None:
+        self._cmds.put(("free",))
 
     def shutdown(self, timeout: float = 15.0) -> None:
         if self.running:
@@ -133,6 +136,17 @@ class RobotController:
     def _read_pos(self) -> dict:
         return self.follower.bus.sync_read("Present_Position")
 
+    def _read_leader(self) -> dict:
+        return self.leader.bus.sync_read("Present_Position")
+
+    def _lock_leader(self, lpos: dict) -> None:
+        """Hold the leader's body joints where they are so they can be driven (its gripper stays a trigger)."""
+        self.leader.bus.sync_write("Goal_Position", {m: lpos[m] for m in ARM_MOTORS})
+        self.leader.bus.enable_torque(ARM_MOTORS)
+
+    def _free_leader(self) -> None:
+        self.leader.bus.disable_torque(ARM_MOTORS)
+
     def _run(self, cfg: dict, poses: dict, session: dict) -> None:
         try:
             self._connect(cfg, session)
@@ -163,9 +177,6 @@ class RobotController:
         status_period = 1.0 / max(float(cfg["record"]["status_hz"]), 0.01)
         mc = cfg["motion"]
         move_dur = float(mc["move_duration_s"])
-        tol_joint = float(mc["align_tol_joint"])
-        tol_grip = float(mc["align_tol_gripper"])
-        hold_s = float(mc["align_hold_s"])
         max_step = float(mc["max_step"])
         ee_calc = EEPoseCalculator(self.follower.bus.calibration, cfg["fk"]["signs"], cfg["fk"]["offsets_deg"])
 
@@ -175,9 +186,9 @@ class RobotController:
             "task": "",
             "rec_t0": 0.0,
             "rec_frames": 0,
-            "move": None,  # (start, end, t0, dur, next_mode)
+            "move": None,  # (start, leader_start or None, end, t0, dur, next_mode)
             "hold": None,
-            "align_since": None,
+            "record_task": None,  # set -> recording starts once the move to init ends
             "last_goal": None,
             "stop": False,
         }
@@ -188,24 +199,36 @@ class RobotController:
         errors = 0
         loop_dt = period
 
-        fpos0 = self._read_pos()
-
-        def start_move(start: dict, end: dict, next_mode: str):
-            st["move"] = (dict(start), dict(end), time.perf_counter(), move_dur, next_mode)
+        def start_move(end: dict, next_mode: str, with_leader: bool = True):
+            """Move the follower (and the leader's body joints, torque ON) smoothly to `end`."""
+            lstart = None
+            if with_leader:
+                lstart = self._read_leader()
+                self._lock_leader(lstart)
+            st["move"] = (self._read_pos(), lstart, dict(end), time.perf_counter(), move_dur, next_mode)
             st["hold"] = dict(end)
             self._set_mode(Mode.MOVING)
 
-        def enter_aligning(target: dict):
-            st["hold"] = dict(target)
-            st["align_since"] = None
-            self._set_mode(Mode.ALIGNING)
+        def go_init(record_task: str | None = None):
+            st["record_task"] = record_task
+            start_move(poses["init"], Mode.HOLD)
+
+        def start_teleop():
+            self._free_leader()
+            st["last_goal"] = None
+            self._set_mode(Mode.TELEOP)
+
+        def begin_record(task: str):
+            start_teleop()
+            st.update(recording=True, task=task, rec_t0=time.perf_counter(), rec_frames=0)
+            self._emit("record_started", None)
 
         if poses.get("init"):
-            self._emit("log", f"Init 자세로 이동 ({move_dur:.1f}s)")
-            start_move(fpos0, poses["init"], Mode.ALIGNING)
+            self._emit("log", f"리더·팔로워 Init 자세로 이동 ({move_dur:.1f}s)")
+            go_init()
         else:
-            self._emit("log", "Init 자세 미설정 — 현재 자세를 유지합니다. 원하는 자세에서 'Init 저장'을 누르세요.")
-            enter_aligning(fpos0)
+            self._emit("log", "Init 자세 미설정 — 팔로워가 리더암 자세로 이동합니다. 리더암으로 자세를 잡고 'Init 저장'을 누르세요.")
+            start_move(self._read_leader(), Mode.TELEOP, with_leader=False)
 
         next_t = time.perf_counter()
         while True:
@@ -217,7 +240,7 @@ class RobotController:
                     cmd = self._cmds.get_nowait()
                 except queue.Empty:
                     break
-                self._handle_cmd(cmd, st, poses, start_move, enter_aligning)
+                self._handle_cmd(cmd, st, poses, start_move, go_init, start_teleop, begin_record)
             if st["stop"]:
                 break
 
@@ -242,33 +265,30 @@ class RobotController:
                     sent = goal
 
                 elif self.mode == Mode.MOVING:
-                    start, end, t0, dur, next_mode = st["move"]
+                    start, lstart, end, t0, dur, next_mode = st["move"]
                     a = _smoothstep((now - t0) / dur) if dur > 0 else 1.0
                     goal = {m: start[m] + (end[m] - start[m]) * a for m in MOTORS}
                     self.follower.bus.sync_write("Goal_Position", goal)
+                    if lstart is not None:
+                        lgoal = {m: lstart[m] + (end[m] - lstart[m]) * a for m in ARM_MOTORS}
+                        self.leader.bus.sync_write("Goal_Position", lgoal)
                     sent = goal
                     if a >= 1.0:
                         st["move"] = None
                         if next_mode == Mode.STOPPING:
                             st["stop"] = True
+                        elif next_mode == Mode.TELEOP:
+                            start_teleop()
+                            self._emit("log", "원격조종 시작 (녹화 안 됨)")
+                        elif st["record_task"] is not None:
+                            task, st["record_task"] = st["record_task"], None
+                            begin_record(task)
                         else:
-                            enter_aligning(end)
-                            self._emit("log", "리더암을 Init 자세에 맞추면 녹화가 활성화됩니다.")
+                            self._set_mode(Mode.HOLD)
+                            self._emit("log", "Init 자세 도착 — 리더암을 잡고 녹화를 누르세요.")
 
-                elif self.mode == Mode.ALIGNING:
+                elif self.mode == Mode.HOLD:
                     sent = st["hold"]
-                    ok = all(
-                        abs(lpos[m] - fpos[m]) <= (tol_grip if m == "gripper" else tol_joint) for m in MOTORS
-                    )
-                    if ok:
-                        if st["align_since"] is None:
-                            st["align_since"] = now
-                        elif now - st["align_since"] >= hold_s:
-                            st["last_goal"] = dict(fpos)
-                            self._set_mode(Mode.TELEOP)
-                            self._emit("aligned", None)
-                    else:
-                        st["align_since"] = None
 
                 vel = self.follower.bus.sync_read("Present_Velocity")
                 cur = self.follower.bus.sync_read("Present_Current")
@@ -300,8 +320,6 @@ class RobotController:
                         rec_seconds=(now - st["rec_t0"]) if st["recording"] else 0.0,
                         saving=self.recorder.busy,
                         loop_hz=1.0 / loop_dt if loop_dt > 0 else 0.0,
-                        tol_joint=tol_joint,
-                        tol_grip=tol_grip,
                     )
                 errors = 0
             except Exception as e:  # noqa: BLE001
@@ -328,13 +346,21 @@ class RobotController:
         self._emit("log", "녹화 저장 마무리 대기 중...")
         self.recorder.wait_idle()
 
-    def _handle_cmd(self, cmd, st, poses, start_move, enter_aligning) -> None:
+    def _handle_cmd(self, cmd, st, poses, start_move, go_init, start_teleop, begin_record) -> None:
         kind = cmd[0]
         if kind == "record":
-            if self.mode != Mode.TELEOP or st["recording"] or st["pending"] or self.recorder.busy:
+            if st["recording"] or st["pending"] or self.recorder.busy or not poses.get("init"):
                 return
-            st.update(recording=True, task=cmd[1] or "", rec_t0=time.perf_counter(), rec_frames=0)
-            self._emit("record_started", None)
+            if self.mode == Mode.HOLD:
+                begin_record(cmd[1] or "")
+            elif self.mode == Mode.TELEOP:
+                go_init(record_task=cmd[1] or "")
+                self._emit("log", "Init 자세로 이동 후 녹화를 시작합니다.")
+
+        elif kind == "free":
+            if self.mode == Mode.HOLD and not (st["recording"] or st["pending"]):
+                start_teleop()
+                self._emit("log", "리더암 해제 — 원격조종 중 (녹화 안 됨)")
 
         elif kind == "end":
             outcome, meta = cmd[1], cmd[2]
@@ -345,24 +371,30 @@ class RobotController:
             self.recorder.finish(outcome, meta)
             with self._lock:
                 self._snap.update(recording=False, pending=False, saving=True)
-            if self.mode in (Mode.TELEOP, Mode.ALIGNING) and poses.get("init"):
+            if self.mode in (Mode.TELEOP, Mode.HOLD) and poses.get("init"):
                 try:
-                    start_move(self._read_pos(), poses["init"], Mode.ALIGNING)
-                    self._emit("log", "Init 자세로 복귀")
+                    go_init()
+                    self._emit("log", "리더·팔로워 Init 자세로 복귀")
                 except Exception as e:  # noqa: BLE001
                     self._emit("error", f"Init 복귀 실패: {e}")
 
         elif kind == "capture":
             which = cmd[1]
+            if self.mode != Mode.TELEOP or st["recording"] or st["pending"]:
+                return
             try:
-                pose = {m: float(v) for m, v in self._read_pos().items()}
+                # Poses come from the leader arm, the one the operator moves by hand.
+                pose = {m: float(v) for m, v in self._read_leader().items()}
             except Exception as e:  # noqa: BLE001
                 self._emit("error", f"자세 읽기 실패: {e}")
                 return
             poses[which] = pose
             self._emit("pose_captured", (which, pose))
-            if which == "init" and self.mode == Mode.ALIGNING:
-                enter_aligning(pose)
+            if which == "init":
+                try:
+                    go_init()
+                except Exception as e:  # noqa: BLE001
+                    self._emit("error", f"Init 이동 실패: {e}")
 
         elif kind == "servo_off":
             if st["recording"]:
@@ -376,8 +408,8 @@ class RobotController:
                 st["stop"] = True
                 return
             try:
-                start_move(self._read_pos(), target, Mode.STOPPING)
-                self._emit("log", "Rest 자세로 이동 후 토크 OFF")
+                start_move(target, Mode.STOPPING)
+                self._emit("log", "리더·팔로워 Rest 자세로 이동 후 토크 OFF — 두 팔을 받쳐 주세요")
             except Exception:  # noqa: BLE001
                 st["stop"] = True
 

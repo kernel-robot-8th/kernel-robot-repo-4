@@ -4,6 +4,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# On Python 3.10, PySide6 injects a placeholder typing.Self; importing typing_extensions first keeps
+# its own Self so torch (imported lazily via lerobot) does not fail with "Plain typing.Self ...".
+import typing_extensions  # noqa: E402, F401
+
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from ui.main_window import MainWindow  # noqa: E402

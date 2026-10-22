@@ -34,9 +34,6 @@ DEFAULTS = {
     },
     "motion": {
         "move_duration_s": 3.0,
-        "align_tol_joint": 5.0,
-        "align_tol_gripper": 10.0,
-        "align_hold_s": 0.3,
         "max_step": 3.0,
     },
     "hub": {

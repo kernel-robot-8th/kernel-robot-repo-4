@@ -3,7 +3,7 @@ import threading
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QTimer
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -171,8 +171,9 @@ class MainWindow(QMainWindow):
         cg = QGridLayout(cbox)
         self.btn_bringup = QPushButton("BringUp")
         self.btn_servo_off = QPushButton("Servo OFF")
-        self.btn_init = QPushButton("현재 자세 → Init 저장")
-        self.btn_rest = QPushButton("현재 자세 → Rest 저장")
+        self.btn_init = QPushButton("리더 자세 → Init 저장")
+        self.btn_rest = QPushButton("리더 자세 → Rest 저장")
+        self.btn_free = QPushButton("리더암 해제 (녹화 없이 원격조종)")
         self.btn_record = QPushButton("녹화  [Space]")
         self.btn_success = QPushButton("Success  [S]")
         self.btn_fail = QPushButton("Fail  [F]")
@@ -181,12 +182,13 @@ class MainWindow(QMainWindow):
         for b in (self.btn_bringup, self.btn_servo_off, self.btn_record, self.btn_success, self.btn_fail, self.btn_discard):
             b.setMinimumHeight(48)
             b.setFocusPolicy(Qt.NoFocus)
-        for b in (self.btn_init, self.btn_rest, self.btn_upload):
+        for b in (self.btn_init, self.btn_rest, self.btn_free, self.btn_upload):
             b.setFocusPolicy(Qt.NoFocus)
         self.btn_bringup.clicked.connect(self._bringup)
         self.btn_servo_off.clicked.connect(self._servo_off)
         self.btn_init.clicked.connect(lambda: self.ctrl.capture_pose("init"))
         self.btn_rest.clicked.connect(lambda: self.ctrl.capture_pose("rest"))
+        self.btn_free.clicked.connect(self.ctrl.free_leader)
         self.btn_record.clicked.connect(self._record)
         self.btn_success.clicked.connect(lambda: self._end("success"))
         self.btn_fail.clicked.connect(lambda: self._end("fail"))
@@ -196,11 +198,12 @@ class MainWindow(QMainWindow):
         cg.addWidget(self.btn_servo_off, 0, 1)
         cg.addWidget(self.btn_init, 1, 0)
         cg.addWidget(self.btn_rest, 1, 1)
-        cg.addWidget(self.btn_record, 2, 0, 1, 2)
-        cg.addWidget(self.btn_success, 3, 0)
-        cg.addWidget(self.btn_fail, 3, 1)
-        cg.addWidget(self.btn_discard, 4, 0, 1, 2)
-        cg.addWidget(self.btn_upload, 5, 0, 1, 2)
+        cg.addWidget(self.btn_free, 2, 0, 1, 2)
+        cg.addWidget(self.btn_record, 3, 0, 1, 2)
+        cg.addWidget(self.btn_success, 4, 0)
+        cg.addWidget(self.btn_fail, 4, 1)
+        cg.addWidget(self.btn_discard, 5, 0, 1, 2)
+        cg.addWidget(self.btn_upload, 6, 0, 1, 2)
         right.addWidget(cbox)
 
         tbox = QGroupBox("에피소드 태스크 문장")
@@ -287,19 +290,9 @@ class MainWindow(QMainWindow):
         mf = QFormLayout(mbox)
         self.sp_move = QDoubleSpinBox()
         self.sp_move.setRange(0.5, 20)
-        self.sp_tol_j = QDoubleSpinBox()
-        self.sp_tol_j.setRange(0.5, 50)
-        self.sp_tol_g = QDoubleSpinBox()
-        self.sp_tol_g.setRange(0.5, 100)
-        self.sp_hold = QDoubleSpinBox()
-        self.sp_hold.setRange(0.0, 5)
-        self.sp_hold.setSingleStep(0.1)
         self.sp_step = QDoubleSpinBox()
         self.sp_step.setRange(0.0, 100)
         mf.addRow("Init/Rest 이동 시간 (s)", self.sp_move)
-        mf.addRow("정렬 허용오차 - 관절", self.sp_tol_j)
-        mf.addRow("정렬 허용오차 - 그리퍼", self.sp_tol_g)
-        mf.addRow("정렬 유지 시간 (s)", self.sp_hold)
         mf.addRow("프레임당 최대 이동량 (0=제한 없음)", self.sp_step)
         col2.addWidget(mbox)
 
@@ -354,9 +347,6 @@ class MainWindow(QMainWindow):
         self.cb_vcodec.setCurrentText(c["record"]["vcodec"])
         m = c["motion"]
         self.sp_move.setValue(float(m["move_duration_s"]))
-        self.sp_tol_j.setValue(float(m["align_tol_joint"]))
-        self.sp_tol_g.setValue(float(m["align_tol_gripper"]))
-        self.sp_hold.setValue(float(m["align_hold_s"]))
         self.sp_step.setValue(float(m["max_step"]))
         self.ed_hub_user.setText(c["hub"]["user"])
         self.ck_private.setChecked(bool(c["hub"]["private"]))
@@ -384,9 +374,6 @@ class MainWindow(QMainWindow):
         c["record"].update(fps=self.sp_fps.value(), status_hz=self.sp_status.value(), vcodec=self.cb_vcodec.currentText())
         c["motion"].update(
             move_duration_s=self.sp_move.value(),
-            align_tol_joint=self.sp_tol_j.value(),
-            align_tol_gripper=self.sp_tol_g.value(),
-            align_hold_s=self.sp_hold.value(),
             max_step=self.sp_step.value(),
         )
         c["hub"].update(user=self.ed_hub_user.text().strip(), private=self.ck_private.isChecked())
@@ -571,8 +558,6 @@ class MainWindow(QMainWindow):
                 self.counts = self.recorder.counts()
         elif kind == "record_started":
             self._log(f"녹화 시작: \"{self.last_task_text}\"")
-        elif kind == "aligned":
-            self._log("정렬 완료 — 원격조종 시작, 녹화 가능")
         elif kind == "pose_captured":
             which, pose = payload
             self.poses[which] = pose
@@ -592,7 +577,7 @@ class MainWindow(QMainWindow):
         recording = s.get("recording", False)
         pending = s.get("pending", False)
         saving = self.recorder.busy
-        active = running and mode in (Mode.MOVING, Mode.ALIGNING, Mode.TELEOP, Mode.FAULT)
+        active = running and mode in (Mode.MOVING, Mode.HOLD, Mode.TELEOP, Mode.FAULT)
 
         self.btn_session.setEnabled(not running)
         self.ed_output.setEnabled(not running)
@@ -601,10 +586,19 @@ class MainWindow(QMainWindow):
             b.setEnabled(not running)
         self.btn_bringup.setEnabled(bool(self.session) and not running)
         self.btn_servo_off.setEnabled(active and not recording and mode != Mode.MOVING)
-        pose_ok = running and mode in (Mode.ALIGNING, Mode.TELEOP) and not recording and not pending
+        # Poses are read from the leader, so it must be free to move (TELEOP).
+        pose_ok = running and mode == Mode.TELEOP and not recording and not pending
         self.btn_init.setEnabled(pose_ok)
         self.btn_rest.setEnabled(pose_ok)
-        can_record = running and mode == Mode.TELEOP and not recording and not pending and not saving
+        self.btn_free.setEnabled(running and mode == Mode.HOLD and not recording and not pending)
+        can_record = (
+            running
+            and mode in (Mode.HOLD, Mode.TELEOP)
+            and bool(self.poses.get("init"))
+            and not recording
+            and not pending
+            and not saving
+        )
         self.btn_record.setEnabled(can_record)
         self.btn_success.setEnabled(recording or pending)
         self.btn_fail.setEnabled(recording or pending)
@@ -633,19 +627,24 @@ class MainWindow(QMainWindow):
         elif mode == Mode.FAULT:
             txt, sty = "FAULT — 통신 오류", STYLE_RED
         elif mode == Mode.STOPPING:
-            txt, sty = "종료 중...", STYLE_GRAY
+            txt, sty = "종료 중 — 두 팔을 받쳐 주세요", STYLE_ORANGE
         elif recording:
             txt, sty = f"● 녹화 중  ({s.get('rec_frames', 0)} 프레임)", STYLE_RED
         elif pending:
             txt, sty = "결과를 선택하세요 (S / F / D)", STYLE_ORANGE
         elif mode == Mode.MOVING:
             txt, sty = "자세 이동 중...", STYLE_BLUE
-        elif mode == Mode.ALIGNING:
-            txt, sty = "리더암을 Init 자세에 맞추세요", STYLE_ORANGE
+        elif mode == Mode.HOLD:
+            if saving:
+                txt, sty = "Init 자세 · 에피소드 저장 중...", STYLE_BLUE
+            else:
+                txt, sty = "Init 자세 · 리더암을 잡고 녹화 [Space]", STYLE_GREEN
+        elif not self.poses.get("init"):
+            txt, sty = "원격조종 중 · 리더암으로 자세를 잡고 Init 저장", STYLE_ORANGE
         elif saving:
             txt, sty = "원격조종 중 · 에피소드 저장 중...", STYLE_BLUE
         else:
-            txt, sty = "원격조종 중 · 녹화 가능", STYLE_GREEN
+            txt, sty = "원격조종 중 · 녹화를 누르면 Init으로 이동 후 시작", STYLE_GREEN
         self.lbl_banner.setText(txt)
         self.lbl_banner.setStyleSheet(sty)
 
@@ -666,7 +665,6 @@ class MainWindow(QMainWindow):
 
         lead, fol = s.get("leader"), s.get("follower")
         if running and lead and fol:
-            tj, tg = s.get("tol_joint", 5), s.get("tol_grip", 10)
             for r, m in enumerate(MOTORS):
                 d = lead[m] - fol[m]
                 vals = [
@@ -680,13 +678,10 @@ class MainWindow(QMainWindow):
                 ]
                 for c, v in enumerate(vals):
                     self.table.item(r, c).setText(v)
-                ok = abs(d) <= (tg if m == "gripper" else tj)
-                self.table.item(r, 2).setBackground(QColor("#c8e6c9") if ok else QColor("#ffcdd2"))
         else:
             for r in range(len(MOTORS)):
                 for c in range(len(COLS)):
                     self.table.item(r, c).setText("-")
-                self.table.item(r, 2).setBackground(QColor(Qt.transparent))
 
     # ================================================================== misc
     def _log(self, msg: str, error: bool = False):
