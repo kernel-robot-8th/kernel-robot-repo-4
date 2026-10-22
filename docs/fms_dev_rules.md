@@ -46,7 +46,7 @@
 ## R3. 인터페이스 먼저
 
 - 규칙: 새 데이터가 필요하면 `cobot_interfaces` PR(또는 `docs/` 의 계약 초안)이 머지된 뒤 구현한다. msg/srv/action 변경은 CLAUDE.md §3-4·§9 를 따른다 (PR, 팀 공지, 1명 리뷰).
-- 이유: 인터페이스 초안(미병합 브랜치의 fleet_msgs)의 명령 메시지에는 epoch·TTL 이 없다. 그래서 SR-20 명령 유효성 검증 및 구 권한 차단 기능을 표현하지 못한다.
+- 이유: 인터페이스 초안(미병합 브랜치의 fleet_msgs)의 명령 메시지에는 epoch·TTL 이 없다. 그래서 SR-20 명령 유효성 확인 및 옛날 권한 차단 기능을 표현하지 못한다.
 - 예시: 5.6 이 CommandAck 를 써야 한다. 먼저 CommandAck.msg PR 을 내고, 머지된 뒤 5.6 을 만든다.
 
 ## R4. 위치
@@ -64,17 +64,17 @@
   - main 에 직접 push 하지 않는다. 남의 브랜치에 push 하지 않는다.
   - PR 은 1명 이상 리뷰 + 그 메뉴의 화면·데이터 담당 리뷰를 받는다.
   - 한 브랜치에는 한 메뉴 또는 한 인터페이스만 담는다.
-  - 예외: 레지스트리·규칙 문서 PR 은 메뉴 ID 자리에 `registry` 를, 여러 메뉴가 같이 쓰는 틀 PR 은 `common` 을 쓴다. 이런 PR 은 여러 메뉴를 함께 다뤄도 된다.
+  - 예외: 인터페이스·여러 메뉴 공용 계약은 메뉴 ID 자리에 `common`을 쓴다. 레지스트리·규칙 문서 PR 은 메뉴 ID 자리에 `registry` 를, 여러 메뉴가 같이 쓰는 틀 PR 은 `common` 을 쓴다. 이런 PR 은 여러 메뉴를 함께 다뤄도 된다.
   - 커밋은 CLAUDE.md §8 (Conventional Commits) 을 따른다. 메시지에 메뉴 ID 와 SR ID 를 적기를 권한다 (Git 규칙 단일화 D16 전까지 권고).
 - 이유: 한 브랜치에 여러 서브시스템이 섞이면 리뷰와 되돌리기가 어렵다.
-- 예시: 브랜치 `feature/gui-1.1-robot-cards`, 커밋 `feat(gui): 1.1 로봇 카드 틀 추가 (SR-06)`. 인터페이스는 `feature/common-command-ack-msg`. 레지스트리는 `feature/gui-registry-menu-tree`.
+- 예시: 브랜치 `feature/gui-1.1-robot-cards`, 커밋 `feat(gui): 1.1 로봇 카드 틀 추가 (SR-06)`. 인터페이스·공용 계약은 `feature/common-common-command-ack-msg`. 레지스트리는 `feature/gui-registry-menu-tree`.
 
 ## R6. SR 은 인용만 한다
 
-- 규칙: SR ID 의 뜻을 바꾸지 않는다. 레지스트리 `sr` 에는 SR v5.0 의 ID 만 쓴다. SR v5.0 에 없는 ID 는 `sr_unconfirmed` 에 둔다. 메뉴 트리 원문과 매핑이 다르면 `sr_original` 에 원문 값을, 메모에 이유를 적는다. 뜻을 바꿔야 하면 SR 개정 PR 을 낸다.
+- 규칙: SR ID 의 뜻을 바꾸지 않는다. 레지스트리 `sr` 에는 SR_v2 v13 의 ID 만 쓴다. SR_v2 v13 에 없는 ID 는 `sr_unconfirmed` 에 둔다. 메뉴 트리 원문과 매핑이 다르면 `sr_original` 에 원문 값을, 메모에 이유를 적는다. 뜻을 바꿔야 하면 SR 개정 PR 을 낸다.
 - 검사: 검사기(`menu_registry.py`)와 시험이 SR 사본의 ID·이름·우선순위·순서를 고정 사본과 대조한다. YAML 만 고쳐서 SR 을 늘리거나 이름을 바꾸면 실패한다.
 - 이유: SR ID 가 다른 뜻으로 쓰이면 추적이 깨진다. 예를 들어 브라우저 콘솔 잠금은 SR-19 네트워크 분리 및 단일 제어권 관리 기능의 단일 기록자가 아니다.
-- 예시: 6.5 의 'SR-22' 는 SR v5.0 에 없어서 `sr_unconfirmed` 에 있다 (D17).
+- 예시: 6.5는 정본에서 확인한 SR-22에 연결한다. 없는 SR-23은 `sr_unconfirmed`로만 기록하며 구현 근거로 사용하지 않는다.
 
 ## R7. 안전
 
@@ -183,7 +183,15 @@ CLAUDE.md §10 (Plan 모드 필수, 승인 범위 안에서만 작업) 을 먼�
 주의:
 
 - 메뉴를 더하거나 빼거나 이름을 바꾸면 `src/cobot_gui/cobot_gui/menu_registry.py` 의 `AGREED_MENUS` 와 `src/cobot_gui/test/test_menu_registry.py` 의 `AGREED_MENUS`·`ORIGINAL_SR` 도 같은 PR 에서 고친다. 원문 메뉴 트리 개정과 함께 한다.
-- SR 이 개정되면 `menu_registry.py` 의 `SR_V5`, YAML 의 `sr_catalog`, 시험의 `AGREED_SR` 를 같은 PR 에서 고친다.
+- SR 이 개정되면 `menu_registry.py` 의 `SR_CANON`, YAML 의 `sr_catalog`, 시험의 `AGREED_SR` 를 같은 PR 에서 고친다.
 - 메뉴의 단계나 단계 이름을 바꾸면 `docs/fms_roadmap.md` 의 단계 제목과 '포함 메뉴' 줄도 고친다. 시험이 둘을 대조한다.
 - 두 레지스트리 PR 이 충돌하면 생성 문서는 손으로 합치지 않는다. YAML 만 합친 뒤 생성기를 다시 돌린다.
 - 생성 문서의 줄 끝은 LF 다. `.gitattributes` 가 이 파일만 LF 로 고정한다. 그래서 Windows 의 `core.autocrlf=true` 에서도 CRLF 로 바뀌지 않는다. 레포 전체의 줄 끝 규칙은 팀이 정한다.
+
+## 기존 자산과 적용 시점
+
+- 이 문서는 Draft 제안이다. 팀 리뷰·결정·병합 전의 다른 브랜치를 소급하여 위반으로 처리하거나 삭제하지 않는다.
+- 현재 `omx_recoder/`는 D12의 채택·이전·예외 결정을 기다리는 기존 자산이다. FMS의 장치 노드와 동시에 같은 포트를 열지 않는다. 채택 전에 담당·제어권·패키지 위치를 계약한다.
+- 옛 `fleet_msgs`와 `cobot_interfaces`는 동일 타입이 아니다. 생산자·소비자를 함께 이관하거나 명시적 어댑터를 시험해야 한다.
+- main 보호·필수 리뷰·CODEOWNERS·CI의 실제 적용 상태는 `docs/fms_repository_governance.md`를 따른다. 문서에 적었다는 이유만으로 활성화됐다고 보고하지 않는다.
+- SR의 정본·설계 제안·현장 확인은 `docs/fms_sr_reconciliation.md`에 따라 구분한다. 도메인 10/12, 200 ms, ±50 ms, 팔 Z=280 mm 등은 SR_v2의 고정 요구값이라고 인용하지 않는다.

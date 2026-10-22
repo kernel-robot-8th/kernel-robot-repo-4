@@ -16,9 +16,9 @@
 #                   없앤 메뉴는 removed.
 #   status          planned | in_progress | done | removed
 #   branch          (status 가 in_progress 일 때 필수) 작업 브랜치 이름. 선점 표시다.
-#   sr              SR v5.0 의 ID 만 쓴다. 뜻을 바꾸지 않는다. 검사기는 sr_catalog 와
-#                   menu_registry.py 의 고정 사본(SR_V5)에 대고 본다.
-#   sr_unconfirmed  SR v5.0 에 없는 ID. 확인이 필요하다.
+#   sr              SR_v2 v13 의 ID 만 쓴다. 뜻을 바꾸지 않는다. 검사기는 sr_catalog 와
+#                   menu_registry.py 의 고정 사본(SR_CANON)에 대고 본다.
+#   sr_unconfirmed  SR_v2 v13 에 없는 ID. 확인이 필요하다.
 #   sr_original     (선택) 메뉴 트리 원문의 SR 매핑. 지금 매핑(sr + sr_unconfirmed)이 원문과
 #                   다를 때만 적고, 이유는 notes 에 적는다. 생성 문서 표에 ✱ 로 보인다.
 #   data_sources    읽는 데이터. 메시지·API 이름은 아키텍처 설계서 §3 의 제안 이름이다.
@@ -55,7 +55,7 @@ schema_version: 1
 source:
   menu_tree: 'FMS 관제 및 통합 대시보드 작업 세부 계획서 v0.1 — 메뉴 트리 (Confluence 6783015 v2, 2026-10-21)'
   screen_layout: 'FMS 관제 대시보드 아키텍처 설계서 v0.1 §5.1·§5.2·§7·§9·§10.1 (2026-10-22 초안, 팀 리뷰 전, 레포 밖 문서)'
-  sr: 'System Requirements v5.0 (SR-01~21, 2026-10-19, Confluence 3801308) — ID·원문 인용용 사본. SR 정본은 SR_v2 (Confluence 5406727, SR-22 포함)로 관제 담당이 정했고 원문 대조는 아직이다 (D17)'
+  sr: 'SR_v2 — Confluence 5406727 version 13, 2026-10-22 직접 조회. docs/fms_sr_reconciliation.md 참조'
   roles: 'README.md 팀 구성 표, CLAUDE.md §2 담당 표 (main 913eb15)'
 
 notes:
@@ -69,29 +69,30 @@ notes:
   - '역할의 packages 는 CLAUDE.md §2 의 `<proj>_` 를 `cobot_` 로 바꾼 예정 이름이다. main 913eb15 에는 cobot_navigation·cobot_vision 폴더만 있고, 나머지 패키지는 아직 없다.'
 
 sr_catalog:
-  source: 'System Requirements v5.0 §2 표의 ID·이름·우선순위 사본. main 에 SR 문서가 아직 없어 사본을 둔다. 이름 앞의 [신규] 표시는 뺐다. 우선순위는 §2 표를 따랐다(O 20건, R 1건). 같은 문서 §0.1·§2 범례의 O 18건·R 3건과 다르며, 작성자 확인 요청 항목이다.'
+  source: 'SR_v2, Confluence 5406727 version 13; 우선순위 RO(DB)와 빈칸을 그대로 보존. 문장 앞뒤 공백과 zero-width 공백만 정리.'
   items:
-    - {id: SR-01, name: 주문 관리 기능, priority: O}
-    - {id: SR-02, name: 재고 및 대상 박스 확인 기능, priority: O}
-    - {id: SR-03, name: 로봇 작업 배정 기능, priority: O}
-    - {id: SR-04, name: 자율주행 및 운송 기능, priority: O}
-    - {id: SR-05, name: 다중 로봇 통행 관리 기능, priority: O}
-    - {id: SR-06, name: 로봇 상태 모니터링 기능, priority: O}
-    - {id: SR-07, name: 비전 인식 기능, priority: O}
-    - {id: SR-08, name: 정차 위치 확인 기능, priority: O}
-    - {id: SR-09, name: 로봇팔 상차·하차 기능, priority: O}
-    - {id: SR-10, name: 적재 및 작업 완료 확인 기능, priority: O}
-    - {id: SR-11, name: 주행 안전 제어 기능, priority: O}
-    - {id: SR-12, name: 로봇팔 안전 제어 기능, priority: O}
-    - {id: SR-13, name: 사용자 작업 제어 기능, priority: O}
-    - {id: SR-14, name: 오류 및 통신 장애 대응 기능, priority: O}
-    - {id: SR-15, name: 오류 알림 기능, priority: O}
-    - {id: SR-16, name: 하차 대기열 관리 기능, priority: O}
-    - {id: SR-17, name: 빈 박스 및 반품 회수 관리 기능, priority: R}
-    - {id: SR-18, name: 작업 흐름 및 주문 완료 관리 기능, priority: O}
-    - {id: SR-19, name: 네트워크 분리 및 단일 제어권 관리 기능, priority: O}
-    - {id: SR-20, name: 명령 유효성 검증 및 구 권한 차단 기능, priority: O}
-    - {id: SR-21, name: 물리 완료 검증 및 이력 역추적(원장) 기능, priority: O}
+    - {id: SR-01, name: "주문 관리 기능", priority: "R"}
+    - {id: SR-02, name: "재고 및 대상 박스 확인 기능", priority: "RO(DB)"}
+    - {id: SR-03, name: "로봇 작업 배정 기능", priority: "R"}
+    - {id: SR-04, name: "자율주행 및 운송 기능", priority: "R"}
+    - {id: SR-05, name: "다중 로봇 통행 관리 기능", priority: "R"}
+    - {id: SR-06, name: "로봇 상태 모니터링 기능", priority: "R"}
+    - {id: SR-07, name: "비전 인식 기능", priority: "R"}
+    - {id: SR-08, name: "정차 위치 확인 기능", priority: "R"}
+    - {id: SR-09, name: "로봇팔 상차·하차 기능", priority: "R"}
+    - {id: SR-10, name: "적재 및 작업 완료 확인 기능", priority: "R"}
+    - {id: SR-11, name: "주행 안전 제어 기능", priority: "R"}
+    - {id: SR-12, name: "로봇팔 안전 제어 기능", priority: "O"}
+    - {id: SR-13, name: "사용자 작업 제어 기능", priority: "R"}
+    - {id: SR-14, name: "오류 및 통신 장애대응 기능", priority: "R"}
+    - {id: SR-15, name: "오류 알림 기능", priority: ""}
+    - {id: SR-16, name: "하차 대기열 관리 기능", priority: "R"}
+    - {id: SR-17, name: "취소 및 반품 회수 관리 기능", priority: "O"}
+    - {id: SR-18, name: "작업 흐름 및 주문 완료 관리 기능", priority: "R"}
+    - {id: SR-19, name: "네트워크 분리 및 단일 제어권 관리 기능", priority: "O"}
+    - {id: SR-20, name: "명령 유효성 확인 및 옛날 권한 차단 기능", priority: "O"}
+    - {id: SR-21, name: "실제 동작 센서 확인 및 이력 기록 기능", priority: "O"}
+    - {id: SR-22, name: "가상환경 시뮬레이션 및 사전 검증 기능 (신규 롤)", priority: "R"}
 
 roles:
   vision:
@@ -177,9 +178,9 @@ decisions:
     record: 'docs/fms_decisions.md#d1'
   - id: D2
     status: proposed
-    title: 'ROS_DOMAIN_ID — README 100 vs SR-19 10/12, 두 도메인의 교차점, 개발용 도메인 값'
+    title: 'ROS_DOMAIN_ID — README 100 vs 팀 설계 10/12, 두 도메인의 교차점, 개발용 도메인 값'
     blocks: '모든 노드 발견'
-    proposal: 'SR-19 그대로 10 = 실물 구동, 12 = Nav2. 두 도메인의 교차점은 핑키 온보드 가드 하나(두 rclpy Context, S1 스파이크로 확인). README 의 100 은 개발·시뮬 전용.'
+    proposal: '팀 설계 제안: 10 = 실물 구동, 12 = Nav2. SR-19는 번호를 지정하지 않는다. 두 도메인의 교차점은 핑키 온보드 가드 하나(두 rclpy Context, S1 스파이크로 확인). README 의 100 은 개발·시뮬 전용.'
     record: 'docs/fms_decisions.md#d2'
   - id: D3
     status: proposed
@@ -195,7 +196,7 @@ decisions:
     record: 'docs/fms_decisions.md#d4'
   - id: D5
     status: proposed
-    title: 'SR-14 관제사 2단계 승인의 독립 요소'
+    title: '복구 2단계 승인 설계의 독립 요소'
     blocks: '⑤ 복구'
     proposal: 'Reconcile 항목별 확인 입력(attest) + APPROVE 뒤 최소 체류(초안 5 s). 2인 승인·비밀번호 재입력은 설정으로 고른다.'
     record: 'docs/fms_decisions.md#d5'
@@ -489,7 +490,7 @@ menus:
     notes:
       - '③ 화면의 탭(축소판)이다.'
       - '지문이 맞지 않으면 표시를 거부한다. 다시 보기는 Station PC 도구에서 한다.'
-      - '초안: SR-21 물리 완료 검증 및 이력 역추적(원장) 기능을 뺐다. SR-21 의 대상은 명령과 물리 동작의 실행 이력이고, 데이터셋이 아니다.'
+      - '초안: SR-21 실제 동작 센서 확인 및 이력 기록 기능을 뺐다. SR-21 의 대상은 명령과 물리 동작의 실행 이력이고, 데이터셋이 아니다.'
 
   - id: '3.5'
     name: 작업 실행·재생
@@ -836,8 +837,8 @@ menus:
     screen: screen_6
     phase: P5
     status: planned
-    sr: []
-    sr_unconfirmed: [SR-22]
+    sr: [SR-22]
+    sr_unconfirmed: []
     data_sources: ['시뮬 보고 JSON (USB 반입, 정적 읽기)']
     commands: []
     screen_owner: gui
@@ -846,7 +847,7 @@ menus:
     notes:
       - '⑥ 화면의 탭이다. [SIM] 배지를 늘 띄운다.'
       - '실물 명령 경로는 없다.'
-      - "원문의 'SR-22' 는 SR v5.0 에 없다. 확인이 필요하다 (D17)."
+      - "SR-22는 SR_v2 v13에서 확인했다. D17의 메뉴 수·명칭 정정은 별도로 남는다."
       - '초안: 데이터 담당은 비워 두었다. 시뮬레이션을 맡는 역할이 README 팀 구성 표에 없다. 팀이 정한다.'
 
   - id: '6.6'
@@ -864,6 +865,6 @@ menus:
     decisions: []
     notes:
       - '읽기 전용이다. 값은 YAML 을 PR 로 고쳐서 바꾼다. 화면은 바꾸는 방법만 안내한다.'
-      - 'SR 고정값(TTL 5000 ms, 워치독 200 ms, 배터리 20 %, 감속 0.8 m, 정지 0.25~0.4 m)에 표식을 단다.'
+      - 'SR_v2의 TTL 5000 ms와 설계 제안(워치독 200 ms, 배터리 20 %, 감속 0.8 m, 정지 0.25~0.4 m)을 분리해 표시한다.'
       - '원문 SR 매핑 없음 (운영 파라미터).'
       - '초안: 데이터 담당은 게이트웨이 API 를 내는 gui 로 두었다.'

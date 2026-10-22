@@ -47,7 +47,7 @@ flowchart LR
   DS3["D6 E-STOP 판독 · D11 시간 값 · D13 서명 키 · D20 로봇 탑재 소스"] -.-> S3
   DS4["D14 주문 상태 · D19 재고 원장"] -.-> S4
   DS5["D7 수업 게이트 · D12 녹화 도구"] -.-> S5
-  DS6["D15 보존 정책 · D17 SR-22"] -.-> S6
+  DS6["D15 보존 정책 · D17 메뉴 문서 정정"] -.-> S6
 ```
 
 ## 3. 단계별 상세
@@ -61,7 +61,7 @@ flowchart LR
 - 먼저 끝나야 하는 것: 없음
 - 기다리는 결정: 없음. 관련 결정은 D16(Git 규칙·CODEOWNERS), D17(메뉴 문서 정정).
 - 출구 검사:
-  1. `PYTHONPATH=src/cobot_gui python3 -m pytest src/cobot_gui/test/test_menu_registry.py` 가 통과한다. 시험 안의 음성 대조(SR-22 주입, SR 이름 변경, 메뉴 삭제, 없앤 메뉴에 화면 주기 등)는 검증 함수가 오류를 내야 통과한다.
+  1. `PYTHONPATH=src/cobot_gui python3 -m pytest src/cobot_gui/test/test_menu_registry.py` 가 통과한다. 시험 안의 음성 대조(미등록 SR-23 주입, SR 이름 변경, 메뉴 삭제, 없앤 메뉴에 화면 주기 등)는 검증 함수가 오류를 내야 통과한다.
   2. `PYTHONPATH=src/cobot_gui python3 -m cobot_gui.menu_registry` 가 오류 0 이다. YAML 에서 메뉴를 하나 지우거나 SR 이름을 바꾸면 1 이어야 한다.
   3. `PYTHONPATH=src/cobot_gui python3 -m cobot_gui.gen_menu_doc --check` 가 0 이다. 생성 문서를 한 글자 고치면 1 이어야 한다.
   4. 깨끗한 Jazzy 환경에서 `colcon build --packages-select cobot_gui` 와 `colcon test --packages-select cobot_gui`(flake8·pep257·copyright 포함)가 실패 0, skip 0 으로 통과한다.
@@ -106,7 +106,7 @@ flowchart LR
   1. 가짜 발행기를 끄면 해당 카드가 1 s 안에 STALE 이 된다. stale 로직을 끈 빌드에서는 같은 시험이 실패해야 한다.
   2. 명령 경로가 없다. 정지 등 명령 API 는 404 이고, 게이트웨이 소스의 로봇 토픽 발행자는 0 이다.
   3. 명령 토픽 발행자가 0·1·2 일 때 각각 회색(NO_PUBLISHER)·정상·RED 로 다르게 보인다.
-  4. 관제 코어의 둘째 인스턴스는 뜨지 않는다. YAML 의 SR 고정값을 바꾸면 기동을 거부한다.
+  4. 관제 코어의 둘째 인스턴스는 뜨지 않는다. YAML의 승인된 계약값을 바꾸면 기동을 거부한다. SR_v2 값과 설계 제안은 구분한다.
   5. 인증 없는 요청은 401, 다른 Origin 의 WS 는 거부, `/../` 경로는 404 다.
   6. NaN 배터리는 '—' 로 보인다. '0 %' 나 '정상' 으로 보이면 실패다.
   7. 카메라 송신을 멈추면 2 s 안에 stale, 같은 프레임만 반복하면 2 s 안에 FROZEN 이다.
@@ -190,7 +190,7 @@ flowchart LR
 - 주 담당: 항목별 담당 (레지스트리 `data_owner`. 6.5 는 아직 비어 있다)
 - 같이 해도 되는 일: 항목끼리는 서로 독립이다.
 - 먼저 끝나야 하는 것: 항목마다 별도 설계 리뷰
-- 기다리는 결정: D15(4.4·4.5 보존 정책), D17(6.5 SR-22)
+- 기다리는 결정: D15(4.4·4.5 보존 정책), D17(메뉴 문서 정정)
 - 출구 검사 (설계서 §9.3):
   1. 5.2 데드맨: 키를 떼거나, 탭을 닫거나, WS 가 끊기면 200 ms 안에 멈춘다(엔코더 기준). 관제사가 아닌 역할의 요청은 403 이다.
   2. 4.4: 정책 플래그가 꺼져 있으면 녹화 요청이 거부된다 (기본 꺼짐).
@@ -218,3 +218,7 @@ flowchart LR
 - 단계별 날짜: 미정(D21).
 - 단계별 규모(인일): 담당자와 다시 잰다.
 - 결정 D1~D21 의 전체 목록, 상태(open·proposed·decided)와 각 결정이 막는 것: [`docs/fms_menu_tree.md`](fms_menu_tree.md) 의 '결정 목록' 표. S1 결정의 질문·선택지·이유: [`docs/fms_decisions.md`](fms_decisions.md).
+
+## 요구사항 대조 선행 조건
+
+S1을 닫기 전에 `docs/fms_sr_reconciliation.md`의 설계 차이 목록을 검토한다. SR_v2 v13에서 확인되지 않은 수치·도메인 번호를 요구사항으로 확정하지 않는다. 결정 D1~D5·D8은 이번 대조로 decided가 되지 않는다. D16의 저장소 보호 설정은 관리자 확인 전까지 미적용이다.

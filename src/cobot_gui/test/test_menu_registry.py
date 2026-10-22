@@ -78,31 +78,32 @@ AGREED_DEPTH1 = (
     '01. 통합 관제', '02. Pinky 주행', '03. OMX 작업',
     '04. 비전 모니터링', '05. 제어·안전', '06. 시스템·진단',
 )
-# System Requirements v5.0 §2 표 (ID, 이름, 우선순위). 이름 앞의 [신규] 표시는 뺐다.
+# SR_v2 Confluence 5406727 v13의 ID·이름·우선순위 고정 사본.
 AGREED_SR = (
-    ('SR-01', '주문 관리 기능', 'O'),
-    ('SR-02', '재고 및 대상 박스 확인 기능', 'O'),
-    ('SR-03', '로봇 작업 배정 기능', 'O'),
-    ('SR-04', '자율주행 및 운송 기능', 'O'),
-    ('SR-05', '다중 로봇 통행 관리 기능', 'O'),
-    ('SR-06', '로봇 상태 모니터링 기능', 'O'),
-    ('SR-07', '비전 인식 기능', 'O'),
-    ('SR-08', '정차 위치 확인 기능', 'O'),
-    ('SR-09', '로봇팔 상차·하차 기능', 'O'),
-    ('SR-10', '적재 및 작업 완료 확인 기능', 'O'),
-    ('SR-11', '주행 안전 제어 기능', 'O'),
+    ('SR-01', '주문 관리 기능', 'R'),
+    ('SR-02', '재고 및 대상 박스 확인 기능', 'RO(DB)'),
+    ('SR-03', '로봇 작업 배정 기능', 'R'),
+    ('SR-04', '자율주행 및 운송 기능', 'R'),
+    ('SR-05', '다중 로봇 통행 관리 기능', 'R'),
+    ('SR-06', '로봇 상태 모니터링 기능', 'R'),
+    ('SR-07', '비전 인식 기능', 'R'),
+    ('SR-08', '정차 위치 확인 기능', 'R'),
+    ('SR-09', '로봇팔 상차·하차 기능', 'R'),
+    ('SR-10', '적재 및 작업 완료 확인 기능', 'R'),
+    ('SR-11', '주행 안전 제어 기능', 'R'),
     ('SR-12', '로봇팔 안전 제어 기능', 'O'),
-    ('SR-13', '사용자 작업 제어 기능', 'O'),
-    ('SR-14', '오류 및 통신 장애 대응 기능', 'O'),
-    ('SR-15', '오류 알림 기능', 'O'),
-    ('SR-16', '하차 대기열 관리 기능', 'O'),
-    ('SR-17', '빈 박스 및 반품 회수 관리 기능', 'R'),
-    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'O'),
+    ('SR-13', '사용자 작업 제어 기능', 'R'),
+    ('SR-14', '오류 및 통신 장애대응 기능', 'R'),
+    ('SR-15', '오류 알림 기능', ''),
+    ('SR-16', '하차 대기열 관리 기능', 'R'),
+    ('SR-17', '취소 및 반품 회수 관리 기능', 'O'),
+    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'R'),
     ('SR-19', '네트워크 분리 및 단일 제어권 관리 기능', 'O'),
-    ('SR-20', '명령 유효성 검증 및 구 권한 차단 기능', 'O'),
-    ('SR-21', '물리 완료 검증 및 이력 역추적(원장) 기능', 'O'),
+    ('SR-20', '명령 유효성 확인 및 옛날 권한 차단 기능', 'O'),
+    ('SR-21', '실제 동작 센서 확인 및 이력 기록 기능', 'O'),
+    ('SR-22', '가상환경 시뮬레이션 및 사전 검증 기능 (신규 롤)', 'R'),
 )
-SR_V5_IDS = tuple(sr_id for sr_id, _, _ in AGREED_SR)
+SR_CANON_IDS = tuple(sr_id for sr_id, _, _ in AGREED_SR)
 # 메뉴 트리 원문 대조표의 '매핑 SR ID' 열. 'SR 미명시'·'운영 파라미터' 는 빈 목록이다.
 ORIGINAL_SR = {
     '1.1': ('SR-06', 'SR-09'),
@@ -349,7 +350,7 @@ def test_menu_ids_match_agreed_list():
 def test_pinned_copies_in_module_match_this_test():
     # 검사기의 고정 사본이 이 시험의 고정 표와 같아야 한다. 한쪽만 고치면 실패한다.
     assert menu_registry.AGREED_MENUS == AGREED_MENUS
-    assert menu_registry.SR_V5 == AGREED_SR
+    assert menu_registry.SR_CANON == AGREED_SR
 
 
 def test_depth1_names_match_original():
@@ -387,8 +388,8 @@ def test_approved_phase_values():
     assert removed_ids == ['3.7']
 
 
-# (c) sr[] 는 SR v5.0 목록 안에 있고, SR 사본은 SR v5.0 표와 이름·우선순위까지 같다
-def test_sr_catalog_matches_sr_v5_table():
+# (c) sr[] 는 SR_v2 v13 목록 안에 있고, SR 사본은 SR_v2 v13 표와 이름·우선순위까지 같다
+def test_sr_catalog_matches_sr_v2_table():
     registry = _registry()
     catalog = [
         (item['id'], item['name'], item['priority'])
@@ -397,14 +398,14 @@ def test_sr_catalog_matches_sr_v5_table():
     assert catalog == list(AGREED_SR)
 
 
-def test_sr_refs_are_in_sr_v5_catalog():
+def test_sr_refs_are_in_sr_v2_catalog():
     registry = _registry()
     for menu in registry['menus']:
-        assert set(menu['sr']) <= set(SR_V5_IDS), menu['id']
-        assert not set(menu['sr_unconfirmed']) & set(SR_V5_IDS), menu['id']
+        assert set(menu['sr']) <= set(SR_CANON_IDS), menu['id']
+        assert not set(menu['sr_unconfirmed']) & set(SR_CANON_IDS), menu['id']
     menu_6_5 = _menu(registry, '6.5')
-    assert menu_6_5['sr'] == []
-    assert menu_6_5['sr_unconfirmed'] == ['SR-22']
+    assert menu_6_5['sr'] == ['SR-22']
+    assert menu_6_5['sr_unconfirmed'] == []
 
 
 def test_sr_original_marks_every_changed_menu():
@@ -665,7 +666,7 @@ def test_generated_doc_marks_changed_sr_rows():
     text = gen_menu_doc.render(_registry())
     assert '| 1.1 | 전체 로봇 현황 | ① | P1 | planned | SR-06, SR-10, SR-12 ✱ |' in text
     assert '| 1.3 | 로봇 할당 현황 | ① | P3 | planned | SR-03, SR-16 |' in text
-    assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 (확인 필요) |' in text
+    assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 |' in text
     assert '- ✱ 원문 SR: SR-06, SR-09 (지금 매핑과 다르다. 이유는 아래 메모)' in text
 
 
@@ -741,7 +742,7 @@ def test_generator_writes_lf_and_is_deterministic(tmp_path):
 
 def test_generator_refuses_invalid_registry(tmp_path):
     registry = _registry()
-    _menu(registry, '1.1')['sr'].append('SR-22')
+    _menu(registry, '1.1')['sr'].append('SR-23')
     bad = tmp_path / 'bad.yaml'
     bad.write_text(_dump(registry), encoding='utf-8')
     out = tmp_path / 'out.md'
@@ -775,40 +776,40 @@ def test_non_utf8_registry_is_reported(tmp_path):
 
 
 # (g) 음성 대조: 사본을 망가뜨리면 검증 함수가 오류를 낸다
-def test_negative_control_sr_22_in_sr_is_an_error():
+def test_negative_control_unknown_sr_23_is_an_error():
     registry = _registry()
     assert menu_registry.validate(registry) == []
     broken = copy.deepcopy(registry)
-    _menu(broken, '1.1')['sr'].append('SR-22')
+    _menu(broken, '1.1')['sr'].append('SR-23')
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'menu 1.1', 'SR v5.0 목록에 없는 ID: SR-22')
-    # 6.5 는 SR-22 를 sr_unconfirmed 에 두고 있다. sr 에도 넣으면 두 검사가 함께 걸린다.
+    assert _errors_mentioning(errors, 'menu 1.1', 'SR_v2 v13 목록에 없는 ID: SR-23')
+    # SR-22는 정본에 있다. 정본에 없는 SR-23은 어떤 메뉴에서도 거부한다.
     broken = copy.deepcopy(registry)
-    _menu(broken, '6.5')['sr'].append('SR-22')
+    _menu(broken, '6.5')['sr'].append('SR-23')
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'menu 6.5', 'SR v5.0 목록에 없는 ID: SR-22')
-    assert _errors_mentioning(errors, 'menu 6.5', 'sr 과 sr_unconfirmed 에 함께')
+    assert _errors_mentioning(errors, 'menu 6.5', 'SR_v2 v13 목록에 없는 ID: SR-23')
+    assert _errors_mentioning(errors, 'menu 6.5', 'SR-23')
 
 
 def test_negative_control_sr_catalog_edits_are_errors():
     registry = _registry()
     items = registry['sr_catalog']['items']
-    # 카탈로그에 SR-22 를 더하고 6.5 sr 로 옮겨도 고정 사본이 막는다.
+    # 카탈로그에 없는 SR-23 을 더하고 6.5 sr 로 옮겨도 고정 사본이 막는다.
     broken = copy.deepcopy(registry)
-    sr_22 = {'id': 'SR-22', 'name': '시뮬레이션 검증 기능', 'priority': 'O'}
-    broken['sr_catalog']['items'].append(sr_22)
-    _menu(broken, '6.5')['sr'] = ['SR-22']
+    sr_23 = {'id': 'SR-23', 'name': '시뮬레이션 검증 기능', 'priority': 'O'}
+    broken['sr_catalog']['items'].append(sr_23)
+    _menu(broken, '6.5')['sr'] = ['SR-23']
     _menu(broken, '6.5')['sr_unconfirmed'] = []
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'sr_catalog', 'SR-22')
-    assert _errors_mentioning(errors, 'menu 6.5', 'SR-22')
+    assert _errors_mentioning(errors, 'sr_catalog', 'SR-23')
+    assert _errors_mentioning(errors, 'menu 6.5', 'SR-23')
     # 이름 한 글자만 바꿔도 걸린다.
     broken = copy.deepcopy(registry)
     broken['sr_catalog']['items'][5]['name'] = items[5]['name'].replace('모니터링', '모니터')
     assert _errors_mentioning(menu_registry.validate(broken), 'sr_catalog SR-06')
     # 우선순위를 바꿔도 걸린다.
     broken = copy.deepcopy(registry)
-    broken['sr_catalog']['items'][16]['priority'] = 'O'
+    broken['sr_catalog']['items'][16]['priority'] = 'R'
     assert _errors_mentioning(menu_registry.validate(broken), 'sr_catalog SR-17')
     # 빼거나 순서를 바꿔도 걸린다.
     broken = copy.deepcopy(registry)

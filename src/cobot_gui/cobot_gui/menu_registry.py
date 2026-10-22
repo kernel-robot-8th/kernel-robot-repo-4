@@ -76,30 +76,31 @@ AGREED_MENUS = (
     ('6.6', '시스템 설정'),
 )
 
-# System Requirements v5.0 §2 표의 (ID, 이름, 우선순위). 이름 앞의 [신규] 표시는 뺐다.
-SR_VERSION = 'SR v5.0'
-SR_V5 = (
-    ('SR-01', '주문 관리 기능', 'O'),
-    ('SR-02', '재고 및 대상 박스 확인 기능', 'O'),
-    ('SR-03', '로봇 작업 배정 기능', 'O'),
-    ('SR-04', '자율주행 및 운송 기능', 'O'),
-    ('SR-05', '다중 로봇 통행 관리 기능', 'O'),
-    ('SR-06', '로봇 상태 모니터링 기능', 'O'),
-    ('SR-07', '비전 인식 기능', 'O'),
-    ('SR-08', '정차 위치 확인 기능', 'O'),
-    ('SR-09', '로봇팔 상차·하차 기능', 'O'),
-    ('SR-10', '적재 및 작업 완료 확인 기능', 'O'),
-    ('SR-11', '주행 안전 제어 기능', 'O'),
+# SR_v2 Confluence 5406727 v13의 ID·이름·우선순위. 빈 우선순위는 미정이다.
+SR_VERSION = 'SR_v2 v13'
+SR_CANON = (
+    ('SR-01', '주문 관리 기능', 'R'),
+    ('SR-02', '재고 및 대상 박스 확인 기능', 'RO(DB)'),
+    ('SR-03', '로봇 작업 배정 기능', 'R'),
+    ('SR-04', '자율주행 및 운송 기능', 'R'),
+    ('SR-05', '다중 로봇 통행 관리 기능', 'R'),
+    ('SR-06', '로봇 상태 모니터링 기능', 'R'),
+    ('SR-07', '비전 인식 기능', 'R'),
+    ('SR-08', '정차 위치 확인 기능', 'R'),
+    ('SR-09', '로봇팔 상차·하차 기능', 'R'),
+    ('SR-10', '적재 및 작업 완료 확인 기능', 'R'),
+    ('SR-11', '주행 안전 제어 기능', 'R'),
     ('SR-12', '로봇팔 안전 제어 기능', 'O'),
-    ('SR-13', '사용자 작업 제어 기능', 'O'),
-    ('SR-14', '오류 및 통신 장애 대응 기능', 'O'),
-    ('SR-15', '오류 알림 기능', 'O'),
-    ('SR-16', '하차 대기열 관리 기능', 'O'),
-    ('SR-17', '빈 박스 및 반품 회수 관리 기능', 'R'),
-    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'O'),
+    ('SR-13', '사용자 작업 제어 기능', 'R'),
+    ('SR-14', '오류 및 통신 장애대응 기능', 'R'),
+    ('SR-15', '오류 알림 기능', ''),
+    ('SR-16', '하차 대기열 관리 기능', 'R'),
+    ('SR-17', '취소 및 반품 회수 관리 기능', 'O'),
+    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'R'),
     ('SR-19', '네트워크 분리 및 단일 제어권 관리 기능', 'O'),
-    ('SR-20', '명령 유효성 검증 및 구 권한 차단 기능', 'O'),
-    ('SR-21', '물리 완료 검증 및 이력 역추적(원장) 기능', 'O'),
+    ('SR-20', '명령 유효성 확인 및 옛날 권한 차단 기능', 'O'),
+    ('SR-21', '실제 동작 센서 확인 및 이력 기록 기능', 'O'),
+    ('SR-22', '가상환경 시뮬레이션 및 사전 검증 기능 (신규 롤)', 'R'),
 )
 
 ACTIVE_PHASES = ('P1', 'P2', 'P3', 'P4', 'P5')
@@ -141,7 +142,7 @@ ORIGINAL_REF_RE = re.compile(r'^(SR|UR)-[0-9]{2}$')
 STAGE_RE = re.compile(r'^S[0-9]+$')
 DECISION_ID_RE = re.compile(r'^D[1-9][0-9]*$')
 KEY_RE = re.compile(r'^[a-z][a-z0-9_]*$')
-BRANCH_RE = re.compile(r'^(feature|fix)/[A-Za-z0-9._/-]+$')
+BRANCH_RE = re.compile(r'^(feature|fix)/[A-Za-z0-9._-]+$')
 DATE_RE = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
 
 
@@ -292,9 +293,9 @@ def _collect_ids(entries, label, id_re, errors):
 
 
 def _compare_sr_catalog(rows, errors):
-    # YAML 사본을 코드의 고정 사본(SR_V5)과 대조한다. 같은 YAML 안의 목록만 믿으면
-    # 카탈로그에 SR-22 를 더하거나 SR 이름을 바꿔도 통과하기 때문이다.
-    pinned = {sr_id: (name, priority) for sr_id, name, priority in SR_V5}
+    # YAML 사본을 코드의 고정 사본(SR_CANON)과 대조한다. 같은 YAML 안의 목록만 믿으면
+    # 카탈로그에 없는 SR-23 을 더하거나 SR 이름을 바꿔도 통과하기 때문이다.
+    pinned = {sr_id: (name, priority) for sr_id, name, priority in SR_CANON}
     found = [row[0] for row in rows]
     for sr_id, name, priority in rows:
         if sr_id not in pinned:
@@ -302,10 +303,10 @@ def _compare_sr_catalog(rows, errors):
         elif (name, priority) != pinned[sr_id]:
             errors.append('sr_catalog {}: {} 원문과 다르다: {!r} {} (원문 {!r} {})'.format(
                 sr_id, SR_VERSION, name, priority, pinned[sr_id][0], pinned[sr_id][1]))
-    missing = [sr_id for sr_id, _, _ in SR_V5 if sr_id not in found]
+    missing = [sr_id for sr_id, _, _ in SR_CANON if sr_id not in found]
     for sr_id in missing:
         errors.append('sr_catalog: {} 의 ID 가 빠졌다: {}'.format(SR_VERSION, sr_id))
-    pinned_order = [sr_id for sr_id, _, _ in SR_V5]
+    pinned_order = [sr_id for sr_id, _, _ in SR_CANON]
     if not missing and len(found) == len(pinned_order) and found != pinned_order:
         errors.append('sr_catalog: 순서가 {} 표와 다르다'.format(SR_VERSION))
 
@@ -326,8 +327,9 @@ def _validate_sr_catalog(catalog, errors):
         if _check_keys(entry, SR_KEYS, (), label, errors):
             if is_blank(entry['name']):
                 errors.append('{}: name 이 비었다'.format(label))
-            if entry['priority'] not in ('O', 'R'):
-                errors.append('{}: priority 는 O 또는 R: {!r}'.format(label, entry['priority']))
+            if entry['priority'] not in ('O', 'R', 'RO(DB)', ''):
+                errors.append('{}: priority 는 원문 R/O/RO(DB)/빈칸: {!r}'.format(
+                    label, entry['priority']))
             rows.append((entry['id'], entry['name'], entry['priority']))
     _compare_sr_catalog(rows, errors)
 
@@ -560,9 +562,18 @@ def _validate_menu_owners(menu, label, ctx, errors):
     branch = menu.get('branch')
     if menu['status'] == IN_PROGRESS and is_blank(branch):
         errors.append('{}: in_progress 메뉴는 branch 가 있어야 한다'.format(label))
-    if not is_blank(branch) and (not isinstance(branch, str) or not BRANCH_RE.match(branch)):
-        errors.append('{}: branch 형식이 틀렸다 (feature/... 또는 fix/...): {!r}'.format(
-            label, branch))
+    if not is_blank(branch):
+        if not isinstance(branch, str) or not BRANCH_RE.fullmatch(branch):
+            errors.append('{}: branch 형식이 틀렸다 (feature/... 또는 fix/...): {!r}'.format(
+                label, branch))
+            return
+        prefix = branch.split('/', 1)[1]
+        allowed = tuple(
+            '{}-{}-'.format(role, unit)
+            for role in ctx['roles'] for unit in (menu['id'], 'registry', 'common'))
+        if not any(prefix.startswith(item) and len(prefix) > len(item) for item in allowed):
+            errors.append('{}: branch 는 등록 역할-현재 메뉴 ID/registry/common-설명: {!r}'.format(
+                label, branch))
 
 
 def _validate_menu(menu, index, ctx, errors):
@@ -613,7 +624,7 @@ def validate(registry):
     """
     레지스트리를 검사하고 오류 목록을 돌려준다.
 
-    메뉴 목록과 SR 사본은 이 모듈의 고정 사본(AGREED_MENUS, SR_V5)과도 대조한다.
+    메뉴 목록과 SR 사본은 이 모듈의 고정 사본(AGREED_MENUS, SR_CANON)과도 대조한다.
     빈 담당 칸은 오류가 아니다. find_warnings() 가 따로 돌려준다.
 
     :param registry: load_registry() 가 돌려준 값
@@ -635,7 +646,7 @@ def validate(registry):
     _validate_phases(registry['phases'], errors)
     ctx = {
         # 메뉴의 sr 은 YAML 사본이 아니라 고정 사본에 대고 본다.
-        'sr': {sr_id for sr_id, _, _ in SR_V5},
+        'sr': {sr_id for sr_id, _, _ in SR_CANON},
         'roles': _validate_roles(registry['roles'], errors),
         'screens': _validate_screens(registry['screens'], errors),
         'decisions': _validate_decisions(registry['decisions'], errors),

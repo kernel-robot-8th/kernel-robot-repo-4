@@ -267,7 +267,7 @@ def _render_reference(registry, add):
     add('## SR 목록 (사본)')
     add('')
     add('- 출처: {}'.format(registry['sr_catalog']['source']))
-    add('- 검사: 이 표는 `menu_registry.py` 의 고정 사본(`SR_V5`)과 ID·이름·우선순위·순서가 '
+    add('- 검사: 이 표는 `menu_registry.py` 의 고정 사본(`SR_CANON`)과 ID·이름·우선순위·순서가 '
         '같아야 한다.')
     add('')
     add('| ID | 이름 | 우선순위 | 연결된 메뉴 |')
