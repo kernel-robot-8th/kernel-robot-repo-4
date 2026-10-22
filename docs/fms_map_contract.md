@@ -2,7 +2,7 @@
 
 - 상태: 초안 (2026-10-22). 결정 D3(맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치)는 아직 `proposed` 다. 관제 담당이 팀에 공지하면 `decided` 로 바꾸고 결정자와 날짜를 적는다.
 - 단계: 로드맵 S1 계약 고정 (`docs/fms_roadmap.md`). 규칙은 `docs/fms_dev_rules.md` 를 따른다.
-- 관련 SR (인용만 한다): SR-04 자율주행 및 운송 기능, SR-08 정차 위치 확인 기능, SR-20 명령 유효성 검증 및 구 권한 차단 기능(맵 해시 일치 여부 검증). SR v5.0 원문의 맵 이름·크기와 정본이 다르다 (8절).
+- 관련 SR (인용만 한다): SR-04 자율주행 및 운송 기능, SR-08 정차 위치 확인 기능, SR-20 명령 유효성 확인 및 옛날 권한 차단 기능. map_hash는 추가 설계 제안이다. 정본은 SR_v2 (Confluence 5406727 version 13)이며 크기 차이는 8절에서 다룬다.
 - 판단이 들어간 값은 '초안' 이라고 적었다. 특히 approach_pose 와 반경 6 cm 는 주행 담당 확인이 필요하다.
 
 ## 1. 한눈에 보기
@@ -167,7 +167,7 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
 - 좌표는 도면의 웨이포인트 중심이다. WP_GATE_TRANSIT 은 도면에 없어 게이트 중심으로 더했다 (사용자 요청). 예전 맵의 WP_RETURN 은 이 도면에 없어 뺐다.
 - theta 는 도면에 없다. 작업 대상을 바라보는 방향으로 둔 초안이다 (HOME 은 예전 맵 값 270). 트레이 방향이 정해지면 고친다. theta 는 맵 YAML 안에 있어서 고치면 map_hash 가 바뀐다 (7절 절차, 모든 장비를 다시 빌드한다). 한 번에 모아 고친다.
 - approach_pose 로 린트하면 반경 0.06 m 에서 8개 모두 통과한다.
-- 주의: 옮긴 벤치 정차점은 반경 0.06 m 에서 **겨우** 통과한다 (여유 5.2 mm). 반경 0.066 m 부터 실패한다 (0.065 m 까지만 통과). 반경 0.11 m (6 cm + SR-08 의 1차 정차 오차 ±5 cm) 로 보면 WP_LOAD_1·WP_LOAD_2 도 실패한다. 둘 다 랙 A·B 아래 면에서 0.105 m 떨어져 있다. 시험 `test_wider_radius_fails_moved_approach_poses` 가 이 사실을 고정한다.
+- 주의: 옮긴 벤치 정차점은 반경 0.06 m 에서 **겨우** 통과한다 (여유 5.2 mm). 반경 0.066 m 부터 실패한다 (0.065 m 까지만 통과). 반경 0.11 m (6 cm + 옛 설계의 오차 여유 5 cm; SR_v2 SR-08 목표 1 cm와 구분) 로 보면 WP_LOAD_1·WP_LOAD_2 도 실패한다. 둘 다 랙 A·B 아래 면에서 0.105 m 떨어져 있다. 시험 `test_wider_radius_fails_moved_approach_poses` 가 이 사실을 고정한다.
 
   ```bash
   PYTHONPATH=src/cobot_control_center python3 -m cobot_control_center.map_contract lint --radius 0.11   # 지금은 1
@@ -195,7 +195,7 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
   - 실패하면 work_pose 에서 0.01 m 간격 격자점 가운데 반경 원이 모두 비는 **가장 가까운 점**을 쓴다 (1개). theta 는 work_pose 와 같게 두었다.
   - 같은 거리의 점이 여럿이면 y 가 가장 작은 (아래쪽) 점, 그다음 x 가 가장 작은 (왼쪽) 점을 고른다. 벤치 웨이포인트에는 같은 거리(0.15 m) 후보가 둘 있다: 아래 [0.29, 1.16], 위 [0.29, 1.46] (여유는 둘 다 5.2 mm). 규칙대로 아래를 골랐다. 어느 쪽에서 접근할지는 주행·매장 쪽 결정이다 (시험 `test_bench_has_equidistant_candidate_above` 가 이 사실을, `test_nearest_free_point_tie_break` 가 규칙을 고정한다).
 - 이 값은 기하만 본 것이다. 주행 담당이 아래를 확인해야 한다.
-  1. 반경 여유 (가장 가까운 비자유 셀 중심까지 거리 − 0.06 m): WP_BENCH_DELIVERY 정차점 5.2 mm, WP_LOAD_2 47.5 mm, WP_LOAD_1 50.0 mm, WP_GATE_TRANSIT 정차점 170 mm. SR-08 의 1차 정차 허용(±5 cm)을 생각하면 벤치 정차점은 모자란다 (5.3절).
+  1. 반경 여유 (가장 가까운 비자유 셀 중심까지 거리 − 0.06 m): WP_BENCH_DELIVERY 정차점 5.2 mm, WP_LOAD_2 47.5 mm, WP_LOAD_1 50.0 mm, WP_GATE_TRANSIT 정차점 170 mm. SR_v2 SR-08 목표 오차 1 cm를 더해도 벤치 정차점의 5.2 mm 여유는 모자란다 (5.3절).
   2. 진입 방향(theta)과 팔 도달 거리. 벤치 정차점은 work_pose 바로 아래(진행 방향 뒤쪽)라 진입 방향은 그대로다. 팔 고정대가 맵에 없으므로 WP_LOAD_1·WP_LOAD_2·WP_UNLOAD 는 고정대를 놓은 뒤 다시 본다.
   3. 경로 연결. 참고 계산으로, 반경 6 cm 를 지킨 채 8개 정차점은 모두 한 덩어리의 빈 공간에 있다 (8방향 연결). 더 큰 외형은 5.3절의 통로 폭 표를 본다. 이 검사는 린트 항목이 아니다.
   4. 핑키 외형으로 정한 린트 반경 (지금 6 cm 는 설계서 값이다).
@@ -208,7 +208,7 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
 2. map_hash 를 다시 계산해 `approach_poses.yaml` 의 `map` 블록(`pgm_sha256`, `yaml_lf_sha256`, `map_hash`)을 고친다. 웨이포인트가 바뀌었으면 `work_pose`·`approach_pose`·`arm_id` 도 고친다.
 3. `test_map_contract.py` 의 고정 값을 새 맵에 맞게 고친다: sha256(`CANON_PGM_SHA256`, `CANON_YAML_SHA256`), 실패 목록(`EXPECTED_WORK_POSE_FAILURES`, `EXPECTED_WIDE_RADIUS_FAILURES`), 옮긴 정차점(`EXPECTED_MOVED_APPROACH`), 팔 연계(`EXPECTED_ARM_IDS`), 벽·게이트 좌표(`PARTITION_BOUNDS_M`, `GATE_BOUNDS_M`, `test_gate_is_67cm_at_bottom_wall` 의 셀 수), 아레나 검사점(`test_arena_is_2_5_by_2_4`), 벤치 후보 좌표(`test_bench_has_equidistant_candidate_above`). 이 문서의 '지금 값' 과 결과 표도 같은 PR 에서 고친다.
 4. `map_lint` 가 0, 시험이 통과하는지 본다. PR 본문에 새 map_hash 를 적고 팀에 알린다.
-5. 머지 뒤에는 FMS PC 와 핑키가 **같은 커밋**을 받아 `colcon build` 한다. 맵 파일을 장비마다 복사해 나르지 않는다. 각 장비에서 `ros2 run cobot_control_center map_hash` 로 값이 같은지 본다. 다르면 펜싱(SR-20)에서 이동 명령이 거부된다.
+5. 머지 뒤에는 FMS PC 와 핑키가 **같은 커밋**을 받아 `colcon build` 한다. 맵 파일을 장비마다 복사해 나르지 않는다. 각 장비에서 `ros2 run cobot_control_center map_hash` 로 값이 같은지 본다. 다르면 제안한 map_hash 펜싱에서 이동 명령을 거부한다. SR_v2 SR-20에 map_hash 문구가 있는 것은 아니다.
 
 ## 8. 남은 결정과 할 일
 
@@ -216,7 +216,7 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
 - D3 공지와 결정 기록에 '옮긴 정차점 1건(벤치)은 기하만 본 초안이고, 반경 6 cm 는 핑키 외형 실측이 아니다' 를 적는다 (5.3절).
 - **장애물 랙 배치**를 정한다: 도면 원안(가로)이면 창고→게이트 병목이 약 0.25 m 다 (5.3절). 세로로 돌리면 맵을 바꾼다 (7절). 핑키 + 적재 상자 외형 실측이 함께 필요하다.
 - **팔 고정대 위치·외형**을 정해 맵에 넣거나 Nav2 keepout 으로 막는다 (2절). 지금 맵에서 팔 자리는 자유 셀이다. 넣으면 WP_LOAD_1·WP_LOAD_2·WP_UNLOAD 정차점을 다시 본다.
-- **SR 대조**: SR v5.0 원문의 SR-04 는 '2.4×2.4m 평면 맵(`map_shoe_store_flat`)', SR-05 는 0.8 m 통로를 적는다. 정본(2.5 × 2.4 m, 67 cm 게이트)과 다르다. SR 정본은 SR_v2(Confluence 5406727)로 관제 담당이 정했다 (결정 D17 에 기록, 2026-10-22). 원문 대조는 아직이다. 대조한 뒤 이 줄과 머리의 SR 인용을 고친다.
+- **SR 대조**: SR v5.0 원문의 SR-04 는 '2.4×2.4m 평면 맵(`map_shoe_store_flat`)', SR-05 는 0.8 m 통로를 적는다. 정본(2.5 × 2.4 m, 67 cm 게이트)과 다르다. SR 정본은 SR_v2(Confluence 5406727)로 관제 담당이 정했다 (결정 D17 에 기록, 2026-10-22). SR_v2 version 13을 직접 조회했다. SR-04는 특정 맵 이름, SR-05는 통로 폭을 지정하지 않지만 SR-22는 실제 2.4×2.4 m 경기장 정합을 요구한다. 현재 2.5×2.4 m 맵과의 크기 차이는 D3에서 도면·실측으로 해결하거나 요구사항을 개정해야 한다. 좌표계를 임의로 축소하지 않는다.
 - **도면 파일을 받는 곳**을 정한다 (팀 Confluence 첨부나 공유 폴더). 지금은 sha256 과 2절의 경계 표만 있다. 작은 파일이면 `docs/` 에 HTML 을 그대로 커밋해 sha256 과 대조할 수도 있다.
 - **카메라 2 설치**: 도면은 15 cm 저각도, 관제 담당 계획은 게이트 벽체 상단(1.0~1.2 m) 하향이다. 카메라 구성(D10)에서 확정하고 도면을 고친다. 바닥 받침대가 생기면 맵에 넣고 게이트 정차점을 다시 본다 (도면 아이콘이 게이트 중심에서 0.045 m).
 - D3 결정 기록(`docs/fms_decisions.md` 의 D3)에 '`cobot_control_center` → `cobot_bringup` 은 맵 파일만 읽는 의존이고 `package.xml` 에 적지 않는다 (순환 방지)' 를 예외로 적고 팀 확인을 받는다 (2절).
@@ -226,3 +226,7 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
 - 회전한 맵(origin yaw ≠ 0)과 trinary 가 아닌 mode 는 아직 지원하지 않는다 (린트가 오류로 막는다).
 - 도달 가능성(경로 연결)·통로 폭 검사는 린트에 없다 (5.3절의 표는 참고 계산이다).
 - CLAUDE.md §2 구조도·담당표에 `cobot_bringup`·`cobot_control_center` 를 더하는 일은 접두사 `cobot_` 확정(D1) 뒤 규칙 PR 에서 한다.
+
+## 정차·물리 검증 선행 조건
+
+SR_v2 v13 SR-08: 목표 오차 0.01 m·15도 이내, 위치조정 3회 후 fail. 6 cm 반경의 map_lint는 이 주행·도킹 성능을 검증하지 않는다. 실제 footprint·하이브리드 팔 고정대·랙·적재함을 포함한 모델과 주행/도킹/팔 궤적 검증이 별도 필요하다. 그 전에는 D3 제안 또는 점유맵 계약 검증 결과로만 보고한다.
