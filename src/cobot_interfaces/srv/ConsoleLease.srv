@@ -1,0 +1,27 @@
+# ConsoleLease.srv - 운영자 콘솔 토큰 획득·갱신·반납 (게이트웨이 -> fms_core)
+# 서비스 이름: /control_center/console_lease (이름은 초안)
+# 콘솔 토큰은 FMS 내부의 운영자 잠금이다. SR-19 의 단일 기록자와는 다른 것이다.
+# 관제사만 받는다. 보유자는 한 번에 1명. TTL 15 s, 5 s 마다 갱신 (제안, D11).
+# 서명(gw_sig)이 없으면 항상 거부한다.
+
+string OP_ACQUIRE="ACQUIRE"
+string OP_RENEW="RENEW"
+string OP_RELEASE="RELEASE"
+
+string op                  # 위 OP_* 중 하나
+string session_id_hash     # 브라우저 세션 ID 의 해시 (원문은 싣지 않는다)
+string operator_id         # 계정 ID
+string role                # customer | staff | operator (자기 신고)
+string gw_nonce            # 게이트웨이 nonce (초안: 서명 재전송 방지용으로 더했다)
+string gw_sig              # HMAC-SHA256(게이트웨이 키). 없으면 BAD_SIGNATURE
+---
+string REASON_CONSOLE_HELD="CONSOLE_HELD"
+string REASON_BAD_SIGNATURE="BAD_SIGNATURE"
+string REASON_ROLE_FORBIDDEN="ROLE_FORBIDDEN"
+
+bool granted               # 받았는가
+string console_token       # 받았을 때만 채운다
+string holder_id           # 지금 보유자 계정 ID
+string holder_role         # 지금 보유자 역할
+builtin_interfaces/Time expires_at  # 만료 시각
+string reason              # 거부 사유. 위 REASON_* 중 하나. 받았으면 ""
