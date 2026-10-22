@@ -1,4 +1,5 @@
-# LaneLeaseState.msg - 단일 통로(0.8 m) 점유 허가 상태 (SR-05)
+# LaneLeaseState.msg - 단일 통로(게이트 0.67 m) 점유 허가 상태 (SR-05)
+# 폭은 맵 정본(D3)의 게이트 기준이다. SR v5.0 원문의 0.8 m 와 다르다 (SR_v2 대조 전).
 # 토픽: /control_center/lane_lease (설정성 QoS, TRANSIENT_LOCAL). 변화 즉시
 # 발행: fms_core 하나. 구독: 게이트웨이, 가드(참고용).
 # 통신 단절·시간 초과·카메라 판정 없음이면 FREE 가 아니라 UNKNOWN_BLOCKED 다. 자동 해제는 없다.
