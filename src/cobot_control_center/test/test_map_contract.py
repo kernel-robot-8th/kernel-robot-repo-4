@@ -17,7 +17,7 @@
 
 모든 검사는 실패할 수 있다. 맵 폴더를 못 찾으면 skip 하지 않고 실패한다.
 음성 대조는 맵 사본(tmp_path)을 일부러 망가뜨려 검사 함수가 오류를 내는지 본다.
-아래 고정 값(SOURCE_*)은 맵 정본 파일의 sha256 이다. 맵을 바꾸는 PR 에서 함께 고친다.
+아래 고정 값(CANON_*)은 맵 정본 파일의 sha256 이다. 맵을 바꾸는 PR 에서 함께 고친다.
 """
 
 import hashlib
@@ -34,13 +34,15 @@ MAP_YAML = 'map_shoe_store_1021_gate67.yaml'
 MAP_PGM = 'map_shoe_store_1021_gate67.pgm'
 
 # 맵 정본: Floor Map 1021 도면 + 67 cm 게이트 (docs/fms_map_contract.md 2절).
-SOURCE_PGM_SHA256 = 'f4fb41c1a3e9f8a2bb098a874b8be278cdad0596d58cf3952b0f52a19a08f050'
-SOURCE_YAML_SHA256 = '96ac285601dee5fb143a926bae89276103e8169afd64a8001bc501541cd49175'
+CANON_PGM_SHA256 = 'f4fb41c1a3e9f8a2bb098a874b8be278cdad0596d58cf3952b0f52a19a08f050'
+CANON_YAML_SHA256 = '96ac285601dee5fb143a926bae89276103e8169afd64a8001bc501541cd49175'
 # 원래 웨이포인트 중 반경 6 cm 원에 점유 셀이 걸리는 것. 벤치 위 점 하나다 (2026-10-22 계산).
 EXPECTED_WORK_POSE_FAILURES = {'WP_BENCH_DELIVERY'}
 # 반경 0.11 m (6 cm + SR-08 정차 오차 5 cm) 에서 실패하는 정차점. 옮긴 벤치 정차점과,
 # 랙 A·B 아래 면에서 0.105 m 떨어진 창고 상차점 둘이다.
 EXPECTED_WIDE_RADIUS_FAILURES = {'WP_BENCH_DELIVERY', 'WP_LOAD_1', 'WP_LOAD_2'}
+# work_pose 와 approach_pose 가 다른 웨이포인트. 벤치는 린트 때문에, 게이트는 관제 담당 승인(2026-10-22)으로 옮겼다.
+EXPECTED_MOVED_APPROACH = {'WP_BENCH_DELIVERY', 'WP_GATE_TRANSIT'}
 # 웨이포인트와 연계된 팔 (초안). 도면의 팔 표식 OMX_1/2/3 옆 웨이포인트다. 팔이 없는 지점은 빠진다.
 EXPECTED_ARM_IDS = {'WP_LOAD_1': 'omx_1', 'WP_LOAD_2': 'omx_2', 'WP_UNLOAD': 'omx_3'}
 # 중앙 벽과 그 아래 게이트 (사용자 결정 2026-10-22). [x0, x1, y0, y1] m.
@@ -155,11 +157,11 @@ def test_maps_dir_is_found_from_repo(maps_dir):
     assert os.path.realpath(path) == os.path.realpath(maps_dir)
 
 
-def test_map_bytes_match_source_commit(maps_dir):
+def test_map_bytes_match_recorded_sha256(maps_dir):
     pgm = _read(os.path.join(maps_dir, MAP_PGM))
     yaml_bytes = _read(os.path.join(maps_dir, MAP_YAML))
-    assert hashlib.sha256(pgm).hexdigest() == SOURCE_PGM_SHA256
-    assert hashlib.sha256(yaml_bytes.replace(b'\r\n', b'\n')).hexdigest() == SOURCE_YAML_SHA256
+    assert hashlib.sha256(pgm).hexdigest() == CANON_PGM_SHA256
+    assert hashlib.sha256(yaml_bytes.replace(b'\r\n', b'\n')).hexdigest() == CANON_YAML_SHA256
 
 
 def test_map_geometry(maps_dir):
@@ -185,7 +187,7 @@ def _cells_in(grid, bounds):
 
 
 def test_gate_is_67cm_at_bottom_wall(maps_dir):
-    # 정본은 아래 벽에 붙은 67 cm 게이트다. 예전 팀 맵(개구 0.84 m)이나 도면 원안(0.35 m)으로
+    # 정본은 아래 벽에 붙은 67 cm 게이트다. 예전 팀 맵(중앙 벽이 y 0.84 부터)이나 도면 원안(0.35 m)으로
     # 되돌리면 실패한다.
     grid = map_contract.load_map(os.path.join(maps_dir, MAP_YAML)).grid
     wall = _cells_in(grid, PARTITION_BOUNDS_M)
@@ -216,7 +218,7 @@ def test_arena_is_2_5_by_2_4(maps_dir):
 def test_work_poses_fail_lint(maps_dir):
     report = map_contract.run_lint(maps_dir, map_contract.WORK_POSE)
     assert set(report.failures) == EXPECTED_WORK_POSE_FAILURES
-    # 매니페스트·work_pose 대조는 통과하고, 반경 원 실패 두 건만 남아야 한다.
+    # 매니페스트·work_pose 대조는 통과하고, 반경 원 실패(지금은 벤치 한 건)만 남아야 한다.
     assert len(report.errors) == len(EXPECTED_WORK_POSE_FAILURES)
     for wp_id in EXPECTED_WORK_POSE_FAILURES:
         assert any(error.startswith(wp_id + ' work_pose') for error in report.errors), wp_id
@@ -244,6 +246,26 @@ def test_approach_poses_pass_lint(maps_dir):
     assert report.radius_m == pytest.approx(RADIUS_M)
     assert len(report.poses) == len(report.loaded.doc['waypoints'])
     assert map_contract.lint_main(['--maps-dir', maps_dir]) == 0
+
+
+def test_moved_approach_poses(maps_dir):
+    doc = _poses_doc(maps_dir)
+    moved = {wp_id for wp_id, entry in doc['waypoints'].items()
+             if entry['approach_pose'] != entry['work_pose']}
+    assert moved == EXPECTED_MOVED_APPROACH
+    # 게이트 정차점은 통행대 중심 (랙 2 모서리에서 멀다). 작업점은 게이트 중심 그대로다.
+    gate = doc['waypoints']['WP_GATE_TRANSIT']
+    assert gate['work_pose'] == [1.25, 0.335, 180.0]
+    assert gate['approach_pose'] == [1.25, 0.225, 180.0]
+
+
+def test_bench_has_equidistant_candidate_above(maps_dir):
+    # 벤치 작업점은 벤치 한가운데라 같은 거리 후보가 둘이다. 규칙(y 가 작은 쪽)이 아래를 고른다.
+    grid = map_contract.load_map(os.path.join(maps_dir, MAP_YAML)).grid
+    assert map_contract.disk_is_free(grid, 0.29, 1.16, RADIUS_M)
+    assert map_contract.disk_is_free(grid, 0.29, 1.46, RADIUS_M)
+    chosen = map_contract.nearest_free_point(grid, 0.29, 1.31, RADIUS_M)
+    assert chosen == pytest.approx((0.29, 1.16))
 
 
 def test_radius_is_used(maps_dir):
