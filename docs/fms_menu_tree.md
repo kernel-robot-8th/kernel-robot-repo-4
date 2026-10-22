@@ -24,11 +24,12 @@
 - 단계(phase)는 그 메뉴 작업이 처음 시작되는 단계다. 뒤 단계 범위는 메모에 있다.
 - 메모에서 '초안:' 으로 시작하는 줄은 판단이 들어간 값이다. 팀 확인 전이다.
 - SR 칸의 ✱ 는 메뉴 트리 원문과 SR 매핑이 다른 메뉴다. 원문 값과 이유는 그 메뉴의 상세에 있다.
+- 결정 상태: `open` 은 미결, `proposed` 는 추천안이 있고 공지 전, `decided` 는 공지했고 결정자·날짜를 적은 것이다. `decided` 만 정해진 것으로 본다. 기록: `docs/fms_decisions.md`
 - 초안: 메뉴 수는 34개로 센다. 원문 본문의 '33개' 는 3.7 을 넣기 전 숫자로 본다. 작성자 확인 전이다 (D17).
 - 아키텍처 설계서 v0.1 은 아직 팀에 공개하지 않은 초안이다. 그래서 판단 근거는 설계서 절 번호 대신 각 메뉴 메모에 직접 적었다.
 - 담당 칸(screen_owner, data_owner)은 모두 초안이다. README 팀 구성 표의 역할과 각 메뉴의 데이터 원천을 보고 채웠다. 각 역할 담당이 확인한다.
 - screen_owner 는 규칙 R2(화면은 GUI 담당이 만든다)에 따라 활성 메뉴 모두 gui 로 두었다.
-- 초안: 메뉴별 decisions 는 설계서 §10.1 의 막는 것 열에서 옮겼다. 각 결정이 막는 것은 미결 결정 표에 있다.
+- 초안: 메뉴별 decisions 는 설계서 §10.1 의 막는 것 열에서 옮겼다. 각 결정이 막는 것은 생성 문서의 결정 목록 표에 있다.
 - SR 매핑은 메뉴 트리 원문 대조표를 따랐다. 원문과 다른 메뉴는 sr_original 에 원문 값을 두고 메모에 이유를 적었다. UR ID 는 sr 에 넣지 않는다.
 - 패키지 접두사 `cobot_` 는 main 의 폴더 이름(`cobot_navigation`, `cobot_vision`)을 따랐다. README 의 `<proj>_` 는 자리표시자다. 확정은 D1.
 - 역할의 packages 는 CLAUDE.md §2 의 `<proj>_` 를 `cobot_` 로 바꾼 예정 이름이다. main 913eb15 에는 cobot_navigation·cobot_vision 폴더만 있고, 나머지 패키지는 아직 없다.
@@ -51,7 +52,9 @@
 | 상태 removed | 1 |
 | 원문과 SR 매핑이 다른 메뉴 (✱) | 11 |
 | 화면 | 9 |
-| 미결 결정 | 21 |
+| 결정 open | 15 |
+| 결정 proposed | 6 |
+| 결정 decided | 0 |
 
 ## 화면별 메뉴
 
@@ -85,7 +88,7 @@
 | ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |
 |---|---|---|---|---|---|---|---|---|
 | 1.1 | 전체 로봇 현황 | ① | P1 | planned | SR-06, SR-10, SR-12 ✱ | GUI | 주행 | — |
-| 1.2 | 작업·미션 현황 | ① | P1 | planned | SR-01, SR-02, SR-18 ✱ | GUI | 관제 | D14, D19 |
+| 1.2 | 작업·미션 현황 | ① | P1 | planned | SR-01, SR-02, SR-18 ✱ | GUI | 관제 | D14 (open), D19 (open) |
 | 1.3 | 로봇 할당 현황 | ① | P3 | planned | SR-03, SR-16 | GUI | 관제 | — |
 | 1.4 | 알림·이벤트 센터 | ① | P1 | planned | SR-02, SR-11, SR-14, SR-15 ✱ | GUI | 관제 | — |
 | 1.5 | 운영 이력 | ⑦ | P1 | planned | SR-18, SR-21 | GUI | 관제 | — |
@@ -139,11 +142,11 @@
 
 | ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |
 |---|---|---|---|---|---|---|---|---|
-| 2.1 | 통합 주행 지도 | ② | P1 | planned | SR-04, SR-05, SR-06 | GUI | 주행 | D3 |
+| 2.1 | 통합 주행 지도 | ② | P1 | planned | SR-04, SR-05, SR-06 | GUI | 주행 | D3 (proposed) |
 | 2.2 | 로봇별 주행 상태 | ② | P1 | planned | SR-06, SR-08 | GUI | 주행 | — |
-| 2.3 | 목표점·경로 관리 | ② | P1 | planned | SR-04 | GUI | 주행 | D3 |
-| 2.4 | 주행 미션 관리 | ② | P2 | planned | SR-04 ✱ | GUI | 관제 | D3, D13 |
-| 2.5 | 주행 이력·이상 상태 | ⑦ | P3 | planned | SR-11, SR-14, SR-18 ✱ | GUI | 관제 | D15 |
+| 2.3 | 목표점·경로 관리 | ② | P1 | planned | SR-04 | GUI | 주행 | D3 (proposed) |
+| 2.4 | 주행 미션 관리 | ② | P2 | planned | SR-04 ✱ | GUI | 관제 | D3 (proposed), D13 (open) |
+| 2.5 | 주행 이력·이상 상태 | ⑦ | P3 | planned | SR-11, SR-14, SR-18 ✱ | GUI | 관제 | D15 (open) |
 
 #### 2.1 통합 주행 지도
 
@@ -195,13 +198,13 @@
 
 | ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |
 |---|---|---|---|---|---|---|---|---|
-| 3.1 | 로봇팔 상태 모니터링 | ③ | P4 | planned | SR-09, SR-10, SR-12 | GUI | 매니퓰레이터 | D18 |
-| 3.2 | 작업 시퀀스 관리 | ③ | P4 | planned | SR-09, SR-10 | GUI | 매니퓰레이터 | D7, D18 |
-| 3.3 | 모방학습 데이터 수집 | ③ | P4 | planned | — ✱ | GUI | 매니퓰레이터 | D12 |
-| 3.4 | 데이터셋 관리 | ③ | P4 | planned | — ✱ | GUI | 매니퓰레이터 | D12 |
-| 3.5 | 작업 실행·재생 | ③ | P4 | planned | SR-09 | GUI | 매니퓰레이터 | D7, D18 |
+| 3.1 | 로봇팔 상태 모니터링 | ③ | P4 | planned | SR-09, SR-10, SR-12 | GUI | 매니퓰레이터 | D18 (open) |
+| 3.2 | 작업 시퀀스 관리 | ③ | P4 | planned | SR-09, SR-10 | GUI | 매니퓰레이터 | D7 (open), D18 (open) |
+| 3.3 | 모방학습 데이터 수집 | ③ | P4 | planned | — ✱ | GUI | 매니퓰레이터 | D12 (open) |
+| 3.4 | 데이터셋 관리 | ③ | P4 | planned | — ✱ | GUI | 매니퓰레이터 | D12 (open) |
+| 3.5 | 작업 실행·재생 | ③ | P4 | planned | SR-09 | GUI | 매니퓰레이터 | D7 (open), D18 (open) |
 | 3.6 | 작업 이력 | ③ | P4 | planned | SR-18, SR-21 | GUI | 관제 | — |
-| 3.7 | 로봇팔 파라미터 제어 및 모방학습 Teleop 스튜디오 | — | removed | removed | — ✱ | (빈 칸) | (빈 칸) | D17 |
+| 3.7 | 로봇팔 파라미터 제어 및 모방학습 Teleop 스튜디오 | — | removed | removed | — ✱ | (빈 칸) | (빈 칸) | D17 (open) |
 
 #### 3.1 로봇팔 상태 모니터링
 
@@ -269,11 +272,11 @@
 
 | ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |
 |---|---|---|---|---|---|---|---|---|
-| 4.1 | 실시간 카메라 모니터링 | ④ | P1 | planned | SR-07, SR-11 | GUI | 비전 | D10 |
-| 4.2 | 카메라 선택·설정 | ④ | P1 | planned | SR-07 | GUI | GUI | D10 |
-| 4.3 | 비전 인식·이벤트 결과 | ④ | P3 | planned | SR-07, SR-11 | GUI | 비전 | D10 |
-| 4.4 | 이미지 캡처·영상 녹화 | ④ | P5 | planned | — | GUI | 비전 | D15 |
-| 4.5 | 영상·이미지 기록 조회 | ⑦ | P5 | planned | — | GUI | 비전 | D15 |
+| 4.1 | 실시간 카메라 모니터링 | ④ | P1 | planned | SR-07, SR-11 | GUI | 비전 | D10 (open) |
+| 4.2 | 카메라 선택·설정 | ④ | P1 | planned | SR-07 | GUI | GUI | D10 (open) |
+| 4.3 | 비전 인식·이벤트 결과 | ④ | P3 | planned | SR-07, SR-11 | GUI | 비전 | D10 (open) |
+| 4.4 | 이미지 캡처·영상 녹화 | ④ | P5 | planned | — | GUI | 비전 | D15 (open) |
+| 4.5 | 영상·이미지 기록 조회 | ⑦ | P5 | planned | — | GUI | 비전 | D15 (open) |
 
 #### 4.1 실시간 카메라 모니터링
 
@@ -322,12 +325,12 @@
 
 | ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |
 |---|---|---|---|---|---|---|---|---|
-| 5.1 | 제어권·운용 모드 관리 | ⑤ | P2 | planned | SR-13 ✱ | GUI | 관제 | D9, D11, D13 |
+| 5.1 | 제어권·운용 모드 관리 | ⑤ | P2 | planned | SR-13 ✱ | GUI | 관제 | D9 (open), D11 (open), D13 (open) |
 | 5.2 | 수동 조작 (Teleop) | ② | P5 | planned | — ✱ | GUI | 주행 | — |
-| 5.3 | 일시정지·재개 | ① | P2 | planned | SR-13 | GUI | 관제 | D4, D9, D11, D13 |
-| 5.4 | 정지 요청·복구 관리 | ⑤ | P2 | planned | SR-11, SR-13, SR-14 | GUI | 관제 | D4, D5, D6, D9, D11, D13 |
-| 5.5 | 안전·장애 상태 모니터링 | ④ | P1 | planned | SR-10, SR-11, SR-12, SR-14 ✱ | GUI | 관제 | D6 |
-| 5.6 | 제어 명령·ACK 이력 | ⑤ | P2 | planned | SR-20, SR-21 | GUI | 관제 | D6 |
+| 5.3 | 일시정지·재개 | ① | P2 | planned | SR-13 | GUI | 관제 | D4 (proposed), D9 (open), D11 (open), D13 (open) |
+| 5.4 | 정지 요청·복구 관리 | ⑤ | P2 | planned | SR-11, SR-13, SR-14 | GUI | 관제 | D4 (proposed), D5 (proposed), D6 (open), D9 (open), D11 (open), D13 (open) |
+| 5.5 | 안전·장애 상태 모니터링 | ④ | P1 | planned | SR-10, SR-11, SR-12, SR-14 ✱ | GUI | 관제 | D6 (open) |
+| 5.6 | 제어 명령·ACK 이력 | ⑤ | P2 | planned | SR-20, SR-21 | GUI | 관제 | D6 (open) |
 
 #### 5.1 제어권·운용 모드 관리
 
@@ -389,11 +392,11 @@
 
 | ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |
 |---|---|---|---|---|---|---|---|---|
-| 6.1 | 로봇·장치 연결 현황 | ⑥ | P1 | planned | SR-06, SR-14, SR-19 | GUI | 관제 | D18 |
-| 6.2 | ROS 2·FMS 통신 상태 | ⑥ | P1 | planned | SR-19, SR-20 | GUI | 관제 | D18 |
+| 6.1 | 로봇·장치 연결 현황 | ⑥ | P1 | planned | SR-06, SR-14, SR-19 | GUI | 관제 | D18 (open) |
+| 6.2 | ROS 2·FMS 통신 상태 | ⑥ | P1 | planned | SR-19, SR-20 | GUI | 관제 | D18 (open) |
 | 6.3 | 노드·서비스 상태 | ⑥ | P1 | planned | SR-14 | GUI | 관제 | — |
 | 6.4 | 시스템 로그·오류 진단 | ⑥ | P1 | planned | SR-14, SR-15, SR-21 | GUI | 관제 | — |
-| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 (확인 필요) | GUI | (빈 칸) | D17 |
+| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 (확인 필요) | GUI | (빈 칸) | D17 (open) |
 | 6.6 | 시스템 설정 | ⑧ | P1 | planned | — | GUI | GUI | — |
 
 #### 6.1 로봇·장치 연결 현황
@@ -489,18 +492,20 @@
 | SR-20 | 명령 유효성 검증 및 구 권한 차단 기능 | O | 5.6, 6.2 |
 | SR-21 | 물리 완료 검증 및 이력 역추적(원장) 기능 | O | 1.5, 3.6, 5.6, 6.4 |
 
-## 미결 결정
+## 결정 목록
+
+- 상태 뜻은 위 '읽는 법' 에 있다. 질문·선택지·이유는 결정 기록(`docs/fms_decisions.md`)에 있다.
 
 | ID | 결정 | 상태 | 막는 것 | 기다리는 메뉴 |
 |---|---|---|---|---|
-| D1 | 인터페이스 패키지 — fleet_msgs(미병합 브랜치 feature/setup-fleet-msgs-structure)를 cobot_interfaces 로 옮겨 확장할지, 접두사 `cobot_` 확정 | open | S1(P0) 이후 전부 | — |
-| D2 | ROS_DOMAIN_ID — README 100 vs SR-19 10/12, 두 도메인의 교차점, 개발용 도메인 값 | open | 모든 노드 발견 | — |
-| D3 | 맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치 | open | 미션, 펜싱, ② 지도 | 2.1, 2.3, 2.4 |
-| D4 | 정지 계열 펜싱 예외, 통신 순단 복구의 무게 | open | P2 가드 구현 | 5.3, 5.4 |
-| D5 | SR-14 관제사 2단계 승인의 독립 요소 | open | ⑤ 복구 | 5.4 |
+| D1 | 인터페이스 패키지 — fleet_msgs(미병합 브랜치 feature/setup-fleet-msgs-structure)를 cobot_interfaces 로 옮겨 확장할지, 접두사를 `cobot_` 로 할지 | proposed | S1(P0) 이후 전부 | — |
+| D2 | ROS_DOMAIN_ID — README 100 vs SR-19 10/12, 두 도메인의 교차점, 개발용 도메인 값 | proposed | 모든 노드 발견 | — |
+| D3 | 맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치 | proposed | 미션, 펜싱, ② 지도 | 2.1, 2.3, 2.4 |
+| D4 | 정지 계열 펜싱 예외, 통신 순단 복구의 무게 | proposed | P2 가드 구현 | 5.3, 5.4 |
+| D5 | SR-14 관제사 2단계 승인의 독립 요소 | proposed | ⑤ 복구 | 5.4 |
 | D6 | HW E-STOP 판독 장치·배선·구역, 모터 전원 증거, 미설치 때 RUNNING 허용, 물리 완료 센서원 | open | P2 HW 축, SR-10·13·21 | 5.4, 5.5, 5.6 |
 | D7 | PRD_3 OMX 상·하차를 수업 로컬 게이트(사람 수동 시작, 원격 트리거 없음) 대상으로 볼지 | open | P4, 3.5, SR-09 시연 흐름 | 3.2, 3.5 |
-| D8 | 정적 웹 자원 패키지 형태(CLAUDE.md §3 에 없음), vendoring·fastapi·uvicorn 의존성 허락 | open | P1 빌드 (화면 셸 위치) | — |
+| D8 | 정적 웹 자원 패키지 형태(CLAUDE.md §3 에 없음), vendoring·fastapi·uvicorn 의존성 허락 | proposed | P1 빌드 (화면 셸 위치) | — |
 | D9 | 역할 권한표 — 직원 정지 허용, 주문 취소 범위, 고객 화면 범위, 콘솔 만료 때 처리 | open | P1 로그인, P2 | 5.1, 5.3, 5.4 |
 | D10 | 카메라 구성, 폰 송출 수단, 제어용 영상 입력 경로, 캡처 시각 전달, Ttop 팬아웃 | open | ④, P1 영상, P3 Tail Exit, P4 LeRobot 모드 | 4.1, 4.2, 4.3 |
 | D11 | 하트비트 주기·ttl, 시계 허용 오프셋, 승인 만료·최소 체류·WS 끊김 시간 값 | open | P2 | 5.1, 5.3, 5.4 |
@@ -514,3 +519,12 @@
 | D19 | SR-02 재고 원장 — 소유자, 재고 원천과 입력 수단, 가점유·락 규칙 | open | P3 SR-02 | 1.2 |
 | D20 | 개인 레포 자산 반입 범위와 방법, 로봇 탑재 소스의 팀 레포 이관 여부 | open | 자산 재사용, P2 가드 | — |
 | D21 | Sprint 2·3 의 실제 날짜와 P1 의 Sprint 2/3 경계 | open | 전체 일정 | — |
+
+### 추천안·결정 내용
+
+- D1 (proposed): fleet_msgs 를 cobot_interfaces 로 옮겨 확장한다. 접두사는 cobot_ 로 한다. team11 pinky_fleet_msgs(Apache-2.0) 원저작 표기를 복원한다. — 기록: [`docs/fms_decisions.md#d1`](fms_decisions.md#d1)
+- D2 (proposed): SR-19 그대로 10 = 실물 구동, 12 = Nav2. 두 도메인의 교차점은 핑키 온보드 가드 하나(두 rclpy Context, S1 스파이크로 확인). README 의 100 은 개발·시뮬 전용. — 기록: [`docs/fms_decisions.md#d2`](fms_decisions.md#d2)
+- D3 (proposed): 정본 = map_shoe_store_flat, 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값과 맵 린트 반경 6 cm 는 초안. — 기록: [`docs/fms_decisions.md#d3`](fms_decisions.md#d3)
+- D4 (proposed): 정지 계열은 펜싱 판정이 거부여도 수행하고 워치독은 갱신하지 않는다. 통신 순단 복구는 SR-20 대로 epoch+1·DISARMED. — 기록: [`docs/fms_decisions.md#d4`](fms_decisions.md#d4)
+- D5 (proposed): Reconcile 항목별 확인 입력(attest) + APPROVE 뒤 최소 체류(초안 5 s). 2인 승인·비밀번호 재입력은 설정으로 고른다. — 기록: [`docs/fms_decisions.md#d5`](fms_decisions.md#d5)
+- D8 (proposed): 2안: cobot_gui(ament_python) 의 web/ 폴더를 setup.py data_files 로 설치하고 CLAUDE.md §3 에 web/ 규칙을 더한다. fastapi·uvicorn·JS vendoring 허락은 S2 착수 전에 따로 정한다(D8 후속). — 기록: [`docs/fms_decisions.md#d8`](fms_decisions.md#d8)

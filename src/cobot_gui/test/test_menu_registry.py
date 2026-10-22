@@ -22,12 +22,14 @@
 """
 
 import copy
+import datetime
 import os
 import random
 import re
 
 from cobot_gui import gen_menu_doc
 from cobot_gui import menu_registry
+import pytest
 import yaml
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -139,9 +141,20 @@ ORIGINAL_SR = {
     '6.6': (),
 }
 DECISION_IDS = tuple('D{}'.format(number) for number in range(1, 22))
+# 로드맵 S1 이 기다리는 결정. S1 출구 검사 5 의 --require-decided 목록과 같아야 한다.
+S1_DECISIONS = ('D1', 'D2', 'D3', 'D4', 'D5', 'D8')
+S1_REQUIRE_COMMAND = '--require-decided D1,D2,D3,D4,D5,D8'
 README_ROLE_KEYS = ('vision', 'navigation', 'manipulation', 'control_center', 'gui')
 ROADMAP_MENU_LINE = re.compile(r'^- \*\*포함 메뉴\*\* \(phase=(P[1-5])\): (.+)$')
 ROADMAP_HEADING = re.compile(r'^### (S[0-9]+) (.+) \((P[0-9])\)$')
+# 결정 기록 문서(docs/fms_decisions.md)의 형식. 절은 <a id="d1"></a> 줄로 시작한다.
+DOC_ANCHOR = re.compile(r'^<a id="([a-z0-9-]+)"></a>$')
+DOC_STATUS_LINE = re.compile(r'^- 상태: `([a-z]+)`$')
+DOC_BY_LINE = re.compile(r'^- 결정자: (.+)$')
+DOC_ON_LINE = re.compile(r'^- 결정일: (.+)$')
+DOC_OPEN_ROW = re.compile(r'^\| (D[0-9]+) \|')
+DOC_OPEN_ANCHOR = 'open'
+DOC_PENDING = '(공지 때 관제 담당이 채운다)'
 
 
 def _registry():
@@ -170,13 +183,21 @@ def _repo_root():
         current = parent
 
 
-def _roadmap_text():
+def _doc_text(name):
     root = _repo_root()
     assert root is not None, '레포 루트를 찾지 못했다'
-    roadmap = os.path.join(root, 'docs', 'fms_roadmap.md')
-    assert os.path.isfile(roadmap), '로드맵이 없다: {}'.format(roadmap)
-    with open(roadmap, encoding='utf-8') as stream:
+    path = os.path.join(root, 'docs', name)
+    assert os.path.isfile(path), '문서가 없다: {}'.format(path)
+    with open(path, encoding='utf-8') as stream:
         return stream.read()
+
+
+def _roadmap_text():
+    return _doc_text('fms_roadmap.md')
+
+
+def _decisions_doc_text():
+    return _doc_text('fms_decisions.md')
 
 
 def _errors_mentioning(errors, *needles):
@@ -228,6 +249,90 @@ def _roadmap_problems(registry, text):
             problems.append('{}: 로드맵 포함 메뉴 {} != 레지스트리 {}'.format(
                 phase['id'], menu_lines.get(phase['id']), expected))
     return problems
+
+
+def _doc_sections(text):
+    # <a id="..."></a> 줄로 문서를 나눈다. 첫 앵커 앞(요약·공지문)은 보지 않는다.
+    sections = {}
+    problems = []
+    current = None
+    for line in text.splitlines():
+        anchor = DOC_ANCHOR.match(line)
+        if anchor:
+            current = anchor.group(1)
+            if current in sections:
+                problems.append('앵커가 두 번 있다: {}'.format(current))
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+    return sections, problems
+
+
+def _single(lines, pattern):
+    # 그 줄이 정확히 한 번 있을 때만 값을 돌려준다. 없거나 두 번이면 None.
+    found = [match.group(1) for match in (pattern.match(line) for line in lines) if match]
+    return found[0] if len(found) == 1 else None
+
+
+def _decisions_doc_problems(registry, text):
+    # 결정 기록 문서가 레지스트리 decisions 와 같은지 본다.
+    # proposed·decided 결정은 절이 있고 상태·결정자·결정일 줄이 같아야 한다.
+    # open 결정은 절이 없고 미결 표에 한 줄씩 있어야 한다.
+    sections, problems = _doc_sections(text)
+    decisions = {decision['id']: decision for decision in registry['decisions']}
+    for decision_id, decision in decisions.items():
+        anchor = decision_id.lower()
+        if decision['status'] == menu_registry.DECISION_OPEN:
+            if anchor in sections:
+                problems.append('{}: open 인데 기록 절이 있다'.format(decision_id))
+            continue
+        if anchor not in sections:
+            problems.append('{}: 기록 절(<a id="{}">)이 없다'.format(decision_id, anchor))
+            continue
+        lines = sections[anchor]
+        expected = (
+            ('상태', DOC_STATUS_LINE, decision['status']),
+            ('결정자', DOC_BY_LINE, decision.get('decided_by', DOC_PENDING)),
+            ('결정일', DOC_ON_LINE, decision.get('decided_on', DOC_PENDING)),
+        )
+        for name, pattern, value in expected:
+            found = _single(lines, pattern)
+            if found != value:
+                problems.append('{}: 문서 {} {!r} != 레지스트리 {!r}'.format(
+                    decision_id, name, found, value))
+    for anchor in sections:
+        if anchor != DOC_OPEN_ANCHOR and anchor.upper() not in decisions:
+            problems.append('레지스트리에 없는 결정 절: {}'.format(anchor))
+    rows = [
+        match.group(1)
+        for match in (DOC_OPEN_ROW.match(line) for line in sections.get(DOC_OPEN_ANCHOR, []))
+        if match
+    ]
+    open_ids = [
+        decision['id'] for decision in registry['decisions']
+        if decision['status'] == menu_registry.DECISION_OPEN
+    ]
+    if rows != open_ids:
+        problems.append('미결 표 {} != 레지스트리 open {}'.format(rows, open_ids))
+    return problems
+
+
+def _decide(registry, decision_id, decided_by='관제', decided_on='2026-10-23'):
+    # 결정 하나를 decided 로 바꾼 사본을 만든다. proposal·record 가 없으면 채운다.
+    decided = copy.deepcopy(registry)
+    entry = [d for d in decided['decisions'] if d['id'] == decision_id][0]
+    entry['status'] = menu_registry.DECISION_DECIDED
+    entry.setdefault('proposal', '시험용 결정')
+    entry.setdefault('record', menu_registry.decision_record_ref(decision_id))
+    entry['decided_by'] = decided_by
+    entry['decided_on'] = decided_on
+    return decided
+
+
+def _decision(registry, decision_id):
+    found = [d for d in registry['decisions'] if d['id'] == decision_id]
+    assert len(found) == 1, decision_id
+    return found[0]
 
 
 # (a) 메뉴 ID 34개, 고유, 원문 목록과 같다
@@ -341,6 +446,172 @@ def test_decision_refs_are_known():
         assert set(menu['decisions']) <= set(decision_ids), menu['id']
 
 
+# (d2) 결정 상태: S1 결정은 기록이 있고, decided 는 결정자·날짜가 있어야 한다
+def test_s1_decisions_have_proposal_and_record():
+    registry = _registry()
+    for decision_id in S1_DECISIONS:
+        decision = _decision(registry, decision_id)
+        assert decision['status'] in ('proposed', 'decided'), decision_id
+        assert decision['proposal'].strip(), decision_id
+        assert decision['record'] == 'docs/fms_decisions.md#{}'.format(decision_id.lower())
+    # 로드맵 S1 출구 검사 5 의 명령이 같은 결정 목록을 쓴다.
+    assert S1_REQUIRE_COMMAND in _roadmap_text()
+
+
+def test_decided_with_owner_and_date_is_accepted():
+    registry = _decide(_registry(), 'D1')
+    assert menu_registry.validate(registry) == []
+
+
+def test_negative_control_decision_state_rules():
+    registry = _registry()
+    cases = []
+
+    def changed(decision_id, **fields):
+        broken = copy.deepcopy(registry)
+        entry = _decision(broken, decision_id)
+        for key, value in fields.items():
+            if value is None:
+                entry.pop(key, None)
+            else:
+                entry[key] = value
+        return broken
+
+    decided = _decide(registry, 'D1')
+    # decided 인데 결정자가 없다.
+    no_owner = copy.deepcopy(decided)
+    del _decision(no_owner, 'D1')['decided_by']
+    cases.append((no_owner, ('decisions D1', 'decided_by')))
+    # decided 인데 결정일이 없거나, 따옴표 없는 날짜이거나, 없는 날짜다.
+    no_date = copy.deepcopy(decided)
+    del _decision(no_date, 'D1')['decided_on']
+    cases.append((no_date, ('decisions D1', 'decided_on')))
+    unquoted = copy.deepcopy(decided)
+    _decision(unquoted, 'D1')['decided_on'] = datetime.date(2026, 10, 23)
+    cases.append((unquoted, ('decisions D1', '따옴표')))
+    bad_day = copy.deepcopy(decided)
+    _decision(bad_day, 'D1')['decided_on'] = '2026-13-01'
+    cases.append((bad_day, ('decisions D1', '없는 날짜')))
+    blank_owner = copy.deepcopy(decided)
+    _decision(blank_owner, 'D1')['decided_by'] = '  '
+    cases.append((blank_owner, ('decisions D1', 'decided_by')))
+    # 모르는 상태, 모르는 필드.
+    cases.append((changed('D1', status='approved'), ('decisions D1', 'status')))
+    cases.append((changed('D1', decided_at='2026-10-23'), ('decisions D1', '모르는 필드')))
+    # proposed 인데 추천안·기록이 없거나, 기록 앵커가 다른 결정을 가리킨다.
+    cases.append((changed('D2', record=None), ('decisions D2', 'record')))
+    cases.append((changed('D2', proposal=None), ('decisions D2', 'proposal')))
+    cases.append((changed('D2', proposal=''), ('decisions D2', 'proposal')))
+    cases.append((changed('D2', record='docs/fms_decisions.md#d3'), ('decisions D2', 'record')))
+    # decided 가 아닌데 결정자·결정일이 있다 (반쯤 고친 상태).
+    cases.append((
+        changed('D3', status='proposed', decided_by=None, decided_on='2026-10-23'),
+        ('decisions D3', 'decided_on')))
+    cases.append((changed('D6', decided_by='관제'), ('decisions D6', 'decided_by')))
+    for broken, needles in cases:
+        errors = menu_registry.validate(broken)
+        assert _errors_mentioning(errors, *needles), (needles, errors)
+
+
+def test_unquoted_decided_on_in_yaml_is_an_error(tmp_path):
+    # 실제 YAML 에서 따옴표를 빼면 날짜 객체가 되어 검사기가 잡는지 본다.
+    with open(REGISTRY_PATH, encoding='utf-8') as stream:
+        text = stream.read()
+    # D1 블록(다음 결정 D2 앞까지)만 고친다.
+    start = text.index('  - id: D1\n')
+    end = text.index('  - id: D2\n')
+    block = text[start:end]
+    record = "    record: 'docs/fms_decisions.md#d1'\n"
+    assert record in block, block
+    block = re.sub(r'^    status: [a-z]+\n', '    status: decided\n', block, count=1,
+                   flags=re.MULTILINE)
+    # D1 이 이미 decided 라면 있는 결정자·결정일 줄을 먼저 뺀다.
+    block = re.sub(r'^    decided_(by|on): .*\n', '', block, flags=re.MULTILINE)
+    owner = '    decided_by: 관제\n'
+    quoted = text[:start] + block.replace(
+        record, record + owner + "    decided_on: '2026-10-23'\n", 1) + text[end:]
+    bare = text[:start] + block.replace(
+        record, record + owner + '    decided_on: 2026-10-23\n', 1) + text[end:]
+    good = tmp_path / 'quoted.yaml'
+    good.write_text(quoted, encoding='utf-8')
+    bad = tmp_path / 'bare.yaml'
+    bad.write_text(bare, encoding='utf-8')
+    assert menu_registry.main(['--registry', str(good)]) == 0
+    registry, errors = menu_registry.read_registry(str(bad))
+    assert errors == []
+    assert _errors_mentioning(menu_registry.validate(registry), 'decisions D1', '따옴표')
+    assert menu_registry.main(['--registry', str(bad)]) == 1
+
+
+def test_require_decided_option(tmp_path):
+    registry = _registry()
+    all_decided = registry
+    for decision_id in S1_DECISIONS:
+        all_decided = _decide(all_decided, decision_id)
+    good = tmp_path / 'decided.yaml'
+    good.write_text(_dump(all_decided), encoding='utf-8')
+    one_left = copy.deepcopy(all_decided)
+    entry = _decision(one_left, 'D5')
+    entry['status'] = 'proposed'
+    del entry['decided_by']
+    del entry['decided_on']
+    pending = tmp_path / 'pending.yaml'
+    pending.write_text(_dump(one_left), encoding='utf-8')
+    ids = ','.join(S1_DECISIONS)
+    assert menu_registry.main(['--registry', str(good), '--require-decided', ids]) == 0
+    assert menu_registry.main(['--registry', str(pending), '--require-decided', ids]) == 1
+    assert menu_registry.main(['--registry', str(good), '--require-decided', 'D1,D99']) == 1
+    assert menu_registry.main(['--registry', str(pending)]) == 0
+    problems = menu_registry.find_undecided(one_left, list(S1_DECISIONS))
+    assert len(problems) == 1 and problems[0].startswith('D5:')
+    with pytest.raises(SystemExit):
+        menu_registry.main(['--registry', str(good), '--require-decided', ' , '])
+
+
+# (d3) 결정 기록 문서는 레지스트리와 상태·결정자·결정일이 같다
+def test_decisions_doc_matches_registry():
+    assert _decisions_doc_problems(_registry(), _decisions_doc_text()) == []
+
+
+def test_negative_control_decisions_doc_mismatch():
+    registry = _registry()
+    text = _decisions_doc_text()
+    # 레지스트리에만 결정자·결정일을 적고 문서를 그대로 두면 걸린다.
+    problems = _decisions_doc_problems(_decide(registry, 'D1', '시험 결정자', '2000-01-01'), text)
+    assert _errors_mentioning(problems, 'D1', '결정자')
+    assert _errors_mentioning(problems, 'D1', '결정일')
+    # 문서 D1 절의 상태 줄만 바꿔도 걸린다.
+    head, rest = text.split('<a id="d1"></a>', 1)
+    section, tail = rest.split('<a id="d2"></a>', 1)
+    current = '- 상태: `{}`'.format(_decision(registry, 'D1')['status'])
+    assert current in section
+    flipped = '<a id="d1"></a>'.join(
+        [head, section.replace(current, '- 상태: `open`', 1) + '<a id="d2"></a>' + tail])
+    assert _errors_mentioning(_decisions_doc_problems(registry, flipped), 'D1', '상태')
+    # 상태 줄을 두 번 적으면 걸린다.
+    doubled = text.replace('<a id="d2"></a>\n', '<a id="d2"></a>\n' + current + '\n', 1)
+    assert _errors_mentioning(_decisions_doc_problems(registry, doubled), 'D2', '상태')
+    # 문서 절을 지우면 걸린다.
+    assert '<a id="d3"></a>' in text
+    removed = text.replace('<a id="d3"></a>', '', 1)
+    assert _errors_mentioning(_decisions_doc_problems(registry, removed), 'D3', '기록 절')
+    # open 결정을 proposed 로 올리고 문서를 안 고치면 걸린다. 미결 표에서 줄을 빼도 걸린다.
+    open_ids = [d['id'] for d in registry['decisions'] if d['status'] == 'open']
+    assert open_ids, '음성 대조에 쓸 open 결정이 없다. 이 시험을 고친다.'
+    target = open_ids[0]
+    proposed = copy.deepcopy(registry)
+    _decision(proposed, target).update({
+        'status': 'proposed', 'proposal': '시험',
+        'record': menu_registry.decision_record_ref(target)})
+    problems = _decisions_doc_problems(proposed, text)
+    assert _errors_mentioning(problems, target, '기록 절')
+    assert _errors_mentioning(problems, '미결 표')
+    row = [line for line in text.splitlines() if line.startswith('| {} |'.format(target))]
+    assert len(row) == 1, row
+    dropped = text.replace(row[0] + '\n', '', 1)
+    assert _errors_mentioning(_decisions_doc_problems(registry, dropped), '미결 표')
+
+
 # (e) 담당 칸은 roles 키, 빈 칸은 경고 함수가 찾는다
 def test_owner_fields_are_role_keys():
     registry = _registry()
@@ -396,6 +667,47 @@ def test_generated_doc_marks_changed_sr_rows():
     assert '| 1.3 | 로봇 할당 현황 | ① | P3 | planned | SR-03, SR-16 |' in text
     assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 (확인 필요) |' in text
     assert '- ✱ 원문 SR: SR-06, SR-09 (지금 매핑과 다르다. 이유는 아래 메모)' in text
+
+
+def test_generated_doc_shows_decision_status():
+    base = copy.deepcopy(_registry())
+    _menu(base, '2.1')['decisions'] = ['D3']
+    _menu(base, '1.2')['decisions'] = ['D14', 'D19']
+    for decision_id in ('D14', 'D19'):
+        entry = _decision(base, decision_id)
+        for key in ('proposal', 'record', 'decided_by', 'decided_on'):
+            entry.pop(key, None)
+        entry['status'] = 'open'
+    proposed = copy.deepcopy(base)
+    entry = _decision(proposed, 'D3')
+    entry.pop('decided_by', None)
+    entry.pop('decided_on', None)
+    entry.update({'status': 'proposed', 'proposal': '시험 추천안',
+                  'record': 'docs/fms_decisions.md#d3'})
+    assert menu_registry.validate(proposed) == []
+    text = gen_menu_doc.render(proposed)
+    lines = text.splitlines()
+    assert [line for line in lines if line.startswith('| 2.1 |')][0].endswith(
+        '| D3 (proposed) |')
+    assert [line for line in lines if line.startswith('| 1.2 |')][0].endswith(
+        '| D14 (open), D19 (open) |')
+    assert '| proposed |' in [line for line in lines if line.startswith('| D3 |')][0]
+    assert ('- D3 (proposed): 시험 추천안 — 기록: '
+            '[`docs/fms_decisions.md#d3`](fms_decisions.md#d3)') in lines
+    decided = _decide(proposed, 'D3', '관제', '2026-10-23')
+    text = gen_menu_doc.render(decided)
+    lines = text.splitlines()
+    assert [line for line in lines if line.startswith('| 2.1 |')][0].endswith(
+        '| D3 (decided) |')
+    assert '| proposed |' not in [line for line in lines if line.startswith('| D3 |')][0]
+    assert '| decided (관제, 2026-10-23) |' in [
+        line for line in lines if line.startswith('| D3 |')][0]
+    counts = {
+        status: len([d for d in decided['decisions'] if d['status'] == status])
+        for status in menu_registry.DECISION_STATUSES
+    }
+    for status, count in counts.items():
+        assert '| 결정 {} | {} |'.format(status, count) in lines
 
 
 def test_check_option_detects_hand_edit(tmp_path):

@@ -78,6 +78,7 @@ flowchart LR
 - 같이 해도 되는 일: 주행·팔·비전이 자기 토픽 계약 초안을 쓴다 (`docs/` 의 토픽·QoS·도메인·네임스페이스·TF frame 표).
 - 먼저 끝나야 하는 것: S0
 - 기다리는 결정: D1(인터페이스 패키지), D2(도메인), D3(맵), D4(정지 계열 펜싱 예외), D5(2단계 승인), D8(웹 자원 위치·의존성)
+- 결정 기록: [`docs/fms_decisions.md`](fms_decisions.md). 6건마다 질문·선택지·추천안·이유·결과(바뀌는 파일·PR)·되돌리는 방법이 있다. 지금은 모두 `proposed`(추천안, 공지 전)다. 관제 담당이 공지하면 `decided` 로 바꾼다.
 - 할 일 (설계서 §9.1 P0):
   - `cobot_interfaces` PR: fleet_msgs(미병합 브랜치 `feature/setup-fleet-msgs-structure`) 이전과 확장, 원저작 표기. msg/srv/action 변경은 이 PR 로만 한다 (CLAUDE.md §9).
   - 토픽·QoS·도메인·네임스페이스·TF frame 표 (`docs/`).
@@ -88,7 +89,7 @@ flowchart LR
   2. 스키마 시험: 명령 헤더(epoch·seq·ttl_ms·map_hash·command_id·sig)와 상태 필드가 있는지 본다. 지금 fleet_msgs(미병합 브랜치)에서는 실패하고, PR 뒤에는 통과해야 한다.
   3. 맵 린트: 지금 맵(장애물 위 웨이포인트가 있다)에서는 실패하고, 정본 맵에서는 통과해야 한다.
   4. map_hash: 두 번 돌리면 같은 값, 맵을 1바이트 바꾸면 다른 값이 나온다.
-  5. D1~D5·D8 마다 결정자와 날짜가 기록되고, 레지스트리 `decisions` 의 `status` 가 `decided` 로 바뀐다. 미결에 기대는 작업은 시작하지 않는다.
+  5. D1~D5·D8 의 레지스트리 `status` 가 모두 `decided` 이고 `decided_by`(결정자)·`decided_on`(결정일)이 적혀 있다. `proposed` 는 통과가 아니다. `PYTHONPATH=src/cobot_gui python3 -m cobot_gui.menu_registry --require-decided D1,D2,D3,D4,D5,D8` 가 0 이어야 한다. 하나라도 `decided` 가 아니면 1 이다 (지금은 6건 모두 `proposed` 라 1). `docs/fms_decisions.md` 의 그 절도 같은 상태·결정자·결정일이어야 한다 (시험이 대조한다). 미결에 기대는 작업은 시작하지 않는다.
   6. 네트워크를 끊은 깨끗한 VM 에 번들만으로 설치된다. 번들에서 파일 하나를 빼면 설치가 실패해야 한다.
   7. PR 이 1명 이상 리뷰를 받고 머지된다.
 
@@ -100,7 +101,7 @@ flowchart LR
 - 주 담당: 관제(상태 수집·원장·진단)·GUI(게이트웨이 읽기 API·화면)
 - 같이 해도 되는 일: 주행 — 상태 발행 노드, 하트비트 도달 간격 측정 협조. 비전 — 카메라 상태(CameraHealth).
 - 먼저 끝나야 하는 것: S1 계약 머지
-- 기다리는 결정: D9(로그인 권한), D10(P1 영상), D18(현장 실측), D21(Sprint 경계)
+- 기다리는 결정: D9(로그인 권한), D10(P1 영상), D18(현장 실측), D21(Sprint 경계), D8 후속(fastapi·uvicorn·JS vendoring 허락 — [`docs/fms_decisions.md`](fms_decisions.md#d8))
 - 출구 검사 (설계서 §9.1 P1):
   1. 가짜 발행기를 끄면 해당 카드가 1 s 안에 STALE 이 된다. stale 로직을 끈 빌드에서는 같은 시험이 실패해야 한다.
   2. 명령 경로가 없다. 정지 등 명령 API 는 404 이고, 게이트웨이 소스의 로봇 토픽 발행자는 0 이다.
@@ -216,4 +217,4 @@ flowchart LR
 
 - 단계별 날짜: 미정(D21).
 - 단계별 규모(인일): 담당자와 다시 잰다.
-- 미결 결정 D1~D21 의 전체 목록과 각 결정이 막는 것: [`docs/fms_menu_tree.md`](fms_menu_tree.md) 의 '미결 결정' 표.
+- 결정 D1~D21 의 전체 목록, 상태(open·proposed·decided)와 각 결정이 막는 것: [`docs/fms_menu_tree.md`](fms_menu_tree.md) 의 '결정 목록' 표. S1 결정의 질문·선택지·이유: [`docs/fms_decisions.md`](fms_decisions.md).

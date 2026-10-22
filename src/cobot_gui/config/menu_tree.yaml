@@ -27,7 +27,7 @@
 #   screen_owner    화면을 만드는 역할 키 (roles).
 #   data_owner      데이터 계약(토픽·메시지)을 내는 역할 키. 원천이 여럿이면 주 원천 하나를 적고
 #                   나머지는 notes 에 적는다. 모르면 '' 로 둔다 (경고 목록에 뜬다).
-#   decisions       기다리는 미결 결정 ID (decisions). 전체를 막는 결정(D1·D2·D8·D16·D21 등)은
+#   decisions       기다리는 결정 ID (decisions). 전체를 막는 결정(D1·D2·D8·D16·D21 등)은
 #                   메뉴마다 적지 않는다. decisions 의 blocks 를 본다.
 #   notes           메모 목록. '초안:' 으로 시작하는 줄은 판단이 들어간 값이다.
 #
@@ -35,6 +35,20 @@
 #   id              P1~P5. 순서대로 다섯 개다 (검사기가 본다).
 #   title           단계 이름. docs/fms_roadmap.md 의 단계 제목과 같아야 한다 (시험이 본다).
 #   roadmap_stage   로드맵 단계 번호 (S2~S6).
+#
+# decisions 항목 하나의 필드
+#   id              D<숫자>.
+#   title           무엇을 정하는가.
+#   status          open (미결) | proposed (추천안이 있고 공지 전) | decided (공지했고 결정자·날짜를 적었다)
+#                   decided 만 '정해졌다' 로 본다. 로드맵 출구 검사도 decided 만 통과로 친다.
+#   blocks          이 결정을 기다리는 단계·화면.
+#   proposal        (proposed·decided 일 때 필수) 추천안 또는 결정 내용 한 줄.
+#   record          (proposed·decided 일 때 필수) 결정 기록 위치. 'docs/fms_decisions.md#d<숫자>' 꼴.
+#   decided_by      (decided 일 때만, 필수) 결정자. 공지한 사람의 이름 또는 역할.
+#   decided_on      (decided 일 때만, 필수) 결정일. 따옴표로 감싼 'YYYY-MM-DD'.
+#                   따옴표가 없으면 YAML 이 날짜 객체로 읽어 검사기가 오류를 낸다.
+#   decided 로 바꿀 때는 docs/fms_decisions.md 그 절의 상태·결정자·결정일도 같은 PR 에서 고친다
+#   (시험이 둘을 대조한다).
 
 schema_version: 1
 
@@ -49,7 +63,7 @@ notes:
   - '아키텍처 설계서 v0.1 은 아직 팀에 공개하지 않은 초안이다. 그래서 판단 근거는 설계서 절 번호 대신 각 메뉴 메모에 직접 적었다.'
   - '담당 칸(screen_owner, data_owner)은 모두 초안이다. README 팀 구성 표의 역할과 각 메뉴의 데이터 원천을 보고 채웠다. 각 역할 담당이 확인한다.'
   - 'screen_owner 는 규칙 R2(화면은 GUI 담당이 만든다)에 따라 활성 메뉴 모두 gui 로 두었다.'
-  - '초안: 메뉴별 decisions 는 설계서 §10.1 의 막는 것 열에서 옮겼다. 각 결정이 막는 것은 미결 결정 표에 있다.'
+  - '초안: 메뉴별 decisions 는 설계서 §10.1 의 막는 것 열에서 옮겼다. 각 결정이 막는 것은 생성 문서의 결정 목록 표에 있다.'
   - 'SR 매핑은 메뉴 트리 원문 대조표를 따랐다. 원문과 다른 메뉴는 sr_original 에 원문 값을 두고 메모에 이유를 적었다. UR ID 는 sr 에 넣지 않는다.'
   - '패키지 접두사 `cobot_` 는 main 의 폴더 이름(`cobot_navigation`, `cobot_vision`)을 따랐다. README 의 `<proj>_` 는 자리표시자다. 확정은 D1.'
   - '역할의 packages 는 CLAUDE.md §2 의 `<proj>_` 를 `cobot_` 로 바꾼 예정 이름이다. main 913eb15 에는 cobot_navigation·cobot_vision 폴더만 있고, 나머지 패키지는 아직 없다.'
@@ -154,14 +168,45 @@ phases:
   - {id: P5, title: 이후, roadmap_stage: S6}
 
 decisions:
-  - {id: D1, status: open, title: '인터페이스 패키지 — fleet_msgs(미병합 브랜치 feature/setup-fleet-msgs-structure)를 cobot_interfaces 로 옮겨 확장할지, 접두사 `cobot_` 확정', blocks: 'S1(P0) 이후 전부'}
-  - {id: D2, status: open, title: 'ROS_DOMAIN_ID — README 100 vs SR-19 10/12, 두 도메인의 교차점, 개발용 도메인 값', blocks: '모든 노드 발견'}
-  - {id: D3, status: open, title: '맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치', blocks: '미션, 펜싱, ② 지도'}
-  - {id: D4, status: open, title: '정지 계열 펜싱 예외, 통신 순단 복구의 무게', blocks: 'P2 가드 구현'}
-  - {id: D5, status: open, title: 'SR-14 관제사 2단계 승인의 독립 요소', blocks: '⑤ 복구'}
+  # S1(P0) 결정 6건(D1~D5, D8)은 추천안이 있는 proposed 다. 기록은 docs/fms_decisions.md.
+  - id: D1
+    status: proposed
+    title: '인터페이스 패키지 — fleet_msgs(미병합 브랜치 feature/setup-fleet-msgs-structure)를 cobot_interfaces 로 옮겨 확장할지, 접두사를 `cobot_` 로 할지'
+    blocks: 'S1(P0) 이후 전부'
+    proposal: 'fleet_msgs 를 cobot_interfaces 로 옮겨 확장한다. 접두사는 cobot_ 로 한다. team11 pinky_fleet_msgs(Apache-2.0) 원저작 표기를 복원한다.'
+    record: 'docs/fms_decisions.md#d1'
+  - id: D2
+    status: proposed
+    title: 'ROS_DOMAIN_ID — README 100 vs SR-19 10/12, 두 도메인의 교차점, 개발용 도메인 값'
+    blocks: '모든 노드 발견'
+    proposal: 'SR-19 그대로 10 = 실물 구동, 12 = Nav2. 두 도메인의 교차점은 핑키 온보드 가드 하나(두 rclpy Context, S1 스파이크로 확인). README 의 100 은 개발·시뮬 전용.'
+    record: 'docs/fms_decisions.md#d2'
+  - id: D3
+    status: proposed
+    title: '맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치'
+    blocks: '미션, 펜싱, ② 지도'
+    proposal: '정본 = map_shoe_store_flat, 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값과 맵 린트 반경 6 cm 는 초안.'
+    record: 'docs/fms_decisions.md#d3'
+  - id: D4
+    status: proposed
+    title: '정지 계열 펜싱 예외, 통신 순단 복구의 무게'
+    blocks: 'P2 가드 구현'
+    proposal: '정지 계열은 펜싱 판정이 거부여도 수행하고 워치독은 갱신하지 않는다. 통신 순단 복구는 SR-20 대로 epoch+1·DISARMED.'
+    record: 'docs/fms_decisions.md#d4'
+  - id: D5
+    status: proposed
+    title: 'SR-14 관제사 2단계 승인의 독립 요소'
+    blocks: '⑤ 복구'
+    proposal: 'Reconcile 항목별 확인 입력(attest) + APPROVE 뒤 최소 체류(초안 5 s). 2인 승인·비밀번호 재입력은 설정으로 고른다.'
+    record: 'docs/fms_decisions.md#d5'
   - {id: D6, status: open, title: 'HW E-STOP 판독 장치·배선·구역, 모터 전원 증거, 미설치 때 RUNNING 허용, 물리 완료 센서원', blocks: 'P2 HW 축, SR-10·13·21'}
   - {id: D7, status: open, title: 'PRD_3 OMX 상·하차를 수업 로컬 게이트(사람 수동 시작, 원격 트리거 없음) 대상으로 볼지', blocks: 'P4, 3.5, SR-09 시연 흐름'}
-  - {id: D8, status: open, title: '정적 웹 자원 패키지 형태(CLAUDE.md §3 에 없음), vendoring·fastapi·uvicorn 의존성 허락', blocks: 'P1 빌드 (화면 셸 위치)'}
+  - id: D8
+    status: proposed
+    title: '정적 웹 자원 패키지 형태(CLAUDE.md §3 에 없음), vendoring·fastapi·uvicorn 의존성 허락'
+    blocks: 'P1 빌드 (화면 셸 위치)'
+    proposal: '2안: cobot_gui(ament_python) 의 web/ 폴더를 setup.py data_files 로 설치하고 CLAUDE.md §3 에 web/ 규칙을 더한다. fastapi·uvicorn·JS vendoring 허락은 S2 착수 전에 따로 정한다(D8 후속).'
+    record: 'docs/fms_decisions.md#d8'
   - {id: D9, status: open, title: '역할 권한표 — 직원 정지 허용, 주문 취소 범위, 고객 화면 범위, 콘솔 만료 때 처리', blocks: 'P1 로그인, P2'}
   - {id: D10, status: open, title: '카메라 구성, 폰 송출 수단, 제어용 영상 입력 경로, 캡처 시각 전달, Ttop 팬아웃', blocks: '④, P1 영상, P3 Tail Exit, P4 LeRobot 모드'}
   - {id: D11, status: open, title: '하트비트 주기·ttl, 시계 허용 오프셋, 승인 만료·최소 체류·WS 끊김 시간 값', blocks: 'P2'}

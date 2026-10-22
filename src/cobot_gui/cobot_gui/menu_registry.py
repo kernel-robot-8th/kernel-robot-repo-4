@@ -21,6 +21,7 @@ ROS 에 의존하지 않는다. 검사 함수는 오류 문자열 목록을 돌�
 """
 
 import argparse
+import datetime
 import logging
 import os
 import re
@@ -105,7 +106,12 @@ ACTIVE_PHASES = ('P1', 'P2', 'P3', 'P4', 'P5')
 REMOVED = 'removed'
 IN_PROGRESS = 'in_progress'
 STATUSES = ('planned', IN_PROGRESS, 'done', REMOVED)
-DECISION_STATUSES = ('open', 'decided')
+# 결정 상태: open = 미결, proposed = 추천안이 있고 공지 전, decided = 결정자·날짜를 적었다.
+DECISION_OPEN = 'open'
+DECISION_PROPOSED = 'proposed'
+DECISION_DECIDED = 'decided'
+DECISION_STATUSES = (DECISION_OPEN, DECISION_PROPOSED, DECISION_DECIDED)
+DECISION_RECORD_DOC = 'docs/fms_decisions.md'
 
 TOP_KEYS = (
     'schema_version', 'source', 'sr_catalog', 'roles', 'screens', 'phases', 'decisions',
@@ -125,6 +131,7 @@ SCREEN_KEYS = ('id', 'label', 'name', 'phase_note')
 PHASE_KEYS = ('id', 'title', 'roadmap_stage')
 ROLE_KEYS = ('name', 'packages', 'members')
 DECISION_KEYS = ('id', 'title', 'status', 'blocks')
+OPTIONAL_DECISION_KEYS = ('proposal', 'record', 'decided_by', 'decided_on')
 SR_KEYS = ('id', 'name', 'priority')
 
 MENU_ID_RE = re.compile(r'^([1-9][0-9]*)\.([1-9][0-9]*)$')
@@ -135,6 +142,7 @@ STAGE_RE = re.compile(r'^S[0-9]+$')
 DECISION_ID_RE = re.compile(r'^D[1-9][0-9]*$')
 KEY_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 BRANCH_RE = re.compile(r'^(feature|fix)/[A-Za-z0-9._/-]+$')
+DATE_RE = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
 
 
 def _construct_unique_mapping(loader, node, deep=False):
@@ -390,17 +398,72 @@ def _validate_phases(phases, errors):
         errors.append('phases: 중복 roadmap_stage: {}'.format(dup))
 
 
+def decision_record_ref(decision_id):
+    """
+    결정 기록 문서에서 그 결정 절을 가리키는 값(record)을 돌려준다.
+
+    예: D1 이면 'docs/fms_decisions.md#d1'. 앵커는 결정 ID 의 소문자다.
+
+    :param decision_id: 결정 ID 문자열
+    :return: 레포 루트 기준 경로와 앵커
+    """
+    return '{}#{}'.format(DECISION_RECORD_DOC, str(decision_id).lower())
+
+
+def _validate_decided_on(value, label, errors):
+    # 따옴표 없는 2026-10-23 은 YAML 이 날짜 객체로 읽는다. 문자열만 받아서 표기를 하나로 한다.
+    if not isinstance(value, str) or not DATE_RE.match(value):
+        errors.append("{}: decided_on 은 따옴표로 감싼 'YYYY-MM-DD' 문자열: {!r}".format(
+            label, value))
+        return
+    try:
+        datetime.date(int(value[0:4]), int(value[5:7]), int(value[8:10]))
+    except ValueError:
+        errors.append('{}: decided_on 이 없는 날짜다: {}'.format(label, value))
+
+
+def _validate_decision_state(entry, label, errors):
+    # proposed·decided 는 추천안(proposal)과 기록 위치(record)가 있어야 하고,
+    # decided 는 결정자(decided_by)와 날짜(decided_on)까지 있어야 한다.
+    # decided 가 아닌데 결정자·날짜가 있으면 반쯤 고친 상태이므로 오류다.
+    status = entry['status']
+    if status not in DECISION_STATUSES:
+        errors.append('{}: status 는 {} 중 하나: {!r}'.format(label, DECISION_STATUSES, status))
+        return
+    for field in ('proposal', 'record', 'decided_by'):
+        if field in entry and (not isinstance(entry[field], str) or is_blank(entry[field])):
+            errors.append('{}: {} 는 비어 있지 않은 문자열이어야 한다'.format(label, field))
+    if status != DECISION_OPEN:
+        for field in ('proposal', 'record'):
+            if field not in entry:
+                errors.append('{}: {} 결정은 {} 가 있어야 한다'.format(label, status, field))
+    record = entry.get('record')
+    expected = decision_record_ref(entry['id'])
+    if isinstance(record, str) and record.strip() and record != expected:
+        errors.append('{}: record 는 {} 이어야 한다: {!r}'.format(label, expected, record))
+    if status == DECISION_DECIDED:
+        if 'decided_by' not in entry:
+            errors.append('{}: decided 결정은 decided_by(결정자)가 있어야 한다'.format(label))
+        if 'decided_on' not in entry:
+            errors.append('{}: decided 결정은 decided_on(결정일)이 있어야 한다'.format(label))
+        else:
+            _validate_decided_on(entry['decided_on'], label, errors)
+        return
+    for field in ('decided_by', 'decided_on'):
+        if field in entry:
+            errors.append('{}: {} 는 decided 일 때만 쓴다 (지금 {})'.format(label, field, status))
+
+
 def _validate_decisions(decisions, errors):
     ids = _collect_ids(decisions, 'decisions', DECISION_ID_RE, errors)
     for entry in decisions if isinstance(decisions, list) else []:
         if not isinstance(entry, dict):
             continue
         label = 'decisions {}'.format(entry.get('id'))
-        if _check_keys(entry, DECISION_KEYS, (), label, errors):
+        if _check_keys(entry, DECISION_KEYS, OPTIONAL_DECISION_KEYS, label, errors):
             if is_blank(entry['title']):
                 errors.append('{}: title 이 비었다'.format(label))
-            if entry['status'] not in DECISION_STATUSES:
-                errors.append('{}: status 는 {} 중 하나'.format(label, DECISION_STATUSES))
+            _validate_decision_state(entry, label, errors)
     return set(ids)
 
 
@@ -621,19 +684,58 @@ def find_warnings(registry):
     return warnings
 
 
+def find_undecided(registry, decision_ids):
+    """
+    주어진 결정 가운데 아직 decided 가 아닌 것을 문자열 목록으로 돌려준다.
+
+    로드맵 출구 검사(예: S1 의 D1~D5·D8)에 쓴다. decisions 에 없는 ID 도 목록에 넣는다.
+    빈 목록이면 모두 decided 다.
+
+    :param registry: validate() 를 통과한 레지스트리
+    :param decision_ids: 결정 ID 목록
+    :return: 문제 문자열 목록
+    """
+    by_id = {
+        entry.get('id'): entry for entry in registry.get('decisions', [])
+        if isinstance(entry, dict)
+    }
+    problems = []
+    for decision_id in decision_ids:
+        entry = by_id.get(decision_id)
+        if entry is None:
+            problems.append('{}: decisions 에 없는 결정 ID'.format(decision_id))
+        elif entry.get('status') != DECISION_DECIDED:
+            problems.append('{}: 아직 {} 다 (decided 가 아니다)'.format(
+                decision_id, entry.get('status')))
+    return problems
+
+
+def _split_ids(text):
+    return [item.strip() for item in text.split(',') if item.strip()]
+
+
 def main(argv=None):
     """
     check_menu_tree 명령의 진입점.
 
     오류가 있으면 1, 레지스트리를 찾거나 읽지 못하면 2, 통과하면 0 을 돌려준다.
-    빈 담당 칸은 경고로만 남긴다.
+    빈 담당 칸은 경고로만 남긴다. --require-decided 로 준 결정이 하나라도 decided 가
+    아니면 1 이다.
 
     :param argv: 명령행 인자 (None 이면 sys.argv)
     :return: 종료 코드
     """
     parser = argparse.ArgumentParser(description='메뉴 레지스트리(menu_tree.yaml)를 검사한다.')
     parser.add_argument('--registry', help='menu_tree.yaml 경로 (기본: 레포 루트에서 찾는다)')
+    parser.add_argument(
+        '--require-decided', metavar='D1,D2,...',
+        help='쉼표로 나눈 결정 ID. 하나라도 decided 가 아니면 종료코드 1 (로드맵 출구 검사용)')
     args = parser.parse_args(argv)
+    required = None
+    if args.require_decided is not None:
+        required = _split_ids(args.require_decided)
+        if not required:
+            parser.error('--require-decided 에 결정 ID 가 없다')
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     path = args.registry
     if path is None:
@@ -656,6 +758,15 @@ def main(argv=None):
         LOGGER.error('실패: 오류 %d건', len(errors))
         return 1
     LOGGER.info('통과: 메뉴 %d개, 오류 0건', len(registry['menus']))
+    if required is None:
+        return 0
+    problems = find_undecided(registry, required)
+    for problem in problems:
+        LOGGER.error(problem)
+    if problems:
+        LOGGER.error('미결: %s 중 %d건이 decided 가 아니다', ','.join(required), len(problems))
+        return 1
+    LOGGER.info('결정 확인: %s 모두 decided', ','.join(required))
     return 0
 
 
