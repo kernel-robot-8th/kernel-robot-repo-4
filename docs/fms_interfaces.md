@@ -260,7 +260,7 @@ ROS 2 는 메시지 안에 이름 없는 구조체 배열을 둘 수 없다. 그
 
 - 형식: sha256 16진 문자열 64자.
 - 계산법과 입력 파일은 맵 계약 문서 `docs/fms_map_contract.md` (D3, S1 맵 PR `feature/common-map-contract`)가 정본이다. 이 문서는 계산법을 따로 적지 않는다. 두 곳에 적으면 언젠가 어긋나기 때문이다. 두 PR 의 머지 순서에 따라 그 파일이 잠시 없을 수 있다.
-- 맵 정본은 팀 맵 `map_shoe_store_flat` 이고, 공통 패키지 `cobot_bringup` 의 `config/maps/` 에 둔다 (D3 추천안, S1 맵 PR).
+- 맵 정본은 Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트(`map_shoe_store_1021_gate67`)이고, 공통 패키지 `cobot_bringup` 의 `config/maps/` 에 둔다 (D3 추천안, S1 맵 PR).
 - 쓰는 곳: `CommandHeader.map_hash`, `FmsHeartbeat.map_hash`, `RobotStatus.map_hash_loaded`, `MapInfo.map_hash`.
 - 작업점(`Waypoint.work_*`)과 Nav2 정차점(`Waypoint.approach_*`)을 나눈다 (D3 추천안). 정차점 값은 초안이고 주행 담당 확인이 필요하다.
 

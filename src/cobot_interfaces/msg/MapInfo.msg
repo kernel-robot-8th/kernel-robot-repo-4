@@ -4,7 +4,7 @@
 # 맵 정본·map_hash 계산법·웨이포인트 값은 맵 계약(D3)이 정본이다. 이 메시지는 그 값을 나른다.
 
 std_msgs/Header header
-string map_name                    # 확장자 없는 맵 이름 (예: map_shoe_store_flat)
+string map_name                    # 확장자 없는 맵 이름 (예: map_shoe_store_1021_gate67)
 string map_hash                    # sha256 16진 문자열 64자 (D3)
 float64 resolution                 # [m/px] 칸 크기
 float64 origin_x                   # [m] 맵 원점 x (맵 YAML origin)
