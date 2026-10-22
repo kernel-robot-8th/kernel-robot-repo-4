@@ -14,7 +14,13 @@ OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하�
 
 **설치**
 ```bash
+# omx_recoder 폴더만 받기
+git clone --filter=blob:none --sparse -b tool/omx-ai_record_dashboard \
+  https://github.com/kernel-robot-8th/kernel-robot-repo-4.git
+cd kernel-robot-repo-4
+git sparse-checkout set omx_recoder
 cd omx_recoder
+
 source ~/venv/il/bin/activate
 pip install -r requirements.txt
 ```
