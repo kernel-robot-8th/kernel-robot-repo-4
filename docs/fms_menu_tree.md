@@ -15,7 +15,7 @@
 
 - menu_tree: FMS 관제 및 통합 대시보드 작업 세부 계획서 v0.1 — 메뉴 트리 (Confluence 6783015 v2, 2026-10-21)
 - screen_layout: FMS 관제 대시보드 아키텍처 설계서 v0.1 §5.1·§5.2·§7·§9·§10.1 (2026-10-22 초안, 팀 리뷰 전, 레포 밖 문서)
-- sr: System Requirements v5.0 (SR-01~21, 2026-10-19, Confluence 3801308)
+- sr: System Requirements v5.0 (SR-01~21, 2026-10-19, Confluence 3801308) — ID·원문 인용용 사본. SR 정본은 SR_v2 (Confluence 5406727, SR-22 포함)로 관제 담당이 정했고 원문 대조는 아직이다 (D17)
 - roles: README.md 팀 구성 표, CLAUDE.md §2 담당 표 (main 913eb15)
 
 ## 읽는 법
@@ -153,7 +153,7 @@
 - 데이터 원천: MapInfo, 지도 PNG, RobotStatus pose, LaneLeaseState, overhead pose
 - 명령: 없음
 - 갱신: 위치 5 Hz, lease 는 변화가 생기면 바로.
-- 원문의 '67 cm 게이트' 는 맵 정본(D3 추천안)의 게이트다. 중앙 벽 아래 Y 0~0.67 m.
+- 원문의 '67 cm 게이트' 는 맵 정본(D3 추천안)의 게이트다. 중앙 벽 아래 Y 0~0.67 m. 장애물 랙 2 가 벽에 붙어 있어 창고 쪽 실제 통행은 0.45 m 이고 게이트 정차점은 [1.25, 0.225] 다.
 - map_hash 가 맞지 않으면 RED.
 - 초안: 데이터 담당은 위치·맵 기준이다. lease 는 control_center, overhead pose 는 vision 이 낸다.
 
@@ -514,7 +514,7 @@
 | D14 | 주문 상태 열거, 메뉴 트리에 주문 호출·재고·회수 화면 추가 | open | P3 | 1.2 |
 | D15 | 원장·로그 보존 기간과 백업, 영상 사람 촬영·보존·삭제 정책 | open | P5, 4.4·4.5 | 2.5, 4.4, 4.5 |
 | D16 | Git 규칙 단일화, main 보호, CODEOWNERS | open | 모든 PR | — |
-| D17 | 6.5 'SR-22' 의 정체, 메뉴 문서 정정(33 → 34, 3.7) | open | 문서 정합 | 3.7, 6.5 |
+| D17 | 6.5 'SR-22' 의 정체, 메뉴 문서 정정(33 → 34, 3.7), SR 정본 = SR_v2 | open | 문서 정합 | 3.7, 6.5 |
 | D18 | 현장 실측 — Station PC 사양(OS·ROS·Python·LeRobot), OMEN-A 주소와 역할, AP 구성, RMW, 핑키 RTC·도메인 | open | P1~P4 | 3.1, 3.2, 3.5, 6.1, 6.2 |
 | D19 | SR-02 재고 원장 — 소유자, 재고 원천과 입력 수단, 가점유·락 규칙 | open | P3 SR-02 | 1.2 |
 | D20 | 개인 레포 자산 반입 범위와 방법, 로봇 탑재 소스의 팀 레포 이관 여부 | open | 자산 재사용, P2 가드 | — |
