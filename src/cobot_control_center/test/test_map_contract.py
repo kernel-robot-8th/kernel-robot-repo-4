@@ -17,7 +17,7 @@
 
 모든 검사는 실패할 수 있다. 맵 폴더를 못 찾으면 skip 하지 않고 실패한다.
 음성 대조는 맵 사본(tmp_path)을 일부러 망가뜨려 검사 함수가 오류를 내는지 본다.
-아래 고정 값(SOURCE_*)은 출처 커밋 파일의 sha256 이다. 맵을 바꾸는 PR 에서 함께 고친다.
+아래 고정 값(SOURCE_*)은 맵 정본 파일의 sha256 이다. 맵을 바꾸는 PR 에서 함께 고친다.
 """
 
 import hashlib
@@ -30,17 +30,22 @@ import pytest
 import yaml
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
-MAP_YAML = 'map_shoe_store_flat.yaml'
-MAP_PGM = 'map_shoe_store_flat.pgm'
+MAP_YAML = 'map_shoe_store_1021_gate67.yaml'
+MAP_PGM = 'map_shoe_store_1021_gate67.pgm'
 
-# 출처: 브랜치 feature/setup-fleet-msgs-structure 커밋 9e51d4d 의 maps/ (바이트 그대로 복사).
-SOURCE_PGM_SHA256 = 'c07d79f8f743295e7389709518b8a113039b1e628353e13b5e4a1062a154086b'
-SOURCE_YAML_SHA256 = 'acdfcd8fccc13aff6c5545dfe8ffd98c28588f02bea6fdb654572a6066ff31e0'
-# 원래 웨이포인트 중 반경 6 cm 원에 점유 셀이 걸리는 것. 아키텍처 설계서 §1.3 #8 의 두 개와
-# 같은지 PGM 을 직접 계산해 확인했다 (2026-10-22).
-EXPECTED_WORK_POSE_FAILURES = {'WP_UNLOAD', 'WP_BENCH_DELIVERY'}
-# 웨이포인트와 연계된 팔 (초안). 맵 YAML 주석 'OMX 1/2/3' 과 같다. 팔이 없는 지점은 빠진다.
+# 맵 정본: Floor Map 1021 도면 + 67 cm 게이트 (docs/fms_map_contract.md 2절).
+SOURCE_PGM_SHA256 = 'f4fb41c1a3e9f8a2bb098a874b8be278cdad0596d58cf3952b0f52a19a08f050'
+SOURCE_YAML_SHA256 = '96ac285601dee5fb143a926bae89276103e8169afd64a8001bc501541cd49175'
+# 원래 웨이포인트 중 반경 6 cm 원에 점유 셀이 걸리는 것. 벤치 위 점 하나다 (2026-10-22 계산).
+EXPECTED_WORK_POSE_FAILURES = {'WP_BENCH_DELIVERY'}
+# 반경 0.11 m (6 cm + SR-08 정차 오차 5 cm) 에서 실패하는 정차점. 옮긴 벤치 정차점과,
+# 랙 A·B 아래 면에서 0.105 m 떨어진 창고 상차점 둘이다.
+EXPECTED_WIDE_RADIUS_FAILURES = {'WP_BENCH_DELIVERY', 'WP_LOAD_1', 'WP_LOAD_2'}
+# 웨이포인트와 연계된 팔 (초안). 도면의 팔 표식 OMX_1/2/3 옆 웨이포인트다. 팔이 없는 지점은 빠진다.
 EXPECTED_ARM_IDS = {'WP_LOAD_1': 'omx_1', 'WP_LOAD_2': 'omx_2', 'WP_UNLOAD': 'omx_3'}
+# 중앙 벽과 그 아래 게이트 (사용자 결정 2026-10-22). [x0, x1, y0, y1] m.
+PARTITION_BOUNDS_M = (1.20, 1.30, 0.67, 2.40)
+GATE_BOUNDS_M = (1.20, 1.30, 0.0, 0.67)
 RADIUS_M = 0.06
 FREE_PIXEL = 254
 OCCUPIED_PIXEL = 0
@@ -160,12 +165,49 @@ def test_map_bytes_match_source_commit(maps_dir):
 def test_map_geometry(maps_dir):
     loaded = map_contract.load_map(os.path.join(maps_dir, MAP_YAML))
     grid = loaded.grid
-    assert (grid.width, grid.height) == (240, 240)
+    assert (grid.width, grid.height) == (254, 254)
     assert grid.resolution == pytest.approx(0.01)
-    assert grid.origin_x == pytest.approx(-0.01)
-    assert grid.origin_y == pytest.approx(-0.01)
-    assert grid.width * grid.resolution == pytest.approx(2.4)
+    assert grid.origin_x == pytest.approx(-0.02)
+    assert grid.origin_y == pytest.approx(-0.02)
     assert set(grid.states) <= {map_contract.FREE, map_contract.OCCUPIED, map_contract.UNKNOWN}
+
+
+def _cells_in(grid, bounds):
+    # 셀 중심이 [x0, x1] x [y0, y1] 안에 드는 셀. 경계에 걸린 셀은 빼서 양쪽 판정이 겹치지 않게 한다.
+    x0, x1, y0, y1 = bounds
+    cells = []
+    for my in range(grid.height):
+        for mx in range(grid.width):
+            x, y = grid.cell_center(mx, my)
+            if x0 < x < x1 and y0 < y < y1:
+                cells.append((mx, my))
+    return cells
+
+
+def test_gate_is_67cm_at_bottom_wall(maps_dir):
+    # 정본은 아래 벽에 붙은 67 cm 게이트다. 예전 팀 맵(개구 0.84 m)이나 도면 원안(0.35 m)으로
+    # 되돌리면 실패한다.
+    grid = map_contract.load_map(os.path.join(maps_dir, MAP_YAML)).grid
+    wall = _cells_in(grid, PARTITION_BOUNDS_M)
+    gate = _cells_in(grid, GATE_BOUNDS_M)
+    assert len(wall) == 10 * 173
+    assert len(gate) == 10 * 67
+    assert all(grid.state(mx, my) == map_contract.OCCUPIED for mx, my in wall)
+    assert all(grid.state(mx, my) == map_contract.FREE for mx, my in gate)
+    # 게이트 아래쪽은 아레나 바깥 벽(y < 0)이다.
+    below = grid.cell_of(1.25, -0.005)
+    assert grid.state(*below) == map_contract.OCCUPIED
+
+
+def test_arena_is_2_5_by_2_4(maps_dir):
+    # 아레나 안쪽 모서리 바로 안은 자유, 바로 밖은 점유다 (도면 2.5 x 2.4 m).
+    grid = map_contract.load_map(os.path.join(maps_dir, MAP_YAML)).grid
+    inside = [(1.0, 0.005), (0.7, 1.9), (1.6, 2.395), (2.495, 1.3)]
+    outside = [(1.0, -0.005), (-0.005, 1.0), (1.6, 2.405), (2.505, 1.3)]
+    for x, y in inside:
+        assert grid.state(*grid.cell_of(x, y)) == map_contract.FREE, (x, y)
+    for x, y in outside:
+        assert grid.state(*grid.cell_of(x, y)) == map_contract.OCCUPIED, (x, y)
 
 
 # --- (a) 원래 웨이포인트(work_pose)는 실패해야 한다 ---
@@ -220,10 +262,11 @@ def test_suggest_logs_candidates(maps_dir, module_log):
 
 
 def test_wider_radius_fails_moved_approach_poses(maps_dir):
-    # 옮긴 정차점 두 개는 반경 6 cm 에서만 통과한다. 6 cm + SR-08 1차 정차 오차 5 cm 로 보면
-    # 실패한다. 문서(5.3절)의 이 설명이 맞는지 고정한다. 정차점을 고치면 이 시험도 고친다.
+    # 정차점은 반경 6 cm 에서만 모두 통과한다. 6 cm + SR-08 1차 정차 오차 5 cm 로 보면 옮긴 벤치
+    # 정차점과 창고 상차점 둘이 실패한다. 문서(5.3절)의 이 설명이 맞는지 고정한다.
+    # 정차점을 고치면 이 시험도 고친다.
     report = map_contract.run_lint(maps_dir, radius_m=0.11)
-    assert set(report.failures) == EXPECTED_WORK_POSE_FAILURES
+    assert set(report.failures) == EXPECTED_WIDE_RADIUS_FAILURES
 
 
 def test_nearest_free_point_is_nearest(maps_dir):
@@ -404,10 +447,10 @@ def test_work_pose_must_match_map_yaml(maps_copy):
 
 def test_missing_waypoint_is_reported(maps_copy):
     doc = _poses_doc(maps_copy)
-    del doc['waypoints']['WP_RETURN']
+    del doc['waypoints']['WP_HOME_3']
     _rewrite_poses(maps_copy, doc)
     errors = map_contract.run_lint(maps_copy).errors
-    assert any('WP_RETURN' in error for error in errors)
+    assert any('WP_HOME_3' in error for error in errors)
 
 
 def test_unknown_key_is_reported(maps_copy):

@@ -2,31 +2,49 @@
 
 - 상태: 초안 (2026-10-22). 결정 D3(맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치)는 아직 `proposed` 다. 관제 담당이 팀에 공지하면 `decided` 로 바꾸고 결정자와 날짜를 적는다.
 - 단계: 로드맵 S1 계약 고정 (`docs/fms_roadmap.md`). 규칙은 `docs/fms_dev_rules.md` 를 따른다.
-- 관련 SR (인용만 한다): SR-04 자율주행 및 운송 기능(맵 `map_shoe_store_flat`), SR-08 정차 위치 확인 기능, SR-20 명령 유효성 검증 및 구 권한 차단 기능(맵 해시 일치 여부 검증).
+- 관련 SR (인용만 한다): SR-04 자율주행 및 운송 기능, SR-08 정차 위치 확인 기능, SR-20 명령 유효성 검증 및 구 권한 차단 기능(맵 해시 일치 여부 검증). SR v5.0 원문의 맵 이름·크기와 정본이 다르다 (8절).
 - 판단이 들어간 값은 '초안' 이라고 적었다. 특히 approach_pose 와 반경 6 cm 는 주행 담당 확인이 필요하다.
 
 ## 1. 한눈에 보기
 
 | 항목 | 값 |
 |---|---|
-| 맵 정본 | `src/cobot_bringup/config/maps/map_shoe_store_flat.yaml` + `.pgm` |
+| 맵 정본 | `src/cobot_bringup/config/maps/map_shoe_store_1021_gate67.yaml` + `.pgm` (Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트) |
 | 웨이포인트 자세·연계된 팔 | `src/cobot_bringup/config/maps/approach_poses.yaml` (초안) |
 | 도구 | `src/cobot_control_center/cobot_control_center/map_contract.py` (`map_hash`, `map_lint`) |
 | 시험 | `src/cobot_control_center/test/test_map_contract.py` |
-| 지금 map_hash | `a245651a958f64e1cdd05828ab56a8f2509b320dd57b80cf8a4ff8028d997530` |
+| 지금 map_hash | `ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170` |
 | 린트 반경 | 0.06 m (초안) |
 
 ## 2. 맵 정본의 위치와 출처
 
 - 위치: `src/cobot_bringup/config/maps/`. 빌드하면 `install/cobot_bringup/share/cobot_bringup/config/maps/` 에 설치된다.
-- 출처: 브랜치 `feature/setup-fleet-msgs-structure` 의 커밋 `9e51d4ddcaa9742e0f203c2fa5212ef985a88d94` 에 있는 `maps/map_shoe_store_flat.pgm`, `maps/map_shoe_store_flat.yaml` 이다. 이 두 파일은 커밋 `659c359` 에서 처음 들어왔고 그 뒤로 바뀌지 않았다. 바이트 그대로 복사했다.
+- 정본: **Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트** (사용자 결정 2026-10-22). 예전 팀 맵 `map_shoe_store_flat` (SR 브랜치 `feature/setup-fleet-msgs-structure` 의 `maps/`, 2.4 × 2.4 m, 중앙 벽 아래 개구 약 0.84 m) 은 정본이 아니다.
+- 도면: `Floor Map 1021.html` (sha256 `c545a0331c74f6ad01ceba8f3fd4d47cbbf7082ceb79acfec0f1c2362f8d7c41`). 도면 파일은 레포에 넣지 않았다. 아래 경계는 도면 HTML·CSS 의 숫자만 읽어 m 로 바꾼 것이다 (도면 1 px = 0.0025 m, 스크립트는 실행하지 않았다). 현장 실측이 아니다.
+- 칠하는 규칙: 1 cm 셀의 **중심**이 아래 표의 상자 안(경계 포함)에 있으면 점유(0), 아레나(0 < x < 2.5 m, 0 < y < 2.4 m) 밖이면 점유, 나머지는 자유(254). PGM 은 254 × 254 px 이다.
+
+  | 이름 | [x0, x1, y0, y1] (m) | 비고 |
+  |---|---|---|
+  | 탈의실 1~4 | [0.0, 0.3, 1.98, 2.4] · [0.3, 0.6, …] · [0.6, 0.9, …] · [0.9, 1.2, …] | |
+  | 진열대 A | [0.79, 1.17, 1.59, 1.75] | |
+  | 고객 벤치 | [0.04, 0.54, 1.22, 1.40] | |
+  | 계산대 | [0.02, 0.22, 0.03, 1.02] | |
+  | 랙 A | [1.90, 2.50, 2.21, 2.40] | |
+  | 랙 B | [1.90, 2.50, 1.6425, 1.8325] | |
+  | 장애물 랙 1 | [1.55, 2.50, 0.93, 1.12] | 가로 배치 (도면 원안) |
+  | 장애물 랙 2 | [1.30, 2.25, 0.45, 0.64] | 가로 배치 (도면 원안) |
+  | 중앙 벽 | [1.20, 1.30, **0.67**, 2.40] | 도면 원안은 y 0.35 부터다. 사용자 결정으로 0.67 부터 → 아래 0~0.67 m 가 게이트 |
+
+- 넣지 않은 것: 도면의 팔 표식 OMX_1 [2.1375, 2.2975, 2.05, 2.21], OMX_2 [2.1375, 2.2975, 1.48, 1.64], OMX_3 [0.0725, 0.2325, 1.77, 1.93] 은 고형물이 아니라 표식이다. 팔 고정대의 외형·위치는 도면에 없다. 그래서 **지금 맵에서 팔 자리는 자유 셀**이다. 실물 주행 전에 고정대를 맵에 넣거나 Nav2 keepout 으로 막아야 한다 (8절).
+- 교차 확인 (2026-10-22): 관제 담당의 개인 시뮬레이션(MuJoCo)이 같은 도면으로 만든 67 cm 맵(가로 랙, 팔 고정대 3개를 가정해 넣음)과 셀 단위로 비교했다. 이 맵의 점유 셀은 그 맵에서도 모두 점유이고, 다른 셀은 가정한 고정대 세 자리(3,500셀)뿐이다.
+- 파일 sha256
 
   | 파일 | sha256 |
   |---|---|
-  | `map_shoe_store_flat.pgm` | `c07d79f8f743295e7389709518b8a113039b1e628353e13b5e4a1062a154086b` |
-  | `map_shoe_store_flat.yaml` (LF) | `acdfcd8fccc13aff6c5545dfe8ffd98c28588f02bea6fdb654572a6066ff31e0` |
+  | `map_shoe_store_1021_gate67.pgm` | `f4fb41c1a3e9f8a2bb098a874b8be278cdad0596d58cf3952b0f52a19a08f050` |
+  | `map_shoe_store_1021_gate67.yaml` (LF) | `96ac285601dee5fb143a926bae89276103e8169afd64a8001bc501541cd49175` |
 
-- `map_shoe_store_flat.png` 는 넣지 않았다. PGM 에서 만든 그림(파생물)이라 두 벌을 맞춰야 하는 일이 생기기 때문이다 (CLAUDE.md §3-1 의 대용량·데이터 파일 규칙과 같은 취지). 맵을 눈으로 보려면 PGM 을 이미지 뷰어(예: GIMP)로 연다.
+- PNG 는 넣지 않았다. PGM 에서 만든 그림(파생물)이라 두 벌을 맞춰야 하는 일이 생기기 때문이다 (CLAUDE.md §3-1 의 대용량·데이터 파일 규칙과 같은 취지). 맵을 눈으로 보려면 PGM 을 이미지 뷰어(예: GIMP)로 연다.
 - 왜 `cobot_bringup` 인가: 아키텍처 설계서는 `cobot_navigation/config/` 를 권했다. 하지만 주행 담당 패키지를 요청 없이 고치지 않으려고(CLAUDE.md §9) 공통 패키지 `cobot_bringup` 의 `config/` 에 두었다 (CLAUDE.md §3-5: 팀 공통 설정은 bringup 의 `config/` 에서 관리). 공통 패키지라 PR 은 팀 리뷰를 받는다. 주행 담당이 원하면 옮길 수 있다. 옮길 때는 `map_contract.py` 의 `MAPS_RELPATH`·`BRINGUP_PACKAGE` 와 이 문서를 같은 PR 에서 고친다.
 - 줄 끝: 이 폴더의 `.gitattributes`(`src/cobot_bringup/config/maps/.gitattributes`)가 PGM 은 바이너리로, YAML 은 LF 로 고정한다. 루트 `.gitattributes` 와 따로 두어 다른 PR 과 충돌하지 않게 했다. Windows(`core.autocrlf=true`)에서 받아도 바이트가 같다.
 - `cobot_control_center` 는 `cobot_bringup` 의 코드를 가져다 쓰지 않는다. 설치된 맵 **파일**만 실행 때 읽는다 (CLAUDE.md §3-6 은 코드 의존을 막는 규칙이다).
@@ -37,9 +55,9 @@
 ## 3. 좌표계
 
 - frame: `map`. 단위는 m. 웨이포인트 형식은 `[x (m), y (m), theta (도)]` 이다 (맵 YAML 의 waypoints 와 같다). ROS 메시지로 낼 때는 theta 를 라디안으로 바꾼다 (REP-103).
-- 해상도 0.01 m/px. PGM 은 240 × 240 px 이고, 맵은 2.4 × 2.4 m 다.
-- 원점 `origin: [-0.01, -0.01, 0.0]` 은 PGM **왼쪽 아래** 픽셀의 왼쪽 아래 모서리가 map 좌표 (-0.01, -0.01) 이라는 뜻이다. 그래서 맵은 x, y 가 -0.01 ~ 2.39 m 인 곳을 덮는다.
-- 셀 번호 (mx, my): mx 는 왼쪽에서, my 는 **아래에서** 센다 (PGM 은 윗줄부터 저장하므로 my = 0 이 PGM 의 마지막 줄이다). 셀 중심은 `(-0.01 + (mx + 0.5) × 0.01, -0.01 + (my + 0.5) × 0.01)` 이다.
+- 해상도 0.01 m/px. PGM 은 254 × 254 px 이다. 아레나 안쪽은 x 0 ~ 2.5 m, y 0 ~ 2.4 m 이고 그 밖은 점유 셀(벽)이다.
+- 원점 `origin: [-0.02, -0.02, 0.0]` 은 PGM **왼쪽 아래** 픽셀의 왼쪽 아래 모서리가 map 좌표 (-0.02, -0.02) 이라는 뜻이다. 그래서 맵은 x, y 가 -0.02 ~ 2.52 m 인 곳을 덮는다. 아레나 왼쪽 아래 모서리가 map 좌표 (0, 0) 이다.
+- 셀 번호 (mx, my): mx 는 왼쪽에서, my 는 **아래에서** 센다 (PGM 은 윗줄부터 저장하므로 my = 0 이 PGM 의 마지막 줄이다). 셀 중심은 `(-0.02 + (mx + 0.5) × 0.01, -0.02 + (my + 0.5) × 0.01)` 이다.
 - 셀 판정 식은 nav2 map_server 의 trinary 와 같다. `occ = 1 − 픽셀/255` (negate 0. 255 는 PGM 최댓값). `occ > 0.65` 이면 점유, `occ < 0.196` 이면 자유, 그 사이는 미지. 값은 맵 YAML 의 `occupied_thresh`·`free_thresh`·`negate` 를 쓴다.
 - 경계값만 다르다. 이 린트는 occ 가 문턱과 **딱 같으면** 미지로 본다. Jazzy 의 map_server 는 `occ >= occupied_thresh` 를 점유, `occ <= free_thresh` 를 자유로 본다 (navigation2 jazzy 브랜치 `nav2_map_server/src/map_io.cpp`). 미지는 린트 실패라서, 이 차이 때문에 린트가 더 엄격해질 뿐 덜 엄격해지지는 않는다. 시험 `test_threshold_boundary_is_unknown` 이 이 동작을 고정한다.
 - 지금 PGM 에는 0(점유)과 254(자유)만 있어 경계값 셀이 없다. 그래서 지금 맵의 판정은 nav2 와 같다.
@@ -56,7 +74,7 @@ map_hash = sha256( sha256(PGM 바이트) ‖ sha256(LF 로 맞춘 맵 YAML 바�
 - 'LF 로 맞춘다' 는 줄 끝 CRLF(`\r\n`)를 LF(`\n`)로 바꾸는 것이다. 다른 바이트는 그대로 둔다. Windows 에서 받은 파일도 같은 값이 나오게 하려는 것이다.
 - YAML 은 주석까지 바이트로 들어간다. 주석 한 글자를 바꿔도 map_hash 가 바뀐다.
 - 입력은 **install 된 파일**이다. FMS 와 핑키 온보드 가드는 각자 `cobot_bringup` install 의 `config/maps/` 에서 맵을 읽고 map_hash 를 계산한다. 둘이 같은 커밋을 빌드해야 같은 값이 나온다.
-- 지금 값: `a245651a958f64e1cdd05828ab56a8f2509b320dd57b80cf8a4ff8028d997530`
+- 지금 값: `ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170`
 
 ### 4.2 계산 명령
 
@@ -92,14 +110,14 @@ ros2 run cobot_control_center map_hash
 Python 모듈 없이 확인하는 셸 한 줄 (같은 값이 나온다. `config/maps/` 안에서 돌린다):
 
 ```bash
-{ sha256sum map_shoe_store_flat.pgm | cut -d' ' -f1 | xxd -r -p; \
-  sed 's/\r$//' map_shoe_store_flat.yaml | sha256sum | cut -d' ' -f1 | xxd -r -p; } | sha256sum
+{ sha256sum map_shoe_store_1021_gate67.pgm | cut -d' ' -f1 | xxd -r -p; \
+  sed 's/\r$//' map_shoe_store_1021_gate67.yaml | sha256sum | cut -d' ' -f1 | xxd -r -p; } | sha256sum
 ```
 
 `xxd: command not found` 가 나오면 `xxd` 가 없는 것이다 (도커 개발 이미지에도 없을 수 있다). 그때는 아래 한 줄을 쓴다. 도구 모듈을 쓰지 않고 표준 라이브러리 `hashlib` 로만 계산한다.
 
 ```bash
-python3 -c 'import hashlib as h; p=open("map_shoe_store_flat.pgm","rb").read(); y=open("map_shoe_store_flat.yaml","rb").read().replace(b"\r\n",b"\n"); print(h.sha256(h.sha256(p).digest()+h.sha256(y).digest()).hexdigest())'
+python3 -c 'import hashlib as h; p=open("map_shoe_store_1021_gate67.pgm","rb").read(); y=open("map_shoe_store_1021_gate67.yaml","rb").read().replace(b"\r\n",b"\n"); print(h.sha256(h.sha256(p).digest()+h.sha256(y).digest()).hexdigest())'
 ```
 
 ## 5. 맵 린트
@@ -136,39 +154,47 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
 
 | 웨이포인트 | work_pose | work_pose 린트 | approach_pose (초안) | 옮긴 거리 |
 |---|---|---|---|---|
-| WP_HOME_1 | [1.55, 2.02, 270] | 통과 | 같음 | 0 |
-| WP_HOME_2 | [1.80, 2.02, 270] | 통과 | 같음 | 0 |
-| WP_HOME_3 | [2.05, 2.02, 270] | 통과 | 같음 | 0 |
-| WP_LOAD_1 | [1.61, 1.15, 90] | 통과 | 같음 | 0 |
-| WP_LOAD_2 | [1.91, 1.15, 90] | 통과 | 같음 | 0 |
-| WP_GATE_TRANSIT | [1.20, 0.60, 180] | 통과 | 같음 | 0 |
-| WP_UNLOAD | [0.475, 1.35, 90] | **실패** — 원 안 108셀 중 94셀 점유, 점 자체도 점유 셀 | [0.385, 1.35, 90] | x 쪽 0.09 m |
-| WP_BENCH_DELIVERY | [0.60, 0.84, 0] | **실패** — 원 안 112셀 모두 점유 | [0.60, 0.98, 0] | y 쪽 0.14 m |
-| WP_RETURN | [0.19, 0.84, 90] | 통과 | 같음 | 0 |
+| WP_HOME_1 | [1.41, 2.05375, 270] | 통과 | 같음 | 0 |
+| WP_HOME_2 | [1.41, 1.8575, 270] | 통과 | 같음 | 0 |
+| WP_HOME_3 | [1.41, 1.66125, 270] | 통과 | 같음 | 0 |
+| WP_LOAD_1 | [2.015, 2.105, 0] | 통과 | 같음 | 0 |
+| WP_LOAD_2 | [2.015, 1.5375, 0] | 통과 | 같음 | 0 |
+| WP_GATE_TRANSIT | [1.25, 0.335, 180] | 통과 | 같음 | 0 |
+| WP_UNLOAD | [0.415, 1.85, 180] | 통과 | 같음 | 0 |
+| WP_BENCH_DELIVERY | [0.29, 1.31, 90] | **실패** — 점이 벤치 위, 원 안 112셀 모두 점유 | [0.29, 1.16, 90] | y 쪽 0.15 m (벤치 아래쪽) |
 
-- 실패 두 개는 아키텍처 설계서 §1.3 #8 이 PGM 분석으로 짚은 두 웨이포인트와 같다.
-- approach_pose 로 린트하면 반경 0.06 m 에서 9개 모두 통과한다.
-- 주의: 옮긴 정차점 두 개(WP_UNLOAD, WP_BENCH_DELIVERY)는 반경 0.06 m 에서 **겨우** 통과한다. 반경을 0.08 m 로만 키워도 둘 다 실패한다. 반경 0.11 m (6 cm + SR-08 의 1차 정차 오차 ±5 cm) 로 보면 실패한다 (아래 명령이 1). 시험 `test_wider_radius_fails_moved_approach_poses` 가 이 사실을 고정한다.
+- 좌표는 도면의 웨이포인트 중심이다. WP_GATE_TRANSIT 은 도면에 없어 게이트 중심으로 더했다 (사용자 요청). 예전 맵의 WP_RETURN 은 이 도면에 없어 뺐다.
+- theta 는 도면에 없다. 작업 대상을 바라보는 방향으로 둔 초안이다 (HOME 은 예전 맵 값 270). 트레이 방향이 정해지면 고친다.
+- approach_pose 로 린트하면 반경 0.06 m 에서 8개 모두 통과한다.
+- 주의: 옮긴 벤치 정차점은 반경 0.06 m 에서 **겨우** 통과한다 (여유 5.2 mm). 반경 0.07 m 부터 실패한다. 반경 0.11 m (6 cm + SR-08 의 1차 정차 오차 ±5 cm) 로 보면 WP_LOAD_1·WP_LOAD_2 도 실패한다. 둘 다 랙 A·B 아래 면에서 0.105 m 떨어져 있다. 시험 `test_wider_radius_fails_moved_approach_poses` 가 이 사실을 고정한다.
 
   ```bash
   PYTHONPATH=src/cobot_control_center python3 -m cobot_control_center.map_contract lint --radius 0.11   # 지금은 1
   ```
 
 - 그러니 로드맵 S1 출구 검사 3 의 '정본에서 통과' 는 반경 6 cm 기하 검사를 통과했다는 뜻이다. 그 자리로 주행해도 된다는 근거가 아니다. 반경 6 cm 는 핑키 외형 실측도 아니다.
+- 통로 폭 참고 계산 (린트 항목이 아니다): 반경 r 원이 셀 중심을 따라(8방향) 지나갈 수 있는 가장 큰 r 을 쟀다.
+
+  | 구간 | 가장 큰 r | 병목 |
+  |---|---|---|
+  | 창고 빈 곳 [1.75, 1.35] → 게이트 중심 | 약 0.125 m | 장애물 랙 1·2 의 끝과 벽·중앙 벽 사이 틈 약 0.25 m |
+  | 게이트 중심 → 매장 빈 곳 [0.70, 0.60] | 약 0.125 m | 게이트 바로 옆 장애물 랙 2 (게이트 중심에서 0.13 m) |
+
+  게이트 폭(0.67 m)이 아니라 **가로 장애물 랙 둘레 틈(약 0.25 m)이 창고→게이트 병목**이다. 핑키 + 적재 상자 외형이 이보다 크면 이 배치로는 지나갈 수 없다. 개인 시뮬레이션(MuJoCo)도 이 배치에서 계획 여유 30 mm 조건으로 창고→게이트 경로를 찾지 못했다. 장애물 랙을 세로로 돌린 대안에서는 같은 계산으로 약 0.195 m 다. 랙 배치는 팀 결정이다 (8절).
 
 ## 6. work_pose 와 approach_pose
 
 - **work_pose (작업점)**: 원래 웨이포인트 좌표. 팔이 박스를 집거나 놓는 자리라서 탁자 위(점유 셀)일 수 있다. 맵 YAML 의 `waypoints` 와 같아야 한다.
 - **approach_pose (정차점)**: 핑키가 Nav2 로 멈추는 자리. 둘레가 비어 있어야 한다. SR-08 의 1차 Nav2 정차가 여기다.
-- **arm_id (연계된 팔, 선택)**: 그 지점에서 일하는 팔. 이름은 인터페이스 계약의 `omx_1`~`omx_3` 이다. 팔이 없는 지점은 적지 않는다 (메시지로 낼 때는 빈 문자열). 초안 값은 맵 YAML 주석 'OMX 1/2/3' 에서 옮겼다: WP_LOAD_1 → `omx_1`, WP_LOAD_2 → `omx_2`, WP_UNLOAD → `omx_3`. 관제 코어(fms_core, S2)가 `MapInfo.waypoints[].arm_id` 를 채울 때 이 값을 쓴다 (출발 게이트의 '연계된 팔'). 웨이포인트와 팔의 연계는 이 파일 하나에만 적는다. 린트는 글자 규칙(영문자로 시작, 영문자·숫자·`_`)만 본다.
+- **arm_id (연계된 팔, 선택)**: 그 지점에서 일하는 팔. 이름은 인터페이스 계약의 `omx_1`~`omx_3` 이다. 팔이 없는 지점은 적지 않는다 (메시지로 낼 때는 빈 문자열). 초안 값은 도면의 팔 표식 OMX_1/2/3 바로 옆 웨이포인트에 붙였다: WP_LOAD_1 → `omx_1`, WP_LOAD_2 → `omx_2`, WP_UNLOAD → `omx_3`. 관제 코어(fms_core, S2)가 `MapInfo.waypoints[].arm_id` 를 채울 때 이 값을 쓴다 (출발 게이트의 '연계된 팔'). 웨이포인트와 팔의 연계는 이 파일 하나에만 적는다. 린트는 글자 규칙(영문자로 시작, 영문자·숫자·`_`)만 본다.
 - 이번 초안의 approach_pose 는 이렇게 정했다.
   - work_pose 가 린트를 통과하면 그대로 쓴다 (7개).
-  - 실패하면 work_pose 에서 0.01 m 간격 격자점 가운데 반경 원이 모두 비는 **가장 가까운 점**을 쓴다 (2개). theta 는 work_pose 와 같게 두었다.
-  - 같은 거리의 점이 여럿이면 y 가 가장 작은 (아래쪽) 점, 그다음 x 가 가장 작은 (왼쪽) 점을 고른다. 지금 두 웨이포인트에는 같은 거리 후보가 없다 (시험 `test_nearest_free_point_tie_break` 가 규칙을 고정한다).
+  - 실패하면 work_pose 에서 0.01 m 간격 격자점 가운데 반경 원이 모두 비는 **가장 가까운 점**을 쓴다 (1개). theta 는 work_pose 와 같게 두었다.
+  - 같은 거리의 점이 여럿이면 y 가 가장 작은 (아래쪽) 점, 그다음 x 가 가장 작은 (왼쪽) 점을 고른다. 지금 옮긴 웨이포인트에는 같은 거리 후보가 없다 (시험 `test_nearest_free_point_tie_break` 가 규칙을 고정한다).
 - 이 값은 기하만 본 것이다. 주행 담당이 아래를 확인해야 한다.
-  1. 반경 여유 (가장 가까운 비자유 셀 중심까지 거리 − 0.06 m): WP_UNLOAD 정차점 0.2 mm, WP_BENCH_DELIVERY 정차점 5.2 mm. SR-08 의 1차 정차 허용(±5 cm)을 생각하면 모자란다 (5.3절).
-  2. 진입 방향(theta)과 팔 도달 거리. 가장 가까운 점은 탁자 옆쪽일 수 있다. 참고로 진행 방향 뒤쪽으로만 물러난 점은 WP_UNLOAD [0.475, 1.23, 90] (0.12 m), WP_BENCH_DELIVERY [0.28, 0.84, 0] (0.32 m) 이다.
-  3. 경로 연결. 참고 계산으로, 반경 6 cm 를 지킨 채 9개 정차점은 모두 한 덩어리의 빈 공간에 있다 (8방향 연결). 이 검사는 린트 항목이 아니다.
+  1. 반경 여유 (가장 가까운 비자유 셀 중심까지 거리 − 0.06 m): WP_BENCH_DELIVERY 정차점 5.2 mm, WP_LOAD_2 47.5 mm, WP_LOAD_1 50.0 mm. SR-08 의 1차 정차 허용(±5 cm)을 생각하면 벤치 정차점은 모자란다 (5.3절).
+  2. 진입 방향(theta)과 팔 도달 거리. 벤치 정차점은 work_pose 바로 아래(진행 방향 뒤쪽)라 진입 방향은 그대로다. 팔 고정대가 맵에 없으므로 WP_LOAD_1·WP_LOAD_2·WP_UNLOAD 는 고정대를 놓은 뒤 다시 본다.
+  3. 경로 연결. 참고 계산으로, 반경 6 cm 를 지킨 채 8개 정차점은 모두 한 덩어리의 빈 공간에 있다 (8방향 연결). 더 큰 외형은 5.3절의 통로 폭 표를 본다. 이 검사는 린트 항목이 아니다.
   4. 핑키 외형으로 정한 린트 반경 (지금 6 cm 는 설계서 값이다).
 - 이 확인은 S1 머지 조건이 아니다. 실물 핑키에 이 정차점을 Nav2 goal 로 보내기 전 (늦어도 S3 주행 시험 전) 에 끝나야 하는 선결 조건이다.
 - 확인이 끝나면 `approach_poses.yaml` 의 `status` 를 `confirmed` 로 바꾼다. 정차점 값을 고치면 5.3절과 시험 `test_wider_radius_fails_moved_approach_poses` 도 같은 PR 에서 고친다.
@@ -184,12 +210,14 @@ ROS 환경에서는 `ros2 run cobot_control_center map_lint` 이고, 시험은 `
 ## 8. 남은 결정과 할 일
 
 - D3 를 `decided` 로 바꾼다 (관제 담당 공지 뒤, 결정자·날짜 기록).
-- D3 공지와 결정 기록에 '옮긴 정차점 2건은 기하만 본 초안이고, 반경 6 cm 는 핑키 외형 실측이 아니다' 를 적는다 (5.3절).
+- D3 공지와 결정 기록에 '옮긴 정차점 1건(벤치)은 기하만 본 초안이고, 반경 6 cm 는 핑키 외형 실측이 아니다' 를 적는다 (5.3절).
+- **장애물 랙 배치**를 정한다: 도면 원안(가로)이면 창고→게이트 병목이 약 0.25 m 다 (5.3절). 세로로 돌리면 맵을 바꾼다 (7절). 핑키 + 적재 상자 외형 실측이 함께 필요하다.
+- **팔 고정대 위치·외형**을 정해 맵에 넣거나 Nav2 keepout 으로 막는다 (2절). 지금 맵에서 팔 자리는 자유 셀이다. 넣으면 WP_LOAD_1·WP_LOAD_2·WP_UNLOAD 정차점을 다시 본다.
+- **SR 대조**: SR v5.0 원문의 SR-04 는 '2.4×2.4m 평면 맵(`map_shoe_store_flat`)', SR-05 는 0.8 m 통로를 적는다. 정본(2.5 × 2.4 m, 67 cm 게이트)과 다르다. SR 정본은 SR_v2(Confluence 5406727)로 정했고 원문 대조는 아직이다. 대조한 뒤 이 줄과 머리의 SR 인용을 고친다.
 - D3 결정 기록(`docs/fms_decisions.md` 의 D3)에 '`cobot_control_center` → `cobot_bringup` 은 맵 파일만 읽는 의존이고 `package.xml` 에 적지 않는다 (순환 방지)' 를 예외로 적고 팀 확인을 받는다 (2절).
 - approach_pose 와 반경 6 cm 를 주행 담당이 확인한다 (6절). S1 머지 조건이 아니라 실물 주행 전 선결 조건이다.
 - `cobot_bringup` 에는 `.py` 가 없어 `ament_copyright` 가 검사하는 파일이 0개다. `CMakeLists.txt`·`package.xml`·launch XML 의 라이선스 머리 주석은 리뷰로 본다.
-- 시뮬레이션 Floor1021 의 67 cm 게이트는 참고만 한다. 정본은 이 맵이다 (SR-05 는 0.8 m 단일 통로).
 - 맵 YAML 의 `waypoints` 는 팀이 더한 키다. nav2 map_server 는 이 키를 읽지 않는다.
 - 회전한 맵(origin yaw ≠ 0)과 trinary 가 아닌 mode 는 아직 지원하지 않는다 (린트가 오류로 막는다).
-- 도달 가능성(경로 연결) 검사는 린트에 없다.
+- 도달 가능성(경로 연결)·통로 폭 검사는 린트에 없다 (5.3절의 표는 참고 계산이다).
 - CLAUDE.md §2 구조도·담당표에 `cobot_bringup`·`cobot_control_center` 를 더하는 일은 접두사 `cobot_` 확정(D1) 뒤 규칙 PR 에서 한다.

@@ -1,0 +1,27 @@
+image: map_shoe_store_1021_gate67.pgm
+mode: trinary
+resolution: 0.01
+origin: [-0.02, -0.02, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+
+# PRD_3 신발 매장 맵 정본 (D3, 초안) — Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트
+# - 출처: 도면 'Floor Map 1021.html' (sha256 c545a0331c74f6ad01ceba8f3fd4d47cbbf7082ceb79acfec0f1c2362f8d7c41) 의
+#   고형물 경계를 1 cm 격자에 칠했다. 중앙 벽 아래 개구는 사용자 결정(2026-10-22)으로 67 cm 다.
+#   경계 표와 칠하는 규칙: docs/fms_map_contract.md 2절. 현장 실측 맵이 아니다.
+# - 아레나 2.5 x 2.4 m. 중앙 벽 X 1.20~1.30 m, Y 0.67~2.40 m. 게이트 = 그 아래 Y 0~0.67 m.
+# - 넣지 않은 것: 팔·고정대 (도면에 외형이 없다. 위치·외형이 정해지면 맵을 바꾼다), 카메라, 사람.
+
+# PRD_3 Named Waypoints [X (m), Y (m), Theta (도)]
+# - X·Y 는 도면의 웨이포인트 중심이다. WP_GATE_TRANSIT 은 게이트 중심이다 (도면에 없는 점, 사용자 요청).
+# - Theta 는 도면에 없어 초안이다. 작업 대상을 바라보는 방향으로 두었다. HOME 은 예전 맵 값이다.
+waypoints:
+  WP_HOME_1: [1.41, 2.05375, 270.0]   # Pinky 1 충전/대기
+  WP_HOME_2: [1.41, 1.8575, 270.0]    # Pinky 2 충전/대기
+  WP_HOME_3: [1.41, 1.66125, 270.0]   # Pinky 3 충전/대기
+  WP_LOAD_1: [2.015, 2.105, 0.0]      # 창고 상차 1 (OMX 1)
+  WP_LOAD_2: [2.015, 1.5375, 0.0]     # 창고 상차 2 (OMX 2)
+  WP_GATE_TRANSIT: [1.25, 0.335, 180.0]  # 전달 게이트 중심 (중앙 벽 아래 67 cm 개구)
+  WP_UNLOAD: [0.415, 1.85, 180.0]     # 매장 하차 (OMX 3)
+  WP_BENCH_DELIVERY: [0.29, 1.31, 90.0]  # 고객 벤치 (점이 벤치 위다)

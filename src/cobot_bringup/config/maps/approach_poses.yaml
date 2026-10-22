@@ -1,9 +1,9 @@
 # 웨이포인트 작업점(work_pose)과 Nav2 정차점(approach_pose) — 초안
 #
 # - 상태: 초안 (2026-10-22). 결정 D3 는 아직 proposed 다. approach_pose 값은 주행 담당 확인이 필요하다.
-# - 맵 정본: 같은 폴더의 map_shoe_store_flat.yaml 과 map_shoe_store_flat.pgm.
-#   두 파일은 아래 map 블록의 출처 커밋에서 바이트 그대로 복사했다. 직접 고치지 않는다.
-#   맵을 바꾸는 절차는 docs/fms_map_contract.md 의 '맵을 바꾸는 절차' 를 따른다.
+# - 맵 정본: 같은 폴더의 map_shoe_store_1021_gate67.yaml 과 map_shoe_store_1021_gate67.pgm.
+#   Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트다 (사용자 결정 2026-10-22).
+#   만든 방법은 docs/fms_map_contract.md 2절. 맵을 바꾸는 절차는 같은 문서의 '맵을 바꾸는 절차' 를 따른다.
 # - 좌표: map frame, [x (m), y (m), theta (도)]. 맵 YAML 의 waypoints 와 같은 형식이다.
 #   work_pose     = 원래 웨이포인트 좌표. 맵 YAML 의 waypoints 와 같아야 한다 (map_lint 가 본다).
 #                   팔이 일하는 자리라 탁자 위(점유 셀)일 수 있다.
@@ -15,57 +15,50 @@
 #   schema_version      이 파일 형식 번호 (1).
 #   status              draft | confirmed. 주행 담당이 approach_pose 를 확인하면 confirmed.
 #   map.yaml            맵 YAML 파일 이름 (같은 폴더). 경로는 쓰지 않는다.
-#   map.source_*        맵을 가져온 곳 (참고용).
 #   map.pgm_sha256      PGM 바이트의 sha256.
 #   map.yaml_lf_sha256  맵 YAML 을 LF 로 맞춘 바이트의 sha256.
 #   map.map_hash        sha256( sha256(PGM) ‖ sha256(LF 맞춘 YAML) ). 맵을 바꾸면 셋 다 다시 계산한다.
 #   clearance_radius_m  린트 반경 [m]. 초안 값 (아키텍처 설계서 §9.1 의 6 cm). 핑키 외형 실측이 아니다.
 #   waypoints.<ID>      work_pose, approach_pose, arm_id(선택), note(선택).
 #   arm_id              이 지점에서 일하는 팔 (omx_1~omx_3, 인터페이스 계약의 이름). 팔이 없는 지점은 적지 않는다.
-#                       초안: 맵 YAML 주석 'OMX 1/2/3' 에서 옮겼다. fms_core 가 MapInfo.waypoints[].arm_id 를
-#                       채울 때 이 값을 쓴다 (출발 게이트, S2). 다른 곳에 따로 적지 않는다.
+#                       초안: 도면의 팔 표식 OMX_1/2/3 바로 옆 웨이포인트에 붙였다. fms_core 가
+#                       MapInfo.waypoints[].arm_id 를 채울 때 이 값을 쓴다 (출발 게이트, S2). 다른 곳에 따로 적지 않는다.
 schema_version: 1
 status: draft
 map:
-  yaml: map_shoe_store_flat.yaml
-  source_repo: kernel-robot-8th/kernel-robot-repo-4
-  source_branch: feature/setup-fleet-msgs-structure
-  source_commit: 9e51d4ddcaa9742e0f203c2fa5212ef985a88d94
-  source_path: maps/
-  pgm_sha256: c07d79f8f743295e7389709518b8a113039b1e628353e13b5e4a1062a154086b
-  yaml_lf_sha256: acdfcd8fccc13aff6c5545dfe8ffd98c28588f02bea6fdb654572a6066ff31e0
-  map_hash: a245651a958f64e1cdd05828ab56a8f2509b320dd57b80cf8a4ff8028d997530
+  yaml: map_shoe_store_1021_gate67.yaml
+  pgm_sha256: f4fb41c1a3e9f8a2bb098a874b8be278cdad0596d58cf3952b0f52a19a08f050
+  yaml_lf_sha256: 96ac285601dee5fb143a926bae89276103e8169afd64a8001bc501541cd49175
+  map_hash: ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170
 clearance_radius_m: 0.06
 waypoints:
   WP_HOME_1:
-    work_pose: [1.55, 2.02, 270.0]
-    approach_pose: [1.55, 2.02, 270.0]
+    work_pose: [1.41, 2.05375, 270.0]
+    approach_pose: [1.41, 2.05375, 270.0]
   WP_HOME_2:
-    work_pose: [1.80, 2.02, 270.0]
-    approach_pose: [1.80, 2.02, 270.0]
+    work_pose: [1.41, 1.8575, 270.0]
+    approach_pose: [1.41, 1.8575, 270.0]
   WP_HOME_3:
-    work_pose: [2.05, 2.02, 270.0]
-    approach_pose: [2.05, 2.02, 270.0]
+    work_pose: [1.41, 1.66125, 270.0]
+    approach_pose: [1.41, 1.66125, 270.0]
   WP_LOAD_1:
-    work_pose: [1.61, 1.15, 90.0]
-    approach_pose: [1.61, 1.15, 90.0]
+    work_pose: [2.015, 2.105, 0.0]
+    approach_pose: [2.015, 2.105, 0.0]
     arm_id: omx_1
+    note: '랙 A 아래 면까지 0.105 m. 팔 고정대는 맵에 없다. 고정대를 놓으면 이 점을 다시 본다.'
   WP_LOAD_2:
-    work_pose: [1.91, 1.15, 90.0]
-    approach_pose: [1.91, 1.15, 90.0]
+    work_pose: [2.015, 1.5375, 0.0]
+    approach_pose: [2.015, 1.5375, 0.0]
     arm_id: omx_2
+    note: '랙 B 아래 면까지 0.105 m. 팔 고정대는 맵에 없다. 고정대를 놓으면 이 점을 다시 본다.'
   WP_GATE_TRANSIT:
-    work_pose: [1.20, 0.60, 180.0]
-    approach_pose: [1.20, 0.60, 180.0]
+    work_pose: [1.25, 0.335, 180.0]
+    approach_pose: [1.25, 0.335, 180.0]
   WP_UNLOAD:
-    work_pose: [0.475, 1.35, 90.0]
-    approach_pose: [0.385, 1.35, 90.0]
+    work_pose: [0.415, 1.85, 180.0]
+    approach_pose: [0.415, 1.85, 180.0]
     arm_id: omx_3
-    note: '초안(주행 담당 확인 필요). work_pose 가 점유 셀 위라 반경 6 cm 가 비는 가장 가까운 격자점으로 옮겼다 (x 쪽 0.09 m). 반경 여유 0.2 mm. 반경 0.11 m (6 cm + SR-08 정차 오차 5 cm) 로 보면 실패한다. 진입 방향(theta)과 팔 도달 거리는 보지 않았다.'
   WP_BENCH_DELIVERY:
-    work_pose: [0.60, 0.84, 0.0]
-    approach_pose: [0.60, 0.98, 0.0]
-    note: '초안(주행 담당 확인 필요). work_pose 가 점유 셀 위라 반경 6 cm 가 비는 가장 가까운 격자점으로 옮겼다 (y 쪽 0.14 m). 반경 여유 5.2 mm. 반경 0.11 m (6 cm + SR-08 정차 오차 5 cm) 로 보면 실패한다. 진입 방향(theta)과 팔 도달 거리는 보지 않았다.'
-  WP_RETURN:
-    work_pose: [0.19, 0.84, 90.0]
-    approach_pose: [0.19, 0.84, 90.0]
+    work_pose: [0.29, 1.31, 90.0]
+    approach_pose: [0.29, 1.16, 90.0]
+    note: '초안(주행 담당 확인 필요). work_pose 가 벤치 위(점유 셀)라 반경 6 cm 가 비는 가장 가까운 격자점으로 옮겼다 (벤치 아래쪽, y 쪽 0.15 m). 반경 여유 5.2 mm. 반경 0.11 m (6 cm + SR-08 정차 오차 5 cm) 로 보면 실패한다. 팔 도달 거리는 보지 않았다.'
