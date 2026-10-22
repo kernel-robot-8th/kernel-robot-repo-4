@@ -109,7 +109,7 @@
 팀이 함께 쓰는 **메시지 양식(약속)만 모아 두는 패키지**입니다. 
 비전이 보낸 메시지를 주행이 알아들으려면 형식을 미리 정해 두어야 하기 때문입니다.
 
-- `msg/`, `srv/`, `action/`, `docs/`만 두고, 실제 동작하는 코드는 넣지 않습니다.
+- `msg/`, `srv/`, `action/`, `docs/`와 스키마·생성 타입 검사를 위한 `test/`를 둘 수 있습니다. 실행 노드·장치 제어 코드는 넣지 않습니다. ament_cmake_pytest의 Python 시험은 런타임 언어 혼용으로 보지 않습니다.
 - 파일명은 `PascalCase`입니다. (예: `DetectedObject.msg`, `MoveToPose.action`)
 - 필드명은 `snake_case`로 쓰고, 단위를 주석으로 적습니다. (예: `float32 distance  # [m]`)
 - 양식을 바꾸거나 지우면 이를 쓰는 모든 패키지가 영향을 받습니다. PR에 변경 내용을 적고, 팀에 알린 뒤 머지합니다.
@@ -215,14 +215,14 @@ ros2 launch <proj>_bringup bringup.launch.xml
 - 토픽·서비스·액션 이름은 `/<namespace>/<name>` 형태의 소문자 `snake_case`
 - 역할별 토픽 접두사 예: `/vision/...`, `/navigation/...`, `/manipulation/...`, `/control_center/...`
 - GUI·관제가 별도 PC에서 실행되면 `ROS_DOMAIN_ID`와 네임스페이스 규칙을 `docs/`에 명시합니다.
-- `ROS_DOMAIN_ID`: 실물 로봇 환경은 SR-19 대로 `10`(실물 구동)과 `12`(Nav2)를 씁니다. 개발·시뮬레이션(가짜 발행기 포함)은 `100`을 쓰고 10·12에서 띄우지 않습니다. 노드별 도메인은 `docs/fms_interfaces.md`를 따릅니다. (결정 D2 → [`docs/fms_decisions.md`](docs/fms_decisions.md#d2))
+- `ROS_DOMAIN_ID`: 실물 로봇 환경은 D2 설계 제안으로 `10`(실물 구동)과 `12`(Nav2)를 씁니다. 개발·시뮬레이션(가짜 발행기 포함)은 `100`을 쓰고 10·12에서 띄우지 않습니다. SR_v2 SR-19는 번호를 지정하지 않습니다. D2가 decided가 된 뒤 노드별 값은 `docs/fms_interfaces.md`를 따릅니다. 장치 없는 격리 스파이크는 100·101을 기본으로 쓰며, 10·12 시험은 네트워크·실물 장치와 격리한 명시적 검증으로만 허용합니다. (결정 D2 → [`docs/fms_decisions.md`](docs/fms_decisions.md#d2))
 - QoS: 센서 데이터는 `SensorDataQoS`, 상태/설정성 데이터는 필요 시 `transient_local`을 명시
 - launch 파일은 XML(`*.launch.xml`)로 통일합니다.
 - 의존성 추가 시 `package.xml`과 `CMakeLists.txt`(또는 `setup.py`)를 **모두** 수정합니다.
 - 좌표계(frame)는 REP-103/105를 따르고, TF frame 이름은 `docs/`에 정의된 것만 사용합니다.
 
 ## 8. Git · 협업 규칙
-- 브랜치: `main`(보호), 작업은 `feature/<역할>-<내용>`, 버그는 `fix/<역할>-<내용>`
+- 브랜치: `main`(보호 설정 필요; 적용 상태는 `docs/fms_repository_governance.md`), 작업은 `feature/<역할>-<내용>`, 버그는 `fix/<역할>-<내용>`
 - FMS(관제 대시보드) 작업 브랜치는 `docs/fms_dev_rules.md`의 R5(`feature/<역할>-<메뉴ID>-<내용>`)를 따릅니다.
 - `main`에 직접 push 금지, 반드시 PR + 최소 1명 리뷰
 - 커밋 메시지: Conventional Commits, scope에 패키지명 사용 (예: `feat(vision): 객체 검출 노드 추가`)
@@ -261,3 +261,9 @@ ros2 launch <proj>_bringup bringup.launch.xml
 - 수정 후에는 빌드 → 테스트 → 린트 순으로 검증하고 결과를 보고합니다.
 - 응답과 설명은 한국어로 합니다.
 - 불확실한 요구사항은 추측하지 말고 먼저 질문합니다.
+
+## 규칙의 근거와 적용 상태
+
+- SR 정본은 Confluence 5406727의 SR_v2 version 13입니다. `docs/fms_sr_reconciliation.md`에서 정본·설계 제안·실측을 구분합니다. 도메인 10/12·워치독 200 ms·시계 ±50 ms·팔 Z=280 mm는 정본의 고정값으로 인용하지 않습니다.
+- main 보호·필수 리뷰·CODEOWNERS·CI는 선언과 활성화를 구분합니다. `docs/fms_repository_governance.md`에 관리자 적용 조건과 현재 미적용 상태를 적습니다.
+- FMS 규칙은 팀 리뷰·결정·병합 뒤 적용합니다. 기존 브랜치의 독립 도구는 채택/이전/예외 결정을 먼저 하고, 이번 문서만으로 소급 삭제하거나 타인 브랜치를 수정하지 않습니다.

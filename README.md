@@ -44,7 +44,7 @@ touch .venv/COLCON_IGNORE      # colcon이 .venv 안을 탐색하지 않도록 �
 ```bash
 export ROS_DOMAIN_ID=100
 ```
-- 실물 로봇은 100을 쓰지 않고 SR-19 대로 `10`(실물 구동)과 `12`(Nav2)를 씁니다. 개발·시뮬레이션 노드를 10·12에서 띄우지 마세요. 자세한 값은 [`docs/fms_interfaces.md`](docs/fms_interfaces.md)를 보세요.
+- 실물 로봇의 도메인은 D2 설계 제안으로 `10`(실물 구동)과 `12`(Nav2)를 씁니다. 개발·시뮬레이션 노드를 10·12에서 띄우지 마세요. SR_v2는 번호를 지정하지 않으며 D2 결정 전에는 실물 설정에 적용하지 않습니다. 자세한 제안은 [`docs/fms_interfaces.md`](docs/fms_interfaces.md)를 보세요.
 
 ### 5. 의존 패키지 설치 (처음 한 번)
 ```bash
