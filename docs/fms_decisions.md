@@ -14,7 +14,7 @@
 |---|---|---|---|
 | D1 | 인터페이스 패키지·접두사 | `fleet_msgs` 를 `cobot_interfaces` 로 옮겨 확장한다. 접두사는 `cobot_` 로 한다. 원저작 표기 복원. | `fleet_msgs` 브랜치 작성자, 전 트랙 |
 | D2 | `ROS_DOMAIN_ID` | 실물은 SR-19 대로 10(실물 구동)·12(Nav2). 두 도메인은 핑키 온보드 가드에서만 만난다. README 의 100 은 개발·시뮬 전용. | 주행 (가드 스파이크) |
-| D3 | 맵 | 정본 `map_shoe_store_flat`, 위치 `src/cobot_bringup/config/maps/`, map_hash 는 install 된 pgm·yaml(LF) 로 계산, 작업점과 Nav2 정차점을 나눈다. 정차점 값과 맵 린트 반경 6 cm 는 초안. | 주행 (정차점 값·린트 반경) |
+| D3 | 맵 | 정본 `map_shoe_store_1021_gate67` (Floor Map 1021 + 아래 벽에 붙은 67 cm 게이트), 위치 `src/cobot_bringup/config/maps/`, map_hash 는 install 된 pgm·yaml(LF) 로 계산, 작업점과 Nav2 정차점을 나눈다. 정차점 값·theta·린트 반경 6 cm 는 초안. | 주행 (정차점 값·린트 반경·랙 배치) |
 | D4 | 정지·순단 복구 | 정지 명령은 검사에서 거부돼도 멈춘다(워치독은 갱신 안 함). 순단 복구는 epoch+1·DISARMED. | 주행 (가드) |
 | D5 | 복구 2단계 승인 | 1단계 = 항목별 현장 확인 입력, 2단계 = 승인 뒤 최소 체류(초안 5 s) 지나 START. 2인 승인·비밀번호 재입력은 설정. | 관제 |
 | D8 | 웹 화면 파일 위치 | `cobot_gui` 안 `web/` 폴더를 `data_files` 로 설치. CLAUDE.md §3 에 `web/` 규칙 추가. fastapi·uvicorn 허락은 S2 전에 따로. | GUI |
@@ -30,9 +30,10 @@ S1(계약 고정)에 필요한 결정 6건을 아래처럼 정합니다.
   원저작(team11 pinky_fleet_msgs, Apache-2.0) 표기를 복원합니다.
 - D2 도메인: 실물은 SR-19 대로 10(실물 구동)·12(Nav2) 입니다. 두 도메인은 핑키 온보드 가드에서만 만납니다.
   README 의 100 은 개발·시뮬 전용입니다. 실물 장비와 섞지 않습니다.
-- D3 맵: 정본은 map_shoe_store_flat 이고 src/cobot_bringup/config/maps/ 에 둡니다.
+- D3 맵: 정본은 Floor Map 1021 도면에 아래 벽에 붙은 67 cm 게이트를 더한 map_shoe_store_1021_gate67 이고
+  src/cobot_bringup/config/maps/ 에 둡니다. 예전 map_shoe_store_flat(개구 0.84 m)은 쓰지 않습니다.
   map_hash 는 install 된 pgm·yaml(LF) 로 계산합니다. 작업점과 Nav2 정차점을 나눕니다.
-  (정차점 값과 맵 린트 반경 6 cm 는 초안입니다. 주행 담당이 확인합니다.)
+  (정차점 값·theta·맵 린트 반경 6 cm 는 초안입니다. 팔 고정대는 아직 맵에 없습니다. 주행 담당이 확인합니다.)
 - D4 정지: 정지 명령은 검사에서 거부돼도 멈춥니다(워치독은 갱신하지 않습니다).
   통신이 끊겼다 돌아오면 epoch+1·DISARMED 이고, 다시 달리려면 승인과 START 가 필요합니다.
 - D5 복구 승인: 1단계는 항목별 현장 확인 입력, 2단계 START 는 승인하고 5초(초안) 뒤부터 받습니다.
@@ -200,9 +201,10 @@ S2 착수 전이면 `feature/common-cobot-interfaces` 를 revert 한다. 쓰는 
 
 ### 지금 상황
 
-- 팀 맵 `map_shoe_store_flat` (2.4×2.4 m, 0.01 m/px) 은 미병합 SR 브랜치의 루트 `maps/` 에만 있다.
+- 예전 팀 맵 `map_shoe_store_flat` (2.4×2.4 m, 0.01 m/px) 은 미병합 SR 브랜치의 루트 `maps/` 에만 있다. 중앙 벽 아래 개구가 약 0.84 m 다 (PGM 픽셀로 확인).
+- 최종 도면은 Floor Map 1021 이고, 게이트는 **아래 벽에 붙은 67 cm** 다 (사용자 확인 2026-10-22). 도면 원안은 중앙 벽이 y 0.35 m 부터라 개구가 0.35 m 다. 67 cm 는 그 보완이다.
 - CLAUDE.md §2 구조도와 §3-1 표준 폴더에는 루트 `maps/` 가 없다.
-- 웨이포인트 9개 중 `WP_UNLOAD`, `WP_BENCH_DELIVERY` 는 PGM 의 점유 셀 위에 있다 (PGM 픽셀 값을 읽어 확인). 그대로는 Nav2 goal 로 쓸 수 없다.
+- Floor Map 1021 웨이포인트 7개(+ 게이트 중심) 중 `WP_BENCH_DELIVERY` 는 벤치 위(점유 셀)다. 그대로는 Nav2 goal 로 쓸 수 없다. 도면에는 팔 고정대 외형과 theta 가 없다.
 - map_hash 는 SR-20 의 검증 항목인데 계산 방법이 정해지지 않았다.
 
 ### 선택지
@@ -211,8 +213,9 @@ S2 착수 전이면 `feature/common-cobot-interfaces` 를 revert 한다. 쓰는 
 
 | 안 | 내용 | 좋은 점 | 나쁜 점 |
 |---|---|---|---|
-| 1안 (추천) | 팀 맵 `map_shoe_store_flat` | SR-04 가 이 맵 이름을 직접 적는다. | 웨이포인트 2개를 고쳐야 한다. |
-| 2안 | 시뮬 맵 | 시뮬 결과와 바로 맞는다. | 통로 치수가 SR-05 의 0.8 m 와 다르다. 시뮬 참고로만 둔다. |
+| 1안 (추천) | Floor Map 1021 도면 + 67 cm 게이트 (`map_shoe_store_1021_gate67`). 도면의 고형물만 칠한다. | 최종 도면이다. 게이트가 실제 사용 기준(아래 벽에 붙은 67 cm)과 같다. | SR v5.0 원문(SR-04 맵 이름·2.4×2.4 m, SR-05 0.8 m)과 다르다. 팔 고정대가 없다. 가로 장애물 랙 둘레 틈이 약 0.25 m 다. |
+| 2안 | 예전 팀 맵 `map_shoe_store_flat` | SR v5.0 SR-04 가 이 이름을 적는다. | 최종 도면이 아니다. 개구 0.84 m. 웨이포인트 2개가 점유 셀 위다. |
+| 3안 | 개인 시뮬 맵 (1안 + 가정 고정대 3개, 랙 세로) | 시뮬 실행 결과와 바로 맞는다. | 고정대 위치·랙 회전은 가정이다. 팀 결정 없이 정본에 넣지 않는다. |
 
 파일 위치:
 
@@ -239,7 +242,8 @@ map_hash:
 
 ### 추천안
 
-- 정본: `map_shoe_store_flat`.
+- 정본: `map_shoe_store_1021_gate67` (Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트). 만든 방법·경계 표는 `docs/fms_map_contract.md` 2절이 정본이다.
+- 장애물 랙 배치(도면 원안 가로 / 세로)와 팔 고정대 위치·외형은 D3 에 넣지 않는다. 정해지면 맵을 바꾸는 절차(`docs/fms_map_contract.md` 7절)로 고친다.
 - 위치: `src/cobot_bringup/config/maps/`. 설계서는 `cobot_navigation/config/` 를 권했다. 주행 담당 패키지를 요청 없이 고치지 않으려고 공통 패키지에 둔다.
 - map_hash: 위 1안. 바이트를 어떻게 이어 붙이고 결과를 어떻게 적는지는 `feature/common-map-contract` 의 스크립트와 시험이 정본이다.
 - 웨이포인트: `work_pose` 와 `approach_pose` 를 나눈다. `approach_pose` 값은 초안이다. 주행 담당이 확인한다.
@@ -247,7 +251,8 @@ map_hash:
 
 ### 이유
 
-- SR-04 자율주행 및 운송 기능: "2.4×2.4m 평면 맵(`map_shoe_store_flat`) 기반".
+- 최종 도면 = Floor Map 1021 + 아래 벽에 붙은 67 cm 게이트 (사용자 확인 2026-10-22).
+- SR-04 자율주행 및 운송 기능: v5.0 원문은 "2.4×2.4m 평면 맵(`map_shoe_store_flat`) 기반" 이다. 정본과 이름·크기가 다르다. SR 정본(SR_v2) 원문과 대조한 뒤 이 줄을 고친다.
 - SR-20 명령 유효성 검증 및 구 권한 차단 기능: 맵 해시 일치 여부를 검증한다. 관제 PC 와 핑키가 같은 바이트를 읽어야 해시가 맞는다. 그래서 장비마다 파일을 복사하지 않고, 같은 패키지를 빌드해 install 된 파일을 읽는다.
 - CLAUDE.md §9: 담당 외 패키지는 요청 없이 수정하지 않는다. §2·§9: 구조도 밖 폴더를 만들지 않는다.
 - CLAUDE.md §3-5: 팀 공통 설정값은 bringup 의 `config/` 한곳에서 관리한다.

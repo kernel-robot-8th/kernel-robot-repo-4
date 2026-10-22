@@ -153,7 +153,7 @@
 - 데이터 원천: MapInfo, 지도 PNG, RobotStatus pose, LaneLeaseState, overhead pose
 - 명령: 없음
 - 갱신: 위치 5 Hz, lease 는 변화가 생기면 바로.
-- 원문의 '67 cm 게이트' 문구는 맵 정본 결정(D3) 뒤에 정한다.
+- 원문의 '67 cm 게이트' 는 맵 정본(D3 추천안)의 게이트다. 중앙 벽 아래 Y 0~0.67 m.
 - map_hash 가 맞지 않으면 RED.
 - 초안: 데이터 담당은 위치·맵 기준이다. lease 는 control_center, overhead pose 는 vision 이 낸다.
 
@@ -524,7 +524,7 @@
 
 - D1 (proposed): fleet_msgs 를 cobot_interfaces 로 옮겨 확장한다. 접두사는 cobot_ 로 한다. team11 pinky_fleet_msgs(Apache-2.0) 원저작 표기를 복원한다. — 기록: [`docs/fms_decisions.md#d1`](fms_decisions.md#d1)
 - D2 (proposed): SR-19 그대로 10 = 실물 구동, 12 = Nav2. 두 도메인의 교차점은 핑키 온보드 가드 하나(두 rclpy Context, S1 스파이크로 확인). README 의 100 은 개발·시뮬 전용. — 기록: [`docs/fms_decisions.md#d2`](fms_decisions.md#d2)
-- D3 (proposed): 정본 = map_shoe_store_flat, 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값과 맵 린트 반경 6 cm 는 초안. — 기록: [`docs/fms_decisions.md#d3`](fms_decisions.md#d3)
+- D3 (proposed): 정본 = map_shoe_store_1021_gate67 (Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트), 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값·theta·맵 린트 반경 6 cm 는 초안. 팔 고정대는 맵에 없다. — 기록: [`docs/fms_decisions.md#d3`](fms_decisions.md#d3)
 - D4 (proposed): 정지 계열은 펜싱 판정이 거부여도 수행하고 워치독은 갱신하지 않는다. 통신 순단 복구는 SR-20 대로 epoch+1·DISARMED. — 기록: [`docs/fms_decisions.md#d4`](fms_decisions.md#d4)
 - D5 (proposed): Reconcile 항목별 확인 입력(attest) + APPROVE 뒤 최소 체류(초안 5 s). 2인 승인·비밀번호 재입력은 설정으로 고른다. — 기록: [`docs/fms_decisions.md#d5`](fms_decisions.md#d5)
 - D8 (proposed): 2안: cobot_gui(ament_python) 의 web/ 폴더를 setup.py data_files 로 설치하고 CLAUDE.md §3 에 web/ 규칙을 더한다. fastapi·uvicorn·JS vendoring 허락은 S2 착수 전에 따로 정한다(D8 후속). — 기록: [`docs/fms_decisions.md#d8`](fms_decisions.md#d8)

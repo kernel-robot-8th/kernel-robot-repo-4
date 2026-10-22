@@ -185,7 +185,7 @@ decisions:
     status: proposed
     title: '맵 정본, map_hash 입력 정의, 접근 자세, 맵 파일 위치'
     blocks: '미션, 펜싱, ② 지도'
-    proposal: '정본 = map_shoe_store_flat, 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값과 맵 린트 반경 6 cm 는 초안.'
+    proposal: '정본 = map_shoe_store_1021_gate67 (Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트), 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값·theta·맵 린트 반경 6 cm 는 초안. 팔 고정대는 맵에 없다.'
     record: 'docs/fms_decisions.md#d3'
   - id: D4
     status: proposed
@@ -334,7 +334,7 @@ menus:
     decisions: [D3]
     notes:
       - '갱신: 위치 5 Hz, lease 는 변화가 생기면 바로.'
-      - "원문의 '67 cm 게이트' 문구는 맵 정본 결정(D3) 뒤에 정한다."
+      - "원문의 '67 cm 게이트' 는 맵 정본(D3 추천안)의 게이트다. 중앙 벽 아래 Y 0~0.67 m."
       - 'map_hash 가 맞지 않으면 RED.'
       - '초안: 데이터 담당은 위치·맵 기준이다. lease 는 control_center, overhead pose 는 vision 이 낸다.'
 
