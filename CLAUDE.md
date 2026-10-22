@@ -3,7 +3,7 @@
 이 파일은 팀 공통 규칙입니다. 개인 설정은 `CLAUDE.local.md`(gitignore)에 작성하세요.
 
 ## 1. 프로젝트 개요
-- 프로젝트명: <프로젝트 이름> (패키지 접두사: `<proj>`)
+- 프로젝트명: <프로젝트 이름> (패키지 접두사: `cobot`, 결정 D1 → [`docs/fms_decisions.md`](docs/fms_decisions.md#d1))
 - 목적: <한두 문장으로 프로젝트 목적 작성>
 - 대상 하드웨어/로봇: <예: 모바일 베이스 + 매니퓰레이터>
 - 환경: Ubuntu 24.04 / ROS2 Jazzy / Python 3.12 / C++17 (C++ 패키지 사용 시)
@@ -14,31 +14,42 @@
 ```
 <ws>/
 ├── src/
-│   ├── <proj>_interfaces/      # 공용 msg / srv / action (코드 없음)
-│   ├── <proj>_bringup/         # 전체 launch, 통합 파라미터 YAML
-│   ├── <proj>_description/     # URDF/xacro, 메시 (모바일 베이스 + 팔)
-│   ├── <proj>_vision/          # [비전] 카메라, 검출/인식, 좌표 변환
-│   ├── <proj>_navigation/      # [주행] Nav2 설정, 주행 시퀀스, localization
-│   ├── <proj>_manipulation/    # [매니퓰레이터] 팔/그리퍼 제어, pick&place
-│   ├── <proj>_moveit_config/   # [매니퓰레이터] MoveIt2 설정
-│   ├── <proj>_control_center/  # [관제] 상태 수집, 작업 할당, 로그
-│   └── <proj>_gui/             # [GUI] 사용자/관제 화면
+│   ├── cobot_interfaces/       # 공용 msg / srv / action (코드 없음)
+│   ├── cobot_bringup/          # 전체 launch, 통합 파라미터 YAML
+│   ├── cobot_description/      # URDF/xacro, 메시 (모바일 베이스 + 팔)
+│   ├── cobot_vision/           # [비전] 카메라, 검출/인식, 좌표 변환
+│   ├── cobot_navigation/       # [주행] Nav2 설정, 주행 시퀀스, localization
+│   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
+│   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
+│   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
+│   └── cobot_gui/              # [GUI] 사용자/관제 화면 (웹 화면 자원은 web/ → 3-7 참고)
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
+│   ├── dev_docker_guide.md     # 도커로 빌드·시험하는 방법 (도커를 처음 쓰는 사람용 설명 포함)
+│   ├── fms_decisions.md        # FMS 결정 기록 (D1~D5·D8, 추천안 → 공지 → decided 절차)
+│   ├── fms_dev_rules.md        # FMS(관제 대시보드) 작업 공통 규칙 R1~R10
+│   ├── fms_interfaces.md       # 토픽·QoS·ROS_DOMAIN_ID·네임스페이스·TF frame 표
+│   ├── fms_map_contract.md     # 맵 정본, map_hash, 작업점·정차점
+│   ├── fms_menu_tree.md        # FMS 메뉴 표 (레지스트리에서 자동 생성, 손으로 고치지 않음)
+│   ├── fms_offline_bundle.md   # 인터넷 없는 현장 PC 에 설치할 오프라인 번들 목록
+│   └── fms_roadmap.md          # FMS 단계 계획 S0~S6 과 단계별 출구 검사
 ├── scripts/                    # 환경 설정, 보조 스크립트
+│   ├── docker/                 # 개발용 도커 스크립트 (dev_docker_guide.md 참고)
+│   └── spikes/                 # 한 번 확인하고 끝나는 검증 스크립트 (결과는 docs/ 에 기록)
 └── CLAUDE.md
 ```
 - `build/`, `install/`, `log/`는 colcon 산출물이므로 수정·커밋하지 않습니다. (`.gitignore` 등록)
+- `scripts/`는 colcon 패키지가 아니라서 `colcon test`의 린트가 검사하지 않습니다. 여기 파이썬 파일을 고쳤다면 `ament_flake8 scripts/`, `ament_pep257 scripts/`, `ament_copyright scripts/`를 직접 돌립니다.
 - 새 패키지를 추가하면 이 구조도와 아래 담당 표를 함께 갱신합니다.
 
 ### 역할별 담당 패키지
 | 역할 | 담당 패키지 | 담당자 |
 |---|---|---|
-| 비전 | `<proj>_vision` | <이름> |
-| 주행 | `<proj>_navigation` | <이름> |
-| 매니퓰레이터 | `<proj>_manipulation`, `<proj>_moveit_config` | <이름> |
-| 관제 | `<proj>_control_center` | <이름> |
-| GUI | `<proj>_gui` | <이름> |
-| 공통 | `<proj>_interfaces`, `<proj>_bringup`, `<proj>_description` | 팀 전체 (PR 리뷰 필수) |
+| 비전 | `cobot_vision` | 강건한, 손선아 |
+| 주행 | `cobot_navigation` | 김지호, 김성아 |
+| 매니퓰레이터 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 손선아, 허지혁 |
+| 관제 | `cobot_control_center` | 강건한 |
+| GUI | `cobot_gui` | 강건한, 김지혜 |
+| 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (PR 리뷰 필수) |
 
 ## 3. 패키지 · 폴더 작성 규칙
 
@@ -46,7 +57,7 @@
 - 패키지명은 `<proj>_<역할>` 형태의 소문자 `snake_case`로 통일합니다.
 - 한 패키지는 **한 가지 언어만** 사용합니다. (Python → `ament_python`, C++ → `ament_cmake`)
 - 모든 패키지는 `package.xml`에 `description`, `maintainer`(담당자), `license`를 채웁니다.
-- 폴더명은 아래 표준 이름만 사용합니다: `launch/`, `config/`, `test/`, `docs/`, `rviz/`, `urdf/`, `meshes/`, `msg/`, `srv/`, `action/`
+- 폴더명은 아래 표준 이름만 사용합니다: `launch/`, `config/`, `test/`, `docs/`, `rviz/`, `urdf/`, `meshes/`, `msg/`, `srv/`, `action/`, `web/`(`cobot_gui`만, 3-7 참고)
 - 파일 종류별 위치를 지킵니다.
   - 패키지 개별 문서(PRD 등): `docs/prd.md` (자세한 규칙은 4번)
   - launch 파일: `launch/<이름>.launch.xml`
@@ -119,6 +130,17 @@
 - `gui`와 `control_center`는 `interfaces`만 의존합니다. 로봇 내부 코드를 몰라도 메시지만 주고받으면 되기 때문입니다.
 - A가 B를 쓰고 B도 A를 쓰는 순환 의존이 생기면, 둘이 같이 쓰는 부분을 `interfaces`로 옮깁니다.
 
+### 3-7. 웹 화면 자원 (`cobot_gui`의 `web/`)
+**브라우저로 보는 화면의 HTML·JS·CSS 파일을 두는 자리**입니다. 자리를 한곳으로 정해 두어야 화면 파일이 여러 패키지에 흩어지지 않습니다. (결정 D8 → [`docs/fms_decisions.md`](docs/fms_decisions.md#d8))
+
+- `web/` 폴더는 `cobot_gui`(`ament_python`) 안에만 둡니다. 다른 패키지나 워크스페이스 최상위에는 만들지 않습니다.
+- `web/`도 `launch/`, `config/`처럼 `setup.py`의 `data_files`에 등록해야 install 됩니다.
+- `web/`의 파일은 install 때 복사만 되는 정적 파일입니다. 따로 빌드하지 않으므로 3-1의 '한 패키지 한 언어' 규칙은 그대로 지킵니다.
+- 빌드 산출물(번들, 압축된 JS 등)은 커밋하지 않고 원본 파일만 커밋합니다.
+- 외부 CDN 주소를 쓰지 않습니다. 현장은 인터넷 없이도 화면이 떠야 하기 때문입니다.
+- 프론트엔드 라이브러리는 팀 허락을 받은 뒤에만, 버전을 고정해 `web/` 안에 복사(vendoring)해 둡니다. (9번의 새 의존성 규칙)
+- 웹 서버용 파이썬 패키지(예: `fastapi`, `uvicorn`)도 새 의존성이므로 허락을 받은 뒤에 추가합니다.
+
 ## 4. 문서 관리
 개발 과정에서 생기는 문서는 `docs/` 폴더에 저장하고, 범위에 따라 위치를 나눕니다.
 
@@ -161,6 +183,7 @@ ros2 launch <proj>_bringup bringup.launch.xml
   - Python은 `ament_flake8`·`ament_pep257`, C++은 `ament_cpplint`·`ament_uncrustify`가 검사하며, `colcon test`를 실행하면 함께 돌아갑니다.
   - 오류는 `colcon test-result --verbose`로 확인하고, 고친 뒤 PR을 올립니다.
 - 인터페이스(`interfaces`)를 수정했다면 의존하는 패키지까지 다시 빌드합니다.
+- 도커로 빌드·시험하는 방법은 `docs/dev_docker_guide.md`를 봅니다. (도커를 처음 쓰는 사람도 이 문서부터 따라 하면 됩니다)
 
 ### `--symlink-install` 옵션
 - `install/`에 파일을 복사하지 않고 원본(`src/`)을 가리키는 **바로가기(symlink)**를 만드는 옵션입니다.
@@ -192,6 +215,7 @@ ros2 launch <proj>_bringup bringup.launch.xml
 - 토픽·서비스·액션 이름은 `/<namespace>/<name>` 형태의 소문자 `snake_case`
 - 역할별 토픽 접두사 예: `/vision/...`, `/navigation/...`, `/manipulation/...`, `/control_center/...`
 - GUI·관제가 별도 PC에서 실행되면 `ROS_DOMAIN_ID`와 네임스페이스 규칙을 `docs/`에 명시합니다.
+- `ROS_DOMAIN_ID`: 실물 로봇 환경은 SR-19 대로 `10`(실물 구동)과 `12`(Nav2)를 씁니다. 개발·시뮬레이션(가짜 발행기 포함)은 `100`을 쓰고 10·12에서 띄우지 않습니다. 노드별 도메인은 `docs/fms_interfaces.md`를 따릅니다. (결정 D2 → [`docs/fms_decisions.md`](docs/fms_decisions.md#d2))
 - QoS: 센서 데이터는 `SensorDataQoS`, 상태/설정성 데이터는 필요 시 `transient_local`을 명시
 - launch 파일은 XML(`*.launch.xml`)로 통일합니다.
 - 의존성 추가 시 `package.xml`과 `CMakeLists.txt`(또는 `setup.py`)를 **모두** 수정합니다.
@@ -199,6 +223,7 @@ ros2 launch <proj>_bringup bringup.launch.xml
 
 ## 8. Git · 협업 규칙
 - 브랜치: `main`(보호), 작업은 `feature/<역할>-<내용>`, 버그는 `fix/<역할>-<내용>`
+- FMS(관제 대시보드) 작업 브랜치는 `docs/fms_dev_rules.md`의 R5(`feature/<역할>-<메뉴ID>-<내용>`)를 따릅니다.
 - `main`에 직접 push 금지, 반드시 PR + 최소 1명 리뷰
 - 커밋 메시지: Conventional Commits, scope에 패키지명 사용 (예: `feat(vision): 객체 검출 노드 추가`)
 - `CODEOWNERS`로 패키지별 담당자를 지정하고, 담당 패키지 변경 시 담당자가 리뷰합니다.
