@@ -47,7 +47,7 @@ flowchart LR
   DS3["D6 E-STOP 판독 · D11 시간 값 · D13 서명 키 · D20 로봇 탑재 소스"] -.-> S3
   DS4["D14 주문 상태 · D19 재고 원장"] -.-> S4
   DS5["D7 수업 게이트 · D12 녹화 도구"] -.-> S5
-  DS6["D15 보존 정책 · D17 SR-22"] -.-> S6
+  DS6["D15 보존 정책 · D17 메뉴 문서 정정"] -.-> S6
 ```
 
 ## 3. 단계별 상세
@@ -61,7 +61,7 @@ flowchart LR
 - 먼저 끝나야 하는 것: 없음
 - 기다리는 결정: 없음. 관련 결정은 D16(Git 규칙·CODEOWNERS), D17(메뉴 문서 정정).
 - 출구 검사:
-  1. `PYTHONPATH=src/cobot_gui python3 -m pytest src/cobot_gui/test/test_menu_registry.py` 가 통과한다. 시험 안의 음성 대조(SR-22 주입, SR 이름 변경, 메뉴 삭제, 없앤 메뉴에 화면 주기 등)는 검증 함수가 오류를 내야 통과한다.
+  1. `PYTHONPATH=src/cobot_gui python3 -m pytest src/cobot_gui/test/test_menu_registry.py` 가 통과한다. 시험 안의 음성 대조(미등록 SR-23 주입, SR 이름 변경, 메뉴 삭제, 없앤 메뉴에 화면 주기 등)는 검증 함수가 오류를 내야 통과한다.
   2. `PYTHONPATH=src/cobot_gui python3 -m cobot_gui.menu_registry` 가 오류 0 이다. YAML 에서 메뉴를 하나 지우거나 SR 이름을 바꾸면 1 이어야 한다.
   3. `PYTHONPATH=src/cobot_gui python3 -m cobot_gui.gen_menu_doc --check` 가 0 이다. 생성 문서를 한 글자 고치면 1 이어야 한다.
   4. 깨끗한 Jazzy 환경에서 `colcon build --packages-select cobot_gui` 와 `colcon test --packages-select cobot_gui`(flake8·pep257·copyright 포함)가 실패 0, skip 0 으로 통과한다.
@@ -78,6 +78,7 @@ flowchart LR
 - 같이 해도 되는 일: 주행·팔·비전이 자기 토픽 계약 초안을 쓴다 (`docs/` 의 토픽·QoS·도메인·네임스페이스·TF frame 표).
 - 먼저 끝나야 하는 것: S0
 - 기다리는 결정: D1(인터페이스 패키지), D2(도메인), D3(맵), D4(정지 계열 펜싱 예외), D5(2단계 승인), D8(웹 자원 위치·의존성)
+- 결정 기록: [`docs/fms_decisions.md`](fms_decisions.md). 6건마다 질문·선택지·추천안·이유·결과(바뀌는 파일·PR)·되돌리는 방법이 있다. 지금은 모두 `proposed`(추천안, 공지 전)다. 관제 담당이 공지하면 `decided` 로 바꾼다.
 - 할 일 (설계서 §9.1 P0):
   - `cobot_interfaces` PR: fleet_msgs(미병합 브랜치 `feature/setup-fleet-msgs-structure`) 이전과 확장, 원저작 표기. msg/srv/action 변경은 이 PR 로만 한다 (CLAUDE.md §9).
   - 토픽·QoS·도메인·네임스페이스·TF frame 표 (`docs/`).
@@ -88,7 +89,7 @@ flowchart LR
   2. 스키마 시험: 명령 헤더(epoch·seq·ttl_ms·map_hash·command_id·sig)와 상태 필드가 있는지 본다. 지금 fleet_msgs(미병합 브랜치)에서는 실패하고, PR 뒤에는 통과해야 한다.
   3. 맵 린트: 지금 맵(장애물 위 웨이포인트가 있다)에서는 실패하고, 정본 맵에서는 통과해야 한다.
   4. map_hash: 두 번 돌리면 같은 값, 맵을 1바이트 바꾸면 다른 값이 나온다.
-  5. D1~D5·D8 마다 결정자와 날짜가 기록되고, 레지스트리 `decisions` 의 `status` 가 `decided` 로 바뀐다. 미결에 기대는 작업은 시작하지 않는다.
+  5. D1~D5·D8 의 레지스트리 `status` 가 모두 `decided` 이고 `decided_by`(결정자)·`decided_on`(결정일)이 적혀 있다. `proposed` 는 통과가 아니다. `PYTHONPATH=src/cobot_gui python3 -m cobot_gui.menu_registry --require-decided D1,D2,D3,D4,D5,D8` 가 0 이어야 한다. 하나라도 `decided` 가 아니면 1 이다 (지금은 6건 모두 `proposed` 라 1). `docs/fms_decisions.md` 의 그 절도 같은 상태·결정자·결정일이어야 한다 (시험이 대조한다). 미결에 기대는 작업은 시작하지 않는다.
   6. 네트워크를 끊은 깨끗한 VM 에 번들만으로 설치된다. 번들에서 파일 하나를 빼면 설치가 실패해야 한다.
   7. PR 이 1명 이상 리뷰를 받고 머지된다.
 
@@ -100,12 +101,12 @@ flowchart LR
 - 주 담당: 관제(상태 수집·원장·진단)·GUI(게이트웨이 읽기 API·화면)
 - 같이 해도 되는 일: 주행 — 상태 발행 노드, 하트비트 도달 간격 측정 협조. 비전 — 카메라 상태(CameraHealth).
 - 먼저 끝나야 하는 것: S1 계약 머지
-- 기다리는 결정: D9(로그인 권한), D10(P1 영상), D18(현장 실측), D21(Sprint 경계)
+- 기다리는 결정: D9(로그인 권한), D10(P1 영상), D18(현장 실측), D21(Sprint 경계), D8 후속(fastapi·uvicorn·JS vendoring 허락 — [`docs/fms_decisions.md`](fms_decisions.md#d8))
 - 출구 검사 (설계서 §9.1 P1):
   1. 가짜 발행기를 끄면 해당 카드가 1 s 안에 STALE 이 된다. stale 로직을 끈 빌드에서는 같은 시험이 실패해야 한다.
   2. 명령 경로가 없다. 정지 등 명령 API 는 404 이고, 게이트웨이 소스의 로봇 토픽 발행자는 0 이다.
   3. 명령 토픽 발행자가 0·1·2 일 때 각각 회색(NO_PUBLISHER)·정상·RED 로 다르게 보인다.
-  4. 관제 코어의 둘째 인스턴스는 뜨지 않는다. YAML 의 SR 고정값을 바꾸면 기동을 거부한다.
+  4. 관제 코어의 둘째 인스턴스는 뜨지 않는다. YAML의 승인된 계약값을 바꾸면 기동을 거부한다. SR_v2 값과 설계 제안은 구분한다.
   5. 인증 없는 요청은 401, 다른 Origin 의 WS 는 거부, `/../` 경로는 404 다.
   6. NaN 배터리는 '—' 로 보인다. '0 %' 나 '정상' 으로 보이면 실패다.
   7. 카메라 송신을 멈추면 2 s 안에 stale, 같은 프레임만 반복하면 2 s 안에 FROZEN 이다.
@@ -167,7 +168,8 @@ flowchart LR
 ### S5 팔 연동 (P4)
 
 - 목표: 팔 상태·작업 단계·데이터셋 요약을 읽기 전용으로 붙인다. 녹화는 Station PC 에서 사람이 한다.
-- **포함 메뉴** (phase=P4): 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
+- **포함 메뉴** (phase=P4): 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7
+- 3.7 은 팀원 녹화 앱(`tool/omx-ai_record_dashboard`)이다. 이미 레포 밖 브랜치에 있고 이 단계에서 통합 조건을 푼다 (`docs/fms_branch_compatibility_review.md` 의 P1 3건: 팔 배타 제어, Servo OFF ≠ 긴급 정지, 맵·메시지 이행).
 - 주 담당: GUI + 매니퓰레이터
 - 같이 해도 되는 일: 없음
 - 먼저 끝나야 하는 것: S4, D12(공식 녹화 도구)
@@ -185,11 +187,11 @@ flowchart LR
 
 - 목표: 앞 단계가 끝난 뒤 항목마다 따로 설계 리뷰를 받고 넣는다.
 - **포함 메뉴** (phase=P5): 4.4, 4.5, 5.2, 6.5
-- 그 밖의 항목: 3.7 을 대신하는 원격 텔레옵(조건부 검토), SR-17 회수, SROS2·TLS, 원장 백업 자동화, 6.6 의 안전과 무관한 설정 쓰기, (선택) 개발용 읽기 전용 foxglove_bridge
+- 그 밖의 항목: 웹에서 팔을 움직이는 원격 텔레옵(3.7 앱과 별개, 조건부 검토), SR-17 회수, SROS2·TLS, 원장 백업 자동화, 6.6 의 안전과 무관한 설정 쓰기, (선택) 개발용 읽기 전용 foxglove_bridge
 - 주 담당: 항목별 담당 (레지스트리 `data_owner`. 6.5 는 아직 비어 있다)
 - 같이 해도 되는 일: 항목끼리는 서로 독립이다.
 - 먼저 끝나야 하는 것: 항목마다 별도 설계 리뷰
-- 기다리는 결정: D15(4.4·4.5 보존 정책), D17(6.5 SR-22)
+- 기다리는 결정: D15(4.4·4.5 보존 정책), D17(메뉴 문서 정정)
 - 출구 검사 (설계서 §9.3):
   1. 5.2 데드맨: 키를 떼거나, 탭을 닫거나, WS 가 끊기면 200 ms 안에 멈춘다(엔코더 기준). 관제사가 아닌 역할의 요청은 403 이다.
   2. 4.4: 정책 플래그가 꺼져 있으면 녹화 요청이 거부된다 (기본 꺼짐).
@@ -216,4 +218,20 @@ flowchart LR
 
 - 단계별 날짜: 미정(D21).
 - 단계별 규모(인일): 담당자와 다시 잰다.
-- 미결 결정 D1~D21 의 전체 목록과 각 결정이 막는 것: [`docs/fms_menu_tree.md`](fms_menu_tree.md) 의 '미결 결정' 표.
+- 결정 D1~D21 의 전체 목록, 상태(open·proposed·decided)와 각 결정이 막는 것: [`docs/fms_menu_tree.md`](fms_menu_tree.md) 의 '결정 목록' 표. S1 결정의 질문·선택지·이유: [`docs/fms_decisions.md`](fms_decisions.md).
+
+## 6. 구현 현황 (2026-10-23)
+
+- 메뉴별 구현도의 정본은 레지스트리의 `impl` 칸이다(생성 문서의 '구현도' 열). 이 표는 단계별 요약이다.
+- 구현이 있다는 말은 그 단계의 출구 검사를 통과했다는 뜻이 아니다. 출구 검사는 각 단계 절을 본다.
+
+| 단계 | 구현도 | 근거 | 아직 안 한 것 |
+|---|---|---|---|
+| S0 규칙·레지스트리 | Draft PR #1 | 레지스트리 검사기와 시험 | main 미반영 |
+| S1 계약 고정 | Draft PR #2~#6 | 깨끗한 Jazzy 컨테이너 colcon test 195개 통과 (2026-10-22, 보완 커밋 이전 기준) | D1~D5·D8 공지 전(proposed). ROS 전체 구동·물리 시뮬레이션·실물 검증 없음 |
+| S2~S6 | 미착수 | 코드 없음 | 전부 |
+| 3.7 팀원 녹화 앱 | 외부 구현 (통합 전) | `tool/omx-ai_record_dashboard` e78dd9a, `omx_recoder/` | 통합 조건 (`docs/fms_branch_compatibility_review.md`), 시험 여부 확인 못 함 |
+
+## 요구사항 대조 선행 조건
+
+S1을 닫기 전에 `docs/fms_sr_reconciliation.md`의 설계 차이 목록을 검토한다. SR_v2 v13에서 확인되지 않은 수치·도메인 번호를 요구사항으로 확정하지 않는다. 결정 D1~D5·D8은 이번 대조로 decided가 되지 않는다. D16의 저장소 보호 설정은 관리자 확인 전까지 미적용이다.

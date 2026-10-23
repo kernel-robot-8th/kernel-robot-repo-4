@@ -21,6 +21,7 @@ ROS 에 의존하지 않는다. 검사 함수는 오류 문자열 목록을 돌�
 """
 
 import argparse
+import datetime
 import logging
 import os
 import re
@@ -75,37 +76,56 @@ AGREED_MENUS = (
     ('6.6', '시스템 설정'),
 )
 
-# System Requirements v5.0 §2 표의 (ID, 이름, 우선순위). 이름 앞의 [신규] 표시는 뺐다.
-SR_VERSION = 'SR v5.0'
-SR_V5 = (
-    ('SR-01', '주문 관리 기능', 'O'),
-    ('SR-02', '재고 및 대상 박스 확인 기능', 'O'),
-    ('SR-03', '로봇 작업 배정 기능', 'O'),
-    ('SR-04', '자율주행 및 운송 기능', 'O'),
-    ('SR-05', '다중 로봇 통행 관리 기능', 'O'),
-    ('SR-06', '로봇 상태 모니터링 기능', 'O'),
-    ('SR-07', '비전 인식 기능', 'O'),
-    ('SR-08', '정차 위치 확인 기능', 'O'),
-    ('SR-09', '로봇팔 상차·하차 기능', 'O'),
-    ('SR-10', '적재 및 작업 완료 확인 기능', 'O'),
-    ('SR-11', '주행 안전 제어 기능', 'O'),
+# SR_v2 Confluence 5406727 v13의 ID·이름·우선순위. 빈 우선순위는 미정이다.
+SR_VERSION = 'SR_v2 v13'
+SR_CANON = (
+    ('SR-01', '주문 관리 기능', 'R'),
+    ('SR-02', '재고 및 대상 박스 확인 기능', 'RO(DB)'),
+    ('SR-03', '로봇 작업 배정 기능', 'R'),
+    ('SR-04', '자율주행 및 운송 기능', 'R'),
+    ('SR-05', '다중 로봇 통행 관리 기능', 'R'),
+    ('SR-06', '로봇 상태 모니터링 기능', 'R'),
+    ('SR-07', '비전 인식 기능', 'R'),
+    ('SR-08', '정차 위치 확인 기능', 'R'),
+    ('SR-09', '로봇팔 상차·하차 기능', 'R'),
+    ('SR-10', '적재 및 작업 완료 확인 기능', 'R'),
+    ('SR-11', '주행 안전 제어 기능', 'R'),
     ('SR-12', '로봇팔 안전 제어 기능', 'O'),
-    ('SR-13', '사용자 작업 제어 기능', 'O'),
-    ('SR-14', '오류 및 통신 장애 대응 기능', 'O'),
-    ('SR-15', '오류 알림 기능', 'O'),
-    ('SR-16', '하차 대기열 관리 기능', 'O'),
-    ('SR-17', '빈 박스 및 반품 회수 관리 기능', 'R'),
-    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'O'),
+    ('SR-13', '사용자 작업 제어 기능', 'R'),
+    ('SR-14', '오류 및 통신 장애대응 기능', 'R'),
+    ('SR-15', '오류 알림 기능', ''),
+    ('SR-16', '하차 대기열 관리 기능', 'R'),
+    ('SR-17', '취소 및 반품 회수 관리 기능', 'O'),
+    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'R'),
     ('SR-19', '네트워크 분리 및 단일 제어권 관리 기능', 'O'),
-    ('SR-20', '명령 유효성 검증 및 구 권한 차단 기능', 'O'),
-    ('SR-21', '물리 완료 검증 및 이력 역추적(원장) 기능', 'O'),
+    ('SR-20', '명령 유효성 확인 및 옛날 권한 차단 기능', 'O'),
+    ('SR-21', '실제 동작 센서 확인 및 이력 기록 기능', 'O'),
+    ('SR-22', '가상환경 시뮬레이션 및 사전 검증 기능 (신규 롤)', 'R'),
 )
 
 ACTIVE_PHASES = ('P1', 'P2', 'P3', 'P4', 'P5')
 REMOVED = 'removed'
 IN_PROGRESS = 'in_progress'
 STATUSES = ('planned', IN_PROGRESS, 'done', REMOVED)
-DECISION_STATUSES = ('open', 'decided')
+# 구현도: 메뉴 구현이 지금 어디까지 있는가. 작업 선점(status)과 따로 본다.
+#   none = 코드가 없다 (impl 을 안 적으면 이 값)
+#   external = 레포 밖(팀원 브랜치 등)에 독립 구현이 있다. 통합 전이다.
+#   integrated = main 에 통합됐고 시험이 있다.
+IMPL_NONE = 'none'
+IMPL_EXTERNAL = 'external'
+IMPL_INTEGRATED = 'integrated'
+IMPL_LEVELS = (IMPL_NONE, IMPL_EXTERNAL, IMPL_INTEGRATED)
+IMPL_LABELS = {
+    IMPL_NONE: '없음',
+    IMPL_EXTERNAL: '외부 구현 (통합 전)',
+    IMPL_INTEGRATED: '통합됨',
+}
+# 결정 상태: open = 미결, proposed = 추천안이 있고 공지 전, decided = 결정자·날짜를 적었다.
+DECISION_OPEN = 'open'
+DECISION_PROPOSED = 'proposed'
+DECISION_DECIDED = 'decided'
+DECISION_STATUSES = (DECISION_OPEN, DECISION_PROPOSED, DECISION_DECIDED)
+DECISION_RECORD_DOC = 'docs/fms_decisions.md'
 
 TOP_KEYS = (
     'schema_version', 'source', 'sr_catalog', 'roles', 'screens', 'phases', 'decisions',
@@ -116,7 +136,7 @@ MENU_KEYS = (
     'id', 'name', 'depth1', 'screen', 'phase', 'status', 'sr', 'sr_unconfirmed',
     'data_sources', 'commands', 'screen_owner', 'data_owner', 'decisions', 'notes',
 )
-OPTIONAL_MENU_KEYS = ('also_shown_in', 'branch', 'sr_original')
+OPTIONAL_MENU_KEYS = ('also_shown_in', 'branch', 'sr_original', 'impl', 'impl_ref')
 MENU_LIST_KEYS = (
     'sr', 'sr_unconfirmed', 'data_sources', 'commands', 'decisions', 'notes',
 )
@@ -125,6 +145,7 @@ SCREEN_KEYS = ('id', 'label', 'name', 'phase_note')
 PHASE_KEYS = ('id', 'title', 'roadmap_stage')
 ROLE_KEYS = ('name', 'packages', 'members')
 DECISION_KEYS = ('id', 'title', 'status', 'blocks')
+OPTIONAL_DECISION_KEYS = ('proposal', 'record', 'decided_by', 'decided_on')
 SR_KEYS = ('id', 'name', 'priority')
 
 MENU_ID_RE = re.compile(r'^([1-9][0-9]*)\.([1-9][0-9]*)$')
@@ -134,7 +155,8 @@ ORIGINAL_REF_RE = re.compile(r'^(SR|UR)-[0-9]{2}$')
 STAGE_RE = re.compile(r'^S[0-9]+$')
 DECISION_ID_RE = re.compile(r'^D[1-9][0-9]*$')
 KEY_RE = re.compile(r'^[a-z][a-z0-9_]*$')
-BRANCH_RE = re.compile(r'^(feature|fix)/[A-Za-z0-9._/-]+$')
+BRANCH_RE = re.compile(r'^(feature|fix)/[A-Za-z0-9._-]+$')
+DATE_RE = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
 
 
 def _construct_unique_mapping(loader, node, deep=False):
@@ -284,9 +306,9 @@ def _collect_ids(entries, label, id_re, errors):
 
 
 def _compare_sr_catalog(rows, errors):
-    # YAML 사본을 코드의 고정 사본(SR_V5)과 대조한다. 같은 YAML 안의 목록만 믿으면
-    # 카탈로그에 SR-22 를 더하거나 SR 이름을 바꿔도 통과하기 때문이다.
-    pinned = {sr_id: (name, priority) for sr_id, name, priority in SR_V5}
+    # YAML 사본을 코드의 고정 사본(SR_CANON)과 대조한다. 같은 YAML 안의 목록만 믿으면
+    # 카탈로그에 없는 SR-23 을 더하거나 SR 이름을 바꿔도 통과하기 때문이다.
+    pinned = {sr_id: (name, priority) for sr_id, name, priority in SR_CANON}
     found = [row[0] for row in rows]
     for sr_id, name, priority in rows:
         if sr_id not in pinned:
@@ -294,10 +316,10 @@ def _compare_sr_catalog(rows, errors):
         elif (name, priority) != pinned[sr_id]:
             errors.append('sr_catalog {}: {} 원문과 다르다: {!r} {} (원문 {!r} {})'.format(
                 sr_id, SR_VERSION, name, priority, pinned[sr_id][0], pinned[sr_id][1]))
-    missing = [sr_id for sr_id, _, _ in SR_V5 if sr_id not in found]
+    missing = [sr_id for sr_id, _, _ in SR_CANON if sr_id not in found]
     for sr_id in missing:
         errors.append('sr_catalog: {} 의 ID 가 빠졌다: {}'.format(SR_VERSION, sr_id))
-    pinned_order = [sr_id for sr_id, _, _ in SR_V5]
+    pinned_order = [sr_id for sr_id, _, _ in SR_CANON]
     if not missing and len(found) == len(pinned_order) and found != pinned_order:
         errors.append('sr_catalog: 순서가 {} 표와 다르다'.format(SR_VERSION))
 
@@ -318,8 +340,9 @@ def _validate_sr_catalog(catalog, errors):
         if _check_keys(entry, SR_KEYS, (), label, errors):
             if is_blank(entry['name']):
                 errors.append('{}: name 이 비었다'.format(label))
-            if entry['priority'] not in ('O', 'R'):
-                errors.append('{}: priority 는 O 또는 R: {!r}'.format(label, entry['priority']))
+            if entry['priority'] not in ('O', 'R', 'RO(DB)', ''):
+                errors.append('{}: priority 는 원문 R/O/RO(DB)/빈칸: {!r}'.format(
+                    label, entry['priority']))
             rows.append((entry['id'], entry['name'], entry['priority']))
     _compare_sr_catalog(rows, errors)
 
@@ -390,17 +413,72 @@ def _validate_phases(phases, errors):
         errors.append('phases: 중복 roadmap_stage: {}'.format(dup))
 
 
+def decision_record_ref(decision_id):
+    """
+    결정 기록 문서에서 그 결정 절을 가리키는 값(record)을 돌려준다.
+
+    예: D1 이면 'docs/fms_decisions.md#d1'. 앵커는 결정 ID 의 소문자다.
+
+    :param decision_id: 결정 ID 문자열
+    :return: 레포 루트 기준 경로와 앵커
+    """
+    return '{}#{}'.format(DECISION_RECORD_DOC, str(decision_id).lower())
+
+
+def _validate_decided_on(value, label, errors):
+    # 따옴표 없는 2026-10-23 은 YAML 이 날짜 객체로 읽는다. 문자열만 받아서 표기를 하나로 한다.
+    if not isinstance(value, str) or not DATE_RE.match(value):
+        errors.append("{}: decided_on 은 따옴표로 감싼 'YYYY-MM-DD' 문자열: {!r}".format(
+            label, value))
+        return
+    try:
+        datetime.date(int(value[0:4]), int(value[5:7]), int(value[8:10]))
+    except ValueError:
+        errors.append('{}: decided_on 이 없는 날짜다: {}'.format(label, value))
+
+
+def _validate_decision_state(entry, label, errors):
+    # proposed·decided 는 추천안(proposal)과 기록 위치(record)가 있어야 하고,
+    # decided 는 결정자(decided_by)와 날짜(decided_on)까지 있어야 한다.
+    # decided 가 아닌데 결정자·날짜가 있으면 반쯤 고친 상태이므로 오류다.
+    status = entry['status']
+    if status not in DECISION_STATUSES:
+        errors.append('{}: status 는 {} 중 하나: {!r}'.format(label, DECISION_STATUSES, status))
+        return
+    for field in ('proposal', 'record', 'decided_by'):
+        if field in entry and (not isinstance(entry[field], str) or is_blank(entry[field])):
+            errors.append('{}: {} 는 비어 있지 않은 문자열이어야 한다'.format(label, field))
+    if status != DECISION_OPEN:
+        for field in ('proposal', 'record'):
+            if field not in entry:
+                errors.append('{}: {} 결정은 {} 가 있어야 한다'.format(label, status, field))
+    record = entry.get('record')
+    expected = decision_record_ref(entry['id'])
+    if isinstance(record, str) and record.strip() and record != expected:
+        errors.append('{}: record 는 {} 이어야 한다: {!r}'.format(label, expected, record))
+    if status == DECISION_DECIDED:
+        if 'decided_by' not in entry:
+            errors.append('{}: decided 결정은 decided_by(결정자)가 있어야 한다'.format(label))
+        if 'decided_on' not in entry:
+            errors.append('{}: decided 결정은 decided_on(결정일)이 있어야 한다'.format(label))
+        else:
+            _validate_decided_on(entry['decided_on'], label, errors)
+        return
+    for field in ('decided_by', 'decided_on'):
+        if field in entry:
+            errors.append('{}: {} 는 decided 일 때만 쓴다 (지금 {})'.format(label, field, status))
+
+
 def _validate_decisions(decisions, errors):
     ids = _collect_ids(decisions, 'decisions', DECISION_ID_RE, errors)
     for entry in decisions if isinstance(decisions, list) else []:
         if not isinstance(entry, dict):
             continue
         label = 'decisions {}'.format(entry.get('id'))
-        if _check_keys(entry, DECISION_KEYS, (), label, errors):
+        if _check_keys(entry, DECISION_KEYS, OPTIONAL_DECISION_KEYS, label, errors):
             if is_blank(entry['title']):
                 errors.append('{}: title 이 비었다'.format(label))
-            if entry['status'] not in DECISION_STATUSES:
-                errors.append('{}: status 는 {} 중 하나'.format(label, DECISION_STATUSES))
+            _validate_decision_state(entry, label, errors)
     return set(ids)
 
 
@@ -497,9 +575,35 @@ def _validate_menu_owners(menu, label, ctx, errors):
     branch = menu.get('branch')
     if menu['status'] == IN_PROGRESS and is_blank(branch):
         errors.append('{}: in_progress 메뉴는 branch 가 있어야 한다'.format(label))
-    if not is_blank(branch) and (not isinstance(branch, str) or not BRANCH_RE.match(branch)):
-        errors.append('{}: branch 형식이 틀렸다 (feature/... 또는 fix/...): {!r}'.format(
-            label, branch))
+    if not is_blank(branch):
+        if not isinstance(branch, str) or not BRANCH_RE.fullmatch(branch):
+            errors.append('{}: branch 형식이 틀렸다 (feature/... 또는 fix/...): {!r}'.format(
+                label, branch))
+            return
+        prefix = branch.split('/', 1)[1]
+        allowed = tuple(
+            '{}-{}-'.format(role, unit)
+            for role in ctx['roles'] for unit in (menu['id'], 'registry', 'common'))
+        if not any(prefix.startswith(item) and len(prefix) > len(item) for item in allowed):
+            errors.append('{}: branch 는 등록 역할-현재 메뉴 ID/registry/common-설명: {!r}'.format(
+                label, branch))
+
+
+def _validate_menu_impl(menu, label, errors):
+    impl = menu.get('impl', IMPL_NONE)
+    ref = menu.get('impl_ref')
+    if impl not in IMPL_LEVELS:
+        errors.append('{}: impl 는 {} 중 하나: {!r}'.format(label, IMPL_LEVELS, impl))
+        return
+    if impl == IMPL_NONE:
+        if 'impl_ref' in menu:
+            errors.append('{}: impl 이 none 이면 impl_ref 를 적지 않는다'.format(label))
+        return
+    if is_blank(ref) or not isinstance(ref, str):
+        errors.append('{}: impl {} 이면 impl_ref(구현이 있는 곳, 커밋)가 있어야 한다'.format(
+            label, impl))
+    if menu['status'] == REMOVED or menu['phase'] == REMOVED:
+        errors.append('{}: 없앤 메뉴는 impl 이 none 이어야 한다'.format(label))
 
 
 def _validate_menu(menu, index, ctx, errors):
@@ -528,6 +632,7 @@ def _validate_menu(menu, index, ctx, errors):
     _validate_menu_lists(menu, label, ctx, errors)
     _validate_menu_placement(menu, label, ctx, errors)
     _validate_menu_owners(menu, label, ctx, errors)
+    _validate_menu_impl(menu, label, errors)
     return menu_id
 
 
@@ -550,7 +655,7 @@ def validate(registry):
     """
     레지스트리를 검사하고 오류 목록을 돌려준다.
 
-    메뉴 목록과 SR 사본은 이 모듈의 고정 사본(AGREED_MENUS, SR_V5)과도 대조한다.
+    메뉴 목록과 SR 사본은 이 모듈의 고정 사본(AGREED_MENUS, SR_CANON)과도 대조한다.
     빈 담당 칸은 오류가 아니다. find_warnings() 가 따로 돌려준다.
 
     :param registry: load_registry() 가 돌려준 값
@@ -572,7 +677,7 @@ def validate(registry):
     _validate_phases(registry['phases'], errors)
     ctx = {
         # 메뉴의 sr 은 YAML 사본이 아니라 고정 사본에 대고 본다.
-        'sr': {sr_id for sr_id, _, _ in SR_V5},
+        'sr': {sr_id for sr_id, _, _ in SR_CANON},
         'roles': _validate_roles(registry['roles'], errors),
         'screens': _validate_screens(registry['screens'], errors),
         'decisions': _validate_decisions(registry['decisions'], errors),
@@ -621,19 +726,58 @@ def find_warnings(registry):
     return warnings
 
 
+def find_undecided(registry, decision_ids):
+    """
+    주어진 결정 가운데 아직 decided 가 아닌 것을 문자열 목록으로 돌려준다.
+
+    로드맵 출구 검사(예: S1 의 D1~D5·D8)에 쓴다. decisions 에 없는 ID 도 목록에 넣는다.
+    빈 목록이면 모두 decided 다.
+
+    :param registry: validate() 를 통과한 레지스트리
+    :param decision_ids: 결정 ID 목록
+    :return: 문제 문자열 목록
+    """
+    by_id = {
+        entry.get('id'): entry for entry in registry.get('decisions', [])
+        if isinstance(entry, dict)
+    }
+    problems = []
+    for decision_id in decision_ids:
+        entry = by_id.get(decision_id)
+        if entry is None:
+            problems.append('{}: decisions 에 없는 결정 ID'.format(decision_id))
+        elif entry.get('status') != DECISION_DECIDED:
+            problems.append('{}: 아직 {} 다 (decided 가 아니다)'.format(
+                decision_id, entry.get('status')))
+    return problems
+
+
+def _split_ids(text):
+    return [item.strip() for item in text.split(',') if item.strip()]
+
+
 def main(argv=None):
     """
     check_menu_tree 명령의 진입점.
 
     오류가 있으면 1, 레지스트리를 찾거나 읽지 못하면 2, 통과하면 0 을 돌려준다.
-    빈 담당 칸은 경고로만 남긴다.
+    빈 담당 칸은 경고로만 남긴다. --require-decided 로 준 결정이 하나라도 decided 가
+    아니면 1 이다.
 
     :param argv: 명령행 인자 (None 이면 sys.argv)
     :return: 종료 코드
     """
     parser = argparse.ArgumentParser(description='메뉴 레지스트리(menu_tree.yaml)를 검사한다.')
     parser.add_argument('--registry', help='menu_tree.yaml 경로 (기본: 레포 루트에서 찾는다)')
+    parser.add_argument(
+        '--require-decided', metavar='D1,D2,...',
+        help='쉼표로 나눈 결정 ID. 하나라도 decided 가 아니면 종료코드 1 (로드맵 출구 검사용)')
     args = parser.parse_args(argv)
+    required = None
+    if args.require_decided is not None:
+        required = _split_ids(args.require_decided)
+        if not required:
+            parser.error('--require-decided 에 결정 ID 가 없다')
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
     path = args.registry
     if path is None:
@@ -656,6 +800,15 @@ def main(argv=None):
         LOGGER.error('실패: 오류 %d건', len(errors))
         return 1
     LOGGER.info('통과: 메뉴 %d개, 오류 0건', len(registry['menus']))
+    if required is None:
+        return 0
+    problems = find_undecided(registry, required)
+    for problem in problems:
+        LOGGER.error(problem)
+    if problems:
+        LOGGER.error('미결: %s 중 %d건이 decided 가 아니다', ','.join(required), len(problems))
+        return 1
+    LOGGER.info('결정 확인: %s 모두 decided', ','.join(required))
     return 0
 
 

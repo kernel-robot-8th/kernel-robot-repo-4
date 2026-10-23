@@ -22,12 +22,14 @@
 """
 
 import copy
+import datetime
 import os
 import random
 import re
 
 from cobot_gui import gen_menu_doc
 from cobot_gui import menu_registry
+import pytest
 import yaml
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -76,31 +78,32 @@ AGREED_DEPTH1 = (
     '01. 통합 관제', '02. Pinky 주행', '03. OMX 작업',
     '04. 비전 모니터링', '05. 제어·안전', '06. 시스템·진단',
 )
-# System Requirements v5.0 §2 표 (ID, 이름, 우선순위). 이름 앞의 [신규] 표시는 뺐다.
+# SR_v2 Confluence 5406727 v13의 ID·이름·우선순위 고정 사본.
 AGREED_SR = (
-    ('SR-01', '주문 관리 기능', 'O'),
-    ('SR-02', '재고 및 대상 박스 확인 기능', 'O'),
-    ('SR-03', '로봇 작업 배정 기능', 'O'),
-    ('SR-04', '자율주행 및 운송 기능', 'O'),
-    ('SR-05', '다중 로봇 통행 관리 기능', 'O'),
-    ('SR-06', '로봇 상태 모니터링 기능', 'O'),
-    ('SR-07', '비전 인식 기능', 'O'),
-    ('SR-08', '정차 위치 확인 기능', 'O'),
-    ('SR-09', '로봇팔 상차·하차 기능', 'O'),
-    ('SR-10', '적재 및 작업 완료 확인 기능', 'O'),
-    ('SR-11', '주행 안전 제어 기능', 'O'),
+    ('SR-01', '주문 관리 기능', 'R'),
+    ('SR-02', '재고 및 대상 박스 확인 기능', 'RO(DB)'),
+    ('SR-03', '로봇 작업 배정 기능', 'R'),
+    ('SR-04', '자율주행 및 운송 기능', 'R'),
+    ('SR-05', '다중 로봇 통행 관리 기능', 'R'),
+    ('SR-06', '로봇 상태 모니터링 기능', 'R'),
+    ('SR-07', '비전 인식 기능', 'R'),
+    ('SR-08', '정차 위치 확인 기능', 'R'),
+    ('SR-09', '로봇팔 상차·하차 기능', 'R'),
+    ('SR-10', '적재 및 작업 완료 확인 기능', 'R'),
+    ('SR-11', '주행 안전 제어 기능', 'R'),
     ('SR-12', '로봇팔 안전 제어 기능', 'O'),
-    ('SR-13', '사용자 작업 제어 기능', 'O'),
-    ('SR-14', '오류 및 통신 장애 대응 기능', 'O'),
-    ('SR-15', '오류 알림 기능', 'O'),
-    ('SR-16', '하차 대기열 관리 기능', 'O'),
-    ('SR-17', '빈 박스 및 반품 회수 관리 기능', 'R'),
-    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'O'),
+    ('SR-13', '사용자 작업 제어 기능', 'R'),
+    ('SR-14', '오류 및 통신 장애대응 기능', 'R'),
+    ('SR-15', '오류 알림 기능', ''),
+    ('SR-16', '하차 대기열 관리 기능', 'R'),
+    ('SR-17', '취소 및 반품 회수 관리 기능', 'O'),
+    ('SR-18', '작업 흐름 및 주문 완료 관리 기능', 'R'),
     ('SR-19', '네트워크 분리 및 단일 제어권 관리 기능', 'O'),
-    ('SR-20', '명령 유효성 검증 및 구 권한 차단 기능', 'O'),
-    ('SR-21', '물리 완료 검증 및 이력 역추적(원장) 기능', 'O'),
+    ('SR-20', '명령 유효성 확인 및 옛날 권한 차단 기능', 'O'),
+    ('SR-21', '실제 동작 센서 확인 및 이력 기록 기능', 'O'),
+    ('SR-22', '가상환경 시뮬레이션 및 사전 검증 기능 (신규 롤)', 'R'),
 )
-SR_V5_IDS = tuple(sr_id for sr_id, _, _ in AGREED_SR)
+SR_CANON_IDS = tuple(sr_id for sr_id, _, _ in AGREED_SR)
 # 메뉴 트리 원문 대조표의 '매핑 SR ID' 열. 'SR 미명시'·'운영 파라미터' 는 빈 목록이다.
 ORIGINAL_SR = {
     '1.1': ('SR-06', 'SR-09'),
@@ -139,9 +142,20 @@ ORIGINAL_SR = {
     '6.6': (),
 }
 DECISION_IDS = tuple('D{}'.format(number) for number in range(1, 22))
+# 로드맵 S1 이 기다리는 결정. S1 출구 검사 5 의 --require-decided 목록과 같아야 한다.
+S1_DECISIONS = ('D1', 'D2', 'D3', 'D4', 'D5', 'D8')
+S1_REQUIRE_COMMAND = '--require-decided D1,D2,D3,D4,D5,D8'
 README_ROLE_KEYS = ('vision', 'navigation', 'manipulation', 'control_center', 'gui')
 ROADMAP_MENU_LINE = re.compile(r'^- \*\*포함 메뉴\*\* \(phase=(P[1-5])\): (.+)$')
 ROADMAP_HEADING = re.compile(r'^### (S[0-9]+) (.+) \((P[0-9])\)$')
+# 결정 기록 문서(docs/fms_decisions.md)의 형식. 절은 <a id="d1"></a> 줄로 시작한다.
+DOC_ANCHOR = re.compile(r'^<a id="([a-z0-9-]+)"></a>$')
+DOC_STATUS_LINE = re.compile(r'^- 상태: `([a-z]+)`$')
+DOC_BY_LINE = re.compile(r'^- 결정자: (.+)$')
+DOC_ON_LINE = re.compile(r'^- 결정일: (.+)$')
+DOC_OPEN_ROW = re.compile(r'^\| (D[0-9]+) \|')
+DOC_OPEN_ANCHOR = 'open'
+DOC_PENDING = '(공지 때 관제 담당이 채운다)'
 
 
 def _registry():
@@ -170,13 +184,21 @@ def _repo_root():
         current = parent
 
 
-def _roadmap_text():
+def _doc_text(name):
     root = _repo_root()
     assert root is not None, '레포 루트를 찾지 못했다'
-    roadmap = os.path.join(root, 'docs', 'fms_roadmap.md')
-    assert os.path.isfile(roadmap), '로드맵이 없다: {}'.format(roadmap)
-    with open(roadmap, encoding='utf-8') as stream:
+    path = os.path.join(root, 'docs', name)
+    assert os.path.isfile(path), '문서가 없다: {}'.format(path)
+    with open(path, encoding='utf-8') as stream:
         return stream.read()
+
+
+def _roadmap_text():
+    return _doc_text('fms_roadmap.md')
+
+
+def _decisions_doc_text():
+    return _doc_text('fms_decisions.md')
 
 
 def _errors_mentioning(errors, *needles):
@@ -230,6 +252,90 @@ def _roadmap_problems(registry, text):
     return problems
 
 
+def _doc_sections(text):
+    # <a id="..."></a> 줄로 문서를 나눈다. 첫 앵커 앞(요약·공지문)은 보지 않는다.
+    sections = {}
+    problems = []
+    current = None
+    for line in text.splitlines():
+        anchor = DOC_ANCHOR.match(line)
+        if anchor:
+            current = anchor.group(1)
+            if current in sections:
+                problems.append('앵커가 두 번 있다: {}'.format(current))
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+    return sections, problems
+
+
+def _single(lines, pattern):
+    # 그 줄이 정확히 한 번 있을 때만 값을 돌려준다. 없거나 두 번이면 None.
+    found = [match.group(1) for match in (pattern.match(line) for line in lines) if match]
+    return found[0] if len(found) == 1 else None
+
+
+def _decisions_doc_problems(registry, text):
+    # 결정 기록 문서가 레지스트리 decisions 와 같은지 본다.
+    # proposed·decided 결정은 절이 있고 상태·결정자·결정일 줄이 같아야 한다.
+    # open 결정은 절이 없고 미결 표에 한 줄씩 있어야 한다.
+    sections, problems = _doc_sections(text)
+    decisions = {decision['id']: decision for decision in registry['decisions']}
+    for decision_id, decision in decisions.items():
+        anchor = decision_id.lower()
+        if decision['status'] == menu_registry.DECISION_OPEN:
+            if anchor in sections:
+                problems.append('{}: open 인데 기록 절이 있다'.format(decision_id))
+            continue
+        if anchor not in sections:
+            problems.append('{}: 기록 절(<a id="{}">)이 없다'.format(decision_id, anchor))
+            continue
+        lines = sections[anchor]
+        expected = (
+            ('상태', DOC_STATUS_LINE, decision['status']),
+            ('결정자', DOC_BY_LINE, decision.get('decided_by', DOC_PENDING)),
+            ('결정일', DOC_ON_LINE, decision.get('decided_on', DOC_PENDING)),
+        )
+        for name, pattern, value in expected:
+            found = _single(lines, pattern)
+            if found != value:
+                problems.append('{}: 문서 {} {!r} != 레지스트리 {!r}'.format(
+                    decision_id, name, found, value))
+    for anchor in sections:
+        if anchor != DOC_OPEN_ANCHOR and anchor.upper() not in decisions:
+            problems.append('레지스트리에 없는 결정 절: {}'.format(anchor))
+    rows = [
+        match.group(1)
+        for match in (DOC_OPEN_ROW.match(line) for line in sections.get(DOC_OPEN_ANCHOR, []))
+        if match
+    ]
+    open_ids = [
+        decision['id'] for decision in registry['decisions']
+        if decision['status'] == menu_registry.DECISION_OPEN
+    ]
+    if rows != open_ids:
+        problems.append('미결 표 {} != 레지스트리 open {}'.format(rows, open_ids))
+    return problems
+
+
+def _decide(registry, decision_id, decided_by='관제', decided_on='2026-10-23'):
+    # 결정 하나를 decided 로 바꾼 사본을 만든다. proposal·record 가 없으면 채운다.
+    decided = copy.deepcopy(registry)
+    entry = [d for d in decided['decisions'] if d['id'] == decision_id][0]
+    entry['status'] = menu_registry.DECISION_DECIDED
+    entry.setdefault('proposal', '시험용 결정')
+    entry.setdefault('record', menu_registry.decision_record_ref(decision_id))
+    entry['decided_by'] = decided_by
+    entry['decided_on'] = decided_on
+    return decided
+
+
+def _decision(registry, decision_id):
+    found = [d for d in registry['decisions'] if d['id'] == decision_id]
+    assert len(found) == 1, decision_id
+    return found[0]
+
+
 # (a) 메뉴 ID 34개, 고유, 원문 목록과 같다
 def test_menu_ids_match_agreed_list():
     registry = _registry()
@@ -244,7 +350,7 @@ def test_menu_ids_match_agreed_list():
 def test_pinned_copies_in_module_match_this_test():
     # 검사기의 고정 사본이 이 시험의 고정 표와 같아야 한다. 한쪽만 고치면 실패한다.
     assert menu_registry.AGREED_MENUS == AGREED_MENUS
-    assert menu_registry.SR_V5 == AGREED_SR
+    assert menu_registry.SR_CANON == AGREED_SR
 
 
 def test_depth1_names_match_original():
@@ -274,16 +380,18 @@ def test_active_menus_have_exactly_one_known_screen():
 
 def test_approved_phase_values():
     registry = _registry()
-    removed = _menu(registry, '3.7')
-    assert (removed['phase'], removed['status'], removed['screen']) == ('removed', 'removed', '')
+    adopted = _menu(registry, '3.7')
+    assert (adopted['phase'], adopted['status'], adopted['screen']) == ('P4', 'planned', 'screen_3')
+    assert (adopted['impl'], adopted['screen_owner'], adopted['data_owner']) == (
+        'external', 'manipulation', 'manipulation')
     for menu_id in ('4.4', '4.5', '5.2', '6.5'):
         assert _menu(registry, menu_id)['phase'] == 'P5', menu_id
     removed_ids = [m['id'] for m in registry['menus'] if m['status'] == 'removed']
-    assert removed_ids == ['3.7']
+    assert removed_ids == []
 
 
-# (c) sr[] 는 SR v5.0 목록 안에 있고, SR 사본은 SR v5.0 표와 이름·우선순위까지 같다
-def test_sr_catalog_matches_sr_v5_table():
+# (c) sr[] 는 SR_v2 v13 목록 안에 있고, SR 사본은 SR_v2 v13 표와 이름·우선순위까지 같다
+def test_sr_catalog_matches_sr_v2_table():
     registry = _registry()
     catalog = [
         (item['id'], item['name'], item['priority'])
@@ -292,14 +400,14 @@ def test_sr_catalog_matches_sr_v5_table():
     assert catalog == list(AGREED_SR)
 
 
-def test_sr_refs_are_in_sr_v5_catalog():
+def test_sr_refs_are_in_sr_v2_catalog():
     registry = _registry()
     for menu in registry['menus']:
-        assert set(menu['sr']) <= set(SR_V5_IDS), menu['id']
-        assert not set(menu['sr_unconfirmed']) & set(SR_V5_IDS), menu['id']
+        assert set(menu['sr']) <= set(SR_CANON_IDS), menu['id']
+        assert not set(menu['sr_unconfirmed']) & set(SR_CANON_IDS), menu['id']
     menu_6_5 = _menu(registry, '6.5')
-    assert menu_6_5['sr'] == []
-    assert menu_6_5['sr_unconfirmed'] == ['SR-22']
+    assert menu_6_5['sr'] == ['SR-22']
+    assert menu_6_5['sr_unconfirmed'] == []
 
 
 def test_sr_original_marks_every_changed_menu():
@@ -341,6 +449,172 @@ def test_decision_refs_are_known():
         assert set(menu['decisions']) <= set(decision_ids), menu['id']
 
 
+# (d2) 결정 상태: S1 결정은 기록이 있고, decided 는 결정자·날짜가 있어야 한다
+def test_s1_decisions_have_proposal_and_record():
+    registry = _registry()
+    for decision_id in S1_DECISIONS:
+        decision = _decision(registry, decision_id)
+        assert decision['status'] in ('proposed', 'decided'), decision_id
+        assert decision['proposal'].strip(), decision_id
+        assert decision['record'] == 'docs/fms_decisions.md#{}'.format(decision_id.lower())
+    # 로드맵 S1 출구 검사 5 의 명령이 같은 결정 목록을 쓴다.
+    assert S1_REQUIRE_COMMAND in _roadmap_text()
+
+
+def test_decided_with_owner_and_date_is_accepted():
+    registry = _decide(_registry(), 'D1')
+    assert menu_registry.validate(registry) == []
+
+
+def test_negative_control_decision_state_rules():
+    registry = _registry()
+    cases = []
+
+    def changed(decision_id, **fields):
+        broken = copy.deepcopy(registry)
+        entry = _decision(broken, decision_id)
+        for key, value in fields.items():
+            if value is None:
+                entry.pop(key, None)
+            else:
+                entry[key] = value
+        return broken
+
+    decided = _decide(registry, 'D1')
+    # decided 인데 결정자가 없다.
+    no_owner = copy.deepcopy(decided)
+    del _decision(no_owner, 'D1')['decided_by']
+    cases.append((no_owner, ('decisions D1', 'decided_by')))
+    # decided 인데 결정일이 없거나, 따옴표 없는 날짜이거나, 없는 날짜다.
+    no_date = copy.deepcopy(decided)
+    del _decision(no_date, 'D1')['decided_on']
+    cases.append((no_date, ('decisions D1', 'decided_on')))
+    unquoted = copy.deepcopy(decided)
+    _decision(unquoted, 'D1')['decided_on'] = datetime.date(2026, 10, 23)
+    cases.append((unquoted, ('decisions D1', '따옴표')))
+    bad_day = copy.deepcopy(decided)
+    _decision(bad_day, 'D1')['decided_on'] = '2026-13-01'
+    cases.append((bad_day, ('decisions D1', '없는 날짜')))
+    blank_owner = copy.deepcopy(decided)
+    _decision(blank_owner, 'D1')['decided_by'] = '  '
+    cases.append((blank_owner, ('decisions D1', 'decided_by')))
+    # 모르는 상태, 모르는 필드.
+    cases.append((changed('D1', status='approved'), ('decisions D1', 'status')))
+    cases.append((changed('D1', decided_at='2026-10-23'), ('decisions D1', '모르는 필드')))
+    # proposed 인데 추천안·기록이 없거나, 기록 앵커가 다른 결정을 가리킨다.
+    cases.append((changed('D2', record=None), ('decisions D2', 'record')))
+    cases.append((changed('D2', proposal=None), ('decisions D2', 'proposal')))
+    cases.append((changed('D2', proposal=''), ('decisions D2', 'proposal')))
+    cases.append((changed('D2', record='docs/fms_decisions.md#d3'), ('decisions D2', 'record')))
+    # decided 가 아닌데 결정자·결정일이 있다 (반쯤 고친 상태).
+    cases.append((
+        changed('D3', status='proposed', decided_by=None, decided_on='2026-10-23'),
+        ('decisions D3', 'decided_on')))
+    cases.append((changed('D6', decided_by='관제'), ('decisions D6', 'decided_by')))
+    for broken, needles in cases:
+        errors = menu_registry.validate(broken)
+        assert _errors_mentioning(errors, *needles), (needles, errors)
+
+
+def test_unquoted_decided_on_in_yaml_is_an_error(tmp_path):
+    # 실제 YAML 에서 따옴표를 빼면 날짜 객체가 되어 검사기가 잡는지 본다.
+    with open(REGISTRY_PATH, encoding='utf-8') as stream:
+        text = stream.read()
+    # D1 블록(다음 결정 D2 앞까지)만 고친다.
+    start = text.index('  - id: D1\n')
+    end = text.index('  - id: D2\n')
+    block = text[start:end]
+    record = "    record: 'docs/fms_decisions.md#d1'\n"
+    assert record in block, block
+    block = re.sub(r'^    status: [a-z]+\n', '    status: decided\n', block, count=1,
+                   flags=re.MULTILINE)
+    # D1 이 이미 decided 라면 있는 결정자·결정일 줄을 먼저 뺀다.
+    block = re.sub(r'^    decided_(by|on): .*\n', '', block, flags=re.MULTILINE)
+    owner = '    decided_by: 관제\n'
+    quoted = text[:start] + block.replace(
+        record, record + owner + "    decided_on: '2026-10-23'\n", 1) + text[end:]
+    bare = text[:start] + block.replace(
+        record, record + owner + '    decided_on: 2026-10-23\n', 1) + text[end:]
+    good = tmp_path / 'quoted.yaml'
+    good.write_text(quoted, encoding='utf-8')
+    bad = tmp_path / 'bare.yaml'
+    bad.write_text(bare, encoding='utf-8')
+    assert menu_registry.main(['--registry', str(good)]) == 0
+    registry, errors = menu_registry.read_registry(str(bad))
+    assert errors == []
+    assert _errors_mentioning(menu_registry.validate(registry), 'decisions D1', '따옴표')
+    assert menu_registry.main(['--registry', str(bad)]) == 1
+
+
+def test_require_decided_option(tmp_path):
+    registry = _registry()
+    all_decided = registry
+    for decision_id in S1_DECISIONS:
+        all_decided = _decide(all_decided, decision_id)
+    good = tmp_path / 'decided.yaml'
+    good.write_text(_dump(all_decided), encoding='utf-8')
+    one_left = copy.deepcopy(all_decided)
+    entry = _decision(one_left, 'D5')
+    entry['status'] = 'proposed'
+    del entry['decided_by']
+    del entry['decided_on']
+    pending = tmp_path / 'pending.yaml'
+    pending.write_text(_dump(one_left), encoding='utf-8')
+    ids = ','.join(S1_DECISIONS)
+    assert menu_registry.main(['--registry', str(good), '--require-decided', ids]) == 0
+    assert menu_registry.main(['--registry', str(pending), '--require-decided', ids]) == 1
+    assert menu_registry.main(['--registry', str(good), '--require-decided', 'D1,D99']) == 1
+    assert menu_registry.main(['--registry', str(pending)]) == 0
+    problems = menu_registry.find_undecided(one_left, list(S1_DECISIONS))
+    assert len(problems) == 1 and problems[0].startswith('D5:')
+    with pytest.raises(SystemExit):
+        menu_registry.main(['--registry', str(good), '--require-decided', ' , '])
+
+
+# (d3) 결정 기록 문서는 레지스트리와 상태·결정자·결정일이 같다
+def test_decisions_doc_matches_registry():
+    assert _decisions_doc_problems(_registry(), _decisions_doc_text()) == []
+
+
+def test_negative_control_decisions_doc_mismatch():
+    registry = _registry()
+    text = _decisions_doc_text()
+    # 레지스트리에만 결정자·결정일을 적고 문서를 그대로 두면 걸린다.
+    problems = _decisions_doc_problems(_decide(registry, 'D1', '시험 결정자', '2000-01-01'), text)
+    assert _errors_mentioning(problems, 'D1', '결정자')
+    assert _errors_mentioning(problems, 'D1', '결정일')
+    # 문서 D1 절의 상태 줄만 바꿔도 걸린다.
+    head, rest = text.split('<a id="d1"></a>', 1)
+    section, tail = rest.split('<a id="d2"></a>', 1)
+    current = '- 상태: `{}`'.format(_decision(registry, 'D1')['status'])
+    assert current in section
+    flipped = '<a id="d1"></a>'.join(
+        [head, section.replace(current, '- 상태: `open`', 1) + '<a id="d2"></a>' + tail])
+    assert _errors_mentioning(_decisions_doc_problems(registry, flipped), 'D1', '상태')
+    # 상태 줄을 두 번 적으면 걸린다.
+    doubled = text.replace('<a id="d2"></a>\n', '<a id="d2"></a>\n' + current + '\n', 1)
+    assert _errors_mentioning(_decisions_doc_problems(registry, doubled), 'D2', '상태')
+    # 문서 절을 지우면 걸린다.
+    assert '<a id="d3"></a>' in text
+    removed = text.replace('<a id="d3"></a>', '', 1)
+    assert _errors_mentioning(_decisions_doc_problems(registry, removed), 'D3', '기록 절')
+    # open 결정을 proposed 로 올리고 문서를 안 고치면 걸린다. 미결 표에서 줄을 빼도 걸린다.
+    open_ids = [d['id'] for d in registry['decisions'] if d['status'] == 'open']
+    assert open_ids, '음성 대조에 쓸 open 결정이 없다. 이 시험을 고친다.'
+    target = open_ids[0]
+    proposed = copy.deepcopy(registry)
+    _decision(proposed, target).update({
+        'status': 'proposed', 'proposal': '시험',
+        'record': menu_registry.decision_record_ref(target)})
+    problems = _decisions_doc_problems(proposed, text)
+    assert _errors_mentioning(problems, target, '기록 절')
+    assert _errors_mentioning(problems, '미결 표')
+    row = [line for line in text.splitlines() if line.startswith('| {} |'.format(target))]
+    assert len(row) == 1, row
+    dropped = text.replace(row[0] + '\n', '', 1)
+    assert _errors_mentioning(_decisions_doc_problems(registry, dropped), '미결 표')
+
+
 # (e) 담당 칸은 roles 키, 빈 칸은 경고 함수가 찾는다
 def test_owner_fields_are_role_keys():
     registry = _registry()
@@ -352,6 +626,13 @@ def test_owner_fields_are_role_keys():
             assert value == '' or value in roles, (menu['id'], key, value)
 
 
+def _as_removed(menu):
+    # 없앤 메뉴가 지금 레지스트리에 없어서, 검사기의 removed 처리는 활성 메뉴 하나를 바꿔서 시험한다.
+    menu.update(phase='removed', status='removed', screen='')
+    menu.pop('also_shown_in', None)
+    return menu
+
+
 def test_warning_function_finds_blank_owner_cells():
     registry = _registry()
     baseline = menu_registry.find_warnings(registry)
@@ -360,11 +641,11 @@ def test_warning_function_finds_blank_owner_cells():
     broken = copy.deepcopy(registry)
     _menu(broken, '1.1')['screen_owner'] = ''
     _menu(broken, '2.2')['data_owner'] = '   '
-    _menu(broken, '3.7')['data_owner'] = ''
+    _as_removed(_menu(broken, '4.4'))['data_owner'] = ''
     warnings = menu_registry.find_warnings(broken)
     assert 'menu 1.1: screen_owner 빈 칸' in warnings
     assert 'menu 2.2: data_owner 빈 칸' in warnings
-    assert not [w for w in warnings if w.startswith('menu 3.7')]
+    assert not [w for w in warnings if w.startswith('menu 4.4')]
     # 빈 칸은 경고일 뿐 오류가 아니다.
     assert menu_registry.validate(broken) == []
 
@@ -392,10 +673,53 @@ def test_generated_doc_matches_registry_byte_for_byte():
 
 def test_generated_doc_marks_changed_sr_rows():
     text = gen_menu_doc.render(_registry())
-    assert '| 1.1 | 전체 로봇 현황 | ① | P1 | planned | SR-06, SR-10, SR-12 ✱ |' in text
-    assert '| 1.3 | 로봇 할당 현황 | ① | P3 | planned | SR-03, SR-16 |' in text
-    assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 (확인 필요) |' in text
+    assert '| 1.1 | 전체 로봇 현황 | ① | P1 | planned | 없음 | SR-06, SR-10, SR-12 ✱ |' in text
+    assert '| 1.3 | 로봇 할당 현황 | ① | P3 | planned | 없음 | SR-03, SR-16 |' in text
+    assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | 없음 | SR-22 |' in text
+    assert '| 3.7 | 로봇팔 파라미터 제어 및 모방학습 Teleop 스튜디오 | ③ | P4 | planned | 외부 구현 (통합 전) |' in text
+    assert '구현도 외부 구현 (통합 전) | 1 |' in text
     assert '- ✱ 원문 SR: SR-06, SR-09 (지금 매핑과 다르다. 이유는 아래 메모)' in text
+
+
+def test_generated_doc_shows_decision_status():
+    base = copy.deepcopy(_registry())
+    _menu(base, '2.1')['decisions'] = ['D3']
+    _menu(base, '1.2')['decisions'] = ['D14', 'D19']
+    for decision_id in ('D14', 'D19'):
+        entry = _decision(base, decision_id)
+        for key in ('proposal', 'record', 'decided_by', 'decided_on'):
+            entry.pop(key, None)
+        entry['status'] = 'open'
+    proposed = copy.deepcopy(base)
+    entry = _decision(proposed, 'D3')
+    entry.pop('decided_by', None)
+    entry.pop('decided_on', None)
+    entry.update({'status': 'proposed', 'proposal': '시험 추천안',
+                  'record': 'docs/fms_decisions.md#d3'})
+    assert menu_registry.validate(proposed) == []
+    text = gen_menu_doc.render(proposed)
+    lines = text.splitlines()
+    assert [line for line in lines if line.startswith('| 2.1 |')][0].endswith(
+        '| D3 (proposed) |')
+    assert [line for line in lines if line.startswith('| 1.2 |')][0].endswith(
+        '| D14 (open), D19 (open) |')
+    assert '| proposed |' in [line for line in lines if line.startswith('| D3 |')][0]
+    assert ('- D3 (proposed): 시험 추천안 — 기록: '
+            '[`docs/fms_decisions.md#d3`](fms_decisions.md#d3)') in lines
+    decided = _decide(proposed, 'D3', '관제', '2026-10-23')
+    text = gen_menu_doc.render(decided)
+    lines = text.splitlines()
+    assert [line for line in lines if line.startswith('| 2.1 |')][0].endswith(
+        '| D3 (decided) |')
+    assert '| proposed |' not in [line for line in lines if line.startswith('| D3 |')][0]
+    assert '| decided (관제, 2026-10-23) |' in [
+        line for line in lines if line.startswith('| D3 |')][0]
+    counts = {
+        status: len([d for d in decided['decisions'] if d['status'] == status])
+        for status in menu_registry.DECISION_STATUSES
+    }
+    for status, count in counts.items():
+        assert '| 결정 {} | {} |'.format(status, count) in lines
 
 
 def test_check_option_detects_hand_edit(tmp_path):
@@ -429,7 +753,7 @@ def test_generator_writes_lf_and_is_deterministic(tmp_path):
 
 def test_generator_refuses_invalid_registry(tmp_path):
     registry = _registry()
-    _menu(registry, '1.1')['sr'].append('SR-22')
+    _menu(registry, '1.1')['sr'].append('SR-23')
     bad = tmp_path / 'bad.yaml'
     bad.write_text(_dump(registry), encoding='utf-8')
     out = tmp_path / 'out.md'
@@ -463,40 +787,40 @@ def test_non_utf8_registry_is_reported(tmp_path):
 
 
 # (g) 음성 대조: 사본을 망가뜨리면 검증 함수가 오류를 낸다
-def test_negative_control_sr_22_in_sr_is_an_error():
+def test_negative_control_unknown_sr_23_is_an_error():
     registry = _registry()
     assert menu_registry.validate(registry) == []
     broken = copy.deepcopy(registry)
-    _menu(broken, '1.1')['sr'].append('SR-22')
+    _menu(broken, '1.1')['sr'].append('SR-23')
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'menu 1.1', 'SR v5.0 목록에 없는 ID: SR-22')
-    # 6.5 는 SR-22 를 sr_unconfirmed 에 두고 있다. sr 에도 넣으면 두 검사가 함께 걸린다.
+    assert _errors_mentioning(errors, 'menu 1.1', 'SR_v2 v13 목록에 없는 ID: SR-23')
+    # SR-22는 정본에 있다. 정본에 없는 SR-23은 어떤 메뉴에서도 거부한다.
     broken = copy.deepcopy(registry)
-    _menu(broken, '6.5')['sr'].append('SR-22')
+    _menu(broken, '6.5')['sr'].append('SR-23')
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'menu 6.5', 'SR v5.0 목록에 없는 ID: SR-22')
-    assert _errors_mentioning(errors, 'menu 6.5', 'sr 과 sr_unconfirmed 에 함께')
+    assert _errors_mentioning(errors, 'menu 6.5', 'SR_v2 v13 목록에 없는 ID: SR-23')
+    assert _errors_mentioning(errors, 'menu 6.5', 'SR-23')
 
 
 def test_negative_control_sr_catalog_edits_are_errors():
     registry = _registry()
     items = registry['sr_catalog']['items']
-    # 카탈로그에 SR-22 를 더하고 6.5 sr 로 옮겨도 고정 사본이 막는다.
+    # 카탈로그에 없는 SR-23 을 더하고 6.5 sr 로 옮겨도 고정 사본이 막는다.
     broken = copy.deepcopy(registry)
-    sr_22 = {'id': 'SR-22', 'name': '시뮬레이션 검증 기능', 'priority': 'O'}
-    broken['sr_catalog']['items'].append(sr_22)
-    _menu(broken, '6.5')['sr'] = ['SR-22']
+    sr_23 = {'id': 'SR-23', 'name': '시뮬레이션 검증 기능', 'priority': 'O'}
+    broken['sr_catalog']['items'].append(sr_23)
+    _menu(broken, '6.5')['sr'] = ['SR-23']
     _menu(broken, '6.5')['sr_unconfirmed'] = []
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'sr_catalog', 'SR-22')
-    assert _errors_mentioning(errors, 'menu 6.5', 'SR-22')
+    assert _errors_mentioning(errors, 'sr_catalog', 'SR-23')
+    assert _errors_mentioning(errors, 'menu 6.5', 'SR-23')
     # 이름 한 글자만 바꿔도 걸린다.
     broken = copy.deepcopy(registry)
     broken['sr_catalog']['items'][5]['name'] = items[5]['name'].replace('모니터링', '모니터')
     assert _errors_mentioning(menu_registry.validate(broken), 'sr_catalog SR-06')
     # 우선순위를 바꿔도 걸린다.
     broken = copy.deepcopy(registry)
-    broken['sr_catalog']['items'][16]['priority'] = 'O'
+    broken['sr_catalog']['items'][16]['priority'] = 'R'
     assert _errors_mentioning(menu_registry.validate(broken), 'sr_catalog SR-17')
     # 빼거나 순서를 바꿔도 걸린다.
     broken = copy.deepcopy(registry)
@@ -528,12 +852,12 @@ def test_negative_control_deleted_or_renamed_menu_is_an_error():
 def test_negative_control_removed_menu_with_screen_is_an_error():
     registry = _registry()
     broken = copy.deepcopy(registry)
-    _menu(broken, '3.7')['screen'] = 'screen_3'
+    _as_removed(_menu(broken, '4.4'))['screen'] = 'screen_3'
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'menu 3.7', '화면')
+    assert _errors_mentioning(errors, 'menu 4.4', '화면')
     broken = copy.deepcopy(registry)
-    _menu(broken, '3.7')['also_shown_in'] = ['screen_3']
-    assert _errors_mentioning(menu_registry.validate(broken), 'menu 3.7', 'also_shown_in')
+    _as_removed(_menu(broken, '4.4'))['also_shown_in'] = ['screen_3']
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 4.4', 'also_shown_in')
 
 
 def test_negative_control_phase_table_edits_are_errors():
@@ -618,3 +942,29 @@ def test_negative_control_roadmap_mismatch_is_found():
     moved = copy.deepcopy(registry)
     _menu(moved, '1.3')['phase'] = 'P4'
     assert _errors_mentioning(_roadmap_problems(moved, text), 'P3', '포함 메뉴')
+
+
+# (구현도) impl 칸: 지금은 팀원 앱(3.7)만 외부 구현이다
+def test_impl_levels_and_references():
+    registry = _registry()
+    levels = {
+        m['id']: m.get('impl', 'none') for m in registry['menus'] if m['status'] != 'removed'}
+    assert [menu_id for menu_id, level in levels.items() if level != 'none'] == ['3.7']
+    assert 'e78dd9a' in _menu(registry, '3.7')['impl_ref']
+    assert menu_registry.validate(registry) == []
+
+
+def test_negative_control_impl_fields():
+    registry = _registry()
+    broken = copy.deepcopy(registry)
+    _menu(broken, '3.7')['impl'] = 'half'
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 3.7', 'impl')
+    broken = copy.deepcopy(registry)
+    del _menu(broken, '3.7')['impl_ref']
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 3.7', 'impl_ref')
+    broken = copy.deepcopy(registry)
+    _menu(broken, '1.1')['impl_ref'] = 'tool/x abc1234'
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 1.1', 'impl_ref')
+    broken = copy.deepcopy(registry)
+    _as_removed(_menu(broken, '4.4')).update(impl='external', impl_ref='tool/x abc1234')
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 4.4', 'impl')

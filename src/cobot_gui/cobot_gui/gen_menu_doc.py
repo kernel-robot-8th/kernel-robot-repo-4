@@ -76,6 +76,33 @@ def _sorted_menus(registry):
     return sorted(registry['menus'], key=lambda menu: menu_registry.menu_sort_key(menu['id']))
 
 
+def _decision_refs(registry, decision_ids):
+    # 메뉴 표의 결정 칸. 결정마다 지금 상태를 붙인다 (예: D3 (proposed)).
+    status = {d['id']: d['status'] for d in registry['decisions']}
+    return _join(['{} ({})'.format(d, status[d]) for d in decision_ids])
+
+
+def _decision_status_cell(decision):
+    # decided 면 결정자와 날짜를 상태 칸에 함께 보인다.
+    if decision['status'] != menu_registry.DECISION_DECIDED:
+        return decision['status']
+    return '{} ({}, {})'.format(
+        decision['status'], decision['decided_by'], decision['decided_on'])
+
+
+def _record_link(record):
+    # record 는 레포 루트 기준(docs/...)이다. 생성 문서도 docs/ 에 있으므로 docs/ 를 뗀다.
+    prefix = 'docs/'
+    target = record[len(prefix):] if record.startswith(prefix) else record
+    return '[`{}`]({})'.format(record, target)
+
+
+def _impl_cell(menu):
+    if menu['status'] == menu_registry.REMOVED:
+        return EMPTY
+    return menu_registry.IMPL_LABELS[menu.get('impl', menu_registry.IMPL_NONE)]
+
+
 def _sr_cell(menu):
     # 확인이 필요한 ID 도 표에 보이고, 원문과 매핑이 다르면 표시를 붙인다.
     items = list(menu['sr'])
@@ -112,6 +139,9 @@ def _render_header(registry, add):
     add("- 메모에서 '초안:' 으로 시작하는 줄은 판단이 들어간 값이다. 팀 확인 전이다.")
     add('- SR 칸의 {} 는 메뉴 트리 원문과 SR 매핑이 다른 메뉴다. 원문 값과 이유는 그 메뉴의 '
         '상세에 있다.'.format(CHANGED_MARK))
+    add('- 결정 상태: `open` 은 미결, `proposed` 는 추천안이 있고 공지 전, `decided` 는 공지했고 '
+        '결정자·날짜를 적은 것이다. `decided` 만 정해진 것으로 본다. 기록: `{}`'.format(
+            menu_registry.DECISION_RECORD_DOC))
     for note in registry.get('notes', []):
         add('- {}'.format(note))
     add('')
@@ -132,11 +162,16 @@ def _render_summary(registry, add):
     for status in menu_registry.STATUSES:
         count = len([m for m in menus if m['status'] == status])
         add('| 상태 {} | {} |'.format(status, count))
+    for level in menu_registry.IMPL_LEVELS:
+        count = len([m for m in menus if m.get('impl', menu_registry.IMPL_NONE) == level
+                     and m['status'] != menu_registry.REMOVED])
+        add('| 구현도 {} | {} |'.format(menu_registry.IMPL_LABELS[level], count))
     add('| 원문과 SR 매핑이 다른 메뉴 ({}) | {} |'.format(
         CHANGED_MARK, len([m for m in menus if 'sr_original' in m])))
     add('| 화면 | {} |'.format(len(registry['screens'])))
-    add('| 미결 결정 | {} |'.format(
-        len([d for d in registry['decisions'] if d['status'] == 'open'])))
+    for status in menu_registry.DECISION_STATUSES:
+        count = len([d for d in registry['decisions'] if d['status'] == status])
+        add('| 결정 {} | {} |'.format(status, count))
     add('')
 
 
@@ -185,6 +220,8 @@ def _render_menu_detail(registry, menu, add):
             CHANGED_MARK, original))
     if not menu_registry.is_blank(menu.get('branch')):
         add('- 작업 브랜치: `{}`'.format(menu['branch']))
+    if menu.get('impl', menu_registry.IMPL_NONE) != menu_registry.IMPL_NONE:
+        add('- 구현도: {} — {}'.format(_impl_cell(menu), menu['impl_ref']))
     for note in menu['notes']:
         add('- {}'.format(note))
     add('')
@@ -204,16 +241,16 @@ def _render_menus(registry, add):
         members = [m for m in menus if m['depth1'] == group]
         add('### {}'.format(group))
         add('')
-        add('| ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |')
-        add('|---|---|---|---|---|---|---|---|---|')
+        add('| ID | 이름 | 화면 | 단계 | 상태 | 구현도 | SR | 화면 담당 | 데이터 담당 | 결정 |')
+        add('|---|---|---|---|---|---|---|---|---|---|')
         for menu in members:
-            add('| {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
+            add('| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
                 _cell(menu['id']), _cell(menu['name']),
                 _cell(_screen_label(screens, menu['screen'])), _cell(menu['phase']),
-                _cell(menu['status']), _cell(_sr_cell(menu)),
+                _cell(menu['status']), _cell(_impl_cell(menu)), _cell(_sr_cell(menu)),
                 _cell(_role_name(roles, menu['screen_owner'])),
                 _cell(_role_name(roles, menu['data_owner'])),
-                _cell(_join(menu['decisions']))))
+                _cell(_decision_refs(registry, menu['decisions']))))
         add('')
         for menu in members:
             _render_menu_detail(registry, menu, add)
@@ -242,7 +279,7 @@ def _render_reference(registry, add):
     add('## SR 목록 (사본)')
     add('')
     add('- 출처: {}'.format(registry['sr_catalog']['source']))
-    add('- 검사: 이 표는 `menu_registry.py` 의 고정 사본(`SR_V5`)과 ID·이름·우선순위·순서가 '
+    add('- 검사: 이 표는 `menu_registry.py` 의 고정 사본(`SR_CANON`)과 ID·이름·우선순위·순서가 '
         '같아야 한다.')
     add('')
     add('| ID | 이름 | 우선순위 | 연결된 메뉴 |')
@@ -252,15 +289,28 @@ def _render_reference(registry, add):
         add('| {} | {} | {} | {} |'.format(
             item['id'], _cell(item['name']), item['priority'], _cell(_join(linked))))
     add('')
-    add('## 미결 결정')
+    add('## 결정 목록')
+    add('')
+    add("- 상태 뜻은 위 '읽는 법' 에 있다. 질문·선택지·이유는 결정 기록(`{}`)에 있다.".format(
+        menu_registry.DECISION_RECORD_DOC))
     add('')
     add('| ID | 결정 | 상태 | 막는 것 | 기다리는 메뉴 |')
     add('|---|---|---|---|---|')
     for decision in registry['decisions']:
         waiting = [m['id'] for m in menus if decision['id'] in m['decisions']]
         add('| {} | {} | {} | {} | {} |'.format(
-            decision['id'], _cell(decision['title']), decision['status'],
+            decision['id'], _cell(decision['title']), _cell(_decision_status_cell(decision)),
             _cell(decision['blocks']), _cell(_join(waiting))))
+    proposed = [d for d in registry['decisions'] if d['status'] != menu_registry.DECISION_OPEN]
+    if not proposed:
+        return
+    add('')
+    add('### 추천안·결정 내용')
+    add('')
+    for decision in proposed:
+        add('- {} ({}): {} — 기록: {}'.format(
+            decision['id'], _decision_status_cell(decision), decision['proposal'],
+            _record_link(decision['record'])))
 
 
 def render(registry):
