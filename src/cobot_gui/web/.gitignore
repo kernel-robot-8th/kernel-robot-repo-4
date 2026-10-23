@@ -1,0 +1,4 @@
+# npm 설치물과 빌드 결과는 커밋하지 않는다 (CLAUDE.md §3-7). package-lock.json 은 커밋한다.
+node_modules/
+dist/
+*.tsbuildinfo

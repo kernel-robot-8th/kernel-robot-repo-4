@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* 토큰 이름은 홈랩 관리자 화면과 같다(--color-background 등). 그래서 ui/ 부품이 그대로 옮겨진다. 값은 팀 것이다. */
+:root {
+  --background: hsl(210 20% 98%);
+  --foreground: hsl(215 28% 12%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(215 28% 12%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(215 28% 12%);
+  --primary: hsl(221 70% 42%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(214 20% 92%);
+  --secondary-foreground: hsl(215 28% 16%);
+  --muted: hsl(214 20% 94%);
+  --muted-foreground: hsl(215 14% 38%);
+  --accent: hsl(214 30% 92%);
+  --accent-foreground: hsl(215 28% 16%);
+  --destructive: hsl(0 68% 40%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(214 18% 82%);
+  --input: hsl(214 18% 82%);
+  --ring: hsl(221 70% 42%);
+  --ok: hsl(152 55% 28%);
+  --warn: hsl(32 90% 30%);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: hsl(215 25% 9%);
+    --foreground: hsl(210 20% 94%);
+    --card: hsl(215 22% 12%);
+    --card-foreground: hsl(210 20% 94%);
+    --popover: hsl(215 22% 12%);
+    --popover-foreground: hsl(210 20% 94%);
+    --primary: hsl(217 90% 70%);
+    --primary-foreground: hsl(215 30% 10%);
+    --secondary: hsl(215 18% 18%);
+    --secondary-foreground: hsl(210 20% 94%);
+    --muted: hsl(215 18% 16%);
+    --muted-foreground: hsl(215 12% 68%);
+    --accent: hsl(215 20% 20%);
+    --accent-foreground: hsl(210 20% 94%);
+    --destructive: hsl(0 75% 66%);
+    --destructive-foreground: hsl(215 30% 10%);
+    --border: hsl(215 16% 24%);
+    --input: hsl(215 16% 24%);
+    --ring: hsl(217 90% 70%);
+    --ok: hsl(152 50% 64%);
+    --warn: hsl(38 85% 68%);
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    /* 외부 글꼴을 쓰지 않는다 (현장은 인터넷이 없다). */
+    font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
+      "Noto Sans KR", sans-serif;
+  }
+}
