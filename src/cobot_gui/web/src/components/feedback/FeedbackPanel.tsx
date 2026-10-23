@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import {
   MessageSquare,
@@ -11,6 +11,8 @@ import {
   Lightbulb,
   AlertTriangle,
   HelpCircle,
+  RefreshCw,
+  HardDrive,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +44,8 @@ const CATEGORY_MAP: Record<
 export default function FeedbackPanel() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
+  const [isServerSynced, setIsServerSynced] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [items, setItems] = useState<FeedbackItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -63,6 +67,34 @@ export default function FeedbackPanel() {
   const [content, setContent] = useState("");
   const [filterCurrentMenuOnly, setFilterCurrentMenuOnly] = useState(true);
 
+  // Fetch feedback from server flat-file
+  const fetchServerFeedback = useCallback(async () => {
+    if (typeof window === "undefined" || !window.location || !window.location.host || window.location.protocol === "file:") {
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/feedback");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setItems(data);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          setIsServerSynced(true);
+        }
+      }
+    } catch {
+      // quiet fallback in non-browser or test environments
+      setIsServerSynced(false);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServerFeedback();
+  }, [fetchServerFeedback]);
+
   // Sync to local storage
   useEffect(() => {
     try {
@@ -72,7 +104,7 @@ export default function FeedbackPanel() {
     }
   }, [items]);
 
-  const handleAddFeedback = (e: React.FormEvent) => {
+  const handleAddFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
 
@@ -89,12 +121,39 @@ export default function FeedbackPanel() {
       createdAt: new Date().toISOString(),
     };
 
+    // Optimistic UI update
     setItems((prev) => [newItem, ...prev]);
     setContent("");
+
+    // Send to server flat-file API
+    if (typeof window !== "undefined" && window.location?.host && window.location.protocol !== "file:") {
+      try {
+        const res = await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newItem),
+        });
+        if (res.ok) {
+          setIsServerSynced(true);
+        }
+      } catch {
+        setIsServerSynced(false);
+      }
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+
+    if (typeof window !== "undefined" && window.location?.host && window.location.protocol !== "file:") {
+      try {
+        await fetch(`/api/feedback?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // quiet fallback
+      }
+    }
   };
 
   // Export to Markdown
@@ -106,7 +165,8 @@ export default function FeedbackPanel() {
 
     let md = `# FMS 메뉴별 피드백 및 개선 요구사항 리포트\n\n`;
     md += `* 추출 시각: ${new Date().toLocaleString()}\n`;
-    md += `* 총 피드백 건수: ${items.length}건\n\n---\n\n`;
+    md += `* 총 피드백 건수: ${items.length}건\n`;
+    md += `* 영속 저장 위치: \`src/cobot_gui/web/src/data/fms_feedback.json\` (Git 관리)\n\n---\n\n`;
 
     const grouped: Record<string, FeedbackItem[]> = {};
     for (const item of items) {
@@ -176,6 +236,16 @@ export default function FeedbackPanel() {
             <Button
               variant="ghost"
               size="sm"
+              onClick={fetchServerFeedback}
+              title="서버 데이터 새로고침"
+              disabled={isSyncing}
+              className="h-8 w-8 p-0"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleExportMarkdown}
               title="Markdown 리포트 다운로드"
               className="h-8 px-2 text-xs"
@@ -193,6 +263,18 @@ export default function FeedbackPanel() {
               <X className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+
+        {/* Sync Status Badge Bar */}
+        <div className="bg-muted/60 px-4 py-1.5 border-b border-border flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+          <span className="flex items-center gap-1.5">
+            <HardDrive className="h-3 w-3" />
+            <span>저장: fms_feedback.json</span>
+          </span>
+          <span className={`inline-flex items-center gap-1 ${isServerSynced ? "text-emerald-400" : "text-amber-400"}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${isServerSynced ? "bg-emerald-400" : "bg-amber-400"}`} />
+            {isServerSynced ? "Git 연동 동기화됨" : "로컬 보관"}
+          </span>
         </div>
 
         {/* Current Target Menu & Filter Bar */}
@@ -260,7 +342,7 @@ export default function FeedbackPanel() {
 
           <Button type="submit" size="sm" className="w-full h-8 text-xs font-medium">
             <Plus className="h-3.5 w-3.5 mr-1" />
-            피드백 등록
+            피드백 등록 (파일 영속 저장)
           </Button>
         </form>
 
