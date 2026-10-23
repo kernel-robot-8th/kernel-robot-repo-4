@@ -110,11 +110,11 @@ export default function MenuPlaceholder({ menu }: { menu: Menu }) {
           {menu.decisions.map((id) => {
             const decision = decisionOf(id);
             return (
-              <p key={id} className="flex flex-wrap items-center gap-2">
+              <div key={id} className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{id}</Badge>
                 <Badge variant="secondary">{decision ? DECISION_LABELS[decision.status] : "?"}</Badge>
                 <span>{decision?.title}</span>
-              </p>
+              </div>
             );
           })}
         </CardContent>

@@ -8,9 +8,9 @@ import { hasMenuPage } from "@/shell/pages";
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
+    <div className="rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+      <p className="text-xs font-sans text-neutral-400">{label}</p>
+      <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-neutral-100">{value}</p>
     </div>
   );
 }

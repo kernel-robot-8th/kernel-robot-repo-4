@@ -36,22 +36,25 @@ export default function Page({ menu }: MenuPageProps) {
           const count = (severity: string) => items.filter((item) => item.active && item.severity === severity).length;
           return (
             <>
-              <p className="text-sm text-muted-foreground">
-                진행 중: 위험 <b className="text-destructive">{count("RED")}</b> · 주의{" "}
-                <b className="text-warn">{count("AMBER")}</b> · 정보 <b>{count("INFO")}</b>
-              </p>
-              <div className="flex gap-2" role="group" aria-label="알림 거르기">
-                {FILTERS.map((item) => (
-                  <Button
-                    key={item.key}
-                    size="sm"
-                    variant={filter === item.key ? "default" : "outline"}
-                    aria-pressed={filter === item.key}
-                    onClick={() => setFilter(item.key)}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-3 rounded-md border border-border/60">
+                <p className="text-xs font-mono text-neutral-300">
+                  진행 중 알림 상태: 위험 <b className="text-rose-400 font-bold">{count("RED")}</b>건 · 주의{" "}
+                  <b className="text-amber-400 font-bold">{count("AMBER")}</b>건 · 정보 <b className="text-blue-400 font-bold">{count("INFO")}</b>건
+                </p>
+                <div className="flex gap-1.5" role="group" aria-label="알림 거르기">
+                  {FILTERS.map((item) => (
+                    <Button
+                      key={item.key}
+                      size="sm"
+                      variant={filter === item.key ? "default" : "outline"}
+                      className="text-xs h-7 px-2.5 font-medium"
+                      aria-pressed={filter === item.key}
+                      onClick={() => setFilter(item.key)}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full min-w-[720px] text-sm">

@@ -21,17 +21,19 @@ export default function Page({ menu }: MenuPageProps) {
           const violations = snap.topics.filter((topic) => topic.single_writer_state === "VIOLATION");
           return (
             <>
-              <p className="flex flex-wrap items-center gap-3 text-sm">
-                <span>
-                  ROS_DOMAIN_ID(진단 노드) <b className="tabular-nums">{snap.ros_domain_id_configured}</b>
-                </span>
-                <span>
-                  chrony 오프셋 <Measured value={snap.chrony_offset_ms} digits={1} unit=" ms" />
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-3 rounded-md border border-border/60">
+                <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-neutral-300">
+                  <span>
+                    ROS_DOMAIN_ID(진단 노드) <b className="tabular-nums text-blue-400 font-bold">{snap.ros_domain_id_configured}</b>
+                  </span>
+                  <span>
+                    chrony 오프셋 <Measured value={snap.chrony_offset_ms} digits={1} unit=" ms" />
+                  </span>
+                </div>
                 {violations.length > 0 && <Pill tone="bad">유일 기록자 위반 {violations.length}건</Pill>}
-              </p>
+              </div>
 
-              <h3 className="text-base font-semibold">토픽</h3>
+              <h3 className="text-sm font-bold tracking-tight text-neutral-200 mt-4">토픽 (ROS 2 Topics)</h3>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full min-w-[620px] text-sm">
                   <thead className="bg-muted text-left text-xs text-muted-foreground">

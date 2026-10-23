@@ -14,9 +14,9 @@ import type { MenuPageProps } from "@/shell/types";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="text-right">{children}</dd>
+    <div className="flex items-baseline justify-between gap-3 py-1.5 text-xs font-mono">
+      <dt className="shrink-0 font-sans text-neutral-400">{label}</dt>
+      <dd className="text-right text-neutral-100">{children}</dd>
     </div>
   );
 }

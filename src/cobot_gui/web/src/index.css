@@ -1,54 +1,54 @@
 @import "tailwindcss";
 
-/* 토큰 이름은 홈랩 관리자 화면과 같다(--color-background 등). 그래서 ui/ 부품이 그대로 옮겨진다. 값은 팀 것이다. */
+/* 토큰 이름은 홈랩 관리자 화면과 같다(--color-background 등). 값은 김성아 팀원의 OMX 대시보드 고대비 인더스트리얼 테마이다. */
 :root {
-  --background: hsl(210 20% 98%);
-  --foreground: hsl(215 28% 12%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(215 28% 12%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(215 28% 12%);
-  --primary: hsl(221 70% 42%);
+  --background: hsl(220 16% 7%);
+  --foreground: hsl(210 20% 96%);
+  --card: hsl(220 14% 10%);
+  --card-foreground: hsl(210 20% 96%);
+  --popover: hsl(220 14% 11%);
+  --popover-foreground: hsl(210 20% 96%);
+  --primary: hsl(212 80% 42%);
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(214 20% 92%);
-  --secondary-foreground: hsl(215 28% 16%);
-  --muted: hsl(214 20% 94%);
-  --muted-foreground: hsl(215 14% 38%);
-  --accent: hsl(214 30% 92%);
-  --accent-foreground: hsl(215 28% 16%);
-  --destructive: hsl(0 68% 40%);
+  --secondary: hsl(220 12% 16%);
+  --secondary-foreground: hsl(210 20% 94%);
+  --muted: hsl(220 12% 14%);
+  --muted-foreground: hsl(215 12% 64%);
+  --accent: hsl(220 12% 18%);
+  --accent-foreground: hsl(210 20% 96%);
+  --destructive: hsl(358 75% 47%);
   --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(214 18% 82%);
-  --input: hsl(214 18% 82%);
-  --ring: hsl(221 70% 42%);
-  --ok: hsl(152 55% 28%);
-  --warn: hsl(32 90% 30%);
-  color-scheme: light;
+  --border: hsl(220 12% 20%);
+  --input: hsl(220 12% 20%);
+  --ring: hsl(212 80% 42%);
+  --ok: hsl(123 46% 34%);
+  --warn: hsl(27 100% 47%);
+  color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: hsl(215 25% 9%);
-    --foreground: hsl(210 20% 94%);
-    --card: hsl(215 22% 12%);
-    --card-foreground: hsl(210 20% 94%);
-    --popover: hsl(215 22% 12%);
-    --popover-foreground: hsl(210 20% 94%);
-    --primary: hsl(217 90% 70%);
-    --primary-foreground: hsl(215 30% 10%);
-    --secondary: hsl(215 18% 18%);
+    --background: hsl(220 16% 7%);
+    --foreground: hsl(210 20% 96%);
+    --card: hsl(220 14% 10%);
+    --card-foreground: hsl(210 20% 96%);
+    --popover: hsl(220 14% 11%);
+    --popover-foreground: hsl(210 20% 96%);
+    --primary: hsl(212 80% 42%);
+    --primary-foreground: hsl(0 0% 100%);
+    --secondary: hsl(220 12% 16%);
     --secondary-foreground: hsl(210 20% 94%);
-    --muted: hsl(215 18% 16%);
-    --muted-foreground: hsl(215 12% 68%);
-    --accent: hsl(215 20% 20%);
-    --accent-foreground: hsl(210 20% 94%);
-    --destructive: hsl(0 75% 66%);
-    --destructive-foreground: hsl(215 30% 10%);
-    --border: hsl(215 16% 24%);
-    --input: hsl(215 16% 24%);
-    --ring: hsl(217 90% 70%);
-    --ok: hsl(152 50% 64%);
-    --warn: hsl(38 85% 68%);
+    --muted: hsl(220 12% 14%);
+    --muted-foreground: hsl(215 12% 64%);
+    --accent: hsl(220 12% 18%);
+    --accent-foreground: hsl(210 20% 96%);
+    --destructive: hsl(358 75% 47%);
+    --destructive-foreground: hsl(0 0% 100%);
+    --border: hsl(220 12% 20%);
+    --input: hsl(220 12% 20%);
+    --ring: hsl(212 80% 42%);
+    --ok: hsl(123 46% 34%);
+    --warn: hsl(27 100% 47%);
     color-scheme: dark;
   }
 }
@@ -75,7 +75,7 @@
   --color-ring: var(--ring);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
-  --radius: 0.5rem;
+  --radius: 0.375rem;
 }
 
 @layer base {
@@ -89,4 +89,31 @@
     font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
       "Noto Sans KR", sans-serif;
   }
+}
+
+/* 김성아 팀원 스타일 시그니처 배너 (STYLE_GREEN, STYLE_RED, STYLE_ORANGE, STYLE_BLUE, STYLE_GRAY) */
+.omx-banner-green {
+  background-color: #2e7d32;
+  color: #ffffff;
+  font-weight: 700;
+}
+.omx-banner-red {
+  background-color: #c62828;
+  color: #ffffff;
+  font-weight: 700;
+}
+.omx-banner-orange {
+  background-color: #ef6c00;
+  color: #ffffff;
+  font-weight: 700;
+}
+.omx-banner-blue {
+  background-color: #1565c0;
+  color: #ffffff;
+  font-weight: 700;
+}
+.omx-banner-gray {
+  background-color: #616161;
+  color: #ffffff;
+  font-weight: 700;
 }
