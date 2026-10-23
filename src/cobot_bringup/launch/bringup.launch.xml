@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  전체 시스템 launch (CLAUDE.md §3-5). 각 패키지 launch 를 include 할 자리다.
+  지금은 포함할 launch 가 없어 비어 있다. 실행하면 아무것도 띄우지 않고 끝난다.
+  예시 (아직 없는 파일):
+    <include file="$(find-pkg-share cobot_navigation)/launch/navigation.launch.xml"/>
+  맵은 $(find-pkg-share cobot_bringup)/config/maps 에 있다 (docs/fms_map_contract.md).
+-->
+<launch>
+</launch>
