@@ -97,6 +97,7 @@ describe("개요", () => {
     const summary = screen.getByLabelText("요약");
     expect(within(summary).getByText("메뉴").nextElementSibling).toHaveTextContent("34");
     expect(screen.getAllByText("외부 구현 (통합 전)").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("정의 없음").length).toBeGreaterThanOrEqual(2); // 3.3, 3.4 (DatasetSummary)
     expect(screen.getAllByRole("row")).toHaveLength(34 + 6);
   });
 });

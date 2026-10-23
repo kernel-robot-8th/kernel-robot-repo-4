@@ -17,14 +17,14 @@
 ## 2. 옮길 때 지키는 규칙 (팀 쪽에서 미리 지킨다)
 
 1. 메뉴 폴더는 `@/components/ui/*`, `@/lib/*`, `@/shell/types`, `@/shell/MenuHeader` 만 가져다 쓴다. 다른 메뉴 폴더를 가져다 쓰지 않는다.
-2. 서버 데이터는 `useResource('<메시지 이름>', 모의 값)` 으로만 읽는다. 홈랩에서는 `lib/dataSource.ts` 의 `gateway` 모드가 `/api/fms/<이름>` 을 부르므로, 홈랩 프록시가 그 주소를 받아 주면 된다.
+2. 서버 데이터는 `useMessages('<메시지 이름>')` 으로만 읽는다. 홈랩에서는 `lib/dataSource.ts` 의 `gateway` 모드가 `/api/fms/<이름>` 을 부르므로, 홈랩 프록시가 그 주소를 받아 주면 된다.
 3. 앱 안 링크는 상대 경로를 쓴다. 홈랩에서는 `/admin/robot/` 같은 아래에 붙인다.
 4. 홈랩 전용 값(내부 주소, 호스트 이름, 인증 방식)을 메뉴 폴더에 쓰지 않는다.
 
 ## 3. 옮기는 순서
 
 1. 옮길 메뉴 ID 를 고른다 (예: 1.1, 2.1, 5.5).
-2. 홈랩 `src/pages/robot/` 아래에 `menus/<ID>` 폴더를 폴더째 복사한다. `shell/types.ts`, `shell/MenuHeader.tsx`, `lib/dataSource.ts`, `lib/registry.ts`, `generated/menus.ts` 도 함께 필요하다.
+2. 홈랩 `src/pages/robot/` 아래에 `menus/<ID>` 폴더를 폴더째 복사한다. `shell/`(types, MenuHeader, ResourceSection, Pill, Measured), `lib/`(dataSource, registry, format, tones, contracts), `mock/`, `generated/`(menus, messages)도 함께 필요하다. 메시지 타입과 모의 데이터는 인터페이스 정의에서 생성한 것이라, 홈랩에서는 필요한 메시지의 타입과 JSON 만 골라 옮긴다.
 3. 홈랩 `App.tsx` 의 `AdminChildRoutes` 에 라우트를 더하고, `Navigation.tsx` 의 로봇 그룹에 줄을 더한다. 홈랩에는 이미 "ROS 모니터링" 페이지가 있어 겹치는 부분을 먼저 정리한다.
 4. 홈랩 `lib/api.ts` 의 기준 주소와 프록시를 맞춘다.
 5. 홈랩 시험(`npm test`)과 빌드를 돌린다.

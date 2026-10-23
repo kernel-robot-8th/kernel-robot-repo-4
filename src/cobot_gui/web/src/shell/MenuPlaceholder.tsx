@@ -1,6 +1,7 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CONTRACT_LABELS, contractOf } from "@/lib/contracts";
 import {
   DECISION_LABELS,
   decisionOf,
@@ -36,15 +37,6 @@ export default function MenuPlaceholder({ menu }: { menu: Menu }) {
           복사용 틀은 <code className="font-mono text-xs">menus/_template/Page.tsx</code> 입니다.
         </AlertDescription>
       </Alert>
-
-      {menu.commands.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTitle>명령 메뉴: 게이트웨이 연결 전에는 비활성</AlertTitle>
-          <AlertDescription>
-            이 메뉴는 아래 명령을 보내는 화면이 될 예정입니다. 지금 웹 앱은 읽기 전용이라 어떤 명령도 보내지 않습니다.
-          </AlertDescription>
-        </Alert>
-      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -87,8 +79,13 @@ export default function MenuPlaceholder({ menu }: { menu: Menu }) {
           <CardHeader>
             <CardTitle className="text-base">데이터 원천</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             <List items={menu.dataSources} empty="정해지지 않았습니다." />
+            <p className="text-xs text-muted-foreground">
+              인터페이스 정의: {CONTRACT_LABELS[contractOf(menu).level]}
+              {contractOf(menu).found.length > 0 && ` (있음: ${contractOf(menu).found.join(", ")})`}
+              {contractOf(menu).missing.length > 0 && ` (없음: ${contractOf(menu).missing.join(", ")})`}
+            </p>
           </CardContent>
         </Card>
 

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { DECISIONS } from "@/generated/menus";
+import { CONTRACT_LABELS, contractOf } from "@/lib/contracts";
 import { ACTIVE_MENUS, IMPL_LABELS, STATUS_LABELS, menuGroups, screenText } from "@/lib/registry";
 import { hasMenuPage } from "@/shell/pages";
 
@@ -27,13 +28,14 @@ export default function OverviewPage() {
         <h1 className="text-2xl font-bold">FMS 관제 대시보드 메뉴 트리</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           메뉴 목록은 레지스트리(menu_tree.yaml)에서 생성합니다. 화면이 없는 메뉴는 틀 페이지가 대신 열립니다.
-          지금 이 앱은 읽기 전용이고 로봇에 아무것도 보내지 않습니다.
+          지금 이 앱은 읽기 전용이고 로봇에 아무것도 보내지 않습니다. 구현도는 서버 연결까지 포함한 실제 구현 기준이고,
+          웹 화면은 모의 데이터로 만든 화면까지 셉니다.
         </p>
       </header>
 
       <section aria-label="요약" className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="메뉴" value={ACTIVE_MENUS.length} />
-        <Stat label="웹 화면이 있는 메뉴" value={withPage} />
+        <Stat label="웹 화면이 있는 메뉴 (모의 데이터)" value={withPage} />
         <Stat label="레지스트리 구현도가 있는 메뉴" value={external} />
         <Stat label="결정 확정 / 전체" value={decided} />
       </section>
@@ -45,7 +47,7 @@ export default function OverviewPage() {
         <section key={group.title} className="space-y-2">
           <h2 className="text-lg font-semibold">{group.title}</h2>
           <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">ID</th>
@@ -54,6 +56,7 @@ export default function OverviewPage() {
                   <th className="px-3 py-2 font-medium">단계</th>
                   <th className="px-3 py-2 font-medium">상태</th>
                   <th className="px-3 py-2 font-medium">구현도</th>
+                  <th className="px-3 py-2 font-medium">데이터 계약</th>
                   <th className="px-3 py-2 font-medium">웹 화면</th>
                 </tr>
               </thead>
@@ -72,6 +75,7 @@ export default function OverviewPage() {
                     <td className="px-3 py-2">
                       <Badge variant={menu.impl === "none" ? "outline" : "default"}>{IMPL_LABELS[menu.impl]}</Badge>
                     </td>
+                    <td className="px-3 py-2 text-muted-foreground">{CONTRACT_LABELS[contractOf(menu).level]}</td>
                     <td className="px-3 py-2">
                       <Badge variant={hasMenuPage(menu.id) ? "default" : "outline"}>
                         {hasMenuPage(menu.id) ? "화면 있음" : "틀만"}

@@ -6,12 +6,14 @@ import type { ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useResource } from "@/lib/dataSource";
+import { useMessages, useResource } from "@/lib/dataSource";
+import { armModeTone } from "@/lib/tones";
 import MenuHeader from "@/shell/MenuHeader";
+import Pill from "@/shell/Pill";
 import type { MenuPageProps } from "@/shell/types";
 
-// 모의 값이다. 서버(S2)가 붙으면 같은 이름으로 서버 값을 받는다.
-const MOCK_ARM_MODE = { mode: "LEROBOT_EXCLUSIVE", note: "녹화 앱이 팔 포트를 쓰는 중 (예시)" };
+// DatasetSummary 는 인터페이스 정의가 아직 없다 (D12). 그래서 이 값만 화면 안의 임시 모의 값이다.
+// ArmMode 는 정의(cobot_interfaces)가 있어서 useMessages 로 타입과 모의 값을 받는다.
 const MOCK_DATASET = { task: "shoe_box_pick", success: 12, fail: 3, note: "예시 값" };
 
 const TARGET_PATH = "src/cobot_manipulation/omx_recorder/";
@@ -26,7 +28,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function Page({ menu }: MenuPageProps) {
-  const arm = useResource("ArmMode", MOCK_ARM_MODE);
+  const arms = useMessages("ArmMode");
   const dataset = useResource("DatasetSummary", MOCK_DATASET);
   return (
     <div className="max-w-4xl space-y-6">
@@ -68,17 +70,18 @@ export default function Page({ menu }: MenuPageProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              팔 제어 모드 <Badge variant="outline">{arm.mode === "mock" ? "모의 데이터" : "서버"}</Badge>
+              팔 제어 모드 <Badge variant="outline">{arms.mode === "mock" ? "모의 데이터" : "서버"}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            {arm.error && <p className="text-destructive">{arm.error}</p>}
-            {arm.data && (
-              <>
-                <p className="font-mono">{arm.data.mode}</p>
-                <p className="text-muted-foreground">{arm.data.note}</p>
-              </>
-            )}
+          <CardContent className="space-y-2 text-sm">
+            {arms.error && <p className="text-destructive">{arms.error}</p>}
+            {arms.data?.map((item) => (
+              <div key={item.arm_id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono">{item.arm_id}</span>
+                <Pill tone={armModeTone(item.mode)}>{item.mode}</Pill>
+                <span className="w-full text-xs text-muted-foreground">{item.source}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
         <Card>
@@ -98,6 +101,7 @@ export default function Page({ menu }: MenuPageProps) {
                   성공 {dataset.data.success} · 실패 {dataset.data.fail}
                 </p>
                 <p className="text-muted-foreground">{dataset.data.note}</p>
+                <p className="text-xs text-muted-foreground">이 값은 인터페이스 정의가 없는 임시 값입니다 (D12).</p>
               </>
             )}
           </CardContent>

@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { IMPL_LABELS, STATUS_LABELS, phaseTitle, screenText } from "@/lib/registry";
 import type { Menu } from "@/shell/types";
@@ -23,6 +24,15 @@ export default function MenuHeader({ menu, kind }: { menu: Menu; kind: "placehol
           {kind === "page" ? "화면 있음" : "틀 페이지"}
         </Badge>
       </div>
+      {menu.commands.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTitle>명령 메뉴: 게이트웨이 연결 전에는 비활성</AlertTitle>
+          <AlertDescription>
+            이 메뉴는 아래 명령을 보내는 화면이 될 예정입니다. 지금 웹 앱은 읽기 전용이라 어떤 명령도 보내지 않습니다.
+            <span className="mt-1 block text-xs">{menu.commands.join(" · ")}</span>
+          </AlertDescription>
+        </Alert>
+      )}
     </header>
   );
 }
