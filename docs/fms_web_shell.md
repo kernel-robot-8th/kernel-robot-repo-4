@@ -102,6 +102,6 @@ PYTHONPATH=src/cobot_gui python3 -m cobot_gui.gen_web_types --init-mocks   # 없
 | 2.1 | 지점(작업점·정차점)과 로봇 위치를 맵 좌표로 그린 SVG | MapInfo, RobotStatus |
 | 4.1 | 카메라 건강(멈춘 화면, 오래된 프레임, 시뮬레이션)과 미디어 서버 경로 | CameraHealth, MediaHealth |
 | 6.2 | 토픽(유일 기록자 상태)과 노드(생존·왕복) | DiagSnapshot |
-| 3.7 | 팀원 앱 안내와 팔 제어 모드 | ArmMode |
+| 3.7 | 팀원 앱 원격 뷰(noVNC), 검수 스튜디오(8088), 팔 상태(ArmMode) 3대 탭 통합 | ArmMode, DatasetSummary |
 
 나머지 메뉴의 화면은 담당자가 `menus/<ID>/Page.tsx` 로 만든다. 위 화면들이 모양을 보여 주는 예다. 각 화면은 같은 폴더에 시험(`Page.test.tsx`)을 둔다.
