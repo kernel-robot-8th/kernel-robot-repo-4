@@ -1,0 +1,22 @@
+[
+  {
+    "robot_id": "",
+    "epoch": 0,
+    "hb_seq": 0,
+    "issued_at": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "ttl_ms": 0,
+    "map_hash": "",
+    "fleet_mode": 0,
+    "lane_lease_id": "",
+    "lease_valid_until": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "last_cmd_seq_issued": 0,
+    "key_id": "",
+    "sig": ""
+  }
+]

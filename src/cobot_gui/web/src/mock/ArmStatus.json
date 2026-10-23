@@ -1,0 +1,131 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "arm_id": "omx_1",
+    "robot_boot_id": "armboot-1",
+    "joint_unit": "NORMALIZED_0_4095",
+    "joint_names": [
+      "joint1",
+      "joint2",
+      "joint3",
+      "joint4",
+      "joint5"
+    ],
+    "joint_positions": [
+      2048.0,
+      1900.0,
+      2210.0,
+      2048.0,
+      2050.0
+    ],
+    "gripper_position": 1800.0,
+    "present_current_ma": [
+      120.0,
+      340.0,
+      210.0,
+      null,
+      95.0
+    ],
+    "torque_enabled": true,
+    "retract_safe": true,
+    "retract_safe_measured": true,
+    "hold_active": false,
+    "hold_reason": "",
+    "power_present": true,
+    "epoch_accepted": 3,
+    "last_seq_accepted": 12,
+    "work_step": "GRASPING"
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "arm_id": "omx_2",
+    "robot_boot_id": "armboot-2",
+    "joint_unit": "NORMALIZED_0_4095",
+    "joint_names": [
+      "joint1",
+      "joint2",
+      "joint3",
+      "joint4",
+      "joint5"
+    ],
+    "joint_positions": [
+      2048.0,
+      2048.0,
+      2048.0,
+      2048.0,
+      2048.0
+    ],
+    "gripper_position": 2048.0,
+    "present_current_ma": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "torque_enabled": false,
+    "retract_safe": false,
+    "retract_safe_measured": false,
+    "hold_active": false,
+    "hold_reason": "",
+    "power_present": true,
+    "epoch_accepted": 3,
+    "last_seq_accepted": 0,
+    "work_step": "IDLE"
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "arm_id": "omx_3",
+    "robot_boot_id": "armboot-3",
+    "joint_unit": "RAD",
+    "joint_names": [
+      "joint1",
+      "joint2",
+      "joint3",
+      "joint4",
+      "joint5"
+    ],
+    "joint_positions": [
+      0.0,
+      -0.4,
+      0.8,
+      0.1,
+      0.0
+    ],
+    "gripper_position": 0.3,
+    "present_current_ma": [
+      80.0,
+      150.0,
+      110.0,
+      60.0,
+      40.0
+    ],
+    "torque_enabled": true,
+    "retract_safe": true,
+    "retract_safe_measured": true,
+    "hold_active": true,
+    "hold_reason": "HUMAN_IN_ZONE",
+    "power_present": true,
+    "epoch_accepted": 3,
+    "last_seq_accepted": 7,
+    "work_step": "RETRACTING"
+  }
+]

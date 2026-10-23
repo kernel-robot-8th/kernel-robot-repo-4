@@ -1,0 +1,41 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "path": "cam_overhead",
+    "publisher_online": true,
+    "bytes_rx_rate": 412000.0,
+    "frozen_state": "LIVE"
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "path": "cam_gate",
+    "publisher_online": false,
+    "bytes_rx_rate": 0.0,
+    "frozen_state": "UNKNOWN"
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "path": "cam_desk",
+    "publisher_online": true,
+    "bytes_rx_rate": 380000.0,
+    "frozen_state": "FROZEN"
+  }
+]

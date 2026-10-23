@@ -1,0 +1,16 @@
+[
+  {
+    "command_id": "",
+    "robot_id": "",
+    "epoch": 0,
+    "seq": 0,
+    "result": 0,
+    "stop_executed": false,
+    "reason": "",
+    "rx_to_ack_ms": 0,
+    "robot_rx_stamp": {
+      "sec": 0,
+      "nanosec": 0
+    }
+  }
+]

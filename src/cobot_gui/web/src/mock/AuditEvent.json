@@ -1,0 +1,32 @@
+[
+  {
+    "seq": 0,
+    "event_id": "",
+    "event_type": "",
+    "schema_version": 0,
+    "ts_fms": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "has_ts_source": false,
+    "ts_source": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "source_host": "",
+    "source_node": "",
+    "target_id": "",
+    "epoch": 0,
+    "cmd_seq": 0,
+    "order_id": "",
+    "task_id": "",
+    "command_id": "",
+    "tx_id": "",
+    "actor_role": "",
+    "actor_id": "",
+    "payload_json": "",
+    "simulated": false,
+    "prev_hash": "",
+    "row_hash": ""
+  }
+]

@@ -23,10 +23,11 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: |
-          /tmp/fms-contract-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_gui/test/test_menu_registry.py src/cobot_gui/test/test_rule_boundaries.py src/cobot_gui/test/test_gen_web_menus.py
+          /tmp/fms-contract-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_gui/test/test_menu_registry.py src/cobot_gui/test/test_rule_boundaries.py src/cobot_gui/test/test_gen_web_menus.py src/cobot_gui/test/test_gen_web_types.py
           /tmp/fms-contract-venv/bin/python -B -m cobot_gui.menu_registry
           /tmp/fms-contract-venv/bin/python -B -m cobot_gui.gen_menu_doc --check
           /tmp/fms-contract-venv/bin/python -B -m cobot_gui.gen_web_menus --check
+          /tmp/fms-contract-venv/bin/python -B -m cobot_gui.gen_web_types --check
   fms-web:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

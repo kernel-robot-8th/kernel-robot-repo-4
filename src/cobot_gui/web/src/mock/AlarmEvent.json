@@ -1,0 +1,122 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718100,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "alarm_id": "6f1c2d7e-0b11-4c2a-9a10-000000000001",
+    "severity": "RED",
+    "code": "POWER_LOST",
+    "target_id": "pinky_3",
+    "raised_at": {
+      "sec": 1792717860,
+      "nanosec": 0
+    },
+    "cleared_at": {
+      "sec": 1792718100,
+      "nanosec": 0
+    },
+    "active": true,
+    "requires_reconcile": true,
+    "detail": "모터 전원 증거가 끊겼다. 복구하려면 Reconcile 이 필요하다."
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718100,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "alarm_id": "6f1c2d7e-0b11-4c2a-9a10-000000000002",
+    "severity": "RED",
+    "code": "SINGLE_WRITER_VIOLATION",
+    "target_id": "/control_center/pinky_3/command",
+    "raised_at": {
+      "sec": 1792718005,
+      "nanosec": 0
+    },
+    "cleared_at": {
+      "sec": 1792718100,
+      "nanosec": 0
+    },
+    "active": true,
+    "requires_reconcile": true,
+    "detail": "명령 토픽의 발행자가 둘이다 (유일 기록자 위반)."
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718100,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "alarm_id": "6f1c2d7e-0b11-4c2a-9a10-000000000003",
+    "severity": "AMBER",
+    "code": "CAMERA_STALE",
+    "target_id": "cam_gate",
+    "raised_at": {
+      "sec": 1792718070,
+      "nanosec": 0
+    },
+    "cleared_at": {
+      "sec": 1792718100,
+      "nanosec": 0
+    },
+    "active": true,
+    "requires_reconcile": false,
+    "detail": "프레임이 3 초 넘게 오지 않는다."
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718100,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "alarm_id": "6f1c2d7e-0b11-4c2a-9a10-000000000004",
+    "severity": "AMBER",
+    "code": "CLOCK_OFFSET",
+    "target_id": "station_1",
+    "raised_at": {
+      "sec": 1792717200,
+      "nanosec": 0
+    },
+    "cleared_at": {
+      "sec": 1792717500,
+      "nanosec": 0
+    },
+    "active": false,
+    "requires_reconcile": false,
+    "detail": "시계 오프셋이 허용치를 넘었다가 돌아왔다."
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718100,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "alarm_id": "6f1c2d7e-0b11-4c2a-9a10-000000000005",
+    "severity": "INFO",
+    "code": "INVENTORY_SHORTAGE",
+    "target_id": "sku_A12",
+    "raised_at": {
+      "sec": 1792715100,
+      "nanosec": 0
+    },
+    "cleared_at": {
+      "sec": 1792718100,
+      "nanosec": 0
+    },
+    "active": true,
+    "requires_reconcile": false,
+    "detail": "재고가 안전 수량 아래다."
+  }
+]

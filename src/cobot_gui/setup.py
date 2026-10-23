@@ -37,6 +37,7 @@ setup(
         'console_scripts': [
             'gen_menu_doc = cobot_gui.gen_menu_doc:main',
             'gen_web_menus = cobot_gui.gen_web_menus:main',
+            'gen_web_types = cobot_gui.gen_web_types:main',
             'check_menu_tree = cobot_gui.menu_registry:main',
         ],
     },
