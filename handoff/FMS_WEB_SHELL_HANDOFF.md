@@ -93,3 +93,37 @@ PYTHONPATH=src/cobot_gui python3 -m cobot_gui.gen_menu_doc --check
 - Windows(`core.autocrlf=true`)에서 생성 파일 비교가 어긋나지 않도록 `.gitattributes` 에 `menus.ts`, `fms_web_dependencies.md`, `package-lock.json` 의 LF 고정을 넣었다.
 - 루트 `.gitignore` 의 `lib/` 규칙이 `web/src/lib` 를 가렸던 것이 새 clone 검증에서 드러났다. 고쳤다 (`2572bf7`).
 - 이 골격은 읽기 전용이다. 명령을 보내는 화면과 서버(게이트웨이) 연결은 S2 이후다.
+
+## 7. W2 (타입·모의 데이터·참고 화면) — 개인 레포 브랜치 `claude/fms-web-w2`
+
+W0 위에 쌓은 브랜치다 (기준: `claude/fms-web-shell` `6e637f6`).
+
+| 커밋 | 내용 | 가져가나 |
+|---|---|---|
+| `c288c4b` | **개발용 병합.** `cobot_interfaces`(PR #2) 파일을 이 브랜치에 들여온 병합 커밋 | **가져가지 않는다** |
+| `df02f00` | `gen_web_types.py`(+시험 13개), `generated/messages.ts`, `mock/*.json` 30개, setup.py 진입점, CI 단계 | 가져간다 |
+| `a85ef69` | `useMessages` 훅, 참고 화면 1.1·1.4·2.1·4.1·6.2, 3.7 타입 적용, 개요의 데이터 계약 열, 시험, 문서 | 가져간다 |
+| `3cd222e` | `messages.ts` 를 LF 로 고정(.gitattributes) | 가져간다 |
+
+**순서 조건.** W2 는 `src/cobot_interfaces`(PR #2)가 같은 트리에 있어야 돈다. 팀 레포에서는 PR #2 가 들어간 브랜치 위에 W0 커밋 → W2 커밋 순으로 쌓는다. `cherry-pick df02f00 a85ef69 3cd222e` 만 한다 (`c288c4b` 제외).
+
+**W2 가 한 일**
+- 메시지 정의 → TS 타입: float 는 `Float = number | null`(NaN 은 JSON 에서 null). 미측정 값을 0 으로 보이지 않는다.
+- 모의 데이터 30개가 정의와 맞는지 `--check` 가 본다 (키 이름, 값 종류, 정수 범위, `위 X_* 중 하나` 주석의 상수 값). 어긋나면 종료 1.
+- 사람이 쓴 시나리오: `RobotStatus`·`ArmStatus`·`ArmMode`·`AlarmEvent`·`MapInfo`·`DiagSnapshot`·`CameraHealth`·`MediaHealth`. `MapInfo` 의 지점은 `approach_poses.yaml` 의 실제 값이다. 나머지 22개는 영 값이다.
+- `DiagSnapshot` 의 장비 주소는 문서용 주소(192.0.2.x, RFC 5737)다. 실제 주소가 아니다.
+
+**확인한 것 (2026-10-23, 새 clone `feature/gui-web-w2` 에서 `npm ci` 부터)**
+
+| 항목 | 결과 |
+|---|---|
+| `npm ci` / lint / tsc | 401개 설치, 오류 없음 |
+| `npm test` | 11개 파일 75개 통과 |
+| 일부러 망가뜨림 | 배터리 모의 값을 0 으로 바꾸면, 퇴피 측정 여부를 무시하면 시험이 실패한다 |
+| `npm run build`, `check:dist`, `check:deps` | 통과 (번들 약 348 kB, 외부 참조 없음) |
+| Python 시험 | 72개 통과 (레지스트리, 규칙 경계, 메뉴 생성기, 타입 생성기) |
+| `gen_web_menus --check`, `gen_web_types --check` | 일치 (모의 데이터 30개 통과) |
+| flake8 근사(google import 순서, 작은따옴표, 99자) | 새 파이썬 파일 깨끗함 |
+| 브라우저 | 2.1(지도), 1.1(카드) 눈으로 확인 |
+
+**아직 안 한 것:** ROS 컨테이너 `colcon test`(ament lint), Actions 의 `fms-web` 첫 실행, 팀 CI 에서 `gen_web_types --check` (PR #2 가 있어야 돈다), 팀원의 화면 작성.
