@@ -16,6 +16,22 @@
 | 관제 | `<proj>_control_center` | <강건한> |
 | GUI | `<proj>_gui` | <강건한, 김지혜> |
 
+## 워크스페이스 구조
+<ws>/
+├── src/
+│   ├── <proj>_interfaces/      # 공용 msg / srv / action (코드 없음)
+│   ├── <proj>_bringup/         # 전체 launch, 통합 파라미터 YAML
+│   ├── <proj>_description/     # URDF/xacro, 메시 (모바일 베이스 + 팔)
+│   ├── <proj>_vision/          # [비전] 카메라, 검출/인식, 좌표 변환
+│   ├── <proj>_navigation/      # [주행] Nav2 설정, 주행 시퀀스, localization
+│   ├── <proj>_manipulation/    # [매니퓰레이터] 팔/그리퍼 제어, pick&place
+│   ├── <proj>_moveit_config/   # [매니퓰레이터] MoveIt2 설정
+│   ├── <proj>_control_center/  # [관제] 상태 수집, 작업 할당, 로그
+│   └── <proj>_gui/             # [GUI] 사용자/관제 화면
+├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
+├── scripts/                    # 환경 설정, 보조 스크립트
+└── CLAUDE.md
+
 ## 처음 설치하기
 
 ### 1. ROS2 Jazzy 설치
