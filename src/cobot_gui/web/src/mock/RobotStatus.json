@@ -1,0 +1,140 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": "map"
+    },
+    "robot_id": "pinky_1",
+    "robot_boot_id": "boot-1a1",
+    "state": "NAVIGATING",
+    "current_pose": {
+      "position": {
+        "x": 1.62,
+        "y": 0.335,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 1.0,
+        "w": 0.0
+      }
+    },
+    "localized": true,
+    "linear_vel": 0.18,
+    "angular_vel": 0.0,
+    "nav_status": 2,
+    "battery_percentage": 78.5,
+    "is_emergency_stopped": false,
+    "motor_power_present": true,
+    "base_hold_engaged": false,
+    "hold_reason": "",
+    "current_task_id": "task-0007",
+    "epoch_accepted": 3,
+    "last_seq_accepted": 41,
+    "last_heartbeat_seq": 902,
+    "last_heartbeat_rx_age_ms": 40,
+    "map_hash_loaded": "ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170",
+    "dock_err_xy": null,
+    "dock_err_yaw": null,
+    "dock_err_aruco_mm": null,
+    "clock_offset_known": true,
+    "clock_offset_ms": 3,
+    "nav2_action_clients": 1
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": "map"
+    },
+    "robot_id": "pinky_2",
+    "robot_boot_id": "boot-2a1",
+    "state": "IDLE",
+    "current_pose": {
+      "position": {
+        "x": 1.41,
+        "y": 1.8575,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071,
+        "w": -0.7071
+      }
+    },
+    "localized": true,
+    "linear_vel": 0.0,
+    "angular_vel": 0.0,
+    "nav_status": 0,
+    "battery_percentage": 92.0,
+    "is_emergency_stopped": false,
+    "motor_power_present": true,
+    "base_hold_engaged": false,
+    "hold_reason": "",
+    "current_task_id": "",
+    "epoch_accepted": 3,
+    "last_seq_accepted": 40,
+    "last_heartbeat_seq": 900,
+    "last_heartbeat_rx_age_ms": 40,
+    "map_hash_loaded": "ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170",
+    "dock_err_xy": 0.006,
+    "dock_err_yaw": 0.04,
+    "dock_err_aruco_mm": null,
+    "clock_offset_known": true,
+    "clock_offset_ms": 3,
+    "nav2_action_clients": 1
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": "map"
+    },
+    "robot_id": "pinky_3",
+    "robot_boot_id": "boot-3a1",
+    "state": "HOLD",
+    "current_pose": {
+      "position": {
+        "x": 0.8,
+        "y": 0.6,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071,
+        "w": 0.7071
+      }
+    },
+    "localized": true,
+    "linear_vel": 0.0,
+    "angular_vel": 0.0,
+    "nav_status": 0,
+    "battery_percentage": null,
+    "is_emergency_stopped": false,
+    "motor_power_present": true,
+    "base_hold_engaged": true,
+    "hold_reason": "PROXIMITY",
+    "current_task_id": "task-0008",
+    "epoch_accepted": 3,
+    "last_seq_accepted": 40,
+    "last_heartbeat_seq": 900,
+    "last_heartbeat_rx_age_ms": 180,
+    "map_hash_loaded": "ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170",
+    "dock_err_xy": 0.012,
+    "dock_err_yaw": null,
+    "dock_err_aruco_mm": null,
+    "clock_offset_known": true,
+    "clock_offset_ms": 3,
+    "nav2_action_clients": 1
+  }
+]

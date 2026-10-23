@@ -23,6 +23,18 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: |
-          /tmp/fms-contract-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_gui/test/test_menu_registry.py src/cobot_gui/test/test_rule_boundaries.py
+          /tmp/fms-contract-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_gui/test/test_menu_registry.py src/cobot_gui/test/test_rule_boundaries.py src/cobot_gui/test/test_gen_web_menus.py src/cobot_gui/test/test_gen_web_types.py
           /tmp/fms-contract-venv/bin/python -B -m cobot_gui.menu_registry
           /tmp/fms-contract-venv/bin/python -B -m cobot_gui.gen_menu_doc --check
+          /tmp/fms-contract-venv/bin/python -B -m cobot_gui.gen_web_menus --check
+          /tmp/fms-contract-venv/bin/python -B -m cobot_gui.gen_web_types --check
+  fms-web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Web lint, tests, build, offline check, dependency list
+        run: |
+          docker run --rm -v "$PWD":/repo -w /repo/src/cobot_gui/web node:22.14.0-bookworm sh -c "npm ci --no-audit --no-fund && npm run lint && npm test && npm run build && npm run check:dist && npm run check:deps"

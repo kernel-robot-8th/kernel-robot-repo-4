@@ -17,7 +17,7 @@
 | D3 | 맵 | 정본 `map_shoe_store_1021_gate67` (Floor Map 1021 + 아래 벽에 붙은 67 cm 게이트), 위치 `src/cobot_bringup/config/maps/`, map_hash 는 install 된 pgm·yaml(LF) 로 계산, 작업점과 Nav2 정차점을 나눈다. 정차점 값·theta·린트 반경 6 cm 는 초안. | 주행 (정차점 값·린트 반경·랙 배치) |
 | D4 | 정지·순단 복구 | 정지 명령은 검사에서 거부돼도 멈춘다(워치독은 갱신 안 함). 순단 복구는 epoch+1·DISARMED. | 주행 (가드) |
 | D5 | 복구 2단계 승인 | 1단계 = 항목별 현장 확인 입력, 2단계 = 승인 뒤 최소 체류(초안 5 s) 지나 START. 2인 승인·비밀번호 재입력은 설정. | 관제 |
-| D8 | 웹 화면 파일 위치 | `cobot_gui` 안 `web/` 폴더를 `data_files` 로 설치. CLAUDE.md §3 에 `web/` 규칙 추가. fastapi·uvicorn 허락은 S2 전에 따로. | GUI |
+| D8 | 웹 화면 파일 위치 | `cobot_gui` 안 `web/` 폴더에 화면 소스(React·Vite, 홈랩 관리자 화면과 같은 구조)를 두고 빌드 결과 `web/dist` 를 `data_files` 로 설치. CLAUDE.md §3 에 `web/` 규칙 추가. Node/npm 사용과 패키지 목록, fastapi·uvicorn 허락은 팀 허락이 필요하다. | GUI |
 
 공지문 예시. 그대로 붙여 쓰고 `<기한>` 과 `<PR 링크>` 만 채운다. PR 이 아직 없으면 그 줄은 지운다.
 
@@ -38,7 +38,9 @@ S1(계약 고정)에 필요한 결정 6건을 아래처럼 정합니다.
   통신이 끊겼다 돌아오면 epoch+1·DISARMED 이고, 다시 달리려면 승인과 START 가 필요합니다.
 - D5 복구 승인: 1단계는 항목별 현장 확인 입력, 2단계 START 는 승인하고 5초(초안) 뒤부터 받습니다.
   2인 승인·비밀번호 재입력은 설정으로 켭니다.
-- D8 웹 화면 파일: cobot_gui 안 web/ 폴더에 두고 설치합니다. CLAUDE.md §3 에 web/ 규칙을 더합니다.
+- D8 웹 화면 파일: cobot_gui 안 web/ 폴더에 화면 소스를 두고, 빌드 결과(web/dist)를 설치합니다.
+  빌드에 Node/npm 을 씁니다(홈랩 관리자 화면과 같은 구조). 사용 허락과 패키지 목록(docs/fms_web_dependencies.md)을 함께 확인해 주세요.
+  CLAUDE.md §3 에 web/ 규칙을 더합니다.
   fastapi·uvicorn 사용은 S2 전에 따로 정합니다.
 
 함께 알림: 도커를 처음 쓰는 분을 위한 개발 환경 안내(docs/dev_docker_guide.md)를 함께 올립니다.
@@ -403,12 +405,12 @@ S3 구현 전에는 이 문서와 인터페이스만 고치면 된다. 구현 �
 
 ### 추천안
 
-2안. CLAUDE.md §3 에 이런 규칙을 더한다: '`web/` 은 설치되는 정적 자원 폴더다. `setup.py` `data_files` 로 등록한다. 실행 코드의 언어는 패키지 언어 하나다.' 문구는 규칙 PR 에서 정한다.
+2안. CLAUDE.md §3 에 이런 규칙을 더한다: '`web/` 은 웹 화면 소스 폴더다. 빌드 결과 `web/dist` 만 `setup.py` `data_files` 로 install 하고 커밋하지 않는다. TypeScript 는 브라우저 화면 소스이고 ROS 실행 코드가 아니다. 실행 코드의 언어는 패키지 언어 하나다.' 문구는 규칙 PR 에서 정한다. 지금 CLAUDE.md §3-7 초안의 '따로 빌드하지 않는다' 와 'vendoring' 문구는 이에 맞게 고친다.
 
 D8 후속 (이번 결정 범위 밖, S2 착수 전에 따로 정한다):
 
 - 웹 서버 라이브러리 fastapi·uvicorn 사용 허락.
-- 프론트 라이브러리를 레포에 넣는(vendoring) 목록과 버전.
+- 프론트 도구: 홈랩 관리자 화면과 같은 구조(React·react-router·Vite·Tailwind)를 쓰고, 빌드는 Node/npm 으로 한다. 패키지 목록과 라이선스는 `docs/fms_web_dependencies.md`(자동 생성)에 있다. 버전은 `package-lock.json` 이 고정하고 설치는 `npm ci` 로만 한다. 사용 허락은 관제 담당이 팀에 설명하고 받는다.
 - 설치 방법 후보는 apt 패키지 또는 `python3 -m venv --system-site-packages` 다 (CLAUDE.md §5). apt 패키지가 있는지는 아직 확인하지 않았다.
 - S1 출구 검사 5 는 D8 의 이번 범위(패키지 형태와 폴더 규칙)만 본다.
 
@@ -422,7 +424,7 @@ D8 후속 (이번 결정 범위 밖, S2 착수 전에 따로 정한다):
 ### 결과 (바뀌는 파일·PR, 예정)
 
 - `feature/common-team-rules-s1`: CLAUDE.md §3 에 `web/` 폴더 규칙을 더한다.
-- `web/` 폴더 자체는 S2 화면 셸 작업에서 만든다 (이 결정과 D8 후속 뒤).
+- `feature/gui-common-web-shell`: `web/` 화면 골격(메뉴 34개 틀)과 생성기. 개인 레포에서 먼저 검증한 뒤 팀 레포에 올린다. 머지는 규칙 개정과 Node 허락 뒤에 한다.
 - 파일 목록은 PR 설명이 정본이다.
 
 ### 되돌리는 방법

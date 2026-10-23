@@ -1,0 +1,20 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 0,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "order_id": "",
+    "task_id": "",
+    "robot_id": "",
+    "assigned_at": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "excluded_robot_ids": [],
+    "exclusion_reasons": []
+  }
+]

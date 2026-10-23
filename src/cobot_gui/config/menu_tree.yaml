@@ -207,9 +207,9 @@ decisions:
   - {id: D7, status: open, title: 'PRD_3 OMX 상·하차를 수업 로컬 게이트(사람 수동 시작, 원격 트리거 없음) 대상으로 볼지', blocks: 'P4, 3.5, SR-09 시연 흐름'}
   - id: D8
     status: proposed
-    title: '정적 웹 자원 패키지 형태(CLAUDE.md §3 에 없음), vendoring·fastapi·uvicorn 의존성 허락'
+    title: '웹 화면 소스·빌드 결과 위치(CLAUDE.md §3 에 없음), Node/npm·fastapi·uvicorn 의존성 허락'
     blocks: 'P1 빌드 (화면 셸 위치)'
-    proposal: '2안: cobot_gui(ament_python) 의 web/ 폴더를 setup.py data_files 로 설치하고 CLAUDE.md §3 에 web/ 규칙을 더한다. fastapi·uvicorn·JS vendoring 허락은 S2 착수 전에 따로 정한다(D8 후속).'
+    proposal: '2안: cobot_gui(ament_python) 의 web/ 폴더에 화면 소스(React·Vite)를 두고 빌드 결과 web/dist 를 setup.py data_files 로 설치한다. CLAUDE.md §3 에 web/ 규칙을 더한다. Node/npm 사용과 패키지 목록(docs/fms_web_dependencies.md), fastapi·uvicorn 허락은 팀 허락이 필요하다(D8 후속).'
     record: 'docs/fms_decisions.md#d8'
   - {id: D9, status: open, title: '역할 권한표 — 직원 정지 허용, 주문 취소 범위, 고객 화면 범위, 콘솔 만료 때 처리', blocks: 'P1 로그인, P2'}
   - {id: D10, status: open, title: '카메라 구성, 폰 송출 수단, 제어용 영상 입력 경로, 캡처 시각 전달, Ttop 팬아웃', blocks: '④, P1 영상, P3 Tail Exit, P4 LeRobot 모드'}

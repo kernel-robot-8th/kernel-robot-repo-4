@@ -1,0 +1,15 @@
+[
+  {
+    "event_id": "",
+    "kind": "PERSON_IN_ZONE",
+    "camera_id": "",
+    "capture_stamp": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "age_basis": "CAPTURE",
+    "zone_id": "",
+    "robot_id": "",
+    "confidence": null
+  }
+]

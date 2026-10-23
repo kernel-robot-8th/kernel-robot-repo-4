@@ -1,0 +1,20 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 0,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "evidence_id": "",
+    "command_id": "",
+    "task_id": "",
+    "source_id": "",
+    "kind": 0,
+    "value": null,
+    "threshold": null,
+    "satisfied": false,
+    "measured": false
+  }
+]

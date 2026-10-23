@@ -1,0 +1,101 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792714500,
+        "nanosec": 0
+      },
+      "frame_id": "map"
+    },
+    "map_name": "map_shoe_store_1021_gate67",
+    "map_hash": "ecfa150600d7b3ccf3630010a4db22adc93e16081ee178366fa1608dcc7bb170",
+    "resolution": 0.01,
+    "origin_x": -0.02,
+    "origin_y": -0.02,
+    "origin_yaw": 0.0,
+    "width": 254,
+    "height": 254,
+    "waypoints": [
+      {
+        "waypoint_id": "WP_HOME_1",
+        "work_x": 1.41,
+        "work_y": 2.05375,
+        "work_yaw": 4.712389,
+        "approach_x": 1.41,
+        "approach_y": 2.05375,
+        "approach_yaw": 4.712389,
+        "arm_id": ""
+      },
+      {
+        "waypoint_id": "WP_HOME_2",
+        "work_x": 1.41,
+        "work_y": 1.8575,
+        "work_yaw": 4.712389,
+        "approach_x": 1.41,
+        "approach_y": 1.8575,
+        "approach_yaw": 4.712389,
+        "arm_id": ""
+      },
+      {
+        "waypoint_id": "WP_HOME_3",
+        "work_x": 1.41,
+        "work_y": 1.66125,
+        "work_yaw": 4.712389,
+        "approach_x": 1.41,
+        "approach_y": 1.66125,
+        "approach_yaw": 4.712389,
+        "arm_id": ""
+      },
+      {
+        "waypoint_id": "WP_LOAD_1",
+        "work_x": 2.015,
+        "work_y": 2.105,
+        "work_yaw": 0.0,
+        "approach_x": 2.015,
+        "approach_y": 2.105,
+        "approach_yaw": 0.0,
+        "arm_id": "omx_1"
+      },
+      {
+        "waypoint_id": "WP_LOAD_2",
+        "work_x": 2.015,
+        "work_y": 1.5375,
+        "work_yaw": 0.0,
+        "approach_x": 2.015,
+        "approach_y": 1.5375,
+        "approach_yaw": 0.0,
+        "arm_id": "omx_2"
+      },
+      {
+        "waypoint_id": "WP_GATE_TRANSIT",
+        "work_x": 1.25,
+        "work_y": 0.335,
+        "work_yaw": 3.141593,
+        "approach_x": 1.25,
+        "approach_y": 0.225,
+        "approach_yaw": 3.141593,
+        "arm_id": ""
+      },
+      {
+        "waypoint_id": "WP_UNLOAD",
+        "work_x": 0.415,
+        "work_y": 1.85,
+        "work_yaw": 3.141593,
+        "approach_x": 0.415,
+        "approach_y": 1.85,
+        "approach_yaw": 3.141593,
+        "arm_id": "omx_3"
+      },
+      {
+        "waypoint_id": "WP_BENCH_DELIVERY",
+        "work_x": 0.29,
+        "work_y": 1.31,
+        "work_yaw": 1.570796,
+        "approach_x": 0.29,
+        "approach_y": 1.16,
+        "approach_yaw": 1.570796,
+        "arm_id": ""
+      }
+    ]
+  }
+]
