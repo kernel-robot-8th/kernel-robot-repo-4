@@ -1,0 +1,8 @@
+# ReconcileReport.srv - Reconcile 대조 보고서 조회 (2단계 승인 화면의 입력, SR-14)
+# 서비스 이름: /control_center/reconcile_report (이름은 초안)
+# 보고서는 RECONCILE 명령(OperatorCommand)으로 만든다. 이 서비스는 읽기만 한다.
+
+string scope               # "ALL" | robot_id | arm_id
+---
+ReconcileItem[] items      # 대조 항목
+string report_hash         # 보고서 sha256 16진 문자열. APPROVE 때 approval_ref 로 쓴다

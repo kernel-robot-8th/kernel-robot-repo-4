@@ -1,0 +1,46 @@
+# HandoverTask.action (v2) - 상·하차 때 팔의 비전 정렬·적재·퇴피 액션
+# 액션 이름: /manipulation/<arm_id>/handover
+# D7 이 FMS_TRIGGER 일 때만 쓴다. 클라이언트는 fms_core 하나뿐이다.
+# D7 기본값 MANUAL_START 에서는 이 액션을 쓰지 않는다 (사람이 Station PC 에서 시작).
+# 서버는 서명 없는 Goal 과 fms_core 밖의 Goal 을 거부한다 (설계 초안, 서명은 D13).
+# 서버는 header 의 epoch·seq·TTL·map_hash 를 판정한다 (SR-20).
+# v1 에서 바뀐 것: CommandHeader 추가, station_id -> waypoint_id(PRD_3 이름), item_type -> sku,
+#                  RETRACTING 단계, retract_safe·load_confirmed·evidence_ids 추가.
+# order_id 는 header.order_id 를 쓴다.
+
+# Goal
+string ACTION_TYPE_LOAD="LOAD"
+string ACTION_TYPE_UNLOAD="UNLOAD"
+
+CommandHeader header             # 세션 펜싱·서명. header.robot_id = 이 Goal 을 받는 팔 (omx_1~3)
+string robot_id                  # 대상 핑키 (pinky_1~3)
+string waypoint_id               # 작업 지점: WP_LOAD_1 | WP_LOAD_2 | WP_UNLOAD (맵 정본 확정 후, D3)
+string action_type               # 위 ACTION_TYPE_* 중 하나
+string sku                       # 신발 종류
+---
+# Result
+string ERROR_CODE_QR_MISMATCH="QR_MISMATCH"
+string ERROR_CODE_GRASP_FAIL="GRASP_FAIL"
+string ERROR_CODE_HUMAN_HOLD="HUMAN_HOLD"
+string ERROR_CODE_BUS_FAULT="BUS_FAULT"
+
+bool success                     # 작업 성공 (요약. 물리 판정은 evidence_ids 로 한다)
+float32 alignment_offset_x_mm    # [mm] 비전 정렬 보정량 x
+float32 alignment_offset_y_mm    # [mm] 비전 정렬 보정량 y
+float32 alignment_offset_yaw_deg # [deg] 비전 정렬 보정 각도
+bool retract_safe                # 퇴피 완료 Z >= 280 mm (SR-10). 요약값
+bool load_confirmed              # 적재 확인 (SR-10). 요약값
+string[] evidence_ids            # 근거 CompletionEvidence.evidence_id (measured 는 증거 쪽에 있다)
+string error_code                # 위 ERROR_CODE_* 중 하나. 오류 없으면 ""
+string error_message             # 사람이 읽는 설명
+---
+# Feedback
+string STEP_APPROACHING="APPROACHING"
+string STEP_VISION_ALIGNING="VISION_ALIGNING"
+string STEP_GRASPING="GRASPING"
+string STEP_PLACING="PLACING"
+string STEP_RETRACTING="RETRACTING"
+string STEP_VERIFYING="VERIFYING"
+
+string step                      # 위 STEP_* 중 하나
+float32 progress_percent         # [%] 0~100

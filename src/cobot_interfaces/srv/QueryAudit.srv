@@ -1,0 +1,18 @@
+# QueryAudit.srv - 감사 원장 조회 (읽기 전용, SR-21)
+# 서비스 이름: /control_center/query_audit (이름은 초안)
+# 빈 문자열 조건은 '거르지 않음' 이다. 시각이 0 이면 그 쪽 경계가 없다.
+
+string order_id
+string task_id
+string command_id
+string tx_id
+string target_id
+string event_type
+builtin_interfaces/Time from_time  # 이 시각 이후 (0 = 경계 없음)
+builtin_interfaces/Time to_time    # 이 시각 이전 (0 = 경계 없음)
+string cursor              # 앞 응답의 next_cursor. 처음이면 ""
+uint32 limit               # [건] 최대 500
+---
+AuditEvent[] events        # 찾은 행
+string next_cursor         # 다음 쪽 커서. 끝이면 ""
+bool chain_ok              # 해시 체인 검증 결과. false 면 원장이 바뀌었다
