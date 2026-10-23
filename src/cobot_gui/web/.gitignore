@@ -2,3 +2,6 @@
 node_modules/
 dist/
 *.tsbuildinfo
+
+# 루트 .gitignore 의 lib/ (파이썬 빌드 폴더) 규칙이 src/lib 를 숨기지 않게 한다.
+!src/lib/
