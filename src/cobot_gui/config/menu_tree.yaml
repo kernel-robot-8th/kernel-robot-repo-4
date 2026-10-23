@@ -16,6 +16,9 @@
 #                   없앤 메뉴는 removed.
 #   status          planned | in_progress | done | removed
 #   branch          (status 가 in_progress 일 때 필수) 작업 브랜치 이름. 선점 표시다.
+#   impl            (선택) 구현도. none(기본, 코드 없음) | external(레포 밖 독립 구현, 통합 전) |
+#                   integrated(main 에 통합, 시험 있음). 작업 선점(status)과 따로 본다.
+#   impl_ref        (impl 이 none 이 아니면 필수) 구현이 있는 곳과 커밋.
 #   sr              SR_v2 v13 의 ID 만 쓴다. 뜻을 바꾸지 않는다. 검사기는 sr_catalog 와
 #                   menu_registry.py 의 고정 사본(SR_CANON)에 대고 본다.
 #   sr_unconfirmed  SR_v2 v13 에 없는 ID. 확인이 필요하다.
@@ -62,7 +65,7 @@ notes:
   - "초안: 메뉴 수는 34개로 센다. 원문 본문의 '33개' 는 3.7 을 넣기 전 숫자로 본다. 작성자 확인 전이다 (D17)."
   - '아키텍처 설계서 v0.1 은 아직 팀에 공개하지 않은 초안이다. 그래서 판단 근거는 설계서 절 번호 대신 각 메뉴 메모에 직접 적었다.'
   - '담당 칸(screen_owner, data_owner)은 모두 초안이다. README 팀 구성 표의 역할과 각 메뉴의 데이터 원천을 보고 채웠다. 각 역할 담당이 확인한다.'
-  - 'screen_owner 는 규칙 R2(화면은 GUI 담당이 만든다)에 따라 활성 메뉴 모두 gui 로 두었다.'
+  - 'screen_owner 는 규칙 R2(화면은 GUI 담당이 만든다)에 따라 활성 메뉴 모두 gui 로 두었다. 예외는 3.7 하나다 (팀원이 만든 Station PC 앱).'
   - '초안: 메뉴별 decisions 는 설계서 §10.1 의 막는 것 열에서 옮겼다. 각 결정이 막는 것은 생성 문서의 결정 목록 표에 있다.'
   - 'SR 매핑은 메뉴 트리 원문 대조표를 따랐다. 원문과 다른 메뉴는 sr_original 에 원문 값을 두고 메모에 이유를 적었다. UR ID 는 sr 에 넣지 않는다.'
   - '패키지 접두사 `cobot_` 는 main 의 폴더 이름(`cobot_navigation`, `cobot_vision`)을 따랐다. README 의 `<proj>_` 는 자리표시자다. 확정은 D1.'
@@ -134,7 +137,7 @@ screens:
     label: '③'
     name: 로봇팔 작업 관제
     phase_note: P4
-    notes: ["부제 'Teleop 스튜디오' 는 쓰지 않는다 (3.7 없앰)."]
+    notes: ['3.7(팀원 녹화 앱)은 Station PC 데스크톱 앱이다. 이 화면에는 3.3·3.4 요약 탭과 앱 안내만 둔다.']
   - id: screen_4
     label: '④'
     name: 비전·안전 모니터링
@@ -211,12 +214,12 @@ decisions:
   - {id: D9, status: open, title: '역할 권한표 — 직원 정지 허용, 주문 취소 범위, 고객 화면 범위, 콘솔 만료 때 처리', blocks: 'P1 로그인, P2'}
   - {id: D10, status: open, title: '카메라 구성, 폰 송출 수단, 제어용 영상 입력 경로, 캡처 시각 전달, Ttop 팬아웃', blocks: '④, P1 영상, P3 Tail Exit, P4 LeRobot 모드'}
   - {id: D11, status: open, title: '하트비트 주기·ttl, 시계 허용 오프셋, 승인 만료·최소 체류·WS 끊김 시간 값', blocks: 'P2'}
-  - {id: D12, status: open, title: '3.3·3.4 데이터 전달 수단, PT-23 공식 녹화 도구', blocks: 'P4'}
+  - {id: D12, status: open, title: '3.3·3.4 데이터 전달 수단, PT-23 공식 녹화 도구 (방향: 팀원 앱을 3.7 로 채택, 관제 담당 지시 2026-10-22, 공지 전)', blocks: 'P4'}
   - {id: D13, status: open, title: '서명 키의 생성·배포·교체 방법', blocks: 'P2'}
   - {id: D14, status: open, title: '주문 상태 열거, 메뉴 트리에 주문 호출·재고·회수 화면 추가', blocks: 'P3'}
   - {id: D15, status: open, title: '원장·로그 보존 기간과 백업, 영상 사람 촬영·보존·삭제 정책', blocks: 'P5, 4.4·4.5'}
   - {id: D16, status: open, title: 'Git 규칙 단일화, main 보호, CODEOWNERS', blocks: '모든 PR'}
-  - {id: D17, status: open, title: "6.5 'SR-22' 의 정체, 메뉴 문서 정정(33 → 34, 3.7), SR 정본 = SR_v2", blocks: '문서 정합'}
+  - {id: D17, status: open, title: "6.5 'SR-22' 의 정체, 메뉴 문서 정정(33 → 34, 3.7 은 팀원 앱으로 채택), SR 정본 = SR_v2", blocks: '문서 정합'}
   - {id: D18, status: open, title: '현장 실측 — Station PC 사양(OS·ROS·Python·LeRobot), OMEN-A 주소와 역할, AP 구성, RMW, 핑키 RTC·도메인', blocks: 'P1~P4'}
   - {id: D19, status: open, title: 'SR-02 재고 원장 — 소유자, 재고 원천과 입력 수단, 가점유·락 규칙', blocks: 'P3 SR-02'}
   - {id: D20, status: open, title: '개인 레포 자산 반입 범위와 방법, 로봇 탑재 소스의 팀 레포 이관 여부', blocks: '자산 재사용, P2 가드'}
@@ -532,22 +535,29 @@ menus:
   - id: '3.7'
     name: 로봇팔 파라미터 제어 및 모방학습 Teleop 스튜디오
     depth1: '03. OMX 작업'
-    screen: ''
-    phase: removed
-    status: removed
+    screen: screen_3
+    phase: P4
+    status: planned
+    impl: external
+    impl_ref: 'tool/omx-ai_record_dashboard 브랜치 e78dd9a (omx_recoder/, PySide6 데스크톱 앱). main 에 통합 전이다.'
     sr: []
     sr_original: [SR-09, SR-10, SR-19, SR-20, SR-21, UR-04, UR-26]
     sr_unconfirmed: []
-    data_sources: []
+    data_sources: ['앱 안의 세션 상태, LeRobot 데이터셋 폴더 (success/fail). FMS 토픽이 아니다.']
     commands: []
-    screen_owner: ''
-    data_owner: ''
-    decisions: [D17]
+    screen_owner: manipulation
+    data_owner: manipulation
+    decisions: [D12, D17, D18]
     notes:
-      - '없앤 메뉴다. 3.3·3.4 축소판(③ 탭)으로 대체한다.'
-      - '초안: 원문 SR 매핑을 모두 뺐다. 원격 텔레옵이나 모터 파라미터 제어를 요구하는 SR 이 없다.'
-      - '원격 텔레옵은 이후(P5) 조건부 검토 항목이다.'
-      - '메뉴 트리 원문의 메뉴 수 정정(33 → 34)은 D17 이다.'
+      - '팀원이 만든 Station PC 데스크톱 앱(omx_recoder)을 3.7 로 채택한다 (관제 담당 지시 2026-10-22). ③ 웹 화면의 일부가 아니다. ③ 에는 3.3·3.4 요약 탭과 앱 안내만 둔다.'
+      - '이 앱은 FMS 명령 경로를 쓰지 않는다. 앱 안의 조작(BringUp, 녹화, Init/Rest 자세 저장, Servo OFF, HF 업로드)은 앱 프로세스가 팔 포트를 직접 연다.'
+      - '영상: 앱은 Station PC 에 꽂힌 카메라(wrist·top)를 LeRobot OpenCVCamera 로 직접 받아 녹화한다. 영상을 밖으로 내보내는 코드(LiveKit·RTSP·MediaMTX)는 없다. 통합에 영상 전송은 필요 없다.'
+      - '초안: 앱이 연 카메라는 보통 다른 프로세스가 같이 받을 수 없다. 웹 4.x 의 MediaMTX 영상과 같은 카메라를 나눠 쓰려면 앱이 받은 프레임을 내보내는 방법을 따로 정해야 한다 (D12).'
+      - '초안: 화면 담당과 데이터 담당을 매니퓰레이터로 두었다. R2(화면은 GUI 담당)의 예외이고 팀 확인이 필요하다.'
+      - '통합 전 조건 (docs/fms_branch_compatibility_review.md): 팔 배타 제어(ArmMode LEROBOT_EXCLUSIVE), Servo OFF 는 긴급 정지가 아니다(정상 종료와 정지를 나눈다), 실행 환경 차이(Ubuntu 22.04 + 별도 LeRobot 환경, D18).'
+      - '초안: 원문 SR 매핑을 모두 뺐다. SR_v2 v13 에는 원격 텔레옵·모터 파라미터 제어·모방학습 데이터 수집을 요구하는 SR 이 없다. 원문의 SR/UR 은 sr_original 에 보존한다. 선택 기능이다 (D17).'
+      - '공식 녹화 도구 방향은 이 앱이다. D12 는 공지 전이라 open 이다.'
+      - '웹에서 팔을 움직이는 원격 텔레옵은 이 앱과 별개이고 이후(P5) 조건부 검토 항목이다.'
 
   # ---------------------------------------------------------------- 04. 비전 모니터링
   - id: '4.1'

@@ -380,12 +380,14 @@ def test_active_menus_have_exactly_one_known_screen():
 
 def test_approved_phase_values():
     registry = _registry()
-    removed = _menu(registry, '3.7')
-    assert (removed['phase'], removed['status'], removed['screen']) == ('removed', 'removed', '')
+    adopted = _menu(registry, '3.7')
+    assert (adopted['phase'], adopted['status'], adopted['screen']) == ('P4', 'planned', 'screen_3')
+    assert (adopted['impl'], adopted['screen_owner'], adopted['data_owner']) == (
+        'external', 'manipulation', 'manipulation')
     for menu_id in ('4.4', '4.5', '5.2', '6.5'):
         assert _menu(registry, menu_id)['phase'] == 'P5', menu_id
     removed_ids = [m['id'] for m in registry['menus'] if m['status'] == 'removed']
-    assert removed_ids == ['3.7']
+    assert removed_ids == []
 
 
 # (c) sr[] 는 SR_v2 v13 목록 안에 있고, SR 사본은 SR_v2 v13 표와 이름·우선순위까지 같다
@@ -624,6 +626,13 @@ def test_owner_fields_are_role_keys():
             assert value == '' or value in roles, (menu['id'], key, value)
 
 
+def _as_removed(menu):
+    # 없앤 메뉴가 지금 레지스트리에 없어서, 검사기의 removed 처리는 활성 메뉴 하나를 바꿔서 시험한다.
+    menu.update(phase='removed', status='removed', screen='')
+    menu.pop('also_shown_in', None)
+    return menu
+
+
 def test_warning_function_finds_blank_owner_cells():
     registry = _registry()
     baseline = menu_registry.find_warnings(registry)
@@ -632,11 +641,11 @@ def test_warning_function_finds_blank_owner_cells():
     broken = copy.deepcopy(registry)
     _menu(broken, '1.1')['screen_owner'] = ''
     _menu(broken, '2.2')['data_owner'] = '   '
-    _menu(broken, '3.7')['data_owner'] = ''
+    _as_removed(_menu(broken, '4.4'))['data_owner'] = ''
     warnings = menu_registry.find_warnings(broken)
     assert 'menu 1.1: screen_owner 빈 칸' in warnings
     assert 'menu 2.2: data_owner 빈 칸' in warnings
-    assert not [w for w in warnings if w.startswith('menu 3.7')]
+    assert not [w for w in warnings if w.startswith('menu 4.4')]
     # 빈 칸은 경고일 뿐 오류가 아니다.
     assert menu_registry.validate(broken) == []
 
@@ -664,9 +673,11 @@ def test_generated_doc_matches_registry_byte_for_byte():
 
 def test_generated_doc_marks_changed_sr_rows():
     text = gen_menu_doc.render(_registry())
-    assert '| 1.1 | 전체 로봇 현황 | ① | P1 | planned | SR-06, SR-10, SR-12 ✱ |' in text
-    assert '| 1.3 | 로봇 할당 현황 | ① | P3 | planned | SR-03, SR-16 |' in text
-    assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | SR-22 |' in text
+    assert '| 1.1 | 전체 로봇 현황 | ① | P1 | planned | 없음 | SR-06, SR-10, SR-12 ✱ |' in text
+    assert '| 1.3 | 로봇 할당 현황 | ① | P3 | planned | 없음 | SR-03, SR-16 |' in text
+    assert '| 6.5 | 시뮬레이션·기능 검증 | ⑥ | P5 | planned | 없음 | SR-22 |' in text
+    assert '| 3.7 | 로봇팔 파라미터 제어 및 모방학습 Teleop 스튜디오 | ③ | P4 | planned | 외부 구현 (통합 전) |' in text
+    assert '구현도 외부 구현 (통합 전) | 1 |' in text
     assert '- ✱ 원문 SR: SR-06, SR-09 (지금 매핑과 다르다. 이유는 아래 메모)' in text
 
 
@@ -841,12 +852,12 @@ def test_negative_control_deleted_or_renamed_menu_is_an_error():
 def test_negative_control_removed_menu_with_screen_is_an_error():
     registry = _registry()
     broken = copy.deepcopy(registry)
-    _menu(broken, '3.7')['screen'] = 'screen_3'
+    _as_removed(_menu(broken, '4.4'))['screen'] = 'screen_3'
     errors = menu_registry.validate(broken)
-    assert _errors_mentioning(errors, 'menu 3.7', '화면')
+    assert _errors_mentioning(errors, 'menu 4.4', '화면')
     broken = copy.deepcopy(registry)
-    _menu(broken, '3.7')['also_shown_in'] = ['screen_3']
-    assert _errors_mentioning(menu_registry.validate(broken), 'menu 3.7', 'also_shown_in')
+    _as_removed(_menu(broken, '4.4'))['also_shown_in'] = ['screen_3']
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 4.4', 'also_shown_in')
 
 
 def test_negative_control_phase_table_edits_are_errors():
@@ -931,3 +942,29 @@ def test_negative_control_roadmap_mismatch_is_found():
     moved = copy.deepcopy(registry)
     _menu(moved, '1.3')['phase'] = 'P4'
     assert _errors_mentioning(_roadmap_problems(moved, text), 'P3', '포함 메뉴')
+
+
+# (구현도) impl 칸: 지금은 팀원 앱(3.7)만 외부 구현이다
+def test_impl_levels_and_references():
+    registry = _registry()
+    levels = {
+        m['id']: m.get('impl', 'none') for m in registry['menus'] if m['status'] != 'removed'}
+    assert [menu_id for menu_id, level in levels.items() if level != 'none'] == ['3.7']
+    assert 'e78dd9a' in _menu(registry, '3.7')['impl_ref']
+    assert menu_registry.validate(registry) == []
+
+
+def test_negative_control_impl_fields():
+    registry = _registry()
+    broken = copy.deepcopy(registry)
+    _menu(broken, '3.7')['impl'] = 'half'
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 3.7', 'impl')
+    broken = copy.deepcopy(registry)
+    del _menu(broken, '3.7')['impl_ref']
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 3.7', 'impl_ref')
+    broken = copy.deepcopy(registry)
+    _menu(broken, '1.1')['impl_ref'] = 'tool/x abc1234'
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 1.1', 'impl_ref')
+    broken = copy.deepcopy(registry)
+    _as_removed(_menu(broken, '4.4')).update(impl='external', impl_ref='tool/x abc1234')
+    assert _errors_mentioning(menu_registry.validate(broken), 'menu 4.4', 'impl')

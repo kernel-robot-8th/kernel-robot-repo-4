@@ -97,6 +97,12 @@ def _record_link(record):
     return '[`{}`]({})'.format(record, target)
 
 
+def _impl_cell(menu):
+    if menu['status'] == menu_registry.REMOVED:
+        return EMPTY
+    return menu_registry.IMPL_LABELS[menu.get('impl', menu_registry.IMPL_NONE)]
+
+
 def _sr_cell(menu):
     # 확인이 필요한 ID 도 표에 보이고, 원문과 매핑이 다르면 표시를 붙인다.
     items = list(menu['sr'])
@@ -156,6 +162,10 @@ def _render_summary(registry, add):
     for status in menu_registry.STATUSES:
         count = len([m for m in menus if m['status'] == status])
         add('| 상태 {} | {} |'.format(status, count))
+    for level in menu_registry.IMPL_LEVELS:
+        count = len([m for m in menus if m.get('impl', menu_registry.IMPL_NONE) == level
+                     and m['status'] != menu_registry.REMOVED])
+        add('| 구현도 {} | {} |'.format(menu_registry.IMPL_LABELS[level], count))
     add('| 원문과 SR 매핑이 다른 메뉴 ({}) | {} |'.format(
         CHANGED_MARK, len([m for m in menus if 'sr_original' in m])))
     add('| 화면 | {} |'.format(len(registry['screens'])))
@@ -210,6 +220,8 @@ def _render_menu_detail(registry, menu, add):
             CHANGED_MARK, original))
     if not menu_registry.is_blank(menu.get('branch')):
         add('- 작업 브랜치: `{}`'.format(menu['branch']))
+    if menu.get('impl', menu_registry.IMPL_NONE) != menu_registry.IMPL_NONE:
+        add('- 구현도: {} — {}'.format(_impl_cell(menu), menu['impl_ref']))
     for note in menu['notes']:
         add('- {}'.format(note))
     add('')
@@ -229,13 +241,13 @@ def _render_menus(registry, add):
         members = [m for m in menus if m['depth1'] == group]
         add('### {}'.format(group))
         add('')
-        add('| ID | 이름 | 화면 | 단계 | 상태 | SR | 화면 담당 | 데이터 담당 | 결정 |')
-        add('|---|---|---|---|---|---|---|---|---|')
+        add('| ID | 이름 | 화면 | 단계 | 상태 | 구현도 | SR | 화면 담당 | 데이터 담당 | 결정 |')
+        add('|---|---|---|---|---|---|---|---|---|---|')
         for menu in members:
-            add('| {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
+            add('| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
                 _cell(menu['id']), _cell(menu['name']),
                 _cell(_screen_label(screens, menu['screen'])), _cell(menu['phase']),
-                _cell(menu['status']), _cell(_sr_cell(menu)),
+                _cell(menu['status']), _cell(_impl_cell(menu)), _cell(_sr_cell(menu)),
                 _cell(_role_name(roles, menu['screen_owner'])),
                 _cell(_role_name(roles, menu['data_owner'])),
                 _cell(_decision_refs(registry, menu['decisions']))))

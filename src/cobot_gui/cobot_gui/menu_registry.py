@@ -107,6 +107,19 @@ ACTIVE_PHASES = ('P1', 'P2', 'P3', 'P4', 'P5')
 REMOVED = 'removed'
 IN_PROGRESS = 'in_progress'
 STATUSES = ('planned', IN_PROGRESS, 'done', REMOVED)
+# 구현도: 메뉴 구현이 지금 어디까지 있는가. 작업 선점(status)과 따로 본다.
+#   none = 코드가 없다 (impl 을 안 적으면 이 값)
+#   external = 레포 밖(팀원 브랜치 등)에 독립 구현이 있다. 통합 전이다.
+#   integrated = main 에 통합됐고 시험이 있다.
+IMPL_NONE = 'none'
+IMPL_EXTERNAL = 'external'
+IMPL_INTEGRATED = 'integrated'
+IMPL_LEVELS = (IMPL_NONE, IMPL_EXTERNAL, IMPL_INTEGRATED)
+IMPL_LABELS = {
+    IMPL_NONE: '없음',
+    IMPL_EXTERNAL: '외부 구현 (통합 전)',
+    IMPL_INTEGRATED: '통합됨',
+}
 # 결정 상태: open = 미결, proposed = 추천안이 있고 공지 전, decided = 결정자·날짜를 적었다.
 DECISION_OPEN = 'open'
 DECISION_PROPOSED = 'proposed'
@@ -123,7 +136,7 @@ MENU_KEYS = (
     'id', 'name', 'depth1', 'screen', 'phase', 'status', 'sr', 'sr_unconfirmed',
     'data_sources', 'commands', 'screen_owner', 'data_owner', 'decisions', 'notes',
 )
-OPTIONAL_MENU_KEYS = ('also_shown_in', 'branch', 'sr_original')
+OPTIONAL_MENU_KEYS = ('also_shown_in', 'branch', 'sr_original', 'impl', 'impl_ref')
 MENU_LIST_KEYS = (
     'sr', 'sr_unconfirmed', 'data_sources', 'commands', 'decisions', 'notes',
 )
@@ -576,6 +589,23 @@ def _validate_menu_owners(menu, label, ctx, errors):
                 label, branch))
 
 
+def _validate_menu_impl(menu, label, errors):
+    impl = menu.get('impl', IMPL_NONE)
+    ref = menu.get('impl_ref')
+    if impl not in IMPL_LEVELS:
+        errors.append('{}: impl 는 {} 중 하나: {!r}'.format(label, IMPL_LEVELS, impl))
+        return
+    if impl == IMPL_NONE:
+        if 'impl_ref' in menu:
+            errors.append('{}: impl 이 none 이면 impl_ref 를 적지 않는다'.format(label))
+        return
+    if is_blank(ref) or not isinstance(ref, str):
+        errors.append('{}: impl {} 이면 impl_ref(구현이 있는 곳, 커밋)가 있어야 한다'.format(
+            label, impl))
+    if menu['status'] == REMOVED or menu['phase'] == REMOVED:
+        errors.append('{}: 없앤 메뉴는 impl 이 none 이어야 한다'.format(label))
+
+
 def _validate_menu(menu, index, ctx, errors):
     if not isinstance(menu, dict):
         errors.append('menus[{}]: mapping 이어야 한다'.format(index))
@@ -602,6 +632,7 @@ def _validate_menu(menu, index, ctx, errors):
     _validate_menu_lists(menu, label, ctx, errors)
     _validate_menu_placement(menu, label, ctx, errors)
     _validate_menu_owners(menu, label, ctx, errors)
+    _validate_menu_impl(menu, label, errors)
     return menu_id
 
 
