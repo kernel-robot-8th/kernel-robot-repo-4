@@ -1,0 +1,26 @@
+# SubmitOrder.srv - 주문 접수 (게이트웨이 -> fms_core, SR-01)
+# 서비스 이름: /control_center/submit_order (이름은 초안)
+# 같은 idempotency_key 에는 같은 order_id 를 돌려준다 (SR-01).
+# 재고 가점유에 실패하면 주문은 접수하되 배정하지 않고 예외로 둔다 (SR-02, D19).
+
+string idempotency_key     # 멱등 키. 같은 키면 같은 주문
+string sku                 # 신발 종류
+uint32 qty                 # [개] 주문 수량
+string table_id            # 배송할 매장 테이블 위치
+string requester_role      # customer | staff | operator (자기 신고)
+string requester_id        # 계정 ID (초안: 원장 actor_id 용으로 더했다)
+string gw_nonce            # 게이트웨이 nonce (초안)
+string gw_sig              # HMAC-SHA256(게이트웨이 키). 없으면 BAD_SIGNATURE
+---
+string RESULT_ACCEPTED="ACCEPTED"
+string RESULT_REJECTED="REJECTED"
+
+string REJECT_BAD_SIGNATURE="BAD_SIGNATURE"
+string REJECT_ROLE_FORBIDDEN="ROLE_FORBIDDEN"
+string REJECT_INVENTORY_UNAVAILABLE="INVENTORY_UNAVAILABLE"
+string REJECT_LEDGER_UNAVAILABLE="LEDGER_UNAVAILABLE"
+
+string order_id            # 주문 ID. 거부면 ""
+bool duplicate             # 이미 받은 키였는가
+string result              # 위 RESULT_* 중 하나
+string reject_code         # 거부·예외 사유. INVENTORY_UNAVAILABLE 은 접수하되 배정 보류 (초안)
