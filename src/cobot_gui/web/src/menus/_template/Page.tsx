@@ -18,7 +18,7 @@ export default function Page({ menu }: MenuPageProps) {
   return (
     <div className="max-w-4xl space-y-6">
       <MenuHeader menu={menu} kind="page" />
-      <pre className="rounded-md border bg-muted p-3 text-xs">{JSON.stringify(data, null, 2)}</pre>
+      <pre className="rounded-none border bg-muted p-3 text-xs">{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
 }

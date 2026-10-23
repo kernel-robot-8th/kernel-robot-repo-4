@@ -9,18 +9,17 @@ import { hasMenuPage } from "@/shell/pages";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex items-center justify-between gap-2 rounded px-2.5 py-1.5 text-xs transition-colors",
+    "flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs transition-colors rounded-none",
     isActive
-      ? "bg-primary/20 font-semibold text-blue-300 border-l-2 border-primary pl-2 shadow-sm"
-      : "text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200",
+      ? "bg-[#1565c0] font-bold text-white shadow-sm"
+      : "text-[#888888] hover:bg-[#2a2a2a] hover:text-white",
   );
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav aria-label="메뉴 트리" className="space-y-4 p-3 font-sans">
       <div className="border-b border-border/80 pb-3">
-        <p className="px-2.5 pb-2 text-[11px] font-bold tracking-wider text-neutral-300 uppercase flex items-center gap-2">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+        <p className="px-2.5 pb-2 text-[11px] font-bold tracking-wider text-[#cccccc] uppercase">
           FMS 관제 대시보드
         </p>
         <NavLink to="/" end className={linkClass} onClick={onNavigate}>
@@ -29,19 +28,19 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       {menuGroups().map((group) => (
         <div key={group.title}>
-          <h2 className="px-2.5 pb-1 text-[11px] font-bold tracking-wider text-neutral-400 uppercase">{group.title}</h2>
+          <h2 className="px-2.5 pb-1 text-[11px] font-bold tracking-wider text-[#888888] uppercase">{group.title}</h2>
           <ul className="space-y-0.5">
             {group.menus.map((menu) => (
               <li key={menu.id}>
                 <NavLink to={`/menus/${menu.id}`} className={linkClass} onClick={onNavigate}>
                   <span className="truncate">
-                    <span className="font-mono text-[11px] text-neutral-400 mr-1">{menu.id}</span>
-                    <span className="text-neutral-200">{menu.name}</span>
+                    <span className="font-mono text-[11px] text-[#888888] mr-1">{menu.id}</span>
+                    <span className="text-[#dddddd]">{menu.name}</span>
                   </span>
                   <span
                     className={cn(
                       "shrink-0 text-[10px]",
-                      hasMenuPage(menu.id) || menu.impl !== "none" ? "text-emerald-400" : "text-neutral-600",
+                      hasMenuPage(menu.id) || menu.impl !== "none" ? "text-[#2e7d32]" : "text-[#555555]",
                     )}
                     aria-label={hasMenuPage(menu.id) || menu.impl !== "none" ? "구현 있음" : "틀만 있음"}
                   >

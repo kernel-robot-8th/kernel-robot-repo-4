@@ -28,17 +28,12 @@ export default function Page({ menu }: MenuPageProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-0">
-                  <div className="relative aspect-video w-full rounded bg-[#0a0b0d] border border-border/80 flex flex-col items-center justify-center text-neutral-500 overflow-hidden">
-                    <div className="absolute inset-3 border border-dashed border-neutral-800/80 rounded flex items-center justify-center">
-                      <span className="font-mono text-xs text-neutral-400">[{cam.role} · {cam.camera_id}]</span>
-                    </div>
-                    <div className="absolute top-2 left-2 font-mono text-[10px] text-emerald-400 bg-black/80 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                      LIVE
-                    </div>
+                  <div className="relative aspect-video w-full bg-[#111111] border border-border flex flex-col items-center justify-center text-[#888888] rounded-none">
+                    <span className="font-mono text-xs text-[#888888]">[{cam.role} · {cam.camera_id}]</span>
                   </div>
                   <div className="space-y-1.5 text-xs font-mono">
                     <p className="flex flex-wrap items-center gap-2">
-                      <span className="font-sans text-neutral-400">프레임 나이</span> <Measured value={cam.frame_age_ms} digits={0} unit=" ms" />
+                      <span className="font-sans text-[#888888]">프레임 나이</span> <Measured value={cam.frame_age_ms} digits={0} unit=" ms" />
                       {cam.frame_age_ms === null && <Pill tone="bad">프레임 없음</Pill>}
                       {cam.frame_age_ms !== null && cam.age_basis === "RECEIVE" && (
                         <Pill tone="warn">수신 시각 기준 (캡처 시각 검증 안 됨)</Pill>
@@ -46,7 +41,7 @@ export default function Page({ menu }: MenuPageProps) {
                     </p>
                     <p className="flex flex-wrap items-center gap-2">
                       {cam.frozen ? <Pill tone="bad">화면 정지 (같은 프레임 반복)</Pill> : <Pill tone="ok">움직임 있음</Pill>}
-                      <span className="tabular-nums text-neutral-400">
+                      <span className="tabular-nums text-[#888888]">
                         {cam.fps_measured === null ? "—" : cam.fps_measured.toFixed(1)} fps · {cam.width}×{cam.height}
                       </span>
                     </p>
@@ -60,7 +55,7 @@ export default function Page({ menu }: MenuPageProps) {
 
       <ResourceSection title="미디어 서버 경로" resource={media}>
         {(items) => (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-none border">
             <table className="w-full min-w-[520px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>

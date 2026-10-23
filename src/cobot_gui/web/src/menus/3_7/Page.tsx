@@ -58,15 +58,15 @@ export default function Page({ menu }: MenuPageProps) {
         </AlertDescription>
       </Alert>
 
-      {/* 탭 네비게이션: 안전 규칙(버튼 0개) 준수를 위해 role="tab" 태그 사용 */}
-      <div className="grid h-10 w-full grid-cols-3 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground">
+      {/* 탭 네비게이션: 안전 규칙(버튼 0개) 준수를 위해 role="tab" 태그 사용 (완전 각진 사각형) */}
+      <div className="grid h-10 w-full grid-cols-3 items-center justify-center border border-border bg-[#1a1a1a] p-1 text-[#888888] rounded-none">
         <div
           role="tab"
           aria-selected={activeTab === "dashboard"}
           onClick={() => setActiveTab("dashboard")}
           className={cn(
-            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all select-none",
-            activeTab === "dashboard" ? "bg-background text-foreground shadow-sm" : "hover:text-foreground"
+            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap px-3 py-1.5 text-xs font-bold transition-all select-none rounded-none",
+            activeTab === "dashboard" ? "bg-[#1565c0] text-white shadow-none" : "hover:text-white"
           )}
         >
           팀원 녹화 앱 실제 대시보드 (omx_recoder)
@@ -76,8 +76,8 @@ export default function Page({ menu }: MenuPageProps) {
           aria-selected={activeTab === "status"}
           onClick={() => setActiveTab("status")}
           className={cn(
-            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all select-none",
-            activeTab === "status" ? "bg-background text-foreground shadow-sm" : "hover:text-foreground"
+            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap px-3 py-1.5 text-xs font-bold transition-all select-none rounded-none",
+            activeTab === "status" ? "bg-[#1565c0] text-white shadow-none" : "hover:text-white"
           )}
         >
           팔 제어 모드 &amp; 데이터셋 요약
@@ -87,8 +87,8 @@ export default function Page({ menu }: MenuPageProps) {
           aria-selected={activeTab === "remote"}
           onClick={() => setActiveTab("remote")}
           className={cn(
-            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all select-none",
-            activeTab === "remote" ? "bg-background text-foreground shadow-sm" : "hover:text-foreground"
+            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap px-3 py-1.5 text-xs font-bold transition-all select-none rounded-none",
+            activeTab === "remote" ? "bg-[#1565c0] text-white shadow-none" : "hover:text-white"
           )}
         >
           원격 스트리밍 연결 안내 (noVNC / 8088)
@@ -99,133 +99,116 @@ export default function Page({ menu }: MenuPageProps) {
           탭 1: 팀원들이 작성한 omx_recoder 실제 UI를 웹 컴포넌트로 100% 네이티브 렌더링
           ========================================================================= */}
       <div className={activeTab === "dashboard" ? "space-y-4" : "hidden"}>
-        {/* 1. 세션 바 (Session Bar) */}
-        <Card className="border-primary/20 bg-card/60">
-          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+        {/* 1. 세션 바 (Session Bar) - 각진 직사각형 패널 */}
+        <Card className="rounded-none border border-border bg-card shadow-none">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-3">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">세션</span>
-              <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1 text-xs font-mono">
-                <span className="text-muted-foreground">저장:</span>
-                <span>/home/kgh1005/data/output</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#888888]">세션</span>
+              <div className="flex items-center gap-2 border border-border bg-[#141414] px-3 py-1 text-xs font-mono rounded-none">
+                <span className="text-[#888888]">저장:</span>
+                <span className="text-white">/home/kgh1005/data/output</span>
               </div>
-              <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1 text-xs">
-                <span className="text-muted-foreground">태스크:</span>
+              <div className="flex items-center gap-2 border border-border bg-[#141414] px-3 py-1 text-xs rounded-none">
+                <span className="text-[#888888]">태스크:</span>
                 <input
                   type="text"
                   value={taskName}
                   onChange={(e) => setTaskName(e.target.value)}
-                  className="w-32 bg-transparent font-medium focus:outline-none"
+                  className="w-32 bg-transparent font-medium text-white focus:outline-none"
                 />
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="border-emerald-500/50 text-emerald-400 bg-emerald-500/10">
-                ● 세션 실행 중
-              </Badge>
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                Success <strong className="text-emerald-400">12</strong> · Fail <strong className="text-rose-400">3</strong>
+              <span className="text-xs font-bold text-white bg-[#1565c0] px-2.5 py-1">
+                세션 활성
+              </span>
+              <span className="font-mono text-xs tabular-nums text-[#888888]">
+                Success <strong className="text-white">12</strong> · Fail <strong className="text-white">3</strong>
               </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* 2. 상태 배너 & End-Effector 좌표 */}
+        {/* 2. 상태 배너 & End-Effector 좌표 (omx_recoder STYLE_GREEN 솔리드 직사각형 배너) */}
         <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-          <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-emerald-300">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-medium text-sm">
-                {isRecording ? `● 녹화 진행 중 (${recSeconds}초)` : "원격조종 대기 중 · 리더암을 잡고 녹화 [Space]"}
-              </span>
-            </div>
-            <span className="font-mono text-xs text-muted-foreground">루프 30.0 Hz · Init 자세 저장됨</span>
+          <div className="omx-style-green flex items-center justify-between px-4 py-3 text-white rounded-none">
+            <span className="font-bold text-sm">
+              {isRecording ? `● 녹화 진행 중 (${recSeconds}초)` : "원격조종 대기 중 · 리더암을 잡고 녹화 [Space]"}
+            </span>
+            <span className="font-mono text-xs text-white/90">루프 30.0 Hz · Init 자세 저장됨</span>
           </div>
-          <div className="flex items-center rounded-lg border bg-muted/30 px-3 py-2 font-mono text-xs text-muted-foreground">
+          <div className="flex items-center border border-border bg-[#141414] px-3 py-2 font-mono text-xs text-[#cccccc] rounded-none">
             EE 좌표: x 215.4 mm · y -12.8 mm · z 145.2 mm (roll 0.02, pitch 0.78, yaw -0.15)
           </div>
         </div>
 
-        {/* 3. 듀얼 카메라 뷰 (Top / Wrist) */}
+        {/* 3. 듀얼 카메라 뷰 (Top / Wrist) - omx_recoder의 background:#111;color:#888; 100% 반영 */}
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-muted/40 py-2 px-3">
+          <Card className="rounded-none border border-border bg-card shadow-none">
+            <CardHeader className="bg-[#141414] py-2 px-3 border-b border-border">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-foreground">Top Camera (상단 작업대 카메라)</span>
-                <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">640×480 @ 30fps</Badge>
+                <span className="font-bold text-xs text-white">Top Camera (상단 작업대 카메라)</span>
+                <Badge variant="outline" className="text-[10px] text-[#888888] border-border rounded-none">640×480 @ 30fps</Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="relative aspect-video w-full bg-neutral-950 flex flex-col items-center justify-center text-neutral-500">
-                <div className="absolute inset-4 border border-dashed border-neutral-700/60 rounded flex items-center justify-center">
-                  <div className="text-center space-y-1">
-                    <p className="font-mono text-xs text-neutral-400">[Top View Video Feed]</p>
-                    <p className="text-[11px] text-neutral-600">작업대 2.4×2.4m 상단 직하 뷰 (장치: /dev/v4l/by-id/...)</p>
-                  </div>
-                </div>
-                <div className="absolute top-2 left-2 font-mono text-[10px] text-emerald-500 bg-neutral-900/80 px-2 py-0.5 rounded">
-                  CAM_01: LIVE
-                </div>
+              <div className="relative aspect-video w-full bg-[#111111] flex flex-col items-center justify-center text-[#888888] rounded-none">
+                <p className="font-mono text-xs">[Top View Video Feed]</p>
+                <p className="text-[11px] text-[#666666] mt-1">작업대 2.4×2.4m 상단 직하 뷰 (/dev/v4l/by-id/...)</p>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-muted/40 py-2 px-3">
+          <Card className="rounded-none border border-border bg-card shadow-none">
+            <CardHeader className="bg-[#141414] py-2 px-3 border-b border-border">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-foreground">Wrist Camera (손목 그리퍼 카메라)</span>
-                <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">640×480 @ 30fps</Badge>
+                <span className="font-bold text-xs text-white">Wrist Camera (손목 그리퍼 카메라)</span>
+                <Badge variant="outline" className="text-[10px] text-[#888888] border-border rounded-none">640×480 @ 30fps</Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="relative aspect-video w-full bg-neutral-950 flex flex-col items-center justify-center text-neutral-500">
-                <div className="absolute inset-4 border border-dashed border-neutral-700/60 rounded flex items-center justify-center">
-                  <div className="text-center space-y-1">
-                    <p className="font-mono text-xs text-neutral-400">[Wrist POV Video Feed]</p>
-                    <p className="text-[11px] text-neutral-600">신발 상자 파지 지점 1인칭 시점 뷰</p>
-                  </div>
-                </div>
-                <div className="absolute top-2 left-2 font-mono text-[10px] text-emerald-500 bg-neutral-900/80 px-2 py-0.5 rounded">
-                  CAM_02: LIVE
-                </div>
+              <div className="relative aspect-video w-full bg-[#111111] flex flex-col items-center justify-center text-[#888888] rounded-none">
+                <p className="font-mono text-xs">[Wrist POV Video Feed]</p>
+                <p className="text-[11px] text-[#666666] mt-1">신발 상자 파지 지점 1인칭 시점 뷰</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* 4. 6축 모터 텔레메트리 테이블 (팀원 앱의 핵심 뷰) */}
-        <Card>
-          <CardHeader className="py-3 px-4">
+        {/* 4. 6축 모터 텔레메트리 테이블 (QTableWidget 직각 그리드 뷰) */}
+        <Card className="rounded-none border border-border bg-card shadow-none">
+          <CardHeader className="py-2.5 px-3 border-b border-border bg-[#141414]">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold">리더-팔로워 6축 관절 실시간 텔레메트리 (MOTORS)</CardTitle>
-              <span className="text-xs text-muted-foreground font-mono">DYNAMIXEL XM430-W350 Bus (1 Mbps)</span>
+              <CardTitle className="text-xs font-bold text-white">리더-팔로워 6축 관절 실시간 텔레메트리 (MOTORS)</CardTitle>
+              <span className="text-xs text-[#888888] font-mono">DYNAMIXEL XM430-W350 Bus (1 Mbps)</span>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="border-y bg-muted/40 text-muted-foreground">
+                <thead className="border-b border-border bg-[#1a1a1a] text-[#888888]">
                   <tr>
-                    <th className="py-2 px-3 font-medium">관절 (Motor)</th>
-                    <th className="py-2 px-3 font-medium">리더 (Leader)</th>
-                    <th className="py-2 px-3 font-medium">팔로워 (Follower)</th>
-                    <th className="py-2 px-3 font-medium">오차 (Diff)</th>
-                    <th className="py-2 px-3 font-medium">속도 (Vel)</th>
-                    <th className="py-2 px-3 font-medium">전류 (Current)</th>
-                    <th className="py-2 px-3 font-medium">온도 (°C)</th>
-                    <th className="py-2 px-3 font-medium">전압 (V)</th>
+                    <th className="py-2 px-3 font-bold">관절 (Motor)</th>
+                    <th className="py-2 px-3 font-bold">리더 (Leader)</th>
+                    <th className="py-2 px-3 font-bold">팔로워 (Follower)</th>
+                    <th className="py-2 px-3 font-bold">오차 (Diff)</th>
+                    <th className="py-2 px-3 font-bold">속도 (Vel)</th>
+                    <th className="py-2 px-3 font-bold">전류 (Current)</th>
+                    <th className="py-2 px-3 font-bold">온도 (°C)</th>
+                    <th className="py-2 px-3 font-bold">전압 (V)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {MOTORS.map((m) => (
-                    <tr key={m.id} className="hover:bg-muted/20">
-                      <td className="py-2 px-3 font-semibold text-foreground">{m.name}</td>
-                      <td className="py-2 px-3 text-cyan-400">{m.lead.toFixed(1)}°</td>
-                      <td className="py-2 px-3 text-amber-400">{m.fol.toFixed(1)}°</td>
-                      <td className="py-2 px-3 text-muted-foreground">{m.diff}°</td>
-                      <td className="py-2 px-3">{m.vel}</td>
-                      <td className="py-2 px-3">{m.cur} mA</td>
-                      <td className="py-2 px-3">{m.temp} °C</td>
-                      <td className="py-2 px-3">{m.volt.toFixed(1)} V</td>
+                    <tr key={m.id} className="hover:bg-[#252526]">
+                      <td className="py-2 px-3 font-bold text-white">{m.name}</td>
+                      <td className="py-2 px-3 text-[#cccccc]">{m.lead.toFixed(1)}°</td>
+                      <td className="py-2 px-3 text-white">{m.fol.toFixed(1)}°</td>
+                      <td className="py-2 px-3 text-[#888888]">{m.diff}°</td>
+                      <td className="py-2 px-3 text-[#cccccc]">{m.vel}</td>
+                      <td className="py-2 px-3 text-[#cccccc]">{m.cur} mA</td>
+                      <td className="py-2 px-3 text-[#cccccc]">{m.temp} °C</td>
+                      <td className="py-2 px-3 text-[#cccccc]">{m.volt.toFixed(1)} V</td>
                     </tr>
                   ))}
                 </tbody>
@@ -234,35 +217,35 @@ export default function Page({ menu }: MenuPageProps) {
           </CardContent>
         </Card>
 
-        {/* 5. 현장 조작 컨트롤 바 (팀원 앱의 단축키 및 제어 버튼) */}
-        <Card className="bg-muted/20">
-          <CardContent className="p-4 space-y-3">
+        {/* 5. 현장 조작 컨트롤 바 (omx_recoder QPushButton 솔리드 컬러 직각 버튼) */}
+        <Card className="rounded-none border border-border bg-[#1a1a1a] shadow-none">
+          <CardContent className="p-3 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* 팔 준비/정지 */}
               <div className="flex items-center gap-2">
                 <div
                   role="presentation"
-                  className="rounded-md border border-emerald-600/40 bg-emerald-700/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 select-none shadow-sm"
+                  className="omx-style-green px-3 py-1.5 text-xs font-bold select-none cursor-default rounded-none"
                 >
-                  BringUp (토크 ON)
+                  BringUp
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md border border-amber-600/40 bg-amber-700/20 px-3 py-1.5 text-xs font-semibold text-amber-300 select-none shadow-sm"
+                  className="omx-style-orange px-3 py-1.5 text-xs font-bold select-none cursor-default rounded-none"
                 >
-                  Servo OFF (팔 받침)
+                  Servo OFF
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground select-none"
+                  className="border border-border bg-[#252526] px-3 py-1.5 text-xs font-bold text-white select-none rounded-none"
                 >
-                  Init 자세 저장
+                  리더 자세 → Init 저장
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground select-none"
+                  className="border border-border bg-[#252526] px-3 py-1.5 text-xs font-bold text-white select-none rounded-none"
                 >
-                  Rest 자세 저장
+                  리더 자세 → Rest 저장
                 </div>
               </div>
 
@@ -272,54 +255,54 @@ export default function Page({ menu }: MenuPageProps) {
                   role="presentation"
                   onClick={() => setIsRecording(!isRecording)}
                   className={cn(
-                    "rounded-md px-4 py-1.5 text-xs font-bold text-white select-none shadow cursor-pointer transition-colors",
-                    isRecording ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
+                    "px-4 py-1.5 text-xs font-bold select-none cursor-pointer transition-colors rounded-none",
+                    isRecording ? "omx-style-red" : "omx-style-green"
                   )}
                 >
-                  {isRecording ? "● 녹화 중지 [Space]" : "녹화 시작 [Space]"}
+                  {isRecording ? "녹화 [Space] (진행 중)" : "녹화 [Space]"}
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white select-none shadow"
+                  className="omx-style-blue px-3 py-1.5 text-xs font-bold select-none rounded-none"
                 >
                   Success [S]
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white select-none shadow"
+                  className="omx-style-orange px-3 py-1.5 text-xs font-bold select-none rounded-none"
                 >
                   Fail [F]
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md bg-neutral-600 px-3 py-1.5 text-xs font-bold text-white select-none shadow"
+                  className="omx-style-gray px-3 py-1.5 text-xs font-bold select-none rounded-none"
                 >
                   Discard [D]
                 </div>
                 <div
                   role="presentation"
-                  className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground select-none"
+                  className="border border-border bg-[#252526] px-3 py-1.5 text-xs font-bold text-white select-none rounded-none"
                 >
-                  Hub 업로드
+                  HF Hub 업로드
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* 6. 실시간 터미널 로그 */}
-        <Card className="border-border/60 bg-neutral-950 font-mono text-xs">
-          <CardHeader className="py-2 px-3 border-b border-neutral-800 text-neutral-400 text-[11px] flex flex-row items-center justify-between">
-            <span>Terminal Log (omx_recoder daemon)</span>
-            <span className="text-[10px] text-neutral-600">STDOUT / STDERR</span>
+        {/* 6. 실시간 터미널 로그 (QPlainTextEdit 뷰) */}
+        <Card className="rounded-none border border-border bg-[#111111] font-mono text-xs shadow-none">
+          <CardHeader className="py-2 px-3 border-b border-border text-[#888888] text-[11px] flex flex-row items-center justify-between bg-[#141414]">
+            <span>로그 (omx_recoder stdout)</span>
+            <span className="text-[10px] text-[#666666]">STDOUT</span>
           </CardHeader>
-          <CardContent className="p-3 space-y-1 text-neutral-300">
-            <p className="text-neutral-500">[16:20:01] omx_recoder v0.4.4 session started: task="shoe_box_pick"</p>
-            <p className="text-neutral-500">[16:20:03] Loading config from config.yaml: fps=30, vcodec=libsvtav1</p>
-            <p className="text-neutral-400">[16:20:05] CameraManager: Connected 2 cameras (/dev/video0, /dev/video2)</p>
-            <p className="text-neutral-400">[16:20:07] DynamixelMotorsBus: Handshake OK (Leader 6 motors, Follower 6 motors)</p>
-            <p className="text-emerald-400">[16:20:12] BringUp completed: Control loop running at 30.0 Hz</p>
-            <p className="text-neutral-300">[16:20:20] Episode #012 saved: 180 frames (6.0s) → [SUCCESS] verified</p>
+          <CardContent className="p-3 space-y-1 text-[#cccccc]">
+            <p className="text-[#666666]">[16:20:01] omx_recoder session started: task="shoe_box_pick"</p>
+            <p className="text-[#666666]">[16:20:03] Loading config from config.yaml: fps=30, vcodec=libsvtav1</p>
+            <p className="text-[#888888]">[16:20:05] CameraManager: Connected 2 cameras (/dev/video0, /dev/video2)</p>
+            <p className="text-[#888888]">[16:20:07] DynamixelMotorsBus: Handshake OK (Leader 6 motors, Follower 6 motors)</p>
+            <p className="text-white font-bold">[16:20:12] BringUp completed: Control loop running at 30.0 Hz</p>
+            <p className="text-[#cccccc]">[16:20:20] Episode #012 saved: 180 frames (6.0s) → [SUCCESS] verified</p>
           </CardContent>
         </Card>
       </div>
@@ -432,7 +415,7 @@ export default function Page({ menu }: MenuPageProps) {
             <p className="text-muted-foreground">
               Station PC에서 실제 실행 중인 GUI 창을 웹 브라우저로 직접 공유(noVNC)하거나, 에피소드 비디오 검수 스튜디오(포트 8088)를 띄운 경우 아래 안내를 따릅니다:
             </p>
-            <div className="space-y-2 rounded-md bg-muted/50 p-4 font-mono text-xs">
+            <div className="space-y-2 rounded-none bg-muted/50 p-4 font-mono text-xs border border-border">
               <p className="font-semibold text-foreground">1. noVNC 가상 디스플레이 스트림 (포트 6080):</p>
               <code>x11vnc -forever -shared -rfbport 5900 &amp; websockify --web /usr/share/novnc/ 6080 localhost:5900 &amp;</code>
               <p className="mt-3 font-semibold text-foreground">2. LeRobot 검수 스튜디오 (포트 8088):</p>

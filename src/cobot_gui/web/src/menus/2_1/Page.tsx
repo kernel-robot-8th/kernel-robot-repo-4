@@ -33,7 +33,7 @@ function MapView({ map, robots }: { map: MapInfo; robots: RobotStatus[] }) {
       viewBox={`0 0 ${w} ${h}`}
       role="img"
       aria-label={`${map.map_name} 지점과 로봇 위치`}
-      className="max-h-[70vh] w-full rounded-lg border bg-card"
+      className="max-h-[70vh] w-full rounded-none border bg-card"
     >
       <rect x={0} y={0} width={w} height={h} fill="none" stroke="var(--border)" strokeWidth={0.01} />
       {map.waypoints.map((wp) => {

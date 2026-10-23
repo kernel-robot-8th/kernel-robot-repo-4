@@ -8,9 +8,9 @@ import { hasMenuPage } from "@/shell/pages";
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-border/80 bg-card p-4 shadow-sm">
-      <p className="text-xs font-sans text-neutral-400">{label}</p>
-      <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-neutral-100">{value}</p>
+    <div className="rounded-none border border-border bg-card p-4 shadow-none">
+      <p className="text-xs font-sans text-muted-foreground">{label}</p>
+      <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -46,7 +46,7 @@ export default function OverviewPage() {
       {menuGroups().map((group) => (
         <section key={group.title} className="space-y-2">
           <h2 className="text-lg font-semibold">{group.title}</h2>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-none border">
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>

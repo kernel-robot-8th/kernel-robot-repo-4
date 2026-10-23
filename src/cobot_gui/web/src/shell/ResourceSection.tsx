@@ -20,10 +20,10 @@ export default function ResourceSection<T>({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-neutral-200">
-        <span className="w-1.5 h-4 bg-primary rounded-sm inline-block" />
+      <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-foreground">
+        <span className="w-1.5 h-4 bg-primary rounded-none inline-block" />
         {title}
-        <Badge variant="outline" className="font-mono text-[11px] text-neutral-400">
+        <Badge variant="outline" className="font-mono text-[11px] text-muted-foreground rounded-none">
           {resource.mode === "mock" ? "모의 데이터" : "서버"}
         </Badge>
       </h2>

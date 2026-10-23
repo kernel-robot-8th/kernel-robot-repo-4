@@ -18,10 +18,10 @@ describe("3.7 로봇팔 파라미터 제어 및 모방학습 Teleop 스튜디오
     // 6축 관절 모터 테이블
     expect(screen.getByText("Shoulder Pan")).toBeInTheDocument();
     expect(screen.getByText("Gripper")).toBeInTheDocument();
-    // 조작 컨트롤 및 터미널 로그
-    expect(screen.getByText("BringUp (토크 ON)")).toBeInTheDocument();
-    expect(screen.getByText("녹화 시작 [Space]")).toBeInTheDocument();
-    expect(screen.getByText(/Terminal Log/)).toBeInTheDocument();
+    // 조작 컨트롤 및 로그
+    expect(screen.getByText("BringUp")).toBeInTheDocument();
+    expect(screen.getByText("녹화 [Space]")).toBeInTheDocument();
+    expect(screen.getAllByText(/로그/).length).toBeGreaterThan(0);
   });
 
   it("팔 제어 모드 탭 선택 시 ArmMode 및 주의사항이 표시된다", () => {

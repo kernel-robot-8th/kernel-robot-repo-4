@@ -1,54 +1,55 @@
 @import "tailwindcss";
 
-/* 토큰 이름은 홈랩 관리자 화면과 같다(--color-background 등). 값은 김성아 팀원의 OMX 대시보드 고대비 인더스트리얼 테마이다. */
+/* 토큰 이름은 홈랩 관리자 화면과 같다(--color-background 등).
+   값은 김성아 팀원의 omx_recoder (PySide6) 실제 데스크톱 앱과 1:1 일치하는 각진(0px) 솔리드 테마이다. */
 :root {
-  --background: hsl(220 16% 7%);
-  --foreground: hsl(210 20% 96%);
-  --card: hsl(220 14% 10%);
-  --card-foreground: hsl(210 20% 96%);
-  --popover: hsl(220 14% 11%);
-  --popover-foreground: hsl(210 20% 96%);
-  --primary: hsl(212 80% 42%);
-  --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(220 12% 16%);
-  --secondary-foreground: hsl(210 20% 94%);
-  --muted: hsl(220 12% 14%);
-  --muted-foreground: hsl(215 12% 64%);
-  --accent: hsl(220 12% 18%);
-  --accent-foreground: hsl(210 20% 96%);
-  --destructive: hsl(358 75% 47%);
-  --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(220 12% 20%);
-  --input: hsl(220 12% 20%);
-  --ring: hsl(212 80% 42%);
-  --ok: hsl(123 46% 34%);
-  --warn: hsl(27 100% 47%);
+  --background: #141414;
+  --foreground: #e0e0e0;
+  --card: #1e1e1e;
+  --card-foreground: #ffffff;
+  --popover: #1e1e1e;
+  --popover-foreground: #ffffff;
+  --primary: #1565c0;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e0e0e0;
+  --muted: #242424;
+  --muted-foreground: #888888;
+  --accent: #2d2d2d;
+  --accent-foreground: #ffffff;
+  --destructive: #c62828;
+  --destructive-foreground: #ffffff;
+  --border: #383838;
+  --input: #383838;
+  --ring: #1565c0;
+  --ok: #2e7d32;
+  --warn: #ef6c00;
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: hsl(220 16% 7%);
-    --foreground: hsl(210 20% 96%);
-    --card: hsl(220 14% 10%);
-    --card-foreground: hsl(210 20% 96%);
-    --popover: hsl(220 14% 11%);
-    --popover-foreground: hsl(210 20% 96%);
-    --primary: hsl(212 80% 42%);
-    --primary-foreground: hsl(0 0% 100%);
-    --secondary: hsl(220 12% 16%);
-    --secondary-foreground: hsl(210 20% 94%);
-    --muted: hsl(220 12% 14%);
-    --muted-foreground: hsl(215 12% 64%);
-    --accent: hsl(220 12% 18%);
-    --accent-foreground: hsl(210 20% 96%);
-    --destructive: hsl(358 75% 47%);
-    --destructive-foreground: hsl(0 0% 100%);
-    --border: hsl(220 12% 20%);
-    --input: hsl(220 12% 20%);
-    --ring: hsl(212 80% 42%);
-    --ok: hsl(123 46% 34%);
-    --warn: hsl(27 100% 47%);
+    --background: #141414;
+    --foreground: #e0e0e0;
+    --card: #1e1e1e;
+    --card-foreground: #ffffff;
+    --popover: #1e1e1e;
+    --popover-foreground: #ffffff;
+    --primary: #1565c0;
+    --primary-foreground: #ffffff;
+    --secondary: #2a2a2a;
+    --secondary-foreground: #e0e0e0;
+    --muted: #242424;
+    --muted-foreground: #888888;
+    --accent: #2d2d2d;
+    --accent-foreground: #ffffff;
+    --destructive: #c62828;
+    --destructive-foreground: #ffffff;
+    --border: #383838;
+    --input: #383838;
+    --ring: #1565c0;
+    --ok: #2e7d32;
+    --warn: #ef6c00;
     color-scheme: dark;
   }
 }
@@ -75,12 +76,13 @@
   --color-ring: var(--ring);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
-  --radius: 0.375rem;
+  --radius: 0px;
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
+    border-radius: 0px !important;
   }
   body {
     background-color: var(--color-background);
@@ -91,29 +93,40 @@
   }
 }
 
-/* 김성아 팀원 스타일 시그니처 배너 (STYLE_GREEN, STYLE_RED, STYLE_ORANGE, STYLE_BLUE, STYLE_GRAY) */
-.omx-banner-green {
-  background-color: #2e7d32;
-  color: #ffffff;
-  font-weight: 700;
+/* 김성아 팀원 omx_recoder 실물 정의 5대 솔리드 스타일 (형광색 없음, 순수 직각 사각형) */
+.omx-style-green {
+  background-color: #2e7d32 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
 }
-.omx-banner-red {
-  background-color: #c62828;
-  color: #ffffff;
-  font-weight: 700;
+.omx-style-red {
+  background-color: #c62828 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
 }
-.omx-banner-orange {
-  background-color: #ef6c00;
-  color: #ffffff;
-  font-weight: 700;
+.omx-style-orange {
+  background-color: #ef6c00 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
 }
-.omx-banner-blue {
-  background-color: #1565c0;
-  color: #ffffff;
-  font-weight: 700;
+.omx-style-blue {
+  background-color: #1565c0 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
 }
-.omx-banner-gray {
-  background-color: #616161;
-  color: #ffffff;
-  font-weight: 700;
+.omx-style-gray {
+  background-color: #616161 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
+}
+.omx-cam-box {
+  background-color: #111111 !important;
+  color: #888888 !important;
+  border: 1px solid #333333 !important;
+  border-radius: 0px !important;
 }

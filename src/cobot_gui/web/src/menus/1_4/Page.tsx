@@ -36,18 +36,18 @@ export default function Page({ menu }: MenuPageProps) {
           const count = (severity: string) => items.filter((item) => item.active && item.severity === severity).length;
           return (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-3 rounded-md border border-border/60">
-                <p className="text-xs font-mono text-neutral-300">
-                  진행 중 알림 상태: 위험 <b className="text-rose-400 font-bold">{count("RED")}</b>건 · 주의{" "}
-                  <b className="text-amber-400 font-bold">{count("AMBER")}</b>건 · 정보 <b className="text-blue-400 font-bold">{count("INFO")}</b>건
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 border border-border rounded-none">
+                <p className="text-xs font-mono text-white">
+                  진행 중 알림 상태: 위험 <b className="omx-style-red px-1.5 py-0.5">{count("RED")}</b>건 · 주의{" "}
+                  <b className="omx-style-orange px-1.5 py-0.5">{count("AMBER")}</b>건 · 정보 <b className="omx-style-blue px-1.5 py-0.5">{count("INFO")}</b>건
                 </p>
-                <div className="flex gap-1.5" role="group" aria-label="알림 거르기">
+                <div className="flex gap-1" role="group" aria-label="알림 거르기">
                   {FILTERS.map((item) => (
                     <Button
                       key={item.key}
                       size="sm"
                       variant={filter === item.key ? "default" : "outline"}
-                      className="text-xs h-7 px-2.5 font-medium"
+                      className="text-xs h-7 px-2.5 font-bold rounded-none"
                       aria-pressed={filter === item.key}
                       onClick={() => setFilter(item.key)}
                     >
@@ -56,7 +56,7 @@ export default function Page({ menu }: MenuPageProps) {
                   ))}
                 </div>
               </div>
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto rounded-none border border-border">
                 <table className="w-full min-w-[720px] text-sm">
                   <thead className="bg-muted text-left text-xs text-muted-foreground">
                     <tr>
