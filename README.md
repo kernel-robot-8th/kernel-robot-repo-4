@@ -17,6 +17,7 @@
 | GUI | `<proj>_gui` | <강건한, 김지혜> |
 
 ## 워크스페이스 구조
+```
 <ws>/
 ├── src/
 │   ├── <proj>_interfaces/      # 공용 msg / srv / action (코드 없음)
@@ -31,6 +32,7 @@
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
 ├── scripts/                    # 환경 설정, 보조 스크립트
 └── CLAUDE.md
+```
 
 ## 처음 설치하기
 
