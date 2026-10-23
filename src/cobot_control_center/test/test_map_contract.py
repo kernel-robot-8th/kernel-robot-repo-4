@@ -38,7 +38,7 @@ CANON_PGM_SHA256 = 'f4fb41c1a3e9f8a2bb098a874b8be278cdad0596d58cf3952b0f52a19a08
 CANON_YAML_SHA256 = '96ac285601dee5fb143a926bae89276103e8169afd64a8001bc501541cd49175'
 # 원래 웨이포인트 중 반경 6 cm 원에 점유 셀이 걸리는 것. 벤치 위 점 하나다 (2026-10-22 계산).
 EXPECTED_WORK_POSE_FAILURES = {'WP_BENCH_DELIVERY'}
-# 반경 0.11 m (6 cm + SR-08 정차 오차 5 cm) 에서 실패하는 정차점. 옮긴 벤치 정차점과,
+# 반경 0.11 m (6 cm + 옛 설계의 오차 여유 5 cm) 에서 실패하는 정차점. 옮긴 벤치 정차점과,
 # 랙 A·B 아래 면에서 0.105 m 떨어진 창고 상차점 둘이다.
 EXPECTED_WIDE_RADIUS_FAILURES = {'WP_BENCH_DELIVERY', 'WP_LOAD_1', 'WP_LOAD_2'}
 # work_pose 와 approach_pose 가 다른 웨이포인트. 벤치는 린트 때문에, 게이트는 관제 담당 승인(2026-10-22)으로 옮겼다.
@@ -284,7 +284,7 @@ def test_suggest_logs_candidates(maps_dir, module_log):
 
 
 def test_wider_radius_fails_moved_approach_poses(maps_dir):
-    # 정차점은 반경 6 cm 에서만 모두 통과한다. 6 cm + SR-08 1차 정차 오차 5 cm 로 보면 옮긴 벤치
+    # 정차점은 반경 6 cm 에서만 모두 통과한다. 6 cm + 옛 설계의 오차 여유 5 cm 로 보면 옮긴 벤치
     # 정차점과 창고 상차점 둘이 실패한다. 문서(5.3절)의 이 설명이 맞는지 고정한다.
     # 정차점을 고치면 이 시험도 고친다.
     report = map_contract.run_lint(maps_dir, radius_m=0.11)
