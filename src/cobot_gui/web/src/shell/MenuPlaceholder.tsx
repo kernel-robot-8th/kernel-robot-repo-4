@@ -10,6 +10,7 @@ import {
   srName,
 } from "@/lib/registry";
 import MenuHeader from "@/shell/MenuHeader";
+import Eli5FeatureGuide from "@/shell/Eli5FeatureGuide";
 import type { Menu } from "@/shell/types";
 
 function List({ items, empty }: { items: string[]; empty: string }) {
@@ -128,6 +129,8 @@ export default function MenuPlaceholder({ menu }: { menu: Menu }) {
           <CardContent className="text-sm">{menu.implRef}</CardContent>
         </Card>
       )}
+
+      <Eli5FeatureGuide menu={menu} />
 
       {menu.notes.length > 0 && (
         <Card>
