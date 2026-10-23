@@ -514,7 +514,7 @@
 | D5 | 복구 2단계 승인 설계의 독립 요소 | proposed | ⑤ 복구 | 5.4 |
 | D6 | HW E-STOP 판독 장치·배선·구역, 모터 전원 증거, 미설치 때 RUNNING 허용, 물리 완료 센서원 | open | P2 HW 축, SR-10·13·21 | 5.4, 5.5, 5.6 |
 | D7 | PRD_3 OMX 상·하차를 수업 로컬 게이트(사람 수동 시작, 원격 트리거 없음) 대상으로 볼지 | open | P4, 3.5, SR-09 시연 흐름 | 3.2, 3.5 |
-| D8 | 정적 웹 자원 패키지 형태(CLAUDE.md §3 에 없음), vendoring·fastapi·uvicorn 의존성 허락 | proposed | P1 빌드 (화면 셸 위치) | — |
+| D8 | 웹 화면 소스·빌드 결과 위치(CLAUDE.md §3 에 없음), Node/npm·fastapi·uvicorn 의존성 허락 | proposed | P1 빌드 (화면 셸 위치) | — |
 | D9 | 역할 권한표 — 직원 정지 허용, 주문 취소 범위, 고객 화면 범위, 콘솔 만료 때 처리 | open | P1 로그인, P2 | 5.1, 5.3, 5.4 |
 | D10 | 카메라 구성, 폰 송출 수단, 제어용 영상 입력 경로, 캡처 시각 전달, Ttop 팬아웃 | open | ④, P1 영상, P3 Tail Exit, P4 LeRobot 모드 | 4.1, 4.2, 4.3 |
 | D11 | 하트비트 주기·ttl, 시계 허용 오프셋, 승인 만료·최소 체류·WS 끊김 시간 값 | open | P2 | 5.1, 5.3, 5.4 |
@@ -536,4 +536,4 @@
 - D3 (proposed): 정본 = map_shoe_store_1021_gate67 (Floor Map 1021 도면 + 아래 벽에 붙은 67 cm 게이트), 위치 = src/cobot_bringup/config/maps/, map_hash = sha256(sha256(pgm) ‖ sha256(LF 정규화 yaml)) 이고 입력은 install 된 파일, 작업점(work_pose)과 Nav2 정차점(approach_pose)을 나눈다. approach_pose 값·theta·맵 린트 반경 6 cm 는 초안. 팔 고정대는 맵에 없다. — 기록: [`docs/fms_decisions.md#d3`](fms_decisions.md#d3)
 - D4 (proposed): 정지 계열은 펜싱 판정이 거부여도 수행하고 워치독은 갱신하지 않는다. 통신 순단 복구는 SR-20 대로 epoch+1·DISARMED. — 기록: [`docs/fms_decisions.md#d4`](fms_decisions.md#d4)
 - D5 (proposed): Reconcile 항목별 확인 입력(attest) + APPROVE 뒤 최소 체류(초안 5 s). 2인 승인·비밀번호 재입력은 설정으로 고른다. — 기록: [`docs/fms_decisions.md#d5`](fms_decisions.md#d5)
-- D8 (proposed): 2안: cobot_gui(ament_python) 의 web/ 폴더를 setup.py data_files 로 설치하고 CLAUDE.md §3 에 web/ 규칙을 더한다. fastapi·uvicorn·JS vendoring 허락은 S2 착수 전에 따로 정한다(D8 후속). — 기록: [`docs/fms_decisions.md#d8`](fms_decisions.md#d8)
+- D8 (proposed): 2안: cobot_gui(ament_python) 의 web/ 폴더에 화면 소스(React·Vite)를 두고 빌드 결과 web/dist 를 setup.py data_files 로 설치한다. CLAUDE.md §3 에 web/ 규칙을 더한다. Node/npm 사용과 패키지 목록(docs/fms_web_dependencies.md), fastapi·uvicorn 허락은 팀 허락이 필요하다(D8 후속). — 기록: [`docs/fms_decisions.md#d8`](fms_decisions.md#d8)
