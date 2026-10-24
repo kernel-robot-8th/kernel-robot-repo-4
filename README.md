@@ -10,11 +10,13 @@
 ## 팀 구성
 | 역할 | 담당 패키지 | 담당자 |
 |---|---|---|
-| 비전 | `<proj>_vision` | <강건한, 손선아> |
-| 주행 | `<proj>_navigation` | <김지호, 김성아> |
-| 매니퓰레이터 | `<proj>_manipulation`, `<proj>_moveit_config` | <강민석, 김성아, 손선아, 허지혁> |
-| 관제 | `<proj>_control_center` | <강건한> |
-| GUI | `<proj>_gui` | <강건한, 김지혜> |
+| 주행 | `cobot_navigation` | 김진호 |
+| 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
+| 비전 | `cobot_vision` | 손선아, 강건한 |
+| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center` | 김지혜 |
+| 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
+
+담당 기준은 [2026-10-24 사용자 지정](docs/team_roles.md)이다. 두 관제는 공통 GUI·관제 코어를 재사용하며 로봇 기능 개발과 구분한다.
 
 ## 워크스페이스 구조
 ```
