@@ -1,0 +1,117 @@
+{
+  "started_at": "2026-10-24T16:39:51.961935+00:00",
+  "deadline_epoch": 1792903191.961859,
+  "sweep": {
+    "maximum_hours": 12,
+    "trial_budget_seconds": 1500,
+    "finalization_reserve_seconds": 1800,
+    "seeds": [
+      17,
+      42,
+      97
+    ],
+    "base": {
+      "family": "act",
+      "horizon": 32,
+      "action_steps": 10,
+      "train_episodes": 8,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 30000,
+      "min_steps": 1000,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0
+    },
+    "experiments": [
+      {
+        "name": "state_bc_2",
+        "family": "state",
+        "train_episodes": 2,
+        "lr": 0.001
+      },
+      {
+        "name": "state_bc_4",
+        "family": "state",
+        "train_episodes": 4,
+        "lr": 0.001
+      },
+      {
+        "name": "state_bc_8",
+        "family": "state",
+        "lr": 0.001
+      },
+      {
+        "name": "cnn_bc_8",
+        "family": "cnn",
+        "lr": 0.0003
+      },
+      {
+        "name": "cnn_bc_aug_8",
+        "family": "cnn",
+        "lr": 0.0003,
+        "augmentation": true,
+        "dropout": 0.2
+      },
+      {
+        "name": "act_2",
+        "train_episodes": 2
+      },
+      {
+        "name": "act_4",
+        "train_episodes": 4
+      },
+      {
+        "name": "act_baseline_8"
+      },
+      {
+        "name": "act_regularized_8",
+        "weight_decay": 0.01,
+        "dropout": 0.25,
+        "lr": 5e-05
+      },
+      {
+        "name": "act_augmented_8",
+        "augmentation": true,
+        "state_noise": 0.03,
+        "dropout": 0.2
+      },
+      {
+        "name": "act_short_chunk_8",
+        "horizon": 16,
+        "action_steps": 5
+      },
+      {
+        "name": "act_long_chunk_8",
+        "horizon": 64,
+        "dim_model": 256,
+        "dim_feedforward": 1024
+      }
+    ],
+    "selection": "Lowest recording-balanced validation MAE over first 10 future steps per family; test only after all tuning ends",
+    "simulation_scenarios": [
+      "nominal",
+      "object_shift",
+      "low_friction",
+      "heavy_box",
+      "camera_shift",
+      "single_box"
+    ],
+    "simulation_seeds": [
+      101,
+      102,
+      103
+    ],
+    "simulation_control_modes": [
+      "chunk",
+      "temporal_ensemble"
+    ],
+    "simulation_seconds": 50
+  },
+  "source_commit": "1e83b0c36976fdf8a507b5f55bb089611ba03d76"
+}

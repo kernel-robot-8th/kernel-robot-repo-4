@@ -1,0 +1,21 @@
+{
+  "status": "stopped",
+  "started_at": "2026-10-24T16:39:51.961935+00:00",
+  "deadline_epoch": 1792903191.961859,
+  "planned_trials": 36,
+  "pid": 28385,
+  "completed_trials": 9,
+  "failures": [
+    {
+      "trial": "act_augmented_8_seed17",
+      "exit_code": -15,
+      "log": "/home/team11/omx_sim_runs/validation_20261025/trials/act_augmented_8_seed17/terminal.log"
+    }
+  ],
+  "current_trial": null,
+  "publication": "report_committed_and_push_requested",
+  "updated_at": "2026-10-24T16:58:37.825728+00:00",
+  "phase": "finished",
+  "finished_at": "2026-10-24T16:58:37.816525+00:00",
+  "elapsed_s": 1125.854671239853
+}

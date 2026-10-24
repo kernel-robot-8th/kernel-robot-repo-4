@@ -1,4 +1,146 @@
 {
+  "captured_at": "2026-10-24T16:53:59.199239+00:00",
+  "scene_config": {
+    "status": "provisional_image_and_training_trajectory_estimate",
+    "description": "Stacked heart-pattern boxes on a white source table, white circular receiver at robot left; base-frame metres. Dimensions and camera extrinsics require physical measurement.",
+    "fps": 30,
+    "timestep": 0.002,
+    "table_center_xy": [
+      0.235,
+      -0.005
+    ],
+    "table_half_xy": [
+      0.105,
+      0.115
+    ],
+    "table_top": 0.12,
+    "box_center_xy": [
+      0.18,
+      -0.008
+    ],
+    "box_half_size": [
+      0.03,
+      0.03,
+      0.02
+    ],
+    "box_count": 3,
+    "box_mass": 0.018,
+    "friction": 1.2,
+    "receiver_center_xy": [
+      0.15,
+      0.205
+    ],
+    "receiver_radius": 0.082,
+    "receiver_top": 0.12,
+    "top_camera_position": [
+      0.075,
+      0.0,
+      0.48
+    ],
+    "top_camera_target": [
+      0.205,
+      0.0,
+      0.13
+    ],
+    "top_camera_fovy": 42,
+    "wrist_camera_position": [
+      0.055,
+      0.0,
+      0.05
+    ],
+    "wrist_camera_target": [
+      0.18,
+      0.0,
+      0.03
+    ],
+    "wrist_camera_fovy": 70,
+    "initial_state": [
+      -1.49,
+      -59.02,
+      54.38,
+      29.87,
+      -0.85,
+      62.81
+    ],
+    "single_box_initial_state": [
+      1.148,
+      -29.621,
+      39.683,
+      44.127,
+      1.441,
+      59.243
+    ],
+    "single_box_initial_state_source": "Existing local recorder init_pose.yaml, inspected before tuning",
+    "max_relative_target": 10.0,
+    "episode_seconds": 50,
+    "lift_threshold": 0.025,
+    "settle_speed": 0.04,
+    "success_hold_frames": 15,
+    "system_identification": {
+      "fitted_recordings": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "delay_steps": [
+        3,
+        3,
+        2,
+        4,
+        4,
+        3
+      ],
+      "command_bias": [
+        -0.0377172753,
+        0.4509981871,
+        0.4908826351,
+        2.3943114281,
+        0.3964323401,
+        0
+      ],
+      "note": "Approximate command-to-state lag and residual fit on training recordings only. Gripper bias is not fitted because of contact loads. This reduces trajectory error but does not validate grasp physics."
+    },
+    "calibration": {
+      "range_min": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "range_max": [
+        4095,
+        4095,
+        4095,
+        4095,
+        4095,
+        4095
+      ],
+      "drive_mode": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "center_tick": 2048,
+      "ticks_per_revolution": 4096
+    },
+    "validation_gate": {
+      "physical_dimensions_measured": false,
+      "camera_extrinsics_calibrated": false,
+      "contact_parameters_identified": false,
+      "demonstration_replay_success_confirmed": false,
+      "real_world_success_claim_allowed": false
+    }
+  },
   "kinematics": {
     "episode": 2,
     "samples": 118,
@@ -13,33 +155,16 @@
       "success_all_boxes": false,
       "placed_boxes": 0,
       "lifted_boxes": 0,
-      "max_lift_m": 0.020812418534888077,
+      "max_lift_m": 0.02056941903008025,
       "contact_frames": 1383,
-      "force_saturation_fraction": 0.21258134490238612,
+      "force_saturation_fraction": 0.21836587129428778,
       "mean_target_jump_normalized": 0.527407141534271,
       "steps": 1383,
       "scene_validated": false,
       "real_world_success_claim_allowed": false,
       "episode": 0,
-      "ee_tracking_rmse_m": 0.015234947430905333,
-      "joint_tracking_mae": 0.8827018141746521,
-      "mode": "recorded_action_replay_through_dynamics"
-    },
-    {
-      "success_any_box": false,
-      "success_all_boxes": false,
-      "placed_boxes": 0,
-      "lifted_boxes": 1,
-      "max_lift_m": 0.04077399759903172,
-      "contact_frames": 1332,
-      "force_saturation_fraction": 0.18018018018018017,
-      "mean_target_jump_normalized": 0.4833458098932722,
-      "steps": 1332,
-      "scene_validated": false,
-      "real_world_success_claim_allowed": false,
-      "episode": 1,
-      "ee_tracking_rmse_m": 0.009220781866128184,
-      "joint_tracking_mae": 0.7882390022277832,
+      "ee_tracking_rmse_m": 0.015561466897218216,
+      "joint_tracking_mae": 0.9305251240730286,
       "mode": "recorded_action_replay_through_dynamics"
     },
     {
@@ -47,16 +172,33 @@
       "success_all_boxes": false,
       "placed_boxes": 0,
       "lifted_boxes": 0,
-      "max_lift_m": 0.01412304759745514,
+      "max_lift_m": 0.006037215982194449,
+      "contact_frames": 1332,
+      "force_saturation_fraction": 0.23123123123123124,
+      "mean_target_jump_normalized": 0.4838196698373343,
+      "steps": 1332,
+      "scene_validated": false,
+      "real_world_success_claim_allowed": false,
+      "episode": 1,
+      "ee_tracking_rmse_m": 0.011544280512971872,
+      "joint_tracking_mae": 0.87691730260849,
+      "mode": "recorded_action_replay_through_dynamics"
+    },
+    {
+      "success_any_box": false,
+      "success_all_boxes": false,
+      "placed_boxes": 0,
+      "lifted_boxes": 0,
+      "max_lift_m": 0.007708342161591053,
       "contact_frames": 1180,
-      "force_saturation_fraction": 0.16186440677966102,
+      "force_saturation_fraction": 0.16440677966101694,
       "mean_target_jump_normalized": 0.5495378166433293,
       "steps": 1180,
       "scene_validated": false,
       "real_world_success_claim_allowed": false,
       "episode": 2,
-      "ee_tracking_rmse_m": 0.009367107033555274,
-      "joint_tracking_mae": 0.6866562366485596,
+      "ee_tracking_rmse_m": 0.009391694487512698,
+      "joint_tracking_mae": 0.7103531956672668,
       "mode": "recorded_action_replay_through_dynamics"
     }
   ]

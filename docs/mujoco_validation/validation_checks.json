@@ -1,12 +1,15 @@
 {
   "pytest_integration": {
-    "passed": 11,
+    "passed": 15,
     "failed": 0,
     "skipped": 0
   },
   "colcon_build": "passed",
   "colcon_test": "11 passed with --python-testing pytest",
   "ruff": "passed",
-  "synthetic_end_to_end": "state, CNN, ACT training; final offline test; contact simulation; report and finalization passed",
-  "smoke_metrics_are_not_real_dataset_results": true
+  "synthetic_end_to_end": "3 model families, locked synthetic test, persistence baseline, actual MuJoCo rollout, montage and report passed",
+  "smoke_metrics_are_not_real_dataset_results": true,
+  "ament_flake8": "passed with package configuration",
+  "ament_pep257": "passed",
+  "standalone_html": "embedded images decoded and JSON parsed; actual running trial evidence confirmed"
 }
