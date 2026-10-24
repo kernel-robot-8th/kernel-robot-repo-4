@@ -8,7 +8,7 @@
 - 대상 하드웨어/로봇: <예: 모바일 베이스 + 매니퓰레이터>
 - 환경: Ubuntu 24.04 / ROS2 Jazzy / Python 3.12 / C++17 (C++ 패키지 사용 시)
 - 시뮬레이터: <예: Gazebo Harmonic, 사용 안 함>
-- 팀 역할: 비전 / 주행 / 매니퓰레이터 / 관제 / GUI
+- 팀 역할: 주행 / 로봇팔 / 비전 / 로봇 수행 관제 / 이상 감지 관제
 
 ## 2. 워크스페이스 구조
 ```
@@ -44,12 +44,14 @@
 ### 역할별 담당 패키지
 | 역할 | 담당 패키지 | 담당자 |
 |---|---|---|
-| 비전 | `cobot_vision` | 강건한, 손선아 |
-| 주행 | `cobot_navigation` | 김지호, 김성아 |
-| 매니퓰레이터 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 손선아, 허지혁 |
-| 관제 | `cobot_control_center` | 강건한 |
-| GUI | `cobot_gui` | 강건한, 김지혜 |
-| 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (PR 리뷰 필수) |
+| 주행 | `cobot_navigation` | 김진호 |
+| 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
+| 비전 | `cobot_vision` | 손선아, 강건한 |
+| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center` | 김지혜 |
+| 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
+| 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
+
+담당 기준은 [2026-10-24 사용자 지정](docs/team_roles.md)이다. 두 관제는 공통 GUI·관제 코어를 재사용하며 로봇 기능 개발과 구분한다.
 
 ## 3. 패키지 · 폴더 작성 규칙
 
