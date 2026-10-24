@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import fs from 'fs'
+import type { IncomingMessage, ServerResponse } from 'http'
+import type { ViteDevServer } from 'vite'
+
+type FeedbackRecord = Record<string, unknown>
 
 function feedbackApiPlugin() {
   const dataDir = path.resolve(__dirname, './src/data')
@@ -17,11 +21,11 @@ function feedbackApiPlugin() {
     }
   }
 
-  function readData() {
+  function readData(): FeedbackRecord[] {
     ensureFile()
     try {
       const raw = fs.readFileSync(dataFile, 'utf-8')
-      return JSON.parse(raw)
+      return JSON.parse(raw) as FeedbackRecord[]
     } catch {
       return []
     }
@@ -34,14 +38,14 @@ function feedbackApiPlugin() {
 
   return {
     name: 'fms-feedback-api',
-    configureServer(server: any) {
-      server.middlewares.use('/api/feedback', (req: any, res: any, next: any) => {
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use('/api/feedback', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
         const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`)
 
         if (req.method === 'GET') {
           const list = readData()
           const menuId = url.searchParams.get('menuId')
-          const result = menuId ? list.filter((item: any) => item.menuId === menuId) : list
+          const result = menuId ? list.filter((item) => item.menuId === menuId) : list
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
           res.statusCode = 200
           res.end(JSON.stringify(result))
@@ -50,12 +54,12 @@ function feedbackApiPlugin() {
 
         if (req.method === 'POST') {
           let body = ''
-          req.on('data', (chunk: any) => {
-            body += chunk
+          req.on('data', (chunk: Buffer) => {
+            body += chunk.toString()
           })
           req.on('end', () => {
             try {
-              const item = JSON.parse(body)
+              const item = JSON.parse(body) as FeedbackRecord
               if (!item.content || !item.menuId) {
                 res.statusCode = 400
                 res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -72,15 +76,15 @@ function feedbackApiPlugin() {
                 content: item.content,
                 createdAt: item.createdAt || new Date().toISOString(),
               }
-              const updated = [newItem, ...list.filter((x: any) => x.id !== newItem.id)]
+              const updated = [newItem, ...list.filter((x) => x.id !== newItem.id)]
               writeData(updated)
               res.setHeader('Content-Type', 'application/json; charset=utf-8')
               res.statusCode = 201
               res.end(JSON.stringify({ success: true, item: newItem, total: updated.length }))
-            } catch (err: any) {
+            } catch (err) {
               res.statusCode = 500
               res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ error: err.message }))
+              res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }))
             }
           })
           return
@@ -95,7 +99,7 @@ function feedbackApiPlugin() {
             return
           }
           const list = readData()
-          const updated = list.filter((item: any) => item.id !== id)
+          const updated = list.filter((item) => item.id !== id)
           writeData(updated)
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
           res.statusCode = 200
