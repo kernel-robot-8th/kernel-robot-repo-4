@@ -25,6 +25,7 @@ def normalized_to_radians(values, calibration):
 
 
 def radians_to_normalized(values, calibration):
+    """Map physical joint radians into calibrated LeRobot motor units."""
     values = np.asarray(values, dtype=float)
     ticks = values * calibration["ticks_per_revolution"] / (2 * np.pi)
     ticks += calibration["center_tick"]
@@ -40,7 +41,7 @@ def radians_to_normalized(values, calibration):
 
 
 def camera_axes(position, target):
-    """MuJoCo cameras look down local -Z, with local +Y up."""
+    """Orient a MuJoCo camera down local -Z, with local +Y up."""
     z = np.asarray(position, float) - np.asarray(target, float)
     z /= np.linalg.norm(z)
     up = np.array([0.0, 0.0, 1.0])
@@ -53,15 +54,17 @@ def camera_axes(position, target):
 
 
 def text_vector(values):
+    """Serialize a numeric vector for MuJoCo XML attributes."""
     return " ".join(str(float(v)) for v in values)
 
 
-def placed_success(position, velocity, lifted, released, config):
+def placed_success(position, velocity, lifted, released, config, support_height=None):
     """Require a previously lifted box to rest fully inside the receiver."""
     half = np.asarray(config["box_half_size"])
     margin = config["receiver_radius"] - np.linalg.norm(half[:2])
     xy_ok = np.linalg.norm(np.asarray(position)[:2] - config["receiver_center_xy"]) < margin
-    z_ok = abs(position[2] - config["receiver_top"] - half[2]) < 0.012
+    support_height = config["receiver_top"] if support_height is None else support_height
+    z_ok = abs(position[2] - support_height - half[2]) < 0.012
     return bool(lifted and released and xy_ok and z_ok and np.linalg.norm(velocity) < config["settle_speed"])
 
 
@@ -203,6 +206,7 @@ class OMXEnvironment:
     """Simulation owns only MuJoCo state and never opens a device or ROS node."""
 
     def __init__(self, assets, config=None, seed=0, scenario="nominal"):
+        """Compile the pinned robot and the selected task perturbation."""
         import mujoco
 
         self.mujoco = mujoco
@@ -222,6 +226,9 @@ class OMXEnvironment:
             ).tolist()
         elif scenario == "single_box":
             self.config["box_count"] = 1
+            self.config["initial_state"] = self.config.get(
+                "single_box_initial_state", self.config["initial_state"]
+            )
         elif scenario != "nominal":
             raise ValueError(f"Unknown predeclared scenario: {scenario}")
         self.model = mujoco.MjModel.from_xml_string(build_scene(assets, self.config))
@@ -234,6 +241,7 @@ class OMXEnvironment:
         self.reset()
 
     def reset(self, state=None):
+        """Reset physics and clear lift, placement, and controller histories."""
         self.mujoco.mj_resetData(self.model, self.data)
         self.set_robot_state(self.config["initial_state"] if state is None else state)
         self.control_step = 0
@@ -252,6 +260,7 @@ class OMXEnvironment:
         return self.state()
 
     def set_robot_state(self, state):
+        """Set the recorded joint configuration for initialization or geometry checks."""
         q = normalized_to_radians(state, self.config["calibration"])
         self.data.qpos[self.robot_joints] = q
         self.data.joint("gripper_joint_2").qpos[0] = -q[5]
@@ -259,9 +268,11 @@ class OMXEnvironment:
         self.mujoco.mj_forward(self.model, self.data)
 
     def state(self):
+        """Read six simulated motor positions in calibrated dataset units."""
         return radians_to_normalized(self.data.qpos[self.robot_joints], self.config["calibration"])
 
     def step(self, action):
+        """Apply a delayed motor target and advance exactly one control interval."""
         action = np.asarray(action, float)
         if action.shape != (6,) or not np.isfinite(action).all():
             raise ValueError("Action must have six finite normalized motor positions")
@@ -291,17 +302,48 @@ class OMXEnvironment:
         self.force_saturation_frames += int(np.any(forces >= limits * 0.99))
         # Gripper opening is an actual motor angle, not a fabricated attachment flag.
         released = self.data.qpos[self.robot_joints[-1]] > 0.57
+        supports = self.receiver_supports()
         for i in range(self.config["box_count"]):
             body = self.data.body(f"box_{i}")
             lift = body.xpos[2] - self.initial_heights[i]
             self.max_lift = max(self.max_lift, float(lift))
             self.lifted[i] |= lift > self.config["lift_threshold"]
-            good = placed_success(body.xpos, body.cvel[3:], self.lifted[i], released, self.config)
+            good = i in supports and placed_success(
+                body.xpos,
+                body.cvel[3:],
+                self.lifted[i],
+                released,
+                self.config,
+                support_height=supports.get(i),
+            )
             self.holds[i] = self.holds[i] + 1 if good else 0
-            self.placed[i] |= self.holds[i] >= self.config["success_hold_frames"]
+            self.placed[i] = self.holds[i] >= self.config["success_hold_frames"]
         return self.state()
 
+    def receiver_supports(self):
+        """Require a physical support chain to the receiver, including stacked boxes."""
+        contacts = []
+        supports = {}
+        for contact in self.data.contact:
+            if contact.dist > 0.002:
+                continue
+            names = [self.model.body(self.model.geom_bodyid[g]).name for g in [contact.geom1, contact.geom2]]
+            boxes = [int(name.split("_")[1]) for name in names if name.startswith("box_")]
+            if len(boxes) == 1 and "receiver" in names:
+                supports[boxes[0]] = self.config["receiver_top"]
+            elif len(boxes) == 2:
+                contacts.append(boxes)
+        for _ in range(self.config["box_count"]):
+            for first, second in contacts:
+                first_z = self.data.body(f"box_{first}").xpos[2]
+                second_z = self.data.body(f"box_{second}").xpos[2]
+                lower, upper = (first, second) if first_z < second_z else (second, first)
+                if lower in supports and upper not in supports:
+                    supports[upper] = self.data.body(f"box_{lower}").xpos[2] + self.config["box_half_size"][2]
+        return supports
+
     def render(self, camera="top", width=128, height=96):
+        """Render one virtual camera without reading any physical device."""
         key = (width, height)
         if key not in self.renderers:
             self.renderers[key] = self.mujoco.Renderer(self.model, height=height, width=width)
@@ -310,6 +352,7 @@ class OMXEnvironment:
         return renderer.render().copy()
 
     def metrics(self):
+        """Return provisional task and actuator diagnostics for this rollout."""
         return {
             "success_any_box": bool(any(self.placed)),
             "success_all_boxes": bool(all(self.placed)),
@@ -325,6 +368,7 @@ class OMXEnvironment:
         }
 
     def close(self):
+        """Release every offscreen renderer owned by this environment."""
         for renderer in self.renderers.values():
             renderer.close()
         self.renderers.clear()

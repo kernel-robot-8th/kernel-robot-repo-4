@@ -3,10 +3,11 @@
 import argparse
 from pathlib import Path
 
-from .common import PACKAGE, read_json, write_json
+from .common import PACKAGE, read_json, utc_now, write_json
 
 
 def main():
+    """Dispatch simulation, data, experiment, and report commands."""
     parser = argparse.ArgumentParser(description="OMX MuJoCo validation; no hardware access")
     sub = parser.add_subparsers(dest="command", required=True)
     assets = sub.add_parser("fetch-robot")
@@ -70,6 +71,8 @@ def main():
         from .evaluation import kinematic_check, replay_recording
 
         diagnostics = {
+            "captured_at": utc_now(),
+            "scene_config": read_json(args.scene),
             "kinematics": kinematic_check(args.cache, args.assets),
             "replay": [
                 replay_recording(args.cache, args.assets, episode=n, config=read_json(args.scene))

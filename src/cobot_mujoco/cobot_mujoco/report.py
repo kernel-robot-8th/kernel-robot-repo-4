@@ -5,18 +5,22 @@ import html
 import json
 from pathlib import Path
 
+from .analysis import summarize_results
 from .common import read_json, utc_now
 
 
 def escape(value):
+    """Escape an untrusted evidence string for insertion into HTML text."""
     return html.escape(str(value))
 
 
 def number(value, digits=3):
+    """Format a measured value while keeping missing results visibly absent."""
     return "—" if value is None else f"{value:,.{digits}f}"
 
 
 def line_chart(trial):
+    """Render training and validation histories as an inline SVG chart."""
     rows = trial.get("history", [])
     if not rows:
         return "<p class='muted'>학습 곡선 대기 중</p>"
@@ -45,6 +49,7 @@ def line_chart(trial):
 
 
 def inline_image(path, label):
+    """Embed a small evidence image into the standalone report."""
     path = Path(path)
     if not path.exists():
         return ""
@@ -54,6 +59,7 @@ def inline_image(path, label):
 
 
 def make_report(run, destination, evidence=None):
+    """Atomically render actual persisted results and explicit validation limits."""
     run, destination = Path(run), Path(destination)
     status = read_json(run / "status.json") if (run / "status.json").exists() else {"status": "preparing"}
     trials = []
@@ -63,6 +69,27 @@ def make_report(run, destination, evidence=None):
     final = read_json(run / "final_evaluation.json") if (run / "final_evaluation.json").exists() else []
     diagnostics = read_json(run / "diagnostics.json") if (run / "diagnostics.json").exists() else {}
     source = read_json(run / "data_manifest.json") if (run / "data_manifest.json").exists() else {}
+    findings = summarize_results(trials, final, diagnostics)
+    findings_rows = []
+    for comparison in findings["scarcity"]:
+        value = comparison["mean_improvement_2_to_8"]
+        direction = "개선" if value > 0 else "악화"
+        findings_rows.append(
+            f"<li>{comparison['family']}: 같은 {comparison['paired_seeds']}개 시드에서 "
+            f"학습 녹화 2→8개 변경 시 검증 MAE가 평균 {abs(value):.3f} {direction}했습니다. "
+            "추가 데이터의 효과를 확인하는 관찰이며 일반적인 데이터 충분성 판정은 아닙니다.</li>"
+        )
+    for comparison in findings["generalization"]:
+        findings_rows.append(
+            f"<li>{escape(comparison['trial'])}: 테스트−검증 MAE 차이 "
+            f"{comparison['test_minus_validation']:+.3f}. "
+            f"자세 유지 대조군보다 낮은 오차: {comparison['beats_hold_current_state']}.</li>"
+        )
+    if findings["replay_count"]:
+        findings_rows.append(
+            f"<li>실제 녹화 명령의 물리 재생: {findings['replay_successes']}/{findings['replay_count']}개 "
+            "배치 성공. 이 결과와 실측 보정 조건이 해결되기 전에는 정책의 물리 성공률로 현장 성능을 판단할 수 없습니다.</li>"
+        )
     pending = status.get("current_trial", "—")
     table_rows, curves = [], []
     for trial in trials:
@@ -105,17 +132,31 @@ def make_report(run, destination, evidence=None):
                     f"<td>{number(sum(s['force_saturation_fraction'] for s in group) / len(group))}</td></tr>"
                 )
         ablations = candidate.get("camera_ablations", {})
+        baseline = candidate.get("persistence_baseline", {})
+        montage = (
+            inline_image(
+                Path(evidence) / candidate["rollout_montage"],
+                "선택된 정책의 nominal 장면 · 시작, 25%, 50%, 75%, 종료",
+            )
+            if evidence and candidate.get("rollout_montage")
+            else ""
+        )
         final_sections.append(
             f"<article><h3>{escape(candidate['trial'])}</h3><p>나중 세션 5개 녹화의 관절 명령 MAE "
             f"<strong>{number(test.get('control_mae', test['point_mae']))}</strong> (앞 10스텝) · 녹화 단위 bootstrap 95% 구간 "
             f"[{number(low)}, {number(high)}]. 표본이 5개여서 불확실성이 큽니다.</p>"
+            f"<p>현재 자세를 그대로 유지하는 무학습 대조군 MAE: "
+            f"<strong>{number(baseline.get('control_mae'))}</strong>. "
+            "이 값보다 낮은지와 실제 물체 이동을 함께 확인해야 합니다.</p>"
             f"<p>카메라 제거 MAE: wrist {number(ablations.get('wrist', {}).get('control_mae'))}, "
             f"top {number(ablations.get('top', {}).get('control_mae'))}. "
             "상태 전용 정책은 카메라 제거에 반응하지 않는 대조군입니다.</p>"
             "<div class='scroll'><table><thead><tr><th>장면 변화</th><th>제어</th><th>반복</th>"
             "<th>상자 들림</th><th>임시 배치 판정</th><th>힘 제한 도달 비율</th></tr></thead><tbody>"
             + "".join(sim_rows)
-            + "</tbody></table></div></article>"
+            + "</tbody></table></div>"
+            + montage
+            + "</article>"
         )
     scarcity = []
     for family in ["state", "act"]:
@@ -144,16 +185,17 @@ def make_report(run, destination, evidence=None):
             "<div class='images'>"
             + "".join(
                 [
-                    inline_image(evidence / "real_top.jpg", "실제 녹화 · top 카메라"),
-                    inline_image(evidence / "sim_top.jpg", "MuJoCo · 추정 장면 top"),
-                    inline_image(evidence / "real_wrist.jpg", "실제 녹화 · wrist 카메라"),
-                    inline_image(evidence / "sim_wrist.jpg", "MuJoCo · 추정 장면 wrist"),
+                    inline_image(evidence / "real_top.jpg", "실제 녹화 · top 카메라 · 에피소드 2 시작"),
+                    inline_image(evidence / "sim_top.jpg", "MuJoCo · 같은 초기 관절 자세 · top"),
+                    inline_image(evidence / "real_wrist.jpg", "실제 녹화 · wrist 카메라 · 에피소드 2 시작"),
+                    inline_image(evidence / "sim_wrist.jpg", "MuJoCo · 같은 초기 관절 자세 · wrist"),
                 ]
             )
             + "</div>"
         )
     raw = {
         "status": status,
+        "analysis": findings,
         "diagnostics": diagnostics,
         "trials": trials,
         "final_evaluation": final,
@@ -208,6 +250,12 @@ footer{{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:
 {"".join(scarcity) or '<tr><td colspan="5">2·4·8개 녹화 비교 대기 중</td></tr>'}</tbody></table></div>
 <p class="muted">녹화 수가 늘 때 오차가 개선되는지와 시드 간 변동을 함께 확인해야 합니다.
 성공 영상만 있으므로 실패 탐지기 정확도·재현율은 산출할 수 없습니다. 상자 위치·개수·조명·초기 자세가 다른 추가 성공·실패 녹화가 필요합니다.</p>
+<h2>실험에서 확인된 점</h2><article>
+<p>최저 검증 지점 이후 학습 MAE가 5% 이상 감소하면서 검증 MAE가 10%·0.1 이상 증가한
+패턴: <strong>{findings["overfit_pattern_count"]}개 실험</strong>. 이 조건은 추세를 찾기 위한 명시적 기준이며 통계적 유의성 판정은 아닙니다.</p>
+<ul>{"".join(findings_rows) or "<li>비교할 완료 실험을 기다리고 있습니다.</li>"}</ul>
+<p>실패 예제가 없으므로 실패 탐지기 정확도·재현율은 산출하지 않았습니다. 다른 초기 배치·조명·상자 수·실패 시연을 추가하고,
+시뮬레이터의 접촉·카메라 보정을 마친 뒤 독립 현장 시도로 확인해야 합니다.</p></article>
 <h2>잠금 테스트와 물리 시뮬레이션</h2>
 {"".join(final_sections) or '<p class="muted">학습·선택 완료 후 평가합니다. 현재 테스트 성능은 발표하지 않았습니다.</p>'}
 <article><p>물리 판정: 원래 위치에서 25mm 이상 들린 상자가 원형 수신대 내부에 완전히 들어가,

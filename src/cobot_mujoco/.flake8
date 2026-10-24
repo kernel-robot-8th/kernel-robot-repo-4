@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 110
+inline-quotes = double
+multiline-quotes = double
+docstring-quotes = double
+application-import-names = cobot_mujoco
+import-order-style = pep8
+extend-ignore = E203
+# Inline HTML/CSS/JS template lines are rendered content, not Python control flow.
+per-file-ignores =
+    */report.py:E501
+exclude = .git,__pycache__,build,install,log

@@ -31,4 +31,5 @@ def write_json(path, value):
 
 
 def read_json(path):
+    """Read a UTF-8 JSON experiment record."""
     return json.loads(Path(path).read_text(encoding="utf-8"))

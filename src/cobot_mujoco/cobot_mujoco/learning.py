@@ -11,6 +11,7 @@ from .data import CAMERAS, HEIGHT, WIDTH
 
 
 def seed_everything(seed):
+    """Seed training randomness and set bounded CPU and matrix precision settings."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -23,6 +24,7 @@ class BaselinePolicy(nn.Module):
     """State BC and two-camera CNN BC expose the same action chunk interface."""
 
     def __init__(self, config):
+        """Initialize the policy architecture or simulation controller state."""
         super().__init__()
         self.config = config
         self.vision = config["family"] == "cnn"
@@ -55,6 +57,7 @@ class BaselinePolicy(nn.Module):
         )
 
     def predict_action_chunk(self, batch):
+        """Predict a normalized future motor chunk from the configured observations."""
         state = batch["observation.state"]
         if self.vision:
             images = torch.stack([batch[f"observation.images.{name}"] for name in CAMERAS], 1)
@@ -64,6 +67,7 @@ class BaselinePolicy(nn.Module):
         return self.head(state).reshape(-1, self.horizon, 6)
 
     def forward(self, batch):
+        """Compute masked action regression loss on valid recording frames."""
         prediction = self.predict_action_chunk(batch)
         valid = (~batch["action_is_pad"]).unsqueeze(-1)
         loss = ((prediction - batch["action"]).abs() * valid).sum() / (valid.sum() * 6).clamp_min(1)
@@ -71,6 +75,7 @@ class BaselinePolicy(nn.Module):
 
 
 def make_policy(config, pretrained_backbone=True):
+    """Build a baseline or genuine LeRobot ACT with matching observation features."""
     if config["family"] != "act":
         return BaselinePolicy(config)
     from lerobot.configs.types import FeatureType, PolicyFeature
@@ -105,6 +110,7 @@ def make_policy(config, pretrained_backbone=True):
 
 
 def prepare_batch(batch, device, augment=False, state_noise=0.0, ablation=None):
+    """Normalize images and optionally perturb only training observations."""
     pixels = batch["pixels"].to(device, non_blocking=True).float() / 255
     if augment:
         brightness = torch.empty(len(pixels), 2, 1, 1, 1, device=device).uniform_(0.8, 1.2)
@@ -197,6 +203,7 @@ class SimulationPolicy:
     """Adapt a checkpoint to rendered observations with its fitted normalization."""
 
     def __init__(self, policy, statistics, config, device="cuda", ensemble=False):
+        """Initialize the policy architecture or simulation controller state."""
         self.policy, self.statistics, self.config = policy, statistics, config
         self.device, self.ensemble = device, ensemble
         self.queue = []
@@ -205,6 +212,7 @@ class SimulationPolicy:
 
     @torch.inference_mode()
     def action(self, environment):
+        """Predict or dequeue the next target from simulated state and camera frames."""
         interval = min(self.config.get("action_steps", 10), self.config["horizon"])
         if self.step % interval == 0:
             state = (environment.state() - self.statistics["state_mean"]) / self.statistics["state_std"]

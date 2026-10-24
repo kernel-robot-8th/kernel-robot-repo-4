@@ -161,6 +161,7 @@ class RecordingDataset(torch.utils.data.Dataset):
     """Read memory-mapped cameras with training-only normalization and masks."""
 
     def __init__(self, cache, episode_ids, horizon, statistics=None, stride=3):
+        """Bind recording indices and training-fitted normalization to memory-mapped arrays."""
         self.cache = Path(cache)
         self.manifest = read_json(self.cache / "manifest.json")
         self.states = np.load(self.cache / "states.npy", mmap_mode="r")
@@ -196,9 +197,11 @@ class RecordingDataset(torch.utils.data.Dataset):
             self.statistics = statistics
 
     def __len__(self):
+        """Return the number of sampled recording frames."""
         return len(self.indices)
 
     def __getitem__(self, item):
+        """Return an observation and a masked future chunk from the same recording."""
         index, end = self.indices[item], self.ends[item]
         ids, pad = chunk_indices(0, end, index, self.horizon)
         stats = self.statistics

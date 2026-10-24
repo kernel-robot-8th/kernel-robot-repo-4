@@ -60,7 +60,7 @@ MUJOCO_GL=glfw cobot-mujoco view --assets ~/omx_sim_assets/robotis
 2. 2·4·8개 데이터 비교는 시드별 학습 녹화 순서를 무작위로 정한 **같은 중첩 부분집합**으로 수행한다. 상태·행동 평균/표준편차는 해당 부분집합만으로 계산한다. 이미지에는 고정 ImageNet 통계를 사용한다.
 3. 상태 BC, 시각 CNN BC, ACT를 비교한다. ACT는 action chunk 16/32/64, dropout, weight decay, 학습률, 밝기·대비·이동 증강, 상태 노이즈를 바꾼다. 시드는 17·42·97. 고정 계획은 `config/sweep.json`에 있으며 총 36개 실험이다.
 4. 각 실험은 최대 1,500초, 최대 30,000스텝이다. 250스텝마다 학습·검증 녹화별 MAE를 기록하고, 검증 개선이 10번 멈추면 조기 종료한다. 최소 1,000스텝을 수행한다. 학습 시작 1스텝에서도 파이프라인 확인용 검증을 기록한다.
-5. 최저 검증 MAE 체크포인트를 보존한다. 모델 계열별로 검증 성능이 가장 좋은 실험을 고른 뒤 테스트에 접근한다. `test_access.json`에 선택 목록을 먼저 고정한다. 테스트 결과로 추가 튜닝하지 않는다.
+5. 서로 다른 chunk 길이를 공정하게 비교하기 위해 공통으로 앞 10개 미래 스텝의 녹화별 MAE를 사용한다. 최저 검증 체크포인트를 보존하고 모델 계열별로 검증 성능이 가장 좋은 실험을 고른 뒤 테스트에 접근한다. `test_access.json`에 선택 목록을 먼저 고정한다. 테스트 결과로 추가 튜닝하지 않는다. 현재 관절 자세를 그대로 유지하는 무학습 대조군과도 비교해 정지 정책의 낮은 오차를 성공으로 오인하지 않게 한다.
 6. 전체 벽시계 상한은 최대 12시간이며 마지막 평가·보고서 작성에 30분을 남긴다. 36개가 먼저 끝나면 불필요한 반복 없이 종료한다. 남은 시간에 따라 뒤쪽 시드가 실행되지 않을 수 있으며 보고서에 완료 개수를 표시한다.
 
 보존 기록에는 seed·학습 녹화 목록·정규화 통계·배치 크기·학습 시간·GPU 최대 메모리·최저 검증 단계·종료 이유가 포함된다. 검증 데이터가 2개뿐이므로 많은 조합을 고르는 과정 자체도 검증 세트에 과적합될 수 있다. 테스트 5개와 3개 시드가 이 한계를 없애지는 않는다.
@@ -70,7 +70,7 @@ MUJOCO_GL=glfw cobot-mujoco view --assets ~/omx_sim_assets/robotis
 - 제조사 메시·질량·관성·모터 힘 제한·양쪽 손가락 mimic 관계를 사용한다. 물체는 자유 관절과 실제 접촉으로 움직이며 가짜 부착·텔레포트를 하지 않는다.
 - 관절 5개는 -100…100, gripper는 0…100 정규화다. gripper 0…100을 임의의 0…최대 관절각으로 선형 대응하지 않는다. 녹화 캘리브레이션의 raw tick 범위와 중심값 2048/4096으로 역변환한다.
 - 2ms 물리 스텝을 16/17회씩 번갈아 진행해 30Hz 제어 시간을 맞춘다.
-- 원위치보다 25mm 이상 들린 상자가 원형 수신대에 완전히 들어가고, 열린 그리퍼에서 낮은 속도로 15프레임 안정적으로 놓여야 성공이다. 하나 이상/전체 상자 성공을 따로 기록한다.
+- 원위치보다 25mm 이상 들린 상자가 원형 수신대에 완전히 들어가고, 열린 그리퍼에서 낮은 속도로 15프레임 안정적으로 놓여야 성공이다. 실제 접촉이 수신대 또는 그 위의 상자로 이어지는 지지 관계도 확인한다. 쌓아 놓기도 허용하며 이후 떨어진 상자는 성공으로 유지하지 않는다. 하나 이상/전체 상자 성공을 따로 기록한다.
 - 사전 지정 조건: nominal, object_shift(±15mm), low_friction, heavy_box(2배), camera_shift, single_box. chunk 제어와 temporal ensemble을 비교한다.
 - 물리 환경이 미검증인 동안 위 지표는 후보 정책의 잠정 진단값이다. 실제 로봇 성공률로 표현하지 않는다. 시연 재생 실패를 모델의 실패로 오인하면 안 된다.
 
@@ -104,6 +104,8 @@ colcon test-result --verbose
 PYTHONPATH=src/cobot_mujoco OMX_ROBOT_ASSETS=~/omx_sim_assets/robotis MUJOCO_GL=egl \
   ~/venv/omx_mujoco/bin/python -m pytest src/cobot_mujoco/test -q
 ~/venv/omx_mujoco/bin/python -m ruff check src/cobot_mujoco
+~/venv/omx_mujoco/bin/python -c 'from ament_flake8.main import main; raise SystemExit(main(["--config", "src/cobot_mujoco/.flake8", "src/cobot_mujoco"]))'
+~/venv/omx_mujoco/bin/python -c 'from ament_pep257.main import main; raise SystemExit(main(["src/cobot_mujoco"]))'
 ```
 
 ## 현장 검증기로 승인하기 위해 남은 작업

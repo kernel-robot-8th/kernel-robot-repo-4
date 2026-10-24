@@ -21,6 +21,7 @@ SCENE = read_json(PACKAGE / "config/scene.json")
 
 @pytest.mark.parametrize("gripper", [0, 50, 57, 62, 100])
 def test_calibration_round_trip_and_gripper_zero(gripper):
+    """Verify calibration round trip and gripper zero."""
     state = np.array([-50, -20, 35, 60, 0, gripper])
     q = normalized_to_radians(state, SCENE["calibration"])
     np.testing.assert_allclose(radians_to_normalized(q, SCENE["calibration"]), state, atol=1e-5)
@@ -29,6 +30,7 @@ def test_calibration_round_trip_and_gripper_zero(gripper):
 
 
 def test_drive_mode_round_trip():
+    """Verify drive mode round trip."""
     calibration = copy.deepcopy(SCENE["calibration"])
     calibration["drive_mode"] = [1] * 6
     state = np.array([3, 5, 7, 9, -4, 60])
@@ -37,6 +39,7 @@ def test_drive_mode_round_trip():
 
 
 def test_split_is_recording_disjoint_and_temporally_held_out():
+    """Verify split is recording disjoint and temporally held out."""
     assert set(SPLITS["train"]).isdisjoint(SPLITS["validation"])
     assert set(SPLITS["train"]).isdisjoint(SPLITS["test"])
     assert set(SPLITS["validation"]).isdisjoint(SPLITS["test"])
@@ -45,12 +48,14 @@ def test_split_is_recording_disjoint_and_temporally_held_out():
 
 
 def test_action_chunk_does_not_cross_next_episode():
+    """Verify action chunk does not cross next episode."""
     indices, padded = chunk_indices(40, 50, 48, 5)
     assert indices.tolist() == [48, 49, 49, 49, 49]
     assert padded.tolist() == [False, False, True, True, True]
 
 
 def test_success_needs_lift_release_stability_and_full_footprint():
+    """Verify success needs lift release stability and full footprint."""
     config = copy.deepcopy(SCENE)
     position = np.array([*config["receiver_center_xy"], config["receiver_top"] + config["box_half_size"][2]])
     assert placed_success(position, [0, 0, 0], True, True, config)
@@ -61,7 +66,45 @@ def test_success_needs_lift_release_stability_and_full_footprint():
     assert not placed_success(position, [0, 0, 0], True, True, config)
 
 
+def test_a_stack_requires_the_correct_supported_height():
+    """Accept a stacked placement only when the higher supporting surface is supplied."""
+    config = copy.deepcopy(SCENE)
+    height = config["receiver_top"] + 2 * config["box_half_size"][2]
+    position = [*config["receiver_center_xy"], height + config["box_half_size"][2]]
+    assert not placed_success(position, [0, 0, 0], True, True, config)
+    assert placed_success(position, [0, 0, 0], True, True, config, support_height=height)
+
+
+def test_metrics_balance_recordings_and_use_a_common_ten_step_horizon():
+    """Prevent long recordings or a different chunk length from changing comparison weights."""
+    import torch
+    from cobot_mujoco.learning import evaluate
+
+    class ZeroPolicy(torch.nn.Module):
+        """Expose a deterministic test prediction without learned parameters."""
+
+        def predict_action_chunk(self, batch):
+            """Return a known chunk whose target error is controlled by this test."""
+            return torch.zeros(4, 16, 6)
+
+    action = torch.ones(4, 16, 6)
+    action[-1] = 3
+    action[:, 10:] = 100
+    batch = {
+        "episode": torch.tensor([0, 0, 0, 1]),
+        "observation.state": torch.zeros(4, 6),
+        "pixels": torch.zeros(4, 2, 3, 96, 128, dtype=torch.uint8),
+        "action": action,
+        "action_is_pad": torch.zeros(4, 16, dtype=torch.bool),
+    }
+    result = evaluate(ZeroPolicy(), [batch], {"action_std": [1] * 6}, device="cpu")
+    assert result["control_mae"] == 2
+    assert result["point_mae"] == 2
+    assert result["chunk_mae"] > 20
+
+
 def test_grid_covers_families_and_scarcity_before_replicates():
+    """Verify grid covers families and scarcity before replicates."""
     sweep = read_json(PACKAGE / "config/sweep.json")
     grid = trial_grid(sweep)
     first = grid[: len(sweep["experiments"])]
@@ -72,6 +115,7 @@ def test_grid_covers_families_and_scarcity_before_replicates():
 
 
 def test_physics_step_preserves_finite_state_and_does_not_invent_success():
+    """Verify physics step preserves finite state and does not invent success."""
     import os
 
     assets = Path(os.environ.get("OMX_ROBOT_ASSETS", "/nonexistent"))

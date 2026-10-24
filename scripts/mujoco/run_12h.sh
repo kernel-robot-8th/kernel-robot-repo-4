@@ -14,5 +14,5 @@ nohup setsid "$python_bin" -m cobot_mujoco.cli run \
   --run "$run_dir" \
   --report-dir "$repo_dir/docs/mujoco_validation" \
   --hours 12 --push-report \
-  > "$run_dir/supervisor.log" 2>&1 < /dev/null &
+  >> "$run_dir/supervisor.log" 2>&1 < /dev/null &
 echo "Supervisor launched: PID $!; status: $run_dir/status.json"

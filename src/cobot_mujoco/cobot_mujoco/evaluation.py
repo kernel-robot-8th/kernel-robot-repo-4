@@ -13,6 +13,36 @@ from .environment import OMXEnvironment
 from .learning import SimulationPolicy, evaluate, make_policy
 
 
+def persistence_baseline(cache, episodes):
+    """Compare learning against holding the current joint state for ten future steps."""
+    cache = Path(cache)
+    manifest = read_json(cache / "manifest.json")
+    states = np.load(cache / "states.npy", mmap_mode="r")
+    actions = np.load(cache / "actions.npy", mmap_mode="r")
+    rows = {}
+    for recording in manifest["episodes"]:
+        if recording["id"] not in episodes:
+            continue
+        indices = np.arange(recording["start"], recording["end"], 6)
+        targets = indices[:, None] + np.arange(10)[None]
+        valid = targets < recording["end"]
+        targets = np.minimum(targets, recording["end"] - 1)
+        error = np.abs(states[indices, None] - actions[targets])
+        control = (error * valid[..., None]).sum((1, 2)) / (valid.sum(1) * 6)
+        rows[str(recording["id"])] = {
+            "control_mae": float(control.mean()),
+            "point_mae": float(error[:, 0].mean()),
+        }
+    return {
+        "name": "hold_current_state",
+        "training_required": False,
+        "control_mae": float(np.mean([r["control_mae"] for r in rows.values()])),
+        "point_mae": float(np.mean([r["point_mae"] for r in rows.values()])),
+        "per_episode": rows,
+        "interpretation": "Low motor MAE alone can reward staying still; task success must be verified.",
+    }
+
+
 def replay_recording(cache, assets, episode=2, stride=1, config=None, video_path=None):
     """Execute recorded commands through the actuator dynamics, without object teleportation."""
     from PIL import Image
@@ -83,6 +113,7 @@ def kinematic_check(cache, assets, episode=2):
 
 
 def load_trial(path, device="cuda"):
+    """Restore a locally generated checkpoint and its training-only normalization."""
     saved = torch.load(Path(path), map_location=device, weights_only=False)
     policy = make_policy(saved["config"], pretrained_backbone=False).to(device)
     policy.load_state_dict(saved["model"])
@@ -97,6 +128,7 @@ def final_evaluation(cache, assets, selected, sweep, output, deadline=None, prog
         read_json(output / "final_evaluation.json") if (output / "final_evaluation.json").exists() else []
     )
     access = output / "test_access.json"
+    scene = read_json(output / "scene.json") if (output / "scene.json").exists() else None
     selection = [x["config"]["name"] for x in selected]
     if access.exists() and read_json(access)["selected_trials"] != selection:
         raise ValueError("Locked test was already opened for a different model selection")
@@ -123,6 +155,7 @@ def final_evaluation(cache, assets, selected, sweep, output, deadline=None, prog
                 "family": config["family"],
                 "selected_by": "validation only, before locked test evaluation",
                 "test": test,
+                "persistence_baseline": persistence_baseline(cache, SPLITS["test"]),
                 "camera_ablations": ablations,
                 "simulation": [],
             }
@@ -142,14 +175,22 @@ def final_evaluation(cache, assets, selected, sweep, output, deadline=None, prog
                     if deadline is not None and time.monotonic() >= deadline:
                         record["simulation_incomplete_reason"] = "global_wall_clock_budget"
                         break
-                    env = OMXEnvironment(assets, seed=seed, scenario=scenario)
+                    env = OMXEnvironment(assets, config=scene, seed=seed, scenario=scenario)
                     controller = SimulationPolicy(policy, stats, config, ensemble=mode == "temporal_ensemble")
+                    snapshots = []
                     try:
                         nsteps = int(sweep["simulation_seconds"] * env.config["fps"])
-                        for _ in range(nsteps):
+                        for frame in range(nsteps):
                             if deadline is not None and time.monotonic() >= deadline:
                                 break
                             env.step(controller.action(env))
+                            if (
+                                scenario == "nominal"
+                                and seed == sweep["simulation_seeds"][0]
+                                and mode == "chunk"
+                                and frame in {0, nsteps // 4, nsteps // 2, nsteps * 3 // 4, nsteps - 1}
+                            ):
+                                snapshots.append(env.render("top", 256, 192))
                         record["simulation"].append(
                             {
                                 "scenario": scenario,
@@ -161,6 +202,14 @@ def final_evaluation(cache, assets, selected, sweep, output, deadline=None, prog
                         )
                     finally:
                         env.close()
+                    if snapshots:
+                        from PIL import Image
+
+                        directory = output / "evidence"
+                        directory.mkdir(exist_ok=True)
+                        name = f"rollout_{config['name']}.jpg"
+                        Image.fromarray(np.concatenate(snapshots, axis=1)).save(directory / name, quality=78)
+                        record["rollout_montage"] = name
                     write_json(output / "final_evaluation.json", results)
                     if progress:
                         progress()

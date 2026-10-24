@@ -1,6 +1,7 @@
 """Durable experiment supervisor with a wall-clock ceiling and HTML finalizer."""
 
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -104,11 +105,19 @@ def run_sweep(cache, assets, run, report_dir, hours=12.0, push=False, sweep_path
         "failures": [],
         "current_trial": None,
         "publication": "not_requested" if not push else "pending",
+        "runtime_git_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPOSITORY,
+            text=True,
+        ).strip(),
     }
     if (run / "status.json").exists():
         state["failures"] = read_json(run / "status.json").get("failures", [])
     report_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(Path(cache) / "manifest.json", run / "data_manifest.json")
+    if not (run / "scene.json").exists():
+        shutil.copyfile(PACKAGE / "config/scene.json", run / "scene.json")
+    state["scene_sha256"] = hashlib.sha256((run / "scene.json").read_bytes()).hexdigest()
     shutil.copyfile(schedule, report_dir / "schedule.json")
     (run / "pid").write_text(str(os.getpid()))
     child = None
@@ -174,6 +183,10 @@ def run_sweep(cache, assets, run, report_dir, hours=12.0, push=False, sweep_path
                 child = None
             if code == 0 and (trial / "result.json").exists():
                 state["completed_trials"] += 1
+                state["failures"] = [f for f in state["failures"] if f["trial"] != config["name"]]
+                if (trial / "failure.json").exists():
+                    prior_failure = read_json(trial / "failure.json")
+                    write_json(trial / "failure.json", {**prior_failure, "resolved_by_resume_at": utc_now()})
             else:
                 state["failures"].append(
                     {"trial": config["name"], "exit_code": code, "log": str(trial / "terminal.log")}
@@ -183,6 +196,7 @@ def run_sweep(cache, assets, run, report_dir, hours=12.0, push=False, sweep_path
                     raise RuntimeError("Three trials failed without any successful training; see logs")
             report()
         trials = [read_json(p) for p in (run / "trials").glob("*/result.json")]
+        state["completed_trials"] = len(trials)
         selected = read_json(run / "selected.json") if test_already_opened else []
         if not test_already_opened:
             for family in ["state", "cnn", "act"]:
@@ -202,7 +216,7 @@ def run_sweep(cache, assets, run, report_dir, hours=12.0, push=False, sweep_path
             state["status"] = "completed_with_failures" if state["failures"] else "completed"
         state["phase"] = "finished"
         state["finished_at"] = utc_now()
-        state["elapsed_s"] = time.time() - started
+        state["elapsed_s"] = time.time() - (wall_deadline - min(hours, sweep["maximum_hours"]) * 3600)
         report()
     except BaseException as error:
         if child is not None and child.poll() is None:
@@ -218,6 +232,7 @@ def run_sweep(cache, assets, run, report_dir, hours=12.0, push=False, sweep_path
             "selected.json",
             "final_evaluation.json",
             "test_access.json",
+            "scene.json",
         ]:
             if (run / name).exists():
                 shutil.copyfile(run / name, report_dir / name)

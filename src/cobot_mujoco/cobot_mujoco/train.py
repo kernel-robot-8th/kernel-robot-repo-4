@@ -3,6 +3,7 @@
 import argparse
 import math
 from pathlib import Path
+import subprocess
 import time
 
 import numpy as np
@@ -15,6 +16,7 @@ from .learning import evaluate, make_policy, prepare_batch, seed_everything
 
 
 def save_checkpoint(path, model, optimizer, config, statistics, step):
+    """Atomically preserve model, optimizer, configuration, and normalization."""
     temporary = Path(path).with_suffix(".tmp")
     torch.save(
         {
@@ -30,6 +32,7 @@ def save_checkpoint(path, model, optimizer, config, statistics, step):
 
 
 def train_trial(cache, config, output, budget_s):
+    """Train until the declared step, time, or validation stopping condition."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     seed_everything(config["seed"])
@@ -64,7 +67,8 @@ def train_trial(cache, config, output, budget_s):
             rows = read_json(output / "history.json")
             best = min(row["validation_mae"] for row in rows)
     started = time.monotonic()
-    deadline = started + budget_s
+    elapsed_before_resume = rows[-1]["elapsed_s"] if rows else 0.0
+    deadline = started + max(0.0, budget_s - elapsed_before_resume)
     torch.cuda.reset_peak_memory_stats()
     write_json(
         output / "status.json",
@@ -108,7 +112,7 @@ def train_trial(cache, config, output, budget_s):
                 stale += 1
             row = {
                 "step": step,
-                "elapsed_s": time.monotonic() - started,
+                "elapsed_s": elapsed_before_resume + time.monotonic() - started,
                 "training_loss": float(np.mean(train_losses)),
                 "training_mae": fitted["control_mae"],
                 "validation_mae": val["control_mae"],
@@ -144,9 +148,17 @@ def train_trial(cache, config, output, budget_s):
         "validation_episodes": SPLITS["validation"],
         "test_episodes_used": [],
         "normalization_fitted_on": training_ids,
+        "normalization_statistics": stats,
+        "source_git_commit": subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        or None,
         "selection_metric": "recording-balanced first-10-step control MAE",
         "steps": step,
-        "elapsed_s": time.monotonic() - started,
+        "elapsed_s": elapsed_before_resume + time.monotonic() - started,
         "best_validation_mae": best,
         "stop_reason": criterion,
         "gpu_peak_mib": torch.cuda.max_memory_allocated() / 2**20,
@@ -159,6 +171,7 @@ def train_trial(cache, config, output, budget_s):
 
 
 def main():
+    """Parse arguments for one isolated training subprocess."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--cache", required=True)
     parser.add_argument("--config", required=True)

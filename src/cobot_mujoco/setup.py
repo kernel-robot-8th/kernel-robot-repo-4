@@ -1,6 +1,7 @@
 """Install the offline validation tool as an ament Python package."""
 
 from glob import glob
+
 from setuptools import find_packages, setup
 
 PACKAGE = "cobot_mujoco"
