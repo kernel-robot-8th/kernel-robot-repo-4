@@ -95,42 +95,35 @@ export const ROLES: Role[] = [
     "key": "vision",
     "name": "비전",
     "members": [
-      "강건한",
-      "손선아"
+      "손선아",
+      "강건한"
     ]
   },
   {
     "key": "navigation",
     "name": "주행",
     "members": [
-      "김지호",
-      "김성아"
+      "김진호"
     ]
   },
   {
     "key": "manipulation",
-    "name": "매니퓰레이터",
+    "name": "로봇팔",
     "members": [
       "강민석",
       "김성아",
-      "손선아",
-      "허지혁"
+      "허지석"
     ]
   },
   {
     "key": "control_center",
-    "name": "관제",
-    "members": [
-      "강건한"
-    ]
+    "name": "관제 코어(공유)",
+    "members": []
   },
   {
     "key": "gui",
-    "name": "GUI",
-    "members": [
-      "강건한",
-      "김지혜"
-    ]
+    "name": "GUI 공통 셸",
+    "members": []
   },
   {
     "key": "common",
@@ -140,12 +133,16 @@ export const ROLES: Role[] = [
   {
     "key": "operation_control",
     "name": "로봇 수행 관제",
-    "members": []
+    "members": [
+      "김지혜"
+    ]
   },
   {
     "key": "anomaly_monitoring",
     "name": "이상 감지 관제",
-    "members": []
+    "members": [
+      "강건한"
+    ]
   }
 ];
 

@@ -43,7 +43,7 @@ export default function OverviewPage() {
         결정 {DECISIONS.length}건 중 확정 {decided}, 추천안 있음 {proposed}, 미결 {open}.
       </p>
 
-      <section aria-label="관제 담당 분리안" className="grid gap-3 md:grid-cols-2">
+      <section aria-label="관제 담당" className="grid gap-3 md:grid-cols-2">
         {(["operational", "anomaly"] as const).map((area) => (
           <div key={area} className="border border-border bg-card p-4">
             <h2 className="font-semibold">{CONTROL_AREA_LABELS[area]}</h2>

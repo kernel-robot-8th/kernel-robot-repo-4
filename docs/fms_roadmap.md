@@ -238,4 +238,4 @@ S1을 닫기 전에 `docs/fms_sr_reconciliation.md`의 설계 차이 목록을 �
 
 ## 2026-10-24 관제 구현 담당 분리
 
-관제 자체를 로봇 수행(operation_control)·이상 감지(anomaly_monitoring)로 나눈다. 로봇 기능 개발은 별도 담당이며 구체 배정은 레지스트리 control_area/control_owner를 본다. 이름은 미정이다. 기존 화면 셸을 재사용하여 양쪽의 최소 화면·계약 준비는 병렬 진행할 수 있다. phase의 실물·안전·명령 통합 게이트는 유지한다. 항공뷰는 세 문제 후보 판별에 한정하며 Tail Exit·도킹 증거는 별도 기능 계약으로 남긴다. 세부 목표·데이터 출처·평가 분리는 fms_control_ownership.md를 따른다.
+관제 자체를 로봇 수행(operation_control)·이상 감지(anomaly_monitoring)로 나눈다. 로봇 기능 개발은 별도 담당이며 구체 배정은 레지스트리 control_area/control_owner를 본다. 로봇 수행 관제는 김지혜, 이상 감지 관제는 강건한이다. 기능 담당은 team_roles.md를 따른다. 기존 화면 셸을 재사용하여 양쪽의 최소 화면·계약 준비는 병렬 진행할 수 있다. phase의 실물·안전·명령 통합 게이트는 유지한다. 항공뷰는 세 문제 후보 판별에 한정하며 Tail Exit·도킹 증거는 별도 기능 계약으로 남긴다. 세부 목표·데이터 출처·평가 분리는 fms_control_ownership.md를 따른다.

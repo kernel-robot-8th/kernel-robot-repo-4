@@ -28,7 +28,7 @@
 #                   인터페이스 PR(로드맵 S1) 전에는 확정이 아니다.
 #   commands        이 메뉴가 보내는 명령. 없으면 [].
 #   control_area    operational(로봇 수행 관제) | anomaly(이상 감지 관제).
-#   control_owner   관제 구현 책임 역할. 개인 담당 미정과 로봇 기능 개발 담당은 구분한다.
+#   control_owner   관제 구현 책임 역할. 개인 담당자는 roles.members, 로봇 기능 개발은 data_owner로 구분한다.
 #   screen_owner    화면을 만드는 역할 키 (roles).
 #   data_owner      데이터 계약(토픽·메시지)을 내는 역할 키. 원천이 여럿이면 주 원천 하나를 적고
 #                   나머지는 notes 에 적는다. 모르면 '' 로 둔다 (경고 목록에 뜬다).
@@ -61,17 +61,17 @@ source:
   menu_tree: 'FMS 관제 및 통합 대시보드 작업 세부 계획서 v0.1 — 메뉴 트리 (Confluence 6783015 v2, 2026-10-21)'
   screen_layout: 'FMS 관제 대시보드 아키텍처 설계서 v0.1 §5.1·§5.2·§7·§9·§10.1 (2026-10-22 초안, 팀 리뷰 전, 레포 밖 문서)'
   sr: 'SR_v2 — Confluence 5406727 version 13, 2026-10-22 직접 조회. docs/fms_sr_reconciliation.md 참조'
-  roles: '기존 역할은 main a3ce4f11 README/CLAUDE 담당 표, 두 관제 역할은 2026-10-24 사용자 방향 (개인 담당 미정)'
+  roles: 'docs/team_roles.md — 2026-10-24 사용자 직접 지정. 로봇 기능과 두 관제 담당을 분리.'
 
 notes:
   - "초안: 메뉴 수는 34개로 센다. 원문 본문의 '33개' 는 3.7 을 넣기 전 숫자로 본다. 작성자 확인 전이다 (D17)."
   - '아키텍처 설계서 v0.1 은 아직 팀에 공개하지 않은 초안이다. 그래서 판단 근거는 설계서 절 번호 대신 각 메뉴 메모에 직접 적었다.'
-  - '담당 칸(screen_owner, data_owner)은 모두 초안이다. README 팀 구성 표의 역할과 각 메뉴의 데이터 원천을 보고 채웠다. 각 역할 담당이 확인한다.'
-  - '2026-10-24 사용자 방향: 관제를 로봇 수행 관제와 이상 감지 관제로 나눈다. 로봇 기능 개발 담당은 별도다. 새 관제 역할의 개인 담당자는 아직 미정이다.'
+  - '개인 담당자는 2026-10-24 사용자 지정이다. 메뉴별 화면·데이터 계약 경계는 담당자가 확인하고, 로봇 기능 개발과 관제 구현을 구분한다.'
+  - '2026-10-24 사용자 지정: 로봇 수행 관제는 김지혜, 이상 감지 관제는 강건한. 주행 김진호, 로봇팔 강민석·김성아·허지석, 비전 손선아·강건한.'
   - '초안: 메뉴별 decisions 는 설계서 §10.1 의 막는 것 열에서 옮겼다. 각 결정이 막는 것은 생성 문서의 결정 목록 표에 있다.'
   - 'SR 매핑은 메뉴 트리 원문 대조표를 따랐다. 원문과 다른 메뉴는 sr_original 에 원문 값을 두고 메모에 이유를 적었다. UR ID 는 sr 에 넣지 않는다.'
   - '패키지 접두사 `cobot_` 는 main 의 폴더 이름(`cobot_navigation`, `cobot_vision`)을 따랐다. README 의 `<proj>_` 는 자리표시자다. 확정은 D1.'
-  - '역할의 packages 는 CLAUDE.md §2 의 `<proj>_` 를 `cobot_` 로 바꾼 예정 이름이다. main 913eb15 에는 cobot_navigation·cobot_vision 폴더만 있고, 나머지 패키지는 아직 없다.'
+  - '역할의 packages는 기술 영역이다. gui·control_center는 공유하며 개인 책임은 메뉴의 control_owner와 사용자 담당표를 따른다.'
 
 sr_catalog:
   source: 'SR_v2, Confluence 5406727 version 13; 우선순위 RO(DB)와 빈칸을 그대로 보존. 문장 앞뒤 공백과 zero-width 공백만 정리.'
@@ -103,23 +103,25 @@ roles:
   vision:
     name: 비전
     packages: [cobot_vision]
-    members: [강건한, 손선아]
+    members: [손선아, 강건한]
   navigation:
     name: 주행
     packages: [cobot_navigation]
-    members: [김지호, 김성아]
+    members: [김진호]
   manipulation:
-    name: 매니퓰레이터
+    name: 로봇팔
     packages: [cobot_manipulation, cobot_moveit_config]
-    members: [강민석, 김성아, 손선아, 허지혁]
+    members: [강민석, 김성아, 허지석]
   control_center:
-    name: 관제
+    name: 관제 코어(공유)
     packages: [cobot_control_center]
-    members: [강건한]
+    members: []
+    notes: ['공유 기술 영역. 메뉴별 관제 책임은 control_owner를 따른다.']
   gui:
-    name: GUI
+    name: GUI 공통 셸
     packages: [cobot_gui]
-    members: [강건한, 김지혜]
+    members: []
+    notes: ['공유 기술 영역. 제3의 개인 담당 역할로 배정하지 않는다.']
   common:
     name: 공통
     packages: [cobot_interfaces, cobot_bringup, cobot_description]
@@ -129,13 +131,13 @@ roles:
   operation_control:
     name: 로봇 수행 관제
     packages: [cobot_gui, cobot_control_center]
-    members: []
-    notes: ['2026-10-24 관제 분리 제안. 담당자 미정. 로봇 기능 개발·장치 드라이버 담당과 별도다.']
+    members: [김지혜]
+    notes: ['2026-10-24 사용자 지정. 로봇 기능 개발·장치 드라이버 담당과 별도다.']
   anomaly_monitoring:
     name: 이상 감지 관제
     packages: [cobot_gui, cobot_control_center]
-    members: []
-    notes: ['2026-10-24 관제 분리 제안. 담당자 미정. 비전 모델 개발·시뮬레이션 생산자는 데이터 계약 담당으로 분리한다.']
+    members: [강건한]
+    notes: ['2026-10-24 사용자 지정. 비전 모델·데이터 제공과 이상 감지 관제 구현의 책임을 구분한다.']
 
 screens:
   - id: screen_1

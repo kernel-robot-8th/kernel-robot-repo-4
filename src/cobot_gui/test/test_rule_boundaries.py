@@ -83,8 +83,11 @@ def test_control_split_covers_all_menus_without_reassigning_robot_functions():
     assert menus['4.3']['commands'] == []
     assert menus['3.7']['control_owner'] == 'operation_control'
     assert menus['3.7']['screen_owner'] == 'manipulation'
-    assert registry['roles']['operation_control']['members'] == []
-    assert registry['roles']['anomaly_monitoring']['members'] == []
+    assert registry['roles']['operation_control']['members'] == ['김지혜']
+    assert registry['roles']['anomaly_monitoring']['members'] == ['강건한']
+    assert registry['roles']['navigation']['members'] == ['김진호']
+    assert registry['roles']['manipulation']['members'] == ['강민석', '김성아', '허지석']
+    assert registry['roles']['vision']['members'] == ['손선아', '강건한']
 
 
 @pytest.mark.parametrize('field,value', [
