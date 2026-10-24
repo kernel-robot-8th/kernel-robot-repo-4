@@ -1,0 +1,22 @@
+{
+  "source": "main@a3ce4f1102f918f63e696579e198740e54feaec6",
+  "isolated": true,
+  "remoteConfigured": "",
+  "save": {
+    "http": 201,
+    "modifiedTrackedFile": "M src/data/fms_feedback.json",
+    "commitUnchanged": true
+  },
+  "delete": {
+    "http": 200,
+    "empty": true,
+    "commitUnchanged": true
+  },
+  "staticPreview": {
+    "http": 200,
+    "contentType": "text/html",
+    "jsonApi": false
+  },
+  "finalTrackedFileUnchanged": true,
+  "finalHeadUnchanged": true
+}

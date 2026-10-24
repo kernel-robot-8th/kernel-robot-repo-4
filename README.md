@@ -92,6 +92,6 @@ colcon test-result --verbose
 
 ## 협업 규칙 요약
 - `main`에는 직접 push하지 않고, 브랜치에서 작업한 뒤 PR + 리뷰 1명 이상으로 합칩니다.
-- 통합 시험 브랜치 도입안: `feature/fix → submaster → main`. 기능 코드와 테스트를 함께 검증합니다. 아직 공용 submaster 생성·보호 활성화 전이며, 기존 PR은 그대로 둡니다. [운영안과 현재 브랜치 현황](docs/fms_branch_workflow.md)을 확인하세요.
+- 제안: `각자 작업 → submaster에서 함께 시험 → main 반영`. 아직 도입 전입니다. [핵심 규칙과 현재 브랜치](docs/fms_branch_workflow.md)를 확인하세요.
 - PR 전에 빌드, 테스트, 린트가 통과하는지 확인합니다.
 - 자세한 내용은 `CLAUDE.md`를 확인하세요.
