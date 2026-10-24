@@ -36,14 +36,39 @@ hf download Sungah/omx_1024_test_jihyeok_success --repo-type dataset --local-dir
 | 체크포인트 | 3,371 step(5 epoch)마다 → 5·10·15·20 epoch |
 | 시간 | A6000 1장 약 47분 |
 
-**바꾸는 방법**
+**`train.sh` 사용 예시**
 
-- 다른 데이터셋: `DATASET=box_merged ./train.sh 0` (`data/box_merged` 필요)
-- 평가용 에피소드 빼기: `EPISODES="[0,1,2,3,4,6,7,8]" ./train.sh 0`
-- 옵션 덮어쓰기: 뒤에 붙이면 됩니다. 예: `./train.sh 0 --batch_size=8 --steps=100000 --save_freq=20000`
-- `train.sh` 안의 주석(`#`) 줄을 풀면 그 옵션이 적용됩니다 (적힌 값 = lerobot 기본값 또는 예시)
-- 데이터·결과 위치: `DATA_DIR`(기본 `./data`), `OUT_DIR`(기본 `./outputs`). 컨테이너 안에서는 `/data`, `/outputs`
-- 이어서 학습: 같은 `JOB_NAME`으로 `--resume=true --config_path=/outputs/train/<JOB_NAME>/checkpoints/last/pretrained_model/train_config.json`
+```bash
+# 1) 기본: 마지막 학습 설정 그대로 (omx_1024_test_jihyeok_success, batch 16, 20 epoch, 5 epoch마다 저장)
+./train.sh 0
+
+# 2) 다른 GPU, 결과 이름 지정
+JOB_NAME=act_try2 ./train.sh 1
+
+# 3) 다른 데이터셋 + lerobot 기본 학습량 (batch 8, 100k step, 20k마다 저장)
+DATASET=box_merged ./train.sh 0 --batch_size=8 --steps=100000 --save_freq=20000
+
+# 4) 평가용 에피소드(5, 9) 빼고 학습
+EPISODES="[0,1,2,3,4,6,7,8]" JOB_NAME=act_ho ./train.sh 0
+
+# 5) epoch 단위로 저장: 1 epoch = 프레임 수 / batch (예: 10,787 / 16 = 674 step)
+./train.sh 0 --steps=6742 --save_freq=1348              # 10 epoch까지, 2 epoch마다
+
+# 6) 그리퍼 전류 데이터셋 (observation.state 7개)
+DATASET=box_merged_grip JOB_NAME=act_grip ./train.sh 0
+
+# 7) 이미지 증강 켜기 (train.sh 안의 주석을 푸는 것과 같음)
+./train.sh 0 --dataset.image_transforms.enable=true
+
+# 8) 중단된 학습 이어서 (같은 JOB_NAME)
+./train.sh 0 --resume=true --config_path=/outputs/train/act_omx_1024_test_jihyeok_success/checkpoints/last/pretrained_model/train_config.json
+
+# 9) 데이터·결과를 다른 위치에
+DATA_DIR=/mnt/ssd/lerobot_data OUT_DIR=/mnt/ssd/omx_outputs ./train.sh 0
+```
+
+- 뒤에 붙인 옵션은 `train.sh` 안의 값을 덮어씁니다. `train.sh` 안의 주석(`#`) 줄을 풀어도 됩니다 (적힌 값 = lerobot 기본값 또는 예시)
+- 컨테이너 안에서는 데이터가 `/data`(= `DATA_DIR`), 결과가 `/outputs`(= `OUT_DIR`)입니다
 
 입력으로 쓸 값을 고르는 옵션(`--state` 같은)은 없습니다. 모델 입력은 데이터셋의 `observation.state`와 카메라 영상으로 정해지므로, 그리퍼 전류 등을 추가하려면 데이터셋 state를 늘린 사본이 필요합니다 (`prepare_box_datasets.py`의 grip 단계).
 
@@ -85,10 +110,48 @@ MODEL=outputs/train/act_omx_1024_test_jihyeok_success/checkpoints/013484/pretrai
 | 안전 | `--robot.max_relative_target=10` (한 스텝 최대 이동량) |
 | 실행 시간 | 30초, 끝나면 시작 자세로 복귀 |
 
-- 모델·포트·카메라는 환경변수(`MODEL`, `ROBOT_PORT`, `TOP_CAM`, `WRIST_CAM`)나 스크립트 위쪽 "현장 설정"에서 바꿉니다. `--policy.path`를 뒤에 붙이면 lerobot이 첫 값만 써서 적용되지 않습니다.
-- 그 밖의 옵션은 뒤에 붙이거나 주석을 풉니다. 예: `./inference.sh --duration=60`
-- k스텝 temporal ensembling: `ACT_ENSEMBLE_K=5 ./inference.sh --policy.n_action_steps=100` (k스텝마다 예측해 겹치는 예측을 평균, 부드럽지만 반응이 느림)
-- 그리퍼 전류로 학습한 모델: `./inference.sh --robot.type=omx_follower_grip`
+**`inference.sh` 사용 예시**
+
+```bash
+# 1) 기본: 스크립트의 "현장 설정"(MODEL, ROBOT_PORT, TOP_CAM, WRIST_CAM)을 고친 뒤
+./inference.sh
+
+# 2) 체크포인트·포트·카메라를 환경변수로 지정 (5 epoch 체크포인트)
+MODEL=outputs/train/act_omx_1024_test_jihyeok_success/checkpoints/003371/pretrained_model \
+  ROBOT_PORT=/dev/ttyACM1 TOP_CAM=/dev/video4 WRIST_CAM=/dev/video6 ./inference.sh
+
+# 3) Hugging Face 번들의 모델 사용
+hf download Sungah/omx_1024_jihyeok_act --local-dir omx_1024_jihyeok_act
+MODEL=omx_1024_jihyeok_act/models/act_ep20 ./inference.sh
+
+# 4) GPU로, 10스텝마다 다시 예측 (반응이 빠름)
+./inference.sh --policy.device=cuda --policy.n_action_steps=10
+
+# 5) 60초 동안, 안전 제한을 조금 풀어서 (동작이 너무 느릴 때)
+./inference.sh --duration=60 --robot.max_relative_target=20
+
+# 6) k스텝 temporal ensembling: 5스텝마다 예측하고 겹치는 예측을 평균 (부드럽지만 반응이 느림)
+ACT_ENSEMBLE_K=5 ACT_ENSEMBLE_M=0.01 ./inference.sh --policy.n_action_steps=100
+
+# 7) lerobot 내장 temporal ensembling: 매 스텝 예측 (GPU 권장)
+./inference.sh --policy.device=cuda --policy.temporal_ensemble_coeff=0.01 --policy.n_action_steps=1
+
+# 8) 그리퍼 전류로 학습한 모델 (관절 6 + 그리퍼 전류)
+MODEL=outputs/train/act_grip/checkpoints/last/pretrained_model ./inference.sh --robot.type=omx_follower_grip
+
+# 9) 카메라·관절 값을 실시간 화면으로 보면서
+./inference.sh --display_data=true
+
+# 10) 실행하면서 에피소드 단위로 녹화 (5회, 회당 30초, 사이에 15초 정리 시간)
+./inference.sh --strategy.type=episodic --duration=0 \
+  --dataset.repo_id=Sungah/eval_omx_act --dataset.single_task="상자를 짚어서 흰 바구니 안에 넣는다." \
+  --dataset.root=outputs/rollout_recordings/eval_act --dataset.num_episodes=5 \
+  --dataset.episode_time_s=30 --dataset.reset_time_s=15 --dataset.push_to_hub=false
+```
+
+- 모델은 반드시 `MODEL`로 바꾸세요. `--policy.path`를 뒤에 붙이면 lerobot이 첫 값만 써서 적용되지 않습니다
+- 그 밖의 옵션은 뒤에 붙이면 덮어씁니다 (`--robot.type`, `--strategy.type`, `--inference.type`도 마지막 값이 적용됨)
+- 9)·10)은 실물 로봇에서 확인하지 않은 기능입니다
 
 학습된 모델은 Hugging Face에도 있습니다: [Sungah/omx_1024_jihyeok_act](https://huggingface.co/Sungah/omx_1024_jihyeok_act), [Sungah/omx_box_act](https://huggingface.co/Sungah/omx_box_act)
 
