@@ -62,6 +62,7 @@
 - 규칙:
   - 브랜치 이름은 `feature/<역할 키>-<메뉴 ID>-<내용>` 이다. 버그는 `fix/<역할 키>-<메뉴 ID>-<내용>`. 역할 키는 레지스트리 `roles` 의 키다 (`vision`, `navigation`, `manipulation`, `control_center`, `gui`, `common`). CLAUDE.md §8 의 `feature/<역할>-<내용>` 에 메뉴 ID 를 더한 것이다.
   - main 에 직접 push 하지 않는다. 남의 브랜치에 push 하지 않는다.
+  - D16 통합 시험안은 `feature/fix → submaster → main`이다. submaster에는 기능 코드와 테스트를 함께 모은다. [브랜치 운영안](fms_branch_workflow.md)의 도입·보호 설정 전까지는 기존 PR 대상을 유지하고, 활성화 후 새 작업은 submaster에서 분기하여 submaster로 PR을 낸다. main 승격·긴급 수정·기존 PR 전환은 그 문서를 따른다.
   - PR 은 1명 이상 리뷰 + 그 메뉴의 화면·데이터 담당 리뷰를 받는다.
   - 한 브랜치에는 한 메뉴 또는 한 인터페이스만 담는다.
   - 예외: 인터페이스·여러 메뉴 공용 계약은 메뉴 ID 자리에 `common`을 쓴다. 레지스트리·규칙 문서 PR 은 메뉴 ID 자리에 `registry` 를, 여러 메뉴가 같이 쓰는 틀 PR 은 `common` 을 쓴다. 이런 PR 은 여러 메뉴를 함께 다뤄도 된다.
