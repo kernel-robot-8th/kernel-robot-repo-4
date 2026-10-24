@@ -12,7 +12,7 @@
 
 ## 함께 시험할 내용
 
-<!-- docs/fms_branch_workflow.md. submaster 도입 전에는 기존 PR 대상을 유지한다. -->
+<!-- docs/fms_branch_workflow.md. 새 작업 PR 대상은 submaster, 기존 PR은 작성자가 확인 후 전환한다. -->
 
 - 합칠 곳: <!-- submaster / main / 도입 예외 -->
 - 시험 결과: <!-- 실행한 시험과 GitHub 검사 링크 -->

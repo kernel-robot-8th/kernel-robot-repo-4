@@ -1,0 +1,11 @@
+{
+  "checked_at_kst": "2026-10-24T16:21:11.137496+09:00",
+  "repository": "kernel-robot-8th/kernel-robot-repo-4",
+  "branch": "submaster",
+  "sha": "a3ce4f1102f918f63e696579e198740e54feaec6",
+  "main_sha_after": "a3ce4f1102f918f63e696579e198740e54feaec6",
+  "same_as_main": true,
+  "protected": false,
+  "created_now": true,
+  "url": "https://github.com/kernel-robot-8th/kernel-robot-repo-4/tree/submaster"
+}

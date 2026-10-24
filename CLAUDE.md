@@ -199,8 +199,8 @@ ros2 launch <proj>_bringup bringup.launch.xml
 
 ## 8. Git · 협업 규칙
 - 브랜치: 기준선 `main`, 작업은 `feature/<역할>-<내용>`, 버그는 `fix/<역할>-<내용>`. FMS 세부 이름은 R5를 따릅니다.
-- 제안한 흐름은 `각자 작업 → submaster에서 함께 시험 → main 반영`입니다. [핵심 규칙과 현재 브랜치](docs/fms_branch_workflow.md)를 확인합니다. 도입 전에는 기존 PR 대상을 유지합니다.
-- 현재 `submaster`는 없고 main 보호는 꺼져 있습니다. [관리자 적용 확인](docs/fms_repository_governance.md) 전까지 D16은 미결입니다.
+- 확정 흐름은 `각자 작업 → submaster에서 함께 시험 → main 반영`입니다. submaster는 최신 main에서 생성했습니다. 새 작업과 PR 대상은 submaster이며, 기존 PR은 작성자가 확인 후 전환합니다. [핵심 규칙](docs/fms_branch_workflow.md)을 확인합니다.
+- 브랜치 보호·필수 리뷰 설정은 아직 미완입니다. [관리자 적용 확인](docs/fms_repository_governance.md) 전까지 D16 전체 완료로 기록하지 않습니다.
 - `main`에 직접 push 금지, 반드시 PR + 최소 1명 리뷰
 - 커밋 메시지: Conventional Commits, scope에 패키지명 사용 (예: `feat(vision): 객체 검출 노드 추가`)
 - `CODEOWNERS`로 패키지별 담당자를 지정하고, 담당 패키지 변경 시 담당자가 리뷰합니다.

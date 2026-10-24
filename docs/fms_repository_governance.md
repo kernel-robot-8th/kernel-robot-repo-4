@@ -5,12 +5,12 @@
 ## 현재 상태
 
 - 2026-10-24 14:50 KST: main `a3ce4f1`, 원격 13개 브랜치. 모든 브랜치의 보호 표시가 꺼져 있다. 앞선 14:11 조회의 rulesets는 빈 목록이었다.
-- `submaster`는 없다. [사용 규칙](fms_branch_workflow.md)은 제안이며, 공용 브랜치 생성·기존 PR 대상 변경·main 병합은 하지 않았다.
-- D16은 미결이다. 관리자 설정과 팀 확인이 끝나야 적용 완료로 바꾼다.
+- 사용자 확정에 따라 2026-10-24 16:21 KST에 `submaster`를 최신 main `a3ce4f1102f918f63e696579e198740e54feaec6`과 같은 커밋에서 생성했다. [생성 확인](evidence/submaster-created-20261024.json). main 변경·기존 PR 대상 변경·PR 병합은 하지 않았다.
+- submaster 사용은 확정·생성 완료다. D16 중 보호 설정·CODEOWNERS 필수 리뷰 등 남은 항목이 있어 전체 완료로 바꾸지는 않는다.
 
 ## 관리자가 적용할 요건
 
-1. 팀이 정한 담당자가 최신 main에서 submaster를 만든다.
+1. submaster는 main에서 생성 완료다. 이후 병합 담당자를 확인하고 두 브랜치에 아래 설정을 적용한다.
 2. main과 submaster에 **PR 필수, 작성자 외 한 명 이상 승인, 담당자 리뷰, 미해결 의견 처리**를 요구한다. 직접 push·삭제·force push를 제한한다.
 3. 실제 성공한 검사 이름 `fms-contract`, `fms-web`를 필수로 등록한다. 코드나 대상 브랜치가 바뀌면 새 검사·리뷰를 받도록 설정한다.
 4. 두 공유 브랜치 사이의 merge commit을 허용한다. 이를 막는 linear history 조건은 켜지 않는다. 관리자 우회·예외도 기록한다.
