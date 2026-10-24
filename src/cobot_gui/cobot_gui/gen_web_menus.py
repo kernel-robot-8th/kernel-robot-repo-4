@@ -59,6 +59,8 @@ def _menu(menu):
         'srUnconfirmed': list(menu['sr_unconfirmed']),
         'dataSources': list(menu['data_sources']),
         'commands': list(menu['commands']),
+        'controlArea': menu['control_area'],
+        'controlOwner': menu['control_owner'],
         'screenOwner': menu['screen_owner'] or '',
         'dataOwner': menu['data_owner'] or '',
         'decisions': list(menu['decisions']),

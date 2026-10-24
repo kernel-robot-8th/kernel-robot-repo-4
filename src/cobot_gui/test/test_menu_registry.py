@@ -699,18 +699,15 @@ def test_generated_doc_shows_decision_status():
     assert menu_registry.validate(proposed) == []
     text = gen_menu_doc.render(proposed)
     lines = text.splitlines()
-    assert [line for line in lines if line.startswith('| 2.1 |')][0].endswith(
-        '| D3 (proposed) |')
-    assert [line for line in lines if line.startswith('| 1.2 |')][0].endswith(
-        '| D14 (open), D19 (open) |')
+    assert [line for line in lines if line.startswith('| 2.1 |')][0].split('|')[10].strip() == 'D3 (proposed)'
+    assert [line for line in lines if line.startswith('| 1.2 |')][0].split('|')[10].strip() == 'D14 (open), D19 (open)'
     assert '| proposed |' in [line for line in lines if line.startswith('| D3 |')][0]
     assert ('- D3 (proposed): 시험 추천안 — 기록: '
             '[`docs/fms_decisions.md#d3`](fms_decisions.md#d3)') in lines
     decided = _decide(proposed, 'D3', '관제', '2026-10-23')
     text = gen_menu_doc.render(decided)
     lines = text.splitlines()
-    assert [line for line in lines if line.startswith('| 2.1 |')][0].endswith(
-        '| D3 (decided) |')
+    assert [line for line in lines if line.startswith('| 2.1 |')][0].split('|')[10].strip() == 'D3 (decided)'
     assert '| proposed |' not in [line for line in lines if line.startswith('| D3 |')][0]
     assert '| decided (관제, 2026-10-23) |' in [
         line for line in lines if line.startswith('| D3 |')][0]
