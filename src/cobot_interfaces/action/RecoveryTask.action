@@ -1,0 +1,19 @@
+# RecoveryTask.action - 자율 회수 봇 급파 및 수거 액션 인터페이스
+# fleet_msgs 에서 그대로 옮겼다 (단위 주석만 더함). PRD_v2 어휘(밀대·포켓 R3)가 남아 있다.
+# SR-17 단계에서 PRD_3 어휘로 재정의 예정. MVP 에서는 쓰지 않는다.
+# Goal
+uint32 incident_id               # [-] DropEvent.incident_id
+geometry_msgs/Point target_location  # [m] 맵 기준 회수 위치
+string target_item_type
+string destination_station       # "HOME_RECOVERY_POCKET"
+---
+# Result
+bool success
+float32 recovery_duration_sec    # [s] 회수에 걸린 시간
+string final_disposition         # "RE_INJECTED" or "DISCARDED"
+string error_message
+---
+# Feedback
+string current_phase             # "DISPATCHING", "SWEEPING_LANE", "POCKET_DELIVERED", "ARM_SORTING"
+float32 progress_percent         # [%] 0~100
+float32 current_distance_to_target  # [m] 회수 위치까지 남은 거리

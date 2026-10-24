@@ -1,0 +1,8 @@
+# Review-routing proposal. Confirm membership and ownership under D16 before activation.
+# Identities verified from repository commit authors; no unverified teammate accounts.
+* @rkd1rjs2 @cdwlsgh1-source
+/src/cobot_navigation/ @cdwlsgh1-source
+/src/cobot_manipulation/ @sakim0128 @JiHyeokHeo
+/src/cobot_moveit_config/ @sakim0128 @JiHyeokHeo
+/omx_recoder/ @sakim0128 @JiHyeokHeo
+/src/cobot_interfaces/ @rkd1rjs2 @cdwlsgh1-source @sakim0128 @JiHyeokHeo

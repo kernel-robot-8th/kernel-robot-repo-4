@@ -1,0 +1,62 @@
+# OperatorCommand.srv - 운영자 명령 요청 (게이트웨이 -> fms_core)
+# 서비스 이름: /control_center/operator_command
+# 브라우저는 ROS 에 닿지 않는다. 브라우저 -> REST -> 게이트웨이 -> 이 서비스 -> fms_core 순서다.
+# role 은 자기 신고다. fms_core 는 gw_sig 가 맞을 때만 그 역할을 믿는다.
+# 정지 계열(PAUSE, SOFT_LATCH)만 서명 없이도 수행한다. 나머지는 서명이 없으면 BAD_SIGNATURE (S3(P2) 필수).
+# 같은 client_request_id 가 다시 오면 처음 응답(DUPLICATE)을 돌려주고 발행은 1회만 한다.
+
+string OP_PAUSE="PAUSE"
+string OP_RESUME="RESUME"
+string OP_SOFT_LATCH="SOFT_LATCH"
+string OP_RESET="RESET"
+string OP_RECONCILE="RECONCILE"
+string OP_APPROVE="APPROVE"
+string OP_START="START"
+string OP_SET_MODE="SET_MODE"
+string OP_SEND_MISSION="SEND_MISSION"
+string OP_CANCEL_MISSION="CANCEL_MISSION"
+string OP_CANCEL_ORDER="CANCEL_ORDER"
+string OP_ACK_ALARM="ACK_ALARM"
+
+string SCOPE_ALL="ALL"
+
+string client_request_id   # UUID. 멱등 키
+string op                  # 위 OP_* 중 하나
+string scope               # "ALL" | robot_id | arm_id
+string waypoint_id         # SEND_MISSION 전용. 원시 좌표는 받지 않는다
+string mode                # SET_MODE 전용: AUTO | MANUAL
+string alarm_id            # ACK_ALARM 전용
+string operator_id         # 계정 ID (사람 이름 아님)
+string role                # customer | staff | operator (자기 신고)
+string console_token       # 콘솔 토큰 (ConsoleLease 로 받는다)
+string approval_ref        # APPROVE 때 report_hash, START 때 challenge_id
+string[] attest            # APPROVE 전용: Reconcile 항목별 관제사 확인 입력 ("target_id=관측값", D5)
+string reason              # 사람이 읽는 사유
+string gw_nonce            # 게이트웨이 nonce (재전송 방지)
+string gw_sig              # HMAC-SHA256(게이트웨이 키, 레포 밖). S3(P2) 필수
+---
+string RESULT_DISPATCHED="DISPATCHED"
+string RESULT_DUPLICATE="DUPLICATE"
+string RESULT_REJECTED="REJECTED"
+
+string REJECT_NO_CONSOLE="NO_CONSOLE"
+string REJECT_ROLE_FORBIDDEN="ROLE_FORBIDDEN"
+string REJECT_STATE_CONFLICT="STATE_CONFLICT"
+string REJECT_LEASE_CONFLICT="LEASE_CONFLICT"
+string REJECT_UNKNOWN_WAYPOINT="UNKNOWN_WAYPOINT"
+string REJECT_APPROVAL_REQUIRED="APPROVAL_REQUIRED"
+string REJECT_APPROVAL_DWELL="APPROVAL_DWELL"
+string REJECT_ATTEST_MISMATCH="ATTEST_MISMATCH"
+string REJECT_CLOCK_UNSYNCED="CLOCK_UNSYNCED"
+string REJECT_LEDGER_UNAVAILABLE="LEDGER_UNAVAILABLE"
+string REJECT_BAD_SIGNATURE="BAD_SIGNATURE"
+string REJECT_ARM_INTERLOCK="ARM_INTERLOCK"
+string REJECT_INVENTORY_UNAVAILABLE="INVENTORY_UNAVAILABLE"
+
+string result              # 위 RESULT_* 중 하나
+string reject_code         # 위 REJECT_* 중 하나. 거부가 아니면 ""
+string[] command_ids       # 이 요청으로 낸 명령 ID
+string[] epoch_targets     # epochs 와 같은 순서의 대상 ID
+uint32[] epochs            # [-] 대상별 epoch. epoch_targets 와 같은 순서
+builtin_interfaces/Time dispatched_at  # fms_core 가 내보낸 시각 (로봇 ACK 가 아니다)
+string approval_ref_out    # RECONCILE 응답은 report_hash, APPROVE 응답은 challenge_id

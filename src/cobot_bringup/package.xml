@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_bringup</name>
+  <version>0.0.0</version>
+  <description>전체 시스템 launch 와 팀 공통 설정을 두는 공통 패키지. 지금은 맵 정본(config/maps)과 빈 bringup launch 만 있다. 기능 코드는 넣지 않는다. 공통 패키지라 팀 리뷰가 필요하다.</description>
+  <maintainer email="rkd1rjs2@gmail.com">rkd1rjs2</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_copyright</test_depend>
+  <test_depend>ament_cmake_lint_cmake</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

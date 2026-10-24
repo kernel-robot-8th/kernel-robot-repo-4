@@ -1,0 +1,97 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "devices": [
+      {
+        "device_id": "pinky_1",
+        "ip": "192.0.2.11",
+        "link_rtt_ms": 4.2,
+        "last_seen_age_ms": 120,
+        "ros_domain_id_reported": 10
+      },
+      {
+        "device_id": "pinky_2",
+        "ip": "192.0.2.12",
+        "link_rtt_ms": 5.1,
+        "last_seen_age_ms": 95,
+        "ros_domain_id_reported": 10
+      },
+      {
+        "device_id": "pinky_3",
+        "ip": "192.0.2.13",
+        "link_rtt_ms": null,
+        "last_seen_age_ms": 5200,
+        "ros_domain_id_reported": -1
+      },
+      {
+        "device_id": "station_1",
+        "ip": "192.0.2.21",
+        "link_rtt_ms": 1.3,
+        "last_seen_age_ms": 60,
+        "ros_domain_id_reported": 10
+      }
+    ],
+    "topics": [
+      {
+        "name": "/control_center/pinky_1/command",
+        "publishers": 1,
+        "measured_hz": 5.0,
+        "single_writer_state": "OK"
+      },
+      {
+        "name": "/control_center/pinky_2/command",
+        "publishers": 1,
+        "measured_hz": 5.0,
+        "single_writer_state": "OK"
+      },
+      {
+        "name": "/control_center/pinky_3/command",
+        "publishers": 2,
+        "measured_hz": 9.8,
+        "single_writer_state": "VIOLATION"
+      },
+      {
+        "name": "/manipulation/omx_1/arm_status",
+        "publishers": 1,
+        "measured_hz": 5.0,
+        "single_writer_state": "OK"
+      },
+      {
+        "name": "/vision/cam_gate/health",
+        "publishers": 0,
+        "measured_hz": 0.0,
+        "single_writer_state": "NO_PUBLISHER"
+      }
+    ],
+    "nodes": [
+      {
+        "name": "/control_center/fms_core",
+        "alive": true,
+        "srv_rtt_ms": 3.1
+      },
+      {
+        "name": "/gui/gateway",
+        "alive": true,
+        "srv_rtt_ms": 5.4
+      },
+      {
+        "name": "/manipulation/omx_1",
+        "alive": true,
+        "srv_rtt_ms": 8.0
+      },
+      {
+        "name": "/vision/monitor",
+        "alive": false,
+        "srv_rtt_ms": null
+      }
+    ],
+    "ros_domain_id_configured": 10,
+    "chrony_offset_ms": 1.8
+  }
+]

@@ -1,0 +1,35 @@
+[
+  {
+    "header": {
+      "command_id": "",
+      "tx_id": "",
+      "order_id": "",
+      "task_id": "",
+      "robot_id": "",
+      "epoch": 0,
+      "seq": 0,
+      "issued_at": {
+        "sec": 0,
+        "nanosec": 0
+      },
+      "ttl_ms": 0,
+      "map_hash": "",
+      "issued_by": "",
+      "key_id": "",
+      "sig": ""
+    },
+    "command": 0,
+    "x": null,
+    "y": null,
+    "yaw": null,
+    "max_linear_vel": null,
+    "max_angular_vel": null,
+    "waypoint_id": "",
+    "lane_lease_id": "",
+    "lease_valid_until": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "map_name": ""
+  }
+]

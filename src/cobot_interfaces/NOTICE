@@ -1,0 +1,31 @@
+cobot_interfaces
+Copyright 2026 Pinky_Team4
+
+이 패키지는 Apache License 2.0 으로 배포한다.
+
+원저작 표기
+-----------
+
+- msg/FleetCommand.msg 는 team11 의 pinky_fleet_msgs 패키지(Apache License 2.0)에
+  있던 FleetCommand.msg 를 바탕으로 한다. 미병합 브랜치
+  feature/setup-fleet-msgs-structure 의 fleet_msgs 패키지에 같은 내용으로 들어와
+  있었고, 그때 원저작 표기가 빠져 있었다. 이 파일에서 표기를 되살린다.
+  - 같은 내용 확인: 두 파일의 git blob 이 3837fc4b 로 같다.
+  - team11 pinky_fleet_msgs 에는 NOTICE 파일과 파일별 저작권 줄이 없다
+    (package.xml 의 license 는 Apache-2.0). 그래서 옮겨 올 원본 문구는 없다.
+- 원본에서 바꾼 것:
+  - CommandHeader header 추가 (세션 펜싱·서명).
+  - 명령 CMD_RESET=8, CMD_START=9, CMD_SOFT_LATCH=10 추가.
+  - CMD_HEARTBEAT=7 의 뜻을 폐기했다 (번호만 남김).
+  - 필드 waypoint_id, lane_lease_id, lease_valid_until 추가.
+  - 명령 설명 주석을 v2 상태 이름(예: STOP 은 PAUSED)으로 다시 쓰고, 단위 주석을 더했다.
+  자세한 내용은 docs/fms_interfaces.md 의 'v1(fleet_msgs) 에서 바뀐 것' 절에 있다.
+- 나머지 4종(RobotStatus, DropEvent, HandoverTask, RecoveryTask)은 같은 팀 브랜치의
+  fleet_msgs 패키지에서 옮겨 확장했다.
+  - team11 pinky_fleet_msgs 와 대조했다 (위 두 확인과 같이 2026-10 에 받은 판 기준).
+    그 패키지에는 FleetCommand.msg 와
+    RobotState.msg 둘뿐이다. RobotState 는 RobotStatus 와 이름도 내용도 다르다.
+    그래서 이 4종은 team11 에서 온 것으로 보지 않는다.
+  - 파일별 작성자는 확인하지 않았다 (옛 package.xml 에는 maintainer 만 있다).
+- 옛 정의의 사본은 test/fixtures/fleet_msgs_9e51d4d/ 에 시험용으로 그대로 둔다
+  (스키마 시험의 음성 대조).

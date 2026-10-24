@@ -1,0 +1,4 @@
+# 맵 정본의 바이트를 고정한다. map_hash 는 이 바이트로 계산한다 (docs/fms_map_contract.md).
+# PGM 은 바이너리라 줄 끝 변환을 하지 않는다. YAML 은 Windows 에서도 LF 로 받는다.
+*.pgm binary
+*.yaml text eol=lf

@@ -1,0 +1,7 @@
+# npm 설치물과 빌드 결과는 커밋하지 않는다 (CLAUDE.md §3-7). package-lock.json 은 커밋한다.
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 루트 .gitignore 의 lib/ (파이썬 빌드 폴더) 규칙이 src/lib 를 숨기지 않게 한다.
+!src/lib/

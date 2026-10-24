@@ -1,0 +1,17 @@
+# HandoverTask.action - 상·하차 시 로봇팔 비전 공차 보정 및 적재 액션
+# Goal
+string robot_id                  # 대상 핑키 ID ("pinky_1", "pinky_2")
+string station_id                # "STATION_S1", "STATION_S2", "STATION_HOME"
+string action_type               # "LOAD" or "UNLOAD"
+string item_type
+---
+# Result
+bool success
+float32 alignment_offset_x_mm
+float32 alignment_offset_y_mm
+float32 alignment_offset_yaw_deg
+string error_message
+---
+# Feedback
+string step                      # "APPROACHING", "VISION_ALIGNING", "GRASPING", "PLACING", "VERIFYING"
+float32 progress_percent
