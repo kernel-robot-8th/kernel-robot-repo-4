@@ -224,8 +224,9 @@ ros2 launch <proj>_bringup bringup.launch.xml
 - 좌표계(frame)는 REP-103/105를 따르고, TF frame 이름은 `docs/`에 정의된 것만 사용합니다.
 
 ## 8. Git · 협업 규칙
-- 브랜치: `main`(보호 설정 필요; 적용 상태는 `docs/fms_repository_governance.md`), 작업은 `feature/<역할>-<내용>`, 버그는 `fix/<역할>-<내용>`
-- FMS(관제 대시보드) 작업 브랜치는 `docs/fms_dev_rules.md`의 R5(`feature/<역할>-<메뉴ID>-<내용>`)를 따릅니다.
+- 브랜치: 기준선 `main`, 통합 확인 `submaster`, 분야별 작업 `feature/<역할>` 또는 필요 시 `feature/<역할>-<내용>`, 버그는 `fix/<역할>-<내용>`. 기존 분야 브랜치를 유지하며 메뉴 번호를 팀 전체에 강제하지 않습니다. FMS 개별 메뉴 예약 형식은 R5를 따릅니다.
+- 확정 흐름은 `담당 분야에서 작업 → submaster에서 함께 시험 → main 반영`입니다. 기존 분야 브랜치를 계속 사용하고 새 분야 브랜치는 최신 submaster에서 시작합니다. PR 대상은 submaster이며 기존 PR은 작성자가 확인 후 전환합니다. [핵심 규칙](docs/fms_branch_workflow.md)을 확인합니다.
+- 브랜치 보호·필수 리뷰 설정은 아직 미완입니다. [관리자 적용 확인](docs/fms_repository_governance.md) 전까지 D16 전체 완료로 기록하지 않습니다.
 - `main`에 직접 push 금지, 반드시 PR + 최소 1명 리뷰
 - 커밋 메시지: Conventional Commits, scope에 패키지명 사용 (예: `feat(vision): 객체 검출 노드 추가`)
 - `CODEOWNERS`로 패키지별 담당자를 지정하고, 담당 패키지 변경 시 담당자가 리뷰합니다.

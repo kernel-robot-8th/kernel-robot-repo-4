@@ -1,0 +1,48 @@
+{
+  "checked_at_kst": "2026-10-24T16:33:19.353294+09:00",
+  "repository": "kernel-robot-8th/kernel-robot-repo-4",
+  "before_count": 15,
+  "after_count": 11,
+  "deleted": [
+    {
+      "branch": "feature/common-cobot-interfaces",
+      "sha": "143265dc605cb1c417f35e70598d4762407f782f",
+      "pr": 2,
+      "included_in_main_and_submaster": true
+    },
+    {
+      "branch": "feature/common-map-contract",
+      "sha": "41265edf724862cfb2e366d5193136c985b4cb93",
+      "pr": 3,
+      "included_in_main_and_submaster": true
+    },
+    {
+      "branch": "feature/gui-registry-menu-tree",
+      "sha": "2f234249a5d6966689fa24628157c5211c9c4eec",
+      "pr": 1,
+      "included_in_main_and_submaster": true
+    },
+    {
+      "branch": "feature/gui-registry-s1-decisions",
+      "sha": "ca410ecb7e170b116caea19f1ff8a24185f4d092",
+      "pr": 6,
+      "included_in_main_and_submaster": true
+    }
+  ],
+  "closed_pr": {
+    "number": 6,
+    "state": "closed",
+    "merged": false,
+    "reason": "head already included in main and submaster"
+  },
+  "main": "a3ce4f1102f918f63e696579e198740e54feaec6",
+  "submaster": "a3ce4f1102f918f63e696579e198740e54feaec6",
+  "shared_branches_unchanged": true,
+  "backup_bundle": "fms-completed-branches-20261024.bundle",
+  "retained_unmerged_prs": [
+    4,
+    5,
+    7,
+    8
+  ]
+}

@@ -96,5 +96,6 @@ colcon test-result --verbose
 
 ## 협업 규칙 요약
 - `main`에는 직접 push하지 않고, 브랜치에서 작업한 뒤 PR + 리뷰 1명 이상으로 합칩니다.
+- 확정: `담당 분야에서 작업 → submaster에서 함께 시험 → main 반영`. 기존 분야 브랜치는 유지하고 새 분야 브랜치는 최신 submaster에서 만듭니다. PR은 submaster로 보냅니다. [팀원 공지](docs/github_team_notice.md)와 [핵심 규칙](docs/fms_branch_workflow.md)을 확인하세요.
 - PR 전에 빌드, 테스트, 린트가 통과하는지 확인합니다.
 - 자세한 내용은 `CLAUDE.md`를 확인하세요.
