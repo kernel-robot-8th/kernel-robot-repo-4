@@ -1,20 +1,17 @@
 {
-  "status": "running",
+  "status": "completed",
   "started_at": "2026-10-24T16:39:51.961935+00:00",
   "deadline_epoch": 1792903191.961859,
   "planned_trials": 36,
   "pid": 31387,
-  "completed_trials": 9,
-  "failures": [
-    {
-      "trial": "act_augmented_8_seed17",
-      "exit_code": -15,
-      "log": "/home/team11/omx_sim_runs/validation_20261025/trials/act_augmented_8_seed17/terminal.log"
-    }
-  ],
-  "current_trial": "act_augmented_8_seed17",
-  "publication": "pending",
+  "completed_trials": 36,
+  "failures": [],
+  "current_trial": null,
+  "publication": "report_committed_and_push_requested",
   "runtime_git_commit": "5121c9c1d0c6e855ebd16e4b32f3511371db4a41",
   "scene_sha256": "09b9395ff373f39d7b5f4e9bd1b7376f1a456113fef397216beebb8fad235ff9",
-  "updated_at": "2026-10-24T16:59:53.459203+00:00"
+  "updated_at": "2026-10-24T18:19:24.498844+00:00",
+  "phase": "finished",
+  "finished_at": "2026-10-24T18:19:24.467089+00:00",
+  "elapsed_s": 5972.505242824554
 }

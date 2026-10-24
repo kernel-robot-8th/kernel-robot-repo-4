@@ -1,0 +1,16 @@
+{
+  "opened_at": "2026-10-24T18:16:25.007946+00:00",
+  "episodes": [
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "selected_trials": [
+    "state_bc_8_seed97",
+    "cnn_bc_8_seed17",
+    "act_short_chunk_8_seed42"
+  ],
+  "policy": "No hyperparameter selection on test results"
+}
