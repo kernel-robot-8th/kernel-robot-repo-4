@@ -4,7 +4,7 @@
 
 - 환경: Ubuntu 24.04 / ROS2 Jazzy / Python 3.12
 - 로봇: <예: 모바일 베이스 + 매니퓰레이터>
-- 시뮬레이터: <예: Gazebo Harmonic, 사용 안 함>
+- 시뮬레이터: MuJoCo OMX 검증 실험 (장면 실측·접촉 보정 진행 중)
 - 팀 규칙은 [`CLAUDE.md`](CLAUDE.md)를 참고하세요. (코딩 규칙, 패키지 구조, Git 규칙)
 
 ## 팀 구성
@@ -29,6 +29,7 @@
 │   ├── <proj>_navigation/      # [주행] Nav2 설정, 주행 시퀀스, localization
 │   ├── <proj>_manipulation/    # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── <proj>_moveit_config/   # [매니퓰레이터] MoveIt2 설정
+│   ├── cobot_mujoco/          # [매니퓰레이터] OMX MuJoCo·독립 학습 검증 실험
 │   ├── <proj>_control_center/  # [관제] 상태 수집, 작업 할당, 로그
 │   └── <proj>_gui/             # [GUI] 사용자/관제 화면
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
@@ -37,6 +38,14 @@
 ```
 
 ## 처음 설치하기
+
+### OMX 학습·MuJoCo 검증 실험
+
+`src/cobot_mujoco`는 저장된 실제 카메라 영상을 기준으로 OMX-F, 작업대, 상자, 흰 원형 수신 로봇을 재현하고
+상태 BC·시각 CNN BC·ACT 학습을 녹화 단위로 비교합니다. 실제 장치에 연결하지 않는 독립 실험 패키지입니다.
+설치·최대 12시간 실행·중단·검증 절차는 [검증 문서](src/cobot_mujoco/docs/validation.md),
+결과는 [HTML 보고서](docs/mujoco_validation/report.html)를 보세요. 물리 환경은 아직 현장 검증을 통과하지 않았습니다.
+
 도커로 하려면 [`docs/dev_docker_guide.md`](docs/dev_docker_guide.md)를 보세요. (도커를 처음 써도 이 문서부터 따라 하면 됩니다)
 
 ### 1. ROS2 Jazzy 설치

@@ -1,0 +1,57 @@
+{
+  "training_recordings": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "joints": [
+    {
+      "joint": 0,
+      "delay_steps": 3,
+      "rmse": 0.3242601689918366,
+      "bias": -0.03771727532148361,
+      "zero_delay_rmse": 0.7171555954562282
+    },
+    {
+      "joint": 1,
+      "delay_steps": 3,
+      "rmse": 0.9938813416637687,
+      "bias": 0.4509981870651245,
+      "zero_delay_rmse": 1.5297922474550376
+    },
+    {
+      "joint": 2,
+      "delay_steps": 2,
+      "rmse": 0.5475578676847921,
+      "bias": 0.49088263511657715,
+      "zero_delay_rmse": 0.6981740211344725
+    },
+    {
+      "joint": 3,
+      "delay_steps": 4,
+      "rmse": 2.7777461579960323,
+      "bias": 2.3943114280700684,
+      "zero_delay_rmse": 3.3566231745680604
+    },
+    {
+      "joint": 4,
+      "delay_steps": 4,
+      "rmse": 0.5263385658763057,
+      "bias": 0.3964323401451111,
+      "zero_delay_rmse": 0.6542407111360142
+    },
+    {
+      "joint": 5,
+      "delay_steps": 3,
+      "rmse": 3.2491543476594877,
+      "bias": 1.6572940349578857,
+      "zero_delay_rmse": 3.263052479234554
+    }
+  ],
+  "limitation": "Approximate system identification; bias is not a physical encoder recalibration"
+}

@@ -1,0 +1,63 @@
+{
+  "kinematics": {
+    "episode": 2,
+    "samples": 118,
+    "ee_rmse_m": 1.143403241704272e-08,
+    "ee_max_error_m": 2.544620511558358e-08,
+    "gate_pass": true,
+    "scope": "kinematic geometry only, does not validate camera, contacts, or task success"
+  },
+  "replay": [
+    {
+      "success_any_box": false,
+      "success_all_boxes": false,
+      "placed_boxes": 0,
+      "lifted_boxes": 0,
+      "max_lift_m": 0.020812418534888077,
+      "contact_frames": 1383,
+      "force_saturation_fraction": 0.21258134490238612,
+      "mean_target_jump_normalized": 0.527407141534271,
+      "steps": 1383,
+      "scene_validated": false,
+      "real_world_success_claim_allowed": false,
+      "episode": 0,
+      "ee_tracking_rmse_m": 0.015234947430905333,
+      "joint_tracking_mae": 0.8827018141746521,
+      "mode": "recorded_action_replay_through_dynamics"
+    },
+    {
+      "success_any_box": false,
+      "success_all_boxes": false,
+      "placed_boxes": 0,
+      "lifted_boxes": 1,
+      "max_lift_m": 0.04077399759903172,
+      "contact_frames": 1332,
+      "force_saturation_fraction": 0.18018018018018017,
+      "mean_target_jump_normalized": 0.4833458098932722,
+      "steps": 1332,
+      "scene_validated": false,
+      "real_world_success_claim_allowed": false,
+      "episode": 1,
+      "ee_tracking_rmse_m": 0.009220781866128184,
+      "joint_tracking_mae": 0.7882390022277832,
+      "mode": "recorded_action_replay_through_dynamics"
+    },
+    {
+      "success_any_box": false,
+      "success_all_boxes": false,
+      "placed_boxes": 0,
+      "lifted_boxes": 0,
+      "max_lift_m": 0.01412304759745514,
+      "contact_frames": 1180,
+      "force_saturation_fraction": 0.16186440677966102,
+      "mean_target_jump_normalized": 0.5495378166433293,
+      "steps": 1180,
+      "scene_validated": false,
+      "real_world_success_claim_allowed": false,
+      "episode": 2,
+      "ee_tracking_rmse_m": 0.009367107033555274,
+      "joint_tracking_mae": 0.6866562366485596,
+      "mode": "recorded_action_replay_through_dynamics"
+    }
+  ]
+}

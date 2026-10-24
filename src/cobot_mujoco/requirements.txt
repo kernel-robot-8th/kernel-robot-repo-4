@@ -1,0 +1,11 @@
+# Install in a dedicated venv. Use the CUDA PyTorch wheel appropriate for the GPU.
+mujoco==3.3.7
+numpy>=2.2,<3
+scipy>=1.14,<2
+torch>=2.10,<3
+torchvision>=0.25,<1
+lerobot==0.6.1
+pyarrow>=20,<30
+Pillow>=11,<13
+pytest>=8,<10
+ruff>=0.11,<1

@@ -1,0 +1,19 @@
+{
+  "python": "3.12.3",
+  "packages": {
+    "torch": "2.11.0+cu128",
+    "torchvision": "0.26.0+cu128",
+    "lerobot": "0.6.1",
+    "mujoco": "3.3.7",
+    "numpy": "2.2.6",
+    "scipy": "1.18.1",
+    "pyarrow": "26.0.0",
+    "Pillow": "12.3.0",
+    "pytest": "9.1.1",
+    "ruff": "0.17.2"
+  },
+  "gpu": "NVIDIA GeForce RTX 5080 Laptop GPU, 16303 MiB",
+  "runtime": "dedicated omx_mujoco venv; existing CUDA packages shared read-only",
+  "hardware_io": "none",
+  "generated_at": "2026-10-24T16:39:46.806629+00:00"
+}

@@ -1,0 +1,12 @@
+{
+  "pytest_integration": {
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0
+  },
+  "colcon_build": "passed",
+  "colcon_test": "11 passed with --python-testing pytest",
+  "ruff": "passed",
+  "synthetic_end_to_end": "state, CNN, ACT training; final offline test; contact simulation; report and finalization passed",
+  "smoke_metrics_are_not_real_dataset_results": true
+}
