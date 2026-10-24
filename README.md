@@ -37,6 +37,7 @@
 ```
 
 ## 처음 설치하기
+도커로 하려면 [`docs/dev_docker_guide.md`](docs/dev_docker_guide.md)를 보세요. (도커를 처음 써도 이 문서부터 따라 하면 됩니다)
 
 ### 1. ROS2 Jazzy 설치
 [공식 설치 문서](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html)를 따라 설치한 뒤, 개발 도구를 설치합니다.
@@ -59,10 +60,11 @@ touch .venv/COLCON_IGNORE      # colcon이 .venv 안을 탐색하지 않도록 �
 - 시스템 파이썬에 `pip install` 하지 마세요. 필요한 패키지는 `.venv`를 켠 상태에서 설치합니다.
 
 ### 4. 환경 설정
-`~/.bashrc`에 아래를 추가하면 터미널을 열 때마다 적용됩니다. (팀 공통 값)
+`~/.bashrc`에 아래를 추가하면 터미널을 열 때마다 적용됩니다. (개발·시뮬레이션 전용 값)
 ```bash
 export ROS_DOMAIN_ID=100
 ```
+- 실물 로봇의 도메인은 D2 설계 제안으로 `10`(실물 구동)과 `12`(Nav2)를 씁니다. 개발·시뮬레이션 노드를 10·12에서 띄우지 마세요. SR_v2는 번호를 지정하지 않으며 D2 결정 전에는 실물 설정에 적용하지 않습니다. 자세한 제안은 [`docs/fms_interfaces.md`](docs/fms_interfaces.md)를 보세요.
 
 ### 5. 의존 패키지 설치 (처음 한 번)
 ```bash
