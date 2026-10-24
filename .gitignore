@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# colcon build artifacts
+install/
+log/
+
+# Claude personal settings
+*.local.md
