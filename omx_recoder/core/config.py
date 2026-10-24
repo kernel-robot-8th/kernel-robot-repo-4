@@ -18,9 +18,9 @@ DEFAULTS = {
         "task_text": "",
     },
     "robot": {
-        "follower_port": "/dev/omx_follower",
+        "follower_port": "auto",
         "follower_id": "omx_follower_arm",
-        "leader_port": "/dev/omx_leader",
+        "leader_port": "auto",
         "leader_id": "omx_leader_arm",
     },
     "cameras": {

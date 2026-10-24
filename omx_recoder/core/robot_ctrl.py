@@ -8,6 +8,7 @@ import numpy as np
 
 from .config import ARM_MOTORS, MOTORS
 from .kinematics import EEPoseCalculator
+from .ports import resolve_arm_ports
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +107,19 @@ class RobotController:
             vcodec=cfg["record"]["vcodec"],
         )
         self._emit("counts", self.recorder.counts())
-        self._emit("log", f"팔로워 연결: {rc['follower_port']}")
-        self.follower = OmxFollower(OmxFollowerConfig(port=rc["follower_port"], id=rc["follower_id"]))
+        self._emit("log", "보드 포트 확인 중...")
+        ports, notes = resolve_arm_ports(rc["follower_port"], rc["leader_port"])
+        for n in notes:
+            self._emit("log", n)
+        names = {"follower": "팔로워", "leader": "리더"}
+        missing = [names[r] for r in names if r not in ports]
+        if missing:
+            raise RuntimeError(f"{', '.join(missing)} 보드를 찾지 못했습니다. USB 연결과 팔로워 전원(12V)을 확인하세요.")
+        self._emit("log", f"팔로워 연결: {ports['follower']}")
+        self.follower = OmxFollower(OmxFollowerConfig(port=ports["follower"], id=rc["follower_id"]))
         self.follower.connect()
-        self._emit("log", f"리더 연결: {rc['leader_port']}")
-        self.leader = OmxLeader(OmxLeaderConfig(port=rc["leader_port"], id=rc["leader_id"]))
+        self._emit("log", f"리더 연결: {ports['leader']}")
+        self.leader = OmxLeader(OmxLeaderConfig(port=ports["leader"], id=rc["leader_id"]))
         self.leader.connect()
         self.follower.bus.enable_torque()
         self._emit("log", "팔로워 토크 ON")

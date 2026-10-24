@@ -53,19 +53,33 @@ class CameraManager:
             idx = parse_cam_index(c.get("index_or_path"))
             if idx is None:
                 continue
-            try:
-                cfg = OpenCVCameraConfig(
-                    index_or_path=idx,
-                    fps=int(c.get("fps", 30)),
-                    width=int(c.get("width", 640)),
-                    height=int(c.get("height", 480)),
-                )
-                cam = OpenCVCamera(cfg)
-                cam.connect()
-                cams[role] = cam
-                shapes[role] = (cfg.height, cfg.width, 3)
-            except Exception as e:  # noqa: BLE001
-                errors.append(f"{role} 카메라({idx}) 연결 실패: {e}")
+            # Try MJPG first: uncompressed YUYV from two cameras on one USB2 hub exceeds its bandwidth.
+            last_err = None
+            for fourcc in ("MJPG", None):
+                cam = None
+                try:
+                    cfg = OpenCVCameraConfig(
+                        index_or_path=idx,
+                        fps=int(c.get("fps", 30)),
+                        width=int(c.get("width", 640)),
+                        height=int(c.get("height", 480)),
+                        fourcc=fourcc,
+                    )
+                    cam = OpenCVCamera(cfg)
+                    cam.connect()
+                    cams[role] = cam
+                    shapes[role] = (cfg.height, cfg.width, 3)
+                    break
+                except Exception as e:  # noqa: BLE001
+                    last_err = e
+                    # A failed settings check leaves the device open; release it so the retry can open it.
+                    if cam is not None:
+                        try:
+                            cam.disconnect()
+                        except Exception:  # noqa: BLE001
+                            pass
+            else:
+                errors.append(f"{role} 카메라({idx}) 연결 실패: {last_err}")
         with self._lock:
             self.cameras, self.shapes = cams, shapes
         return errors

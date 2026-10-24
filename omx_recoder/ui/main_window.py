@@ -239,6 +239,9 @@ class MainWindow(QMainWindow):
         rf = QFormLayout(rbox)
         self.ed_fport, self.ed_fid = QLineEdit(), QLineEdit()
         self.ed_lport, self.ed_lid = QLineEdit(), QLineEdit()
+        for ed in (self.ed_fport, self.ed_lport):
+            ed.setPlaceholderText("auto")
+            ed.setToolTip("auto: BringUp 때 모터 ID로 보드를 찾습니다. 경로를 적어도 응답이 없으면 자동 감지합니다.")
         rf.addRow("팔로워 포트", self.ed_fport)
         rf.addRow("팔로워 ID", self.ed_fid)
         rf.addRow("리더 포트", self.ed_lport)

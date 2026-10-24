@@ -9,7 +9,7 @@ OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하�
 **필요 환경**
 - Ubuntu 22.04
 - LeRobot 0.4.4가 설치된 가상환경
-- 리더암·팔로워암 연결 및 udev 설정 완료 (`/dev/omx_leader`, `/dev/omx_follower`)
+- 리더암·팔로워암 USB 연결 (udev 설정 불필요: BringUp 때 모터 ID로 보드를 자동 감지)
 - 팔로워암 전원(12V) 연결
 
 **설치**

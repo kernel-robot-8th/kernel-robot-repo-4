@@ -15,6 +15,7 @@ KINDS = ("success", "fail")
 EE_NAMES = ["x", "y", "z", "roll", "pitch", "yaw"]
 SIDE_CAR = "collector_episodes.jsonl"
 INFO_FILE = "collector_info.json"
+ENCODER_QUEUE_FRAMES = 90  # per camera; ~3 s of slack before the streaming encoder drops frames
 
 UNITS = {
     "action": "leader→follower 실제 전송 목표값 (LeRobot 정규화: 관절 -100~100, gripper 0~100)",
@@ -67,9 +68,27 @@ def _same_features(a: dict, b: dict) -> bool:
 
 def _flush(ds) -> None:
     """Close parquet writers so files on disk are valid even if the app crashes later."""
+    from lerobot.datasets.utils import update_chunk_file_indices
+
     ds._close_writer()
     ds.meta._close_writer()
     ds._writer_closed_for_reading = True
+    # LeRobot reopens a closed episodes-metadata writer on the same file, truncating it.
+    # Point the next episode at a new metadata file instead (the data parquet does this via the flag above).
+    latest = ds.meta.latest_episode
+    if latest is not None:
+        chunk_idx, file_idx = update_chunk_file_indices(
+            latest["meta/episodes/chunk_index"][0], latest["meta/episodes/file_index"][0], ds.meta.chunks_size
+        )
+        latest["meta/episodes/chunk_index"] = [chunk_idx]
+        latest["meta/episodes/file_index"] = [file_idx]
+
+
+def _remove_stale_encoder_dirs(root: Path) -> None:
+    """Drop temp dirs left by a streaming encoder when the app died mid-episode."""
+    for d in root.glob("tmp*"):
+        if d.is_dir() and any(d.glob("*_streaming.mp4")):
+            shutil.rmtree(d, ignore_errors=True)
 
 
 class Recorder:
@@ -111,7 +130,9 @@ class Recorder:
         self.task_dir = Path(task_dir)
         self.fps = fps
         features = build_features(camera_shapes)
-        n_threads = max(4, 4 * len(camera_shapes))
+        # Frames go straight to per-camera encoders while recording (no temp PNGs), so a
+        # discarded take leaves nothing on disk that could leak into the next episode's video.
+        streaming = {"streaming_encoding": True, "encoder_queue_maxsize": ENCODER_QUEUE_FRAMES}
         user = hub_user or "local"
         opened = {}
         for kind in KINDS:
@@ -135,8 +156,8 @@ class Recorder:
                             f"{root} 의 데이터 구성(카메라·해상도 등)이 현재 설정과 다릅니다. "
                             "설정을 맞추거나 다른 태스크명을 사용하세요."
                         )
-                    ds = LeRobotDataset(repo_id, root=root, vcodec=vcodec)
-                    ds.start_image_writer(num_processes=0, num_threads=n_threads)
+                    _remove_stale_encoder_dirs(root)
+                    ds = LeRobotDataset(repo_id, root=root, vcodec=vcodec, **streaming)
                     _flush(ds)
             if ds is None:
                 root.parent.mkdir(parents=True, exist_ok=True)
@@ -147,8 +168,8 @@ class Recorder:
                     root=root,
                     robot_type="omx_follower",
                     use_videos=True,
-                    image_writer_threads=n_threads,
                     vcodec=vcodec,
+                    **streaming,
                 )
             info_file = root / "meta" / INFO_FILE
             info_file.write_text(json.dumps({"units": UNITS, "kind": kind}, ensure_ascii=False, indent=2))
@@ -162,10 +183,6 @@ class Recorder:
                 ds.finalize()
             except Exception:  # noqa: BLE001
                 logger.exception("finalize failed")
-            try:
-                ds.stop_image_writer()
-            except Exception:  # noqa: BLE001
-                pass
         self.datasets = {}
 
     def wait_idle(self, timeout: float | None = None) -> None:
@@ -198,6 +215,18 @@ class Recorder:
                 src.clear_episode_buffer()
                 self.on_event("saved", {"outcome": "discard", "frames": size})
                 return
+            enc = src._streaming_encoder  # None when no camera is configured
+            dropped = sum(enc._dropped_frames.values()) if enc is not None else 0
+            if dropped:
+                # The videos would be shorter than the parquet and every later frame misaligned.
+                src.clear_episode_buffer()
+                self.on_event(
+                    "error",
+                    f"에피소드 저장 취소: 인코더가 따라가지 못해 영상 {dropped}프레임이 누락됐습니다 "
+                    "(영상·관절 데이터 불일치). 다시 녹화하세요.",
+                )
+                self.on_event("saved", {"outcome": "discard", "frames": size})
+                return
             if outcome == "success":
                 ep_idx = self._save(src, src.episode_buffer, 1)
                 dst = src
@@ -212,6 +241,10 @@ class Recorder:
             logger.exception("save failed")
             self.on_event("error", f"에피소드 저장 실패: {e}")
             try:
+                # After a fail transfer the in-progress encoder belongs to the fail dataset.
+                for ds in self.datasets.values():
+                    if ds._streaming_encoder is not None:
+                        ds._streaming_encoder.cancel_episode()
                 self.datasets["success"].clear_episode_buffer()
             except Exception:  # noqa: BLE001
                 pass
@@ -229,20 +262,12 @@ class Recorder:
 
     @staticmethod
     def _transfer(src, dst) -> dict:
-        """Move the recorded episode (buffer + temp images) from the success dataset to the fail dataset."""
-        src._wait_image_writer()
+        """Move the recorded episode (buffer + in-progress video encoder) from the success dataset to the fail dataset."""
         buf = src.episode_buffer
-        old_idx = buf["episode_index"]
-        new_idx = dst.meta.total_episodes
-        for key in src.meta.video_keys:
-            old_dir = src._get_image_file_dir(old_idx, key)
-            new_dir = dst._get_image_file_dir(new_idx, key)
-            if new_dir.exists():
-                shutil.rmtree(new_dir)
-            new_dir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(old_dir), str(new_dir))
-            buf[key] = [str(dst._get_image_file_path(new_idx, key, i)) for i in range(buf["size"])]
-        buf["episode_index"] = new_idx
+        buf["episode_index"] = dst.meta.total_episodes
+        # The frames were streamed into src's encoder. Swap encoders so dst.save_episode finishes this
+        # episode, and src keeps an idle one (same fps/codec settings) for the next take.
+        src._streaming_encoder, dst._streaming_encoder = dst._streaming_encoder, src._streaming_encoder
         return buf
 
     def _write_sidecar(self, ds, ep_idx: int, outcome: str, frames: int, meta: dict) -> None:
