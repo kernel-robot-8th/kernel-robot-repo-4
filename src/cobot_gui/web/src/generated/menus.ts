@@ -136,6 +136,16 @@ export const ROLES: Role[] = [
     "key": "common",
     "name": "공통",
     "members": []
+  },
+  {
+    "key": "operation_control",
+    "name": "로봇 수행 관제",
+    "members": []
+  },
+  {
+    "key": "anomaly_monitoring",
+    "name": "이상 감지 관제",
+    "members": []
   }
 ];
 
@@ -345,9 +355,9 @@ export const DECISIONS: Decision[] = [
   },
   {
     "id": "D10",
-    "title": "카메라 구성, 폰 송출 수단, 제어용 영상 입력 경로, 캡처 시각 전달, Ttop 팬아웃",
+    "title": "카메라 구성·항공뷰 문제 상황 판별(충돌/접근 위험·낙하·정체 후보), 학습 합성·실영상 평가 출처, 제어 증거와 분리",
     "status": "open",
-    "blocks": "④, P1 영상, P3 Tail Exit, P4 LeRobot 모드",
+    "blocks": "④ 항공뷰 이상 후보, P1 영상, P3 별도 퇴장 증거원, P4 LeRobot 모드",
     "proposal": "",
     "record": "",
     "decidedBy": "",
@@ -492,7 +502,9 @@ export const MENUS: Menu[] = [
       "ArmMode"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "navigation",
     "decisions": [],
     "notes": [
@@ -529,7 +541,9 @@ export const MENUS: Menu[] = [
       "InventoryState"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [
       "D14",
@@ -564,7 +578,9 @@ export const MENUS: Menu[] = [
       "UnloadQueue"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [],
     "notes": [
@@ -602,7 +618,9 @@ export const MENUS: Menu[] = [
     "commands": [
       "알림 확인 (표시만 바꾸고 원장에 기록)"
     ],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [],
     "notes": [
@@ -635,7 +653,9 @@ export const MENUS: Menu[] = [
     "commands": [
       "CSV 내보내기"
     ],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [],
     "notes": [
@@ -666,11 +686,12 @@ export const MENUS: Menu[] = [
       "MapInfo",
       "지도 PNG",
       "RobotStatus pose",
-      "LaneLeaseState",
-      "overhead pose"
+      "LaneLeaseState"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "navigation",
     "decisions": [
       "D3"
@@ -679,7 +700,7 @@ export const MENUS: Menu[] = [
       "갱신: 위치 5 Hz, lease 는 변화가 생기면 바로.",
       "원문의 '67 cm 게이트' 는 맵 정본(D3 추천안)의 게이트다. 중앙 벽 아래 Y 0~0.67 m. 장애물 랙 2 가 벽에 붙어 있어 창고 쪽 실제 통행은 0.45 m 이고 게이트 정차점은 [1.25, 0.225] 다.",
       "map_hash 가 맞지 않으면 RED.",
-      "초안: 데이터 담당은 위치·맵 기준이다. lease 는 control_center, overhead pose 는 vision 이 낸다."
+      "초안: 데이터 담당은 위치·맵 기준이다. lease는 control_center가 낸다. 항공뷰는 위치·도킹 정본으로 사용하지 않는다."
     ],
     "branch": ""
   },
@@ -703,7 +724,9 @@ export const MENUS: Menu[] = [
       "RobotStatus v2"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "navigation",
     "decisions": [],
     "notes": [
@@ -732,7 +755,9 @@ export const MENUS: Menu[] = [
       "MapInfo.waypoints"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "navigation",
     "decisions": [
       "D3"
@@ -772,7 +797,9 @@ export const MENUS: Menu[] = [
       "웨이포인트 미션 보내기 (관제사 + 콘솔 + MANUAL)",
       "미션 취소"
     ],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [
       "D3",
@@ -812,7 +839,9 @@ export const MENUS: Menu[] = [
       "AlarmEvent"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [
       "D15"
@@ -846,7 +875,9 @@ export const MENUS: Menu[] = [
       "ArmMode"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "manipulation",
     "decisions": [
       "D18"
@@ -879,7 +910,9 @@ export const MENUS: Menu[] = [
       "HandoverTask v2 feedback/result (FMS_TRIGGER)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "manipulation",
     "decisions": [
       "D7",
@@ -913,7 +946,9 @@ export const MENUS: Menu[] = [
       "DatasetSummary (세션 상태)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "manipulation",
     "decisions": [
       "D12"
@@ -945,7 +980,9 @@ export const MENUS: Menu[] = [
       "DatasetSummary (검수 결과·태그·지문)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "manipulation",
     "decisions": [
       "D12"
@@ -977,7 +1014,9 @@ export const MENUS: Menu[] = [
       "팔 준비 상태"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "manipulation",
     "decisions": [
       "D7",
@@ -1012,7 +1051,9 @@ export const MENUS: Menu[] = [
       "QueryAudit"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [],
     "notes": [
@@ -1047,6 +1088,8 @@ export const MENUS: Menu[] = [
       "앱 안의 세션 상태, LeRobot 데이터셋 폴더 (success/fail). FMS 토픽이 아니다."
     ],
     "commands": [],
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
     "screenOwner": "manipulation",
     "dataOwner": "manipulation",
     "decisions": [
@@ -1059,7 +1102,7 @@ export const MENUS: Menu[] = [
       "이 앱은 FMS 명령 경로를 쓰지 않는다. 앱 안의 조작(BringUp, 녹화, Init/Rest 자세 저장, Servo OFF, HF 업로드)은 앱 프로세스가 팔 포트를 직접 연다.",
       "영상: 앱은 Station PC 에 꽂힌 카메라(wrist·top)를 LeRobot OpenCVCamera 로 직접 받아 녹화한다. 영상을 밖으로 내보내는 코드(LiveKit·RTSP·MediaMTX)는 없다. 통합에 영상 전송은 필요 없다.",
       "초안: 앱이 연 카메라는 보통 다른 프로세스가 같이 받을 수 없다. 웹 4.x 의 MediaMTX 영상과 같은 카메라를 나눠 쓰려면 앱이 받은 프레임을 내보내는 방법을 따로 정해야 한다 (D12).",
-      "초안: 화면 담당과 데이터 담당을 매니퓰레이터로 두었다. R2(화면은 GUI 담당)의 예외이고 팀 확인이 필요하다.",
+      "초안: 화면 담당과 데이터 담당을 매니퓰레이터로 두었다. 운용 관제는 앱 안내·요약 연결을 맡고 Station PC 앱 구현은 기존 매니퓰레이터 담당이 유지한다.",
       "통합 전 조건 (docs/fms_branch_compatibility_review.md): 팔 배타 제어(ArmMode LEROBOT_EXCLUSIVE), Servo OFF 는 긴급 정지가 아니다(정상 종료와 정지를 나눈다), 실행 환경 차이(Ubuntu 22.04 + 별도 LeRobot 환경, D18).",
       "초안: 원문 SR 매핑을 모두 뺐다. SR_v2 v13 에는 원격 텔레옵·모터 파라미터 제어·모방학습 데이터 수집을 요구하는 SR 이 없다. 원문의 SR/UR 은 sr_original 에 보존한다. 선택 기능이다 (D17).",
       "공식 녹화 도구 방향은 이 앱이다. D12 는 공지 전이라 open 이다.",
@@ -1088,7 +1131,9 @@ export const MENUS: Menu[] = [
       "CameraHealth (P1 은 MediaHealth, health=UNKNOWN)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "vision",
     "decisions": [
       "D10"
@@ -1098,7 +1143,8 @@ export const MENUS: Menu[] = [
       "P1 은 USB 데스크 웹캠 1대를 먼저 붙인다. 폰 카메라는 송출 수단(D10)이 정해진 뒤. 3대는 P3.",
       "프레임 나이가 200 ms 를 넘거나 같은 프레임이 반복되면(동결) Amber·Red (SR-07).",
       "바닥 15 cm 뷰는 자리만 둔다 (D10).",
-      "초안: 데이터 담당은 CameraHealth 기준이다. 시청 스트림(MediaMTX)은 gui, P1 MediaHealth 는 control_center 가 낸다."
+      "초안: 데이터 담당은 CameraHealth 기준이다. 시청 스트림(MediaMTX)은 gui, P1 MediaHealth 는 control_center 가 낸다.",
+      "2026-10-24 범위: 항공뷰는 문제 상황 판별용 관찰 입력이다. 위치 추적·도킹 완료·통로 퇴장 증거를 이 입력에 요구하지 않는다."
     ],
     "branch": ""
   },
@@ -1123,7 +1169,9 @@ export const MENUS: Menu[] = [
     "commands": [
       "뷰 전환 (화면 안에서만)"
     ],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "gui",
     "decisions": [
       "D10"
@@ -1152,10 +1200,13 @@ export const MENUS: Menu[] = [
     "srOriginal": null,
     "srUnconfirmed": [],
     "dataSources": [
-      "VisionEvent"
+      "VisionEvent (기존 계약; 새 이상 판별 결과의 필드 확정은 별도)",
+      "항공뷰 이상 후보 결과·출처·모델 버전·시각 (계약 초안)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "vision",
     "decisions": [
       "D10"
@@ -1163,7 +1214,9 @@ export const MENUS: Menu[] = [
     "notes": [
       "갱신: 변화가 생기면 바로 보낸다.",
       "캡처 시각 기준으로 오버레이한다. 대시보드는 판정하지 않는다.",
-      "원문의 '바코드' 는 QR 로 고친다 (SR-02·07)."
+      "원문의 '바코드' 는 QR 로 고친다 (SR-02·07).",
+      "2026-10-24 최소 목표: 충돌·접근 위험, 박스 낙하, 장시간 정체 세 후보의 문제 상황 여부를 판별한다. 클래스 경계·정체 시간·임계치는 미정이다.",
+      "정상 영상과 시뮬레이션 이상 데이터의 합성으로 학습을 준비한다. 학습·합성 결과는 실제 운영 판정과 구분하며, 모델 결과만으로 출발·회수·정지를 자동 실행하지 않는다."
     ],
     "branch": ""
   },
@@ -1184,7 +1237,9 @@ export const MENUS: Menu[] = [
     "commands": [
       "디버그 캡처 (기본 꺼짐)"
     ],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "vision",
     "decisions": [
       "D15"
@@ -1193,7 +1248,8 @@ export const MENUS: Menu[] = [
       "④ 화면의 탭이다. 지금은 자리만 둔다.",
       "사람 촬영·보존 정책(D15)이 먼저다.",
       "원문 SR 미명시 (추가 후보).",
-      "초안: 데이터 담당 vision."
+      "초안: 데이터 담당 vision.",
+      "학습 원본 영상 보존과 출처 기록은 비전·시뮬 담당이 맡고 관제는 필요한 결과만 본다. 웹 라벨링 도구 신규 구현은 최소 범위 밖이다."
     ],
     "branch": ""
   },
@@ -1212,7 +1268,9 @@ export const MENUS: Menu[] = [
     "srUnconfirmed": [],
     "dataSources": [],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "vision",
     "decisions": [
       "D15"
@@ -1251,7 +1309,9 @@ export const MENUS: Menu[] = [
       "콘솔 반납",
       "AUTO/MANUAL 전환"
     ],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [
       "D9",
@@ -1284,7 +1344,9 @@ export const MENUS: Menu[] = [
     "commands": [
       "핑키 조이스틱 + 데드맨 (관제사 전용, 이후)"
     ],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "navigation",
     "decisions": [],
     "notes": [
@@ -1318,7 +1380,9 @@ export const MENUS: Menu[] = [
       "PAUSE (토큰 불필요)",
       "RESUME (관제사 + 콘솔)"
     ],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [
       "D4",
@@ -1362,7 +1426,9 @@ export const MENUS: Menu[] = [
       "승인(APPROVE)",
       "START"
     ],
-    "screenOwner": "gui",
+    "controlArea": "operational",
+    "controlOwner": "operation_control",
+    "screenOwner": "operation_control",
     "dataOwner": "control_center",
     "decisions": [
       "D4",
@@ -1411,7 +1477,9 @@ export const MENUS: Menu[] = [
       "AlarmEvent"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [
       "D6"
@@ -1448,7 +1516,9 @@ export const MENUS: Menu[] = [
       "QueryAudit"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [
       "D6"
@@ -1481,7 +1551,9 @@ export const MENUS: Menu[] = [
       "DiagSnapshot.devices"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [
       "D18"
@@ -1513,7 +1585,9 @@ export const MENUS: Menu[] = [
       "장비별 도메인 자기 보고"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [
       "D18"
@@ -1545,7 +1619,9 @@ export const MENUS: Menu[] = [
       "DiagSnapshot.nodes"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [],
     "notes": [
@@ -1575,7 +1651,9 @@ export const MENUS: Menu[] = [
       "/rosout (fleet_monitor)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "control_center",
     "decisions": [],
     "notes": [
@@ -1603,7 +1681,9 @@ export const MENUS: Menu[] = [
       "시뮬 보고 JSON (USB 반입, 정적 읽기)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "",
     "decisions": [
       "D17"
@@ -1612,7 +1692,8 @@ export const MENUS: Menu[] = [
       "⑥ 화면의 탭이다. [SIM] 배지를 늘 띄운다.",
       "실물 명령 경로는 없다.",
       "SR-22는 SR_v2 v13에서 확인했다. D17의 메뉴 수·명칭 정정은 별도로 남는다.",
-      "초안: 데이터 담당은 비워 두었다. 시뮬레이션을 맡는 역할이 README 팀 구성 표에 없다. 팀이 정한다."
+      "초안: 데이터 담당은 비워 두었다. 시뮬레이션을 맡는 역할이 README 팀 구성 표에 없다. 팀이 정한다.",
+      "이상 감지용 합성 데이터 출처, 정상 실영상 보류 평가, 오탐·미탐·지연 결과를 표시한다. 시뮬·학습 실행 담당과 관제 결과 표시 담당은 별도다."
     ],
     "branch": ""
   },
@@ -1633,7 +1714,9 @@ export const MENUS: Menu[] = [
       "/api/v1/config (YAML 값, sha256, git rev)"
     ],
     "commands": [],
-    "screenOwner": "gui",
+    "controlArea": "anomaly",
+    "controlOwner": "anomaly_monitoring",
+    "screenOwner": "anomaly_monitoring",
     "dataOwner": "gui",
     "decisions": [],
     "notes": [

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { DECISIONS } from "@/generated/menus";
 import { CONTRACT_LABELS, contractOf } from "@/lib/contracts";
-import { ACTIVE_MENUS, IMPL_LABELS, STATUS_LABELS, menuGroups, screenText } from "@/lib/registry";
+import { ACTIVE_MENUS, CONTROL_AREA_LABELS, IMPL_LABELS, STATUS_LABELS, controlOwnerText, menuGroups, screenText } from "@/lib/registry";
 import { hasMenuPage } from "@/shell/pages";
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -43,6 +43,18 @@ export default function OverviewPage() {
         결정 {DECISIONS.length}건 중 확정 {decided}, 추천안 있음 {proposed}, 미결 {open}.
       </p>
 
+      <section aria-label="관제 담당 분리안" className="grid gap-3 md:grid-cols-2">
+        {(["operational", "anomaly"] as const).map((area) => (
+          <div key={area} className="border border-border bg-card p-4">
+            <h2 className="font-semibold">{CONTROL_AREA_LABELS[area]}</h2>
+            <p className="text-sm text-muted-foreground">{ACTIVE_MENUS.filter((menu) => menu.controlArea === area).length}개 메뉴</p>
+            <p className="text-xs text-muted-foreground">{controlOwnerText(area === "operational" ? "operation_control" : "anomaly_monitoring")}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {area === "operational" ? "로봇 기능 수행의 요청·진행·결과를 관제합니다. 로봇 기능 개발 담당과는 별도입니다." : "항공뷰 문제 상황과 장치·통신·프로세스 이상을 관찰합니다. 판별 결과만으로 로봇을 자동 제어하지 않습니다."}
+            </p>
+          </div>
+        ))}
+      </section>
       {menuGroups().map((group) => (
         <section key={group.title} className="space-y-2">
           <h2 className="text-lg font-semibold">{group.title}</h2>
@@ -52,6 +64,8 @@ export default function OverviewPage() {
                 <tr>
                   <th className="px-3 py-2 font-medium">ID</th>
                   <th className="px-3 py-2 font-medium">이름</th>
+                  <th className="px-3 py-2 font-medium">관제 영역</th>
+                  <th className="px-3 py-2 font-medium">관제 구현 담당</th>
                   <th className="px-3 py-2 font-medium">화면</th>
                   <th className="px-3 py-2 font-medium">단계</th>
                   <th className="px-3 py-2 font-medium">상태</th>
@@ -69,6 +83,8 @@ export default function OverviewPage() {
                         {menu.name}
                       </Link>
                     </td>
+                    <td className="px-3 py-2">{CONTROL_AREA_LABELS[menu.controlArea]}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{controlOwnerText(menu.controlOwner)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{screenText(menu.screen)}</td>
                     <td className="px-3 py-2">{menu.phase}</td>
                     <td className="px-3 py-2">{STATUS_LABELS[menu.status]}</td>

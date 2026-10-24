@@ -1,5 +1,5 @@
 import { DECISIONS, MENUS, PHASES, ROLES, SCREENS, SR_CATALOG } from "@/generated/menus";
-import type { DecisionStatus, ImplLevel, Menu, MenuStatus } from "@/shell/types";
+import type { ControlArea, DecisionStatus, ImplLevel, Menu, MenuStatus } from "@/shell/types";
 
 export const IMPL_LABELS: Record<ImplLevel, string> = {
   none: "없음",
@@ -68,4 +68,14 @@ export function decisionOf(id: string) {
 /** 메뉴 ID 를 메뉴 폴더 이름으로 바꾼다. 3.7 → 3_7 */
 export function folderOf(id: string): string {
   return id.replace(".", "_");
+}
+
+export const CONTROL_AREA_LABELS: Record<ControlArea, string> = {
+  operational: "로봇 수행 관제",
+  anomaly: "이상 감지 관제",
+};
+
+export function controlOwnerText(key: string): string {
+  const role = ROLES.find((item) => item.key === key);
+  return role?.members.length ? roleText(key) : `${roleText(key)} (개인 담당 미정)`;
 }
