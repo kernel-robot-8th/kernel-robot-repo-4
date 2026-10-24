@@ -1,0 +1,90 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "camera_id": "cam_overhead",
+    "role": "OVERHEAD",
+    "source_kind": "REAL",
+    "last_capture_stamp": {
+      "sec": 1792718099,
+      "nanosec": 0
+    },
+    "frame_age_ms": 42.0,
+    "age_basis": "CAPTURE",
+    "fps_measured": 29.7,
+    "frozen": false,
+    "width": 1280,
+    "height": 720
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "camera_id": "cam_gate",
+    "role": "GATE",
+    "source_kind": "REAL",
+    "last_capture_stamp": {
+      "sec": 1792718099,
+      "nanosec": 0
+    },
+    "frame_age_ms": 3100.0,
+    "age_basis": "RECEIVE",
+    "fps_measured": 0.8,
+    "frozen": false,
+    "width": 640,
+    "height": 480
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "camera_id": "cam_desk",
+    "role": "DESK",
+    "source_kind": "REAL",
+    "last_capture_stamp": {
+      "sec": 1792718099,
+      "nanosec": 0
+    },
+    "frame_age_ms": 55.0,
+    "age_basis": "CAPTURE",
+    "fps_measured": 30.0,
+    "frozen": true,
+    "width": 640,
+    "height": 480
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "camera_id": "cam_pinky_1_front",
+    "role": "PINKY_FRONT",
+    "source_kind": "SIM",
+    "last_capture_stamp": {
+      "sec": 1792718099,
+      "nanosec": 0
+    },
+    "frame_age_ms": null,
+    "age_basis": "RECEIVE",
+    "fps_measured": 0.0,
+    "frozen": false,
+    "width": 640,
+    "height": 480
+  }
+]

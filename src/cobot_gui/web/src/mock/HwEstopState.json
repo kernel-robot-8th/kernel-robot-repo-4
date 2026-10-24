@@ -1,0 +1,13 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 0,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "state": "ENGAGED",
+    "source_device": ""
+  }
+]

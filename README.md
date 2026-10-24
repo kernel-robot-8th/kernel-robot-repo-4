@@ -18,6 +18,24 @@
 
 담당 기준은 [2026-10-24 사용자 지정](docs/team_roles.md)이다. 두 관제는 공통 GUI·관제 코어를 재사용하며 로봇 기능 개발과 구분한다.
 
+## 워크스페이스 구조
+```
+<ws>/
+├── src/
+│   ├── <proj>_interfaces/      # 공용 msg / srv / action (코드 없음)
+│   ├── <proj>_bringup/         # 전체 launch, 통합 파라미터 YAML
+│   ├── <proj>_description/     # URDF/xacro, 메시 (모바일 베이스 + 팔)
+│   ├── <proj>_vision/          # [비전] 카메라, 검출/인식, 좌표 변환
+│   ├── <proj>_navigation/      # [주행] Nav2 설정, 주행 시퀀스, localization
+│   ├── <proj>_manipulation/    # [매니퓰레이터] 팔/그리퍼 제어, pick&place
+│   ├── <proj>_moveit_config/   # [매니퓰레이터] MoveIt2 설정
+│   ├── <proj>_control_center/  # [관제] 상태 수집, 작업 할당, 로그
+│   └── <proj>_gui/             # [GUI] 사용자/관제 화면
+├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
+├── scripts/                    # 환경 설정, 보조 스크립트
+└── CLAUDE.md
+```
+
 ## 처음 설치하기
 도커로 하려면 [`docs/dev_docker_guide.md`](docs/dev_docker_guide.md)를 보세요. (도커를 처음 써도 이 문서부터 따라 하면 됩니다)
 

@@ -1,0 +1,31 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 0,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "system_mode": "AUTO",
+    "run_state": "DISARMED",
+    "hw_estop": "ENGAGED",
+    "hw_estop_source": "",
+    "hw_estop_stamp": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "power_lost_targets": [],
+    "latched_targets": [],
+    "epoch_targets": [],
+    "epochs": [],
+    "console_holder_id": "",
+    "console_holder_role": "",
+    "console_expires_at": {
+      "sec": 0,
+      "nanosec": 0
+    },
+    "pending_approval_ref": "",
+    "allowed_actions": []
+  }
+]
