@@ -1,0 +1,4 @@
+# datasets, training outputs and container caches stay local (see README for how to get them)
+data/
+outputs/
+.home/
