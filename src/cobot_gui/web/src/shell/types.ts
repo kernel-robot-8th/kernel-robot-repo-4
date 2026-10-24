@@ -1,5 +1,7 @@
 // 레지스트리(menu_tree.yaml)에서 생성되는 데이터의 모양. 생성기는 src/cobot_gui/cobot_gui/gen_web_menus.py 다.
 
+export type ControlArea = "operational" | "anomaly";
+
 export type MenuStatus = "planned" | "in_progress" | "done" | "removed";
 export type ImplLevel = "none" | "external" | "integrated";
 export type DecisionStatus = "open" | "proposed" | "decided";
@@ -55,6 +57,8 @@ export interface Menu {
   srUnconfirmed: string[];
   dataSources: string[];
   commands: string[];
+  controlArea: ControlArea;
+  controlOwner: string;
   screenOwner: string;
   dataOwner: string;
   decisions: string[];

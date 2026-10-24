@@ -2,7 +2,7 @@ name: FMS contract
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, submaster]
 permissions:
   contents: read
 jobs:

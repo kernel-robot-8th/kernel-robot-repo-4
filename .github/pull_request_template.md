@@ -10,6 +10,15 @@
 - 단계: <!-- S0~S6 (docs/fms_roadmap.md) -->
 - 요약:
 
+## 함께 시험할 내용
+
+<!-- docs/fms_branch_workflow.md. 새 작업 PR 대상은 submaster, 기존 PR은 작성자가 확인 후 전환한다. -->
+
+- 합칠 곳: <!-- submaster / main / 도입 예외 -->
+- 시험 결과: <!-- 실행한 시험과 GitHub 검사 링크 -->
+- 못 한 시험·남은 문제:
+- [ ] 메모 데이터와 기능 수정을 나눠 커밋했다 (메모 변경이 없으면 해당 없음)
+
 ## 레지스트리
 
 - [ ] 메뉴 상태를 고쳤다 (`in_progress` + `branch`, 또는 `done`)
