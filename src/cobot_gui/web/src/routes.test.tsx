@@ -91,6 +91,25 @@ describe("3.7 팀원 앱 화면", () => {
 });
 
 describe("개요", () => {
+  it("관제 두 영역과 지정된 개인 담당을 표시한다", () => {
+    renderAt("/");
+    const split = screen.getByLabelText("관제 담당");
+    expect(within(split).getByRole("heading", { name: "로봇 수행 관제" })).toBeInTheDocument();
+    expect(within(split).getByRole("heading", { name: "이상 감지 관제" })).toBeInTheDocument();
+    expect(within(split).getByText("19개 메뉴")).toBeInTheDocument();
+    expect(within(split).getByText("15개 메뉴")).toBeInTheDocument();
+    expect(within(split).getByText("로봇 수행 관제 (김지혜)")).toBeInTheDocument();
+    expect(within(split).getByText("이상 감지 관제 (강건한)")).toBeInTheDocument();
+  });
+
+  it("운용 관제와 비전 기능 개발 담당을 같은 역할로 표시하지 않는다", async () => {
+    renderAt("/menus/4.3");
+    await screen.findByRole("heading", { level: 1, name: "4.3 비전 인식·이벤트 결과" });
+    const main = screen.getByRole("main");
+    expect(within(main).getByText(/관제 구현: 이상 감지 관제/)).toBeInTheDocument();
+    expect(within(main).getByText(/기능·데이터 계약: 비전/)).toBeInTheDocument();
+  });
+
   it("메뉴 34개 행과 구현도를 보인다", () => {
     renderAt("/");
     expect(screen.getByRole("heading", { level: 1, name: "FMS 관제 대시보드 메뉴 트리" })).toBeInTheDocument();
