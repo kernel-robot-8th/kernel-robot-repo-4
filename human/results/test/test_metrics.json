@@ -1,0 +1,42 @@
+{
+  "selected_run_id": "final_AdamW_lr0.00015_b8_cosine_ss0_g0.1_lrf0.01_wd0.0005_e120_s42_63258d60eb_a1",
+  "fixed_conf_metrics": {
+    "precision_ultra": 0.9984093140591594,
+    "recall_ultra": 1.0,
+    "f1_ultra": 0.9992040239556282,
+    "map50": 0.995,
+    "map50_95": 0.9735923624363867,
+    "val_inference_ms": 5.513946666680914,
+    "conf": 0.25,
+    "tp": 35,
+    "fp": 0,
+    "fn": 0,
+    "precision_fixed": 1.0,
+    "recall_fixed": 1.0,
+    "f1_fixed": 1.0,
+    "f2_fixed": 1.0,
+    "miss_rate": 0.0,
+    "fp_per_image": 0.0,
+    "matched_mean_iou": 0.9560639458048186,
+    "negative_images": 0,
+    "negative_image_false_alarm_rate": null
+  },
+  "operating_conf": 0.9000000000000001,
+  "operating_metrics": {
+    "conf": 0.9000000000000001,
+    "tp": 34,
+    "fp": 0,
+    "fn": 1,
+    "precision_fixed": 1.0,
+    "recall_fixed": 0.9714285714285714,
+    "f1_fixed": 0.9855072463768115,
+    "f2_fixed": 0.9770114942528735,
+    "miss_rate": 0.02857142857142857,
+    "fp_per_image": 0.0,
+    "matched_mean_iou": 0.9597277360402114,
+    "negative_images": 0,
+    "negative_image_false_alarm_rate": null
+  },
+  "test_images": 21,
+  "target": "human: 사람 대역 흰색 인형"
+}
