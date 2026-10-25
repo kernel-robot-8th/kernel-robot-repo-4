@@ -46,6 +46,17 @@ DEFAULTS = {
         "signs": [1, 1, 1, 1, 1],
         "offsets_deg": [0.0, 0.0, 0.0, 0.0, 0.0],
     },
+    "train": {
+        "dataset_root": "",
+        "policy": "act",
+        "device": "cuda",
+        "steps": 100000,
+        "batch_size": 8,
+        "num_workers": 4,
+        "log_freq": 200,
+        "save_freq": 20000,
+        "wandb": False,
+    },
 }
 
 

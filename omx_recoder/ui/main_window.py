@@ -1,9 +1,10 @@
+import json
 import queue
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -31,7 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import hub
+from core import hub, trainer
 from core.cameras import CameraManager
 from core.config import (
     APP_DIR,
@@ -44,6 +46,7 @@ from core.config import (
 )
 from core.recorder import Recorder
 from core.robot_ctrl import Mode, RobotController
+from core.trainer import Trainer
 from ui.camera_dialog import CameraPickerDialog, to_pixmap
 
 VCODECS = ["libsvtav1", "h264", "hevc", "auto"]
@@ -72,9 +75,15 @@ class MainWindow(QMainWindow):
         self.uploading = False
         self.last_task_text = self.cfg["session"]["task_text"]
         self.counts = {"success": 0, "fail": 0}
+        self.trainer = Trainer(APP_DIR)
+        self.train_total = 0
+        self.resume_run: Path | None = None
+        self.train_root: Path | None = None
+        self.train_eps = 0
 
         tabs = QTabWidget()
         tabs.addTab(self._build_dashboard(), "대시보드")
+        tabs.addTab(self._build_train(), "학습")
         tabs.addTab(self._build_settings(), "설정")
         self.setCentralWidget(tabs)
         self._load_settings_to_ui()
@@ -328,6 +337,112 @@ class MainWindow(QMainWindow):
         self.settings_boxes = [rbox, cbox, recbox, mbox, fbox]
         return root
 
+    def _build_train(self) -> QWidget:
+        root = QWidget()
+        h = QHBoxLayout(root)
+        left = QVBoxLayout()
+        h.addLayout(left, 1)
+
+        dbox = QGroupBox("데이터")
+        df = QFormLayout(dbox)
+        self.ed_train_data = QLineEdit()
+        self.ed_train_data.setPlaceholderText("비우면 현재 세션의 success 폴더")
+        self.ed_train_data.setToolTip("LeRobot 데이터셋 폴더 (meta/info.json이 있는 폴더)")
+        self.ed_train_data.editingFinished.connect(self._update_train_data)
+        btn_pick = QPushButton("폴더 선택")
+        btn_pick.clicked.connect(self._browse_train_data)
+        btn_default = QPushButton("세션 폴더로")
+        btn_default.clicked.connect(self._reset_train_data)
+        for b in (btn_pick, btn_default):
+            b.setFocusPolicy(Qt.NoFocus)
+        prow = QHBoxLayout()
+        prow.addWidget(self.ed_train_data, 1)
+        prow.addWidget(btn_pick)
+        prow.addWidget(btn_default)
+        self.lbl_train_data = QLabel()
+        self.lbl_train_data.setWordWrap(True)
+        self.lbl_train_data.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        df.addRow("데이터 폴더", prow)
+        df.addRow("", self.lbl_train_data)
+        df.addRow("", QLabel("기본은 녹화한 Success 에피소드입니다. 결과는 데이터 폴더 옆 train/ 에 저장됩니다."))
+        self.train_data_box = dbox
+        left.addWidget(dbox)
+
+        pbox = QGroupBox("학습 설정")
+        pf = QFormLayout(pbox)
+        self.cb_policy = QComboBox()
+        self.cb_policy.addItems(trainer.POLICIES)
+        self.cb_device = QComboBox()
+        self.cb_device.addItems(trainer.DEVICES)
+        self.sp_steps = QSpinBox()
+        self.sp_steps.setRange(10, 10_000_000)
+        self.sp_steps.setSingleStep(10_000)
+        self.sp_batch = QSpinBox()
+        self.sp_batch.setRange(1, 1024)
+        self.sp_workers = QSpinBox()
+        self.sp_workers.setRange(0, 64)
+        self.sp_log_freq = QSpinBox()
+        self.sp_log_freq.setRange(1, 1_000_000)
+        self.sp_save_freq = QSpinBox()
+        self.sp_save_freq.setRange(1, 10_000_000)
+        self.ck_wandb = QCheckBox("Weights & Biases 기록")
+        pf.addRow("정책", self.cb_policy)
+        pf.addRow("장치", self.cb_device)
+        pf.addRow("학습 step", self.sp_steps)
+        pf.addRow("batch size", self.sp_batch)
+        pf.addRow("데이터 로더 worker", self.sp_workers)
+        pf.addRow("로그 주기 (step)", self.sp_log_freq)
+        pf.addRow("체크포인트 주기 (step)", self.sp_save_freq)
+        pf.addRow("", self.ck_wandb)
+        left.addWidget(pbox)
+        self.train_box = pbox
+
+        xbox = QGroupBox("실행")
+        xg = QGridLayout(xbox)
+        self.btn_train = QPushButton("학습 시작")
+        self.btn_train_resume = QPushButton("이어서 학습")
+        self.btn_train_stop = QPushButton("중지")
+        self.btn_train_open = QPushButton("출력 폴더 열기")
+        self.btn_train.setMinimumHeight(48)
+        self.btn_train.clicked.connect(lambda: self._start_train(resume=False))
+        self.btn_train_resume.clicked.connect(lambda: self._start_train(resume=True))
+        self.btn_train_stop.clicked.connect(self.trainer.stop)
+        self.btn_train_open.clicked.connect(self._open_train_dir)
+        for b in (self.btn_train, self.btn_train_resume, self.btn_train_stop, self.btn_train_open):
+            b.setFocusPolicy(Qt.NoFocus)
+        xg.addWidget(self.btn_train, 0, 0, 1, 2)
+        xg.addWidget(self.btn_train_resume, 1, 0)
+        xg.addWidget(self.btn_train_stop, 1, 1)
+        xg.addWidget(self.btn_train_open, 2, 0, 1, 2)
+        left.addWidget(xbox)
+        left.addStretch()
+
+        right = QVBoxLayout()
+        h.addLayout(right, 2)
+        gbox = QGroupBox("진행")
+        gv = QVBoxLayout(gbox)
+        self.pb_train = QProgressBar()
+        self.pb_train.setFormat("%v / %m step (%p%)")
+        self.lbl_train_stat = QLabel("대기")
+        self.lbl_train_stat.setStyleSheet("font-family:monospace;font-size:13px;")
+        self.lbl_train_out = QLabel()
+        self.lbl_train_out.setWordWrap(True)
+        self.lbl_train_out.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.lbl_train_tqdm = QLabel()
+        self.lbl_train_tqdm.setStyleSheet("font-family:monospace;color:#888;")
+        gv.addWidget(self.pb_train)
+        gv.addWidget(self.lbl_train_stat)
+        gv.addWidget(self.lbl_train_tqdm)
+        gv.addWidget(self.lbl_train_out)
+        right.addWidget(gbox)
+        self.train_log = QPlainTextEdit()
+        self.train_log.setReadOnly(True)
+        self.train_log.setFocusPolicy(Qt.ClickFocus)
+        self.train_log.setMaximumBlockCount(2000)
+        right.addWidget(QLabel("학습 로그"))
+        right.addWidget(self.train_log, 1)
+        return root
+
     # ================================================================== settings io
     def _load_settings_to_ui(self):
         c = self.cfg
@@ -355,6 +470,17 @@ class MainWindow(QMainWindow):
         self.ck_private.setChecked(bool(c["hub"]["private"]))
         self.ed_fk_signs.setText(", ".join(str(int(s)) for s in c["fk"]["signs"]))
         self.ed_fk_offsets.setText(", ".join(f"{o:g}" for o in c["fk"]["offsets_deg"]))
+        t = c["train"]
+        self.cb_policy.setCurrentText(t["policy"])
+        self.cb_device.setCurrentText(t["device"])
+        self.sp_steps.setValue(int(t["steps"]))
+        self.sp_batch.setValue(int(t["batch_size"]))
+        self.sp_workers.setValue(int(t["num_workers"]))
+        self.sp_log_freq.setValue(int(t["log_freq"]))
+        self.sp_save_freq.setValue(int(t["save_freq"]))
+        self.ck_wandb.setChecked(bool(t["wandb"]))
+        self.ed_train_data.setText(t["dataset_root"])
+        self._update_train_data()
 
     def _collect_settings(self) -> dict:
         c = self.cfg
@@ -385,6 +511,17 @@ class MainWindow(QMainWindow):
         if len(signs) != 5 or len(offs) != 5:
             raise ValueError("FK 부호/오프셋은 5개 값을 쉼표로 구분해 입력하세요.")
         c["fk"].update(signs=signs, offsets_deg=offs)
+        c["train"].update(
+            dataset_root=self.ed_train_data.text().strip(),
+            policy=self.cb_policy.currentText(),
+            device=self.cb_device.currentText(),
+            steps=self.sp_steps.value(),
+            batch_size=self.sp_batch.value(),
+            num_workers=self.sp_workers.value(),
+            log_freq=self.sp_log_freq.value(),
+            save_freq=self.sp_save_freq.value(),
+            wandb=self.ck_wandb.isChecked(),
+        )
         return c
 
     def _save_settings(self) -> bool:
@@ -424,6 +561,7 @@ class MainWindow(QMainWindow):
         self.counts = Recorder.disk_counts(task_dir)
         self.lbl_session.setText(f"세션: {task_dir}")
         self._log(f"세션 시작: {task_dir} (기존 Success {self.counts['success']} / Fail {self.counts['fail']})")
+        self._update_train_data()
         self._connect_cameras()
         self._refresh()
 
@@ -452,6 +590,10 @@ class MainWindow(QMainWindow):
             return
         if not self._save_settings():
             return
+        if self.trainer.running:
+            msg = "학습이 진행 중입니다. 학습과 녹화를 함께 하면 녹화 주기가 흔들릴 수 있습니다. 계속할까요?"
+            if QMessageBox.question(self, "학습 중", msg) != QMessageBox.Yes:
+                return
         if not self.cameras.roles:
             if QMessageBox.question(self, "카메라 없음", "연결된 카메라가 없습니다. 영상 없이 진행할까요?") != QMessageBox.Yes:
                 return
@@ -526,9 +668,88 @@ class MainWindow(QMainWindow):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def _train_data_root(self) -> Path | None:
+        text = self.ed_train_data.text().strip()
+        if text:
+            return self._resolve(text)
+        if self.session:
+            return trainer.dataset_root(Path(self.session["task_dir"]))
+        return None
+
+    def _update_train_data(self):
+        """Recheck the dataset; called on path or episode changes, not every tick."""
+        root = self._train_data_root()
+        self.train_root = root
+        self.train_eps = trainer.episode_count(root) if root else 0
+        self.resume_run = trainer.latest_run(root) if root else None
+        if root is None:
+            self.lbl_train_data.setText("데이터 폴더를 지정하거나 대시보드에서 세션을 시작하세요.")
+        elif not (root / "meta" / "info.json").exists():
+            self.lbl_train_data.setText(f"{root}\nLeRobot 데이터셋이 아닙니다 (meta/info.json 없음)")
+        else:
+            self.lbl_train_data.setText(f"{root}\n에피소드 {self.train_eps}개")
+
+    def _browse_train_data(self):
+        start = self.train_root or self._resolve(self.ed_output.text() or "./output")
+        d = QFileDialog.getExistingDirectory(self, "학습 데이터 폴더 선택", str(start))
+        if d:
+            self.ed_train_data.setText(d)
+            self._update_train_data()
+
+    def _reset_train_data(self):
+        self.ed_train_data.clear()
+        self._update_train_data()
+
+    def _start_train(self, resume: bool):
+        if self.trainer.running:
+            return
+        s = self.ctrl.snapshot()
+        if s.get("recording") or s.get("pending") or self.recorder.busy:
+            QMessageBox.warning(self, "학습", "녹화·저장이 끝난 뒤에 학습을 시작하세요.")
+            return
+        if not self._save_settings():
+            return
+        self._update_train_data()
+        root = self.train_root
+        if root is None:
+            return
+        if resume:
+            run = self.resume_run
+            if run is None:
+                return
+            try:
+                self.train_total = int(json.loads(trainer.resume_config(run).read_text())["steps"])
+            except Exception:  # noqa: BLE001
+                self.train_total = 0
+            cmd = trainer.build_command(self.cfg["train"], None, "", run, resume_from=run)
+        else:
+            n = self.train_eps
+            if n == 0:
+                QMessageBox.warning(self, "학습", f"{root}\n에 학습할 에피소드가 없습니다.")
+                return
+            run = trainer.run_dir(root, self.cfg["train"]["policy"])
+            self.train_total = int(self.cfg["train"]["steps"])
+            cmd = trainer.build_command(self.cfg["train"], root, trainer.default_repo_id(root), run)
+            self._log(f"학습 시작: {self.cfg['train']['policy']} · {root} ({n}개 에피소드) → {run}")
+        self.pb_train.setRange(0, max(self.train_total, 1))
+        self.pb_train.setValue(0)
+        self.lbl_train_stat.setText("시작 중...")
+        self.lbl_train_tqdm.clear()
+        self.lbl_train_out.setText(f"출력: {run}")
+        self.train_log.clear()
+        self.trainer.start(cmd, run)
+
+    def _open_train_dir(self):
+        cands = [self.trainer.out_dir]
+        if self.train_root:
+            cands += [trainer.train_dir_for(self.train_root), self.train_root]
+        d = next((p for p in cands if p and p.exists()), None)
+        if d:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
+
     # ================================================================== loop
     def _tick(self):
-        for q in (self.ctrl.events, self.ui_events):
+        for q in (self.ctrl.events, self.ui_events, self.trainer.events):
             while True:
                 try:
                     kind, payload = q.get_nowait()
@@ -559,6 +780,7 @@ class MainWindow(QMainWindow):
                 self._log(f"{o.upper()} 저장 완료: episode {payload['episode_index']} ({payload['frames']} 프레임)")
             if self.recorder.is_open:
                 self.counts = self.recorder.counts()
+            self._update_train_data()
         elif kind == "record_started":
             self._log(f"녹화 시작: \"{self.last_task_text}\"")
         elif kind == "pose_captured":
@@ -570,8 +792,28 @@ class MainWindow(QMainWindow):
             self._log("Servo OFF 완료")
             if self.session:
                 self.counts = Recorder.disk_counts(Path(self.session["task_dir"]))
+            self._update_train_data()
         elif kind == "upload_done":
             self.uploading = False
+        elif kind == "train_log":
+            self.train_log.appendPlainText(payload)
+        elif kind == "train_tqdm":
+            self.lbl_train_tqdm.setText(payload)
+        elif kind == "train_progress":
+            self.pb_train.setValue(min(payload["step"], self.pb_train.maximum()))
+            ep = f"   epoch {payload['epoch']:.2f}" if "epoch" in payload else ""
+            self.lbl_train_stat.setText(f"step {payload['step']}   loss {payload['loss']:.4f}{ep}")
+        elif kind == "train_done":
+            ok = payload == 0
+            if ok:
+                self._log("학습 완료")
+            elif self.trainer.stop_requested:
+                self._log("학습 중지됨")
+            else:
+                self._log(f"학습 비정상 종료 (코드 {payload}) — 학습 탭 로그를 확인하세요", error=True)
+            head = "완료" if ok else ("중지됨" if self.trainer.stop_requested else "오류")
+            self.lbl_train_stat.setText(f"{head}   {self.lbl_train_stat.text()}")
+            self._update_train_data()
 
     def _refresh(self):
         s = self.ctrl.snapshot()
@@ -607,6 +849,20 @@ class MainWindow(QMainWindow):
         self.btn_fail.setEnabled(recording or pending)
         self.btn_discard.setEnabled(recording or pending)
         self.btn_upload.setEnabled(bool(self.session) and not self.uploading and not recording and not pending and not saving)
+
+        training = self.trainer.running
+        can_train = not training and not recording and not pending and not saving
+        self.train_box.setEnabled(not training)
+        self.train_data_box.setEnabled(not training)
+        self.btn_train.setEnabled(can_train and self.train_eps > 0)
+        self.btn_train.setStyleSheet(STYLE_GREEN if self.btn_train.isEnabled() else "")
+        self.btn_train_resume.setEnabled(can_train and self.resume_run is not None)
+        self.btn_train_stop.setEnabled(training)
+        self.btn_train_stop.setStyleSheet(STYLE_RED if training else "")
+        self.btn_train_open.setEnabled(self.train_root is not None)
+        if training:
+            t = int(self.trainer.elapsed())
+            self.lbl_train_out.setText(f"출력: {self.trainer.out_dir}\n경과 {t // 3600:d}:{t // 60 % 60:02d}:{t % 60:02d}")
 
         if recording:
             t = s.get("rec_seconds", 0.0)
@@ -720,6 +976,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         s = self.ctrl.snapshot()
+        if self.trainer.running:
+            if QMessageBox.question(self, "종료", "학습이 진행 중입니다. 학습을 중지하고 종료할까요?") != QMessageBox.Yes:
+                event.ignore()
+                return
         if self.ctrl.running:
             if s.get("recording") or s.get("pending"):
                 QMessageBox.warning(self, "종료", "녹화 중이거나 결과 선택 대기 중입니다. 먼저 정리하세요.")
@@ -731,6 +991,7 @@ class MainWindow(QMainWindow):
             self._log("Servo OFF 후 종료 중...")
             QApplication.processEvents()
             self.ctrl.shutdown(timeout=60)
+        self.trainer.stop_blocking()
         self.recorder.close()
         self.cameras.disconnect()
         try:
