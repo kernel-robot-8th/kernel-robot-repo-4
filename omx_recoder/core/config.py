@@ -9,6 +9,8 @@ CAMERA_ROLES = ["wrist", "top"]
 
 APP_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = APP_DIR / "config.yaml"
+# config.yaml is per-machine and gitignored; this tracked file seeds it on first run.
+EXAMPLE_CONFIG_PATH = APP_DIR / "config.example.yaml"
 POSES_PATH = APP_DIR / "init_pose.yaml"
 
 DEFAULTS = {
@@ -61,7 +63,11 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     if path.exists():
         with open(path, encoding="utf-8") as f:
             return _merge(DEFAULTS, yaml.safe_load(f) or {})
-    cfg = copy.deepcopy(DEFAULTS)
+    seed = {}
+    if EXAMPLE_CONFIG_PATH.exists():
+        with open(EXAMPLE_CONFIG_PATH, encoding="utf-8") as f:
+            seed = yaml.safe_load(f) or {}
+    cfg = _merge(DEFAULTS, seed)
     save_config(cfg, path)
     return cfg
 

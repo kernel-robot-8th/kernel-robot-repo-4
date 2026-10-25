@@ -218,3 +218,37 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ===== ROS2 / colcon =====
+# build/ 는 위 Python 섹션에 이미 있음
+install/
+log/
+
+# ===== 녹화 데이터 · 데이터셋 =====
+omx_recoder/output/
+*.mp4
+*.avi
+*.parquet
+*.db3
+*.mcap
+rosbag*/
+
+# ===== 모델 가중치 =====
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.ckpt
+
+# ===== 개인 설정 =====
+# 앱이 종료할 때마다 다시 쓰는 로컬 설정. 공유용 기본값은 config.example.yaml
+omx_recoder/config.yaml
+CLAUDE.local.md
+.claude/settings.local.json
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

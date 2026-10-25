@@ -1,3 +1,5 @@
+# 공유용 기본 설정. 앱 첫 실행 시 config.yaml로 복사되며, config.yaml은 git에서 제외됩니다.
+# 기본값을 바꿀 때만 이 파일을 수정하세요.
 session:
   output_dir: ./output
   task_name: omx_task
