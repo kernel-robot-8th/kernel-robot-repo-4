@@ -1,0 +1,4 @@
+{
+  "closed_at": "2026-10-25T09:13:34.026475+00:00",
+  "reason": "Freeze training and recipes before hold-out metrics"
+}

@@ -1,0 +1,146 @@
+[
+  {
+    "family": "act",
+    "regime": "basic_only",
+    "unique_correction_recordings": 4,
+    "correction_mae": 2.0958501495971165,
+    "correction_ci95": [
+      1.8092192513179248,
+      2.3121368014253676
+    ],
+    "per_correction_recording": {
+      "11": 2.204506862817741,
+      "12": 1.6774567141513193,
+      "13": 2.1278819292783737,
+      "14": 2.373555092141032
+    },
+    "basic_mae": 1.1863729509108878,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "act",
+    "regime": "correction_balanced",
+    "unique_correction_recordings": 4,
+    "correction_mae": 1.6160533144489126,
+    "correction_ci95": [
+      1.4100731054840532,
+      1.7672461061792517
+    ],
+    "per_correction_recording": {
+      "11": 1.7539093635552296,
+      "12": 1.3552856882495328,
+      "13": 1.5744353571876148,
+      "14": 1.7805828488032733
+    },
+    "basic_mae": 1.2566447782178298,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "act",
+    "regime": "correction_concat",
+    "unique_correction_recordings": 4,
+    "correction_mae": 1.501313754355885,
+    "correction_ci95": [
+      1.2881103122490536,
+      1.6586993215735417
+    ],
+    "per_correction_recording": {
+      "11": 1.5365899972072463,
+      "12": 1.1915893292377802,
+      "13": 1.5776732612828739,
+      "14": 1.6994024296956403
+    },
+    "basic_mae": 1.195506280116367,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "cnn",
+    "regime": "basic_only",
+    "unique_correction_recordings": 4,
+    "correction_mae": 1.7634931143857107,
+    "correction_ci95": [
+      1.615596709669193,
+      1.9297991364712304
+    ],
+    "per_correction_recording": {
+      "11": 1.7542957206809424,
+      "12": 1.5693637059986099,
+      "13": 1.7358712733524744,
+      "14": 1.9944417575108155
+    },
+    "basic_mae": 1.085133673345789,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "unique_correction_recordings": 4,
+    "correction_mae": 1.411628494364812,
+    "correction_ci95": [
+      1.2989216910521484,
+      1.5444776828185953
+    ],
+    "per_correction_recording": {
+      "11": 1.4318126442471173,
+      "12": 1.2705065041534171,
+      "13": 1.3273368779508794,
+      "14": 1.616857951107834
+    },
+    "basic_mae": 1.1099112594222769,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "cnn",
+    "regime": "correction_concat",
+    "unique_correction_recordings": 4,
+    "correction_mae": 1.3483466149572778,
+    "correction_ci95": [
+      1.2502332819645168,
+      1.4871575403980368
+    ],
+    "per_correction_recording": {
+      "11": 1.3315282884409756,
+      "12": 1.2360112247141926,
+      "13": 1.264455339214841,
+      "14": 1.5613916074591023
+    },
+    "basic_mae": 1.1084281983686255,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "native_act",
+    "regime": "basic_only",
+    "unique_correction_recordings": 4,
+    "correction_mae": 4.0691389562875155,
+    "correction_ci95": [
+      3.6062942305121757,
+      4.412697448685247
+    ],
+    "per_correction_recording": {
+      "11": 4.1886374911323925,
+      "12": 3.4121798103054366,
+      "13": 4.487525635514378,
+      "14": 4.188212888197856
+    },
+    "basic_mae": 2.0163200302115567,
+    "unique_basic_test_recordings": 1
+  },
+  {
+    "family": "native_act",
+    "regime": "correction_concat",
+    "unique_correction_recordings": 4,
+    "correction_mae": 2.6205537523912605,
+    "correction_ci95": [
+      2.53597120282337,
+      2.768249283566589
+    ],
+    "per_correction_recording": {
+      "11": 2.5461270349924683,
+      "12": 2.567982570827007,
+      "13": 2.525815370654272,
+      "14": 2.842290033091296
+    },
+    "basic_mae": 2.0196204925259797,
+    "unique_basic_test_recordings": 1
+  }
+]

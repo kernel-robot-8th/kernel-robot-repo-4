@@ -1,0 +1,2898 @@
+[
+  {
+    "name": "native_act_f0_basic_only_seed17",
+    "family": "native_act",
+    "regime": "basic_only",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 3.159348142433272,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1300587937341513,
+          "frames": 141
+        },
+        "11": {
+          "control_mae": 4.1886374911323925,
+          "frames": 122
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+      "steps": 9000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f0_correction_concat_seed17",
+    "family": "native_act",
+    "regime": "correction_concat",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 2.3043405361548928,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.062554037317317,
+          "frames": 141
+        },
+        "11": {
+          "control_mae": 2.5461270349924683,
+          "frames": 122
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+      "steps": 8000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f1_basic_only_seed17",
+    "family": "native_act",
+    "regime": "basic_only",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 2.7246081108055638,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.0370364113056914,
+          "frames": 141
+        },
+        "12": {
+          "control_mae": 3.4121798103054366,
+          "frames": 120
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+      "steps": 9000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f1_correction_concat_seed17",
+    "family": "native_act",
+    "regime": "correction_concat",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 2.2526674625245815,
+      "per_episode": {
+        "9": {
+          "control_mae": 1.9373523542221556,
+          "frames": 141
+        },
+        "12": {
+          "control_mae": 2.567982570827007,
+          "frames": 120
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+      "steps": 8000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f2_basic_only_seed17",
+    "family": "native_act",
+    "regime": "basic_only",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 3.2216099973797037,
+      "per_episode": {
+        "9": {
+          "control_mae": 1.9556943592450298,
+          "frames": 141
+        },
+        "13": {
+          "control_mae": 4.487525635514378,
+          "frames": 121
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+      "steps": 10000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f2_correction_concat_seed17",
+    "family": "native_act",
+    "regime": "correction_concat",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 2.2937435402074895,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.0616717097607067,
+          "frames": 141
+        },
+        "13": {
+          "control_mae": 2.525815370654272,
+          "frames": 121
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/010000/pretrained_model",
+      "steps": 10000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f3_basic_only_seed17",
+    "family": "native_act",
+    "regime": "basic_only",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 3.0653517223796056,
+      "per_episode": {
+        "9": {
+          "control_mae": 1.942490556561355,
+          "frames": 141
+        },
+        "14": {
+          "control_mae": 4.188212888197856,
+          "frames": 111
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+      "steps": 10000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "native_act_f3_correction_concat_seed17",
+    "family": "native_act",
+    "regime": "correction_concat",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "control_mae": 2.4295969509475186,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.016903868803741,
+          "frames": 141
+        },
+        "14": {
+          "control_mae": 2.842290033091296,
+          "frames": 111
+        }
+      },
+      "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/009000/pretrained_model",
+      "steps": 9000,
+      "learned_parameters": 51597190,
+      "input_features": {
+        "observation.state": [
+          6
+        ],
+        "observation.images.wrist": [
+          3,
+          480,
+          640
+        ],
+        "observation.images.top": [
+          3,
+          480,
+          640
+        ]
+      },
+      "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f0_basic_only_seed17",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.5418909805491916,
+      "control_mae": 1.8065327396031545,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 2.015198927873395,
+      "recording_bootstrap_ci95": [
+        1.1707207993835422,
+        2.442344679822767
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8983349090983682,
+          "chunk_mae": 1.3704271608210625,
+          "control_mae": 1.1707207993835422,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 2.185447052000015,
+          "chunk_mae": 2.659970694925727,
+          "control_mae": 2.442344679822767,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.09657033599796705,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f0_basic_only_seed42",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 0,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.3009136022361603,
+      "control_mae": 1.5621679022333406,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.7771369773656764,
+      "recording_bootstrap_ci95": [
+        1.1576667586539655,
+        1.9666690458127154
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8660156867394211,
+          "chunk_mae": 1.3782802936455882,
+          "control_mae": 1.1576667586539655,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.7358115177328994,
+          "chunk_mae": 2.1759936610857644,
+          "control_mae": 1.9666690458127154,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.07234099699417129,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f0_correction_balanced_seed17",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.3801020932556374,
+      "control_mae": 1.607503778526237,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.782919354064049,
+      "recording_bootstrap_ci95": [
+        1.3917456829378791,
+        1.8232618741145947
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 1.1320534200533061,
+          "chunk_mae": 1.5612338525606386,
+          "control_mae": 1.3917456829378791,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.6281507664579686,
+          "chunk_mae": 2.004604855567459,
+          "control_mae": 1.8232618741145947,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.06823759600229096,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f0_correction_balanced_seed42",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 0,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.185566825559242,
+      "control_mae": 1.4651441908825065,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6566887783990807,
+      "recording_bootstrap_ci95": [
+        1.2457315287691482,
+        1.6845568529958648
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9268645582892371,
+          "chunk_mae": 1.4542699933897518,
+          "control_mae": 1.2457315287691482,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.4442690928292468,
+          "chunk_mae": 1.8591075634084098,
+          "control_mae": 1.6845568529958648,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.0688877750071697,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f0_correction_concat_seed17",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.232379815035513,
+      "control_mae": 1.4609550927166213,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6366950215801115,
+      "recording_bootstrap_ci95": [
+        1.3108976364981197,
+        1.6110125489351226
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 1.0348147043945095,
+          "chunk_mae": 1.5078217199085453,
+          "control_mae": 1.3108976364981197,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.4299449256765164,
+          "chunk_mae": 1.7655683232516777,
+          "control_mae": 1.6110125489351226,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.06320632799179293,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f0_correction_concat_seed42",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 0,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.0924989492940957,
+      "control_mae": 1.3265966724625633,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5117515375216803,
+      "recording_bootstrap_ci95": [
+        1.191025899445757,
+        1.4621674454793698
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9145708154913381,
+          "chunk_mae": 1.4027563631534576,
+          "control_mae": 1.191025899445757,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.2704270830968531,
+          "chunk_mae": 1.6207467118899028,
+          "control_mae": 1.4621674454793698,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.06492839599377476,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f1_basic_only_seed17",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.2442702010425033,
+      "control_mae": 1.4732722599380539,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6681716555021942,
+      "recording_bootstrap_ci95": [
+        1.2067604333373672,
+        1.7397840865387404
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9441018926759138,
+          "chunk_mae": 1.397391492593373,
+          "control_mae": 1.2067604333373672,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.5444385094090927,
+          "chunk_mae": 1.9389518184110153,
+          "control_mae": 1.7397840865387404,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.0677172229916323,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f1_basic_only_seed42",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 1,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.1425965742385091,
+      "control_mae": 1.4038837819856562,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6187192221641555,
+      "recording_bootstrap_ci95": [
+        1.1926382222074143,
+        1.6151293417638983
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8959338068962097,
+          "chunk_mae": 1.422747309114916,
+          "control_mae": 1.1926382222074143,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.3892593415808085,
+          "chunk_mae": 1.8146911352133948,
+          "control_mae": 1.6151293417638983,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.06368231998931151,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f1_correction_balanced_seed17",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 0.9588698802558334,
+      "control_mae": 1.205772427732518,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.399027910962396,
+      "recording_bootstrap_ci95": [
+        1.1977189769429608,
+        1.2138258785220748
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8798058168262455,
+          "chunk_mae": 1.4439550103447962,
+          "control_mae": 1.2138258785220748,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.0379339436854214,
+          "chunk_mae": 1.354100811579996,
+          "control_mae": 1.1977189769429608,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.06265453901141882,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f1_correction_balanced_seed42",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 1,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.1450111314302367,
+      "control_mae": 1.4241084541347477,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6337558022190892,
+      "recording_bootstrap_ci95": [
+        1.3353645087133907,
+        1.5128523995561047
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 1.0232945710209245,
+          "chunk_mae": 1.5542889672813687,
+          "control_mae": 1.3353645087133907,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.2667276918395491,
+          "chunk_mae": 1.7132226371568096,
+          "control_mae": 1.5128523995561047,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.06290396400436293,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f1_correction_concat_seed17",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.1210111930436222,
+      "control_mae": 1.3337151118522024,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5052468796904737,
+      "recording_bootstrap_ci95": [
+        1.3239454466400418,
+        1.3434847770643628
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 1.0603248741187103,
+          "chunk_mae": 1.5252238163288603,
+          "control_mae": 1.3239454466400418,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.1816975119685338,
+          "chunk_mae": 1.485269943052087,
+          "control_mae": 1.3434847770643628,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.06444671899953391,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f1_correction_concat_seed42",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 1,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 0.813352446484542,
+      "control_mae": 1.0960373851944962,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.3042643233207039,
+      "recording_bootstrap_ci95": [
+        1.0396938814111978,
+        1.152380888977795
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7961034111097349,
+          "chunk_mae": 1.4033596048541104,
+          "control_mae": 1.152380888977795,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 0.830601481859349,
+          "chunk_mae": 1.2051690417872973,
+          "control_mae": 1.0396938814111978,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.06337709999934305,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f2_basic_only_seed17",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.541594167864852,
+      "control_mae": 1.804662380316842,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 2.0148927005688515,
+      "recording_bootstrap_ci95": [
+        1.2293119303723599,
+        2.3800128302613244
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9895754146871837,
+          "chunk_mae": 1.4171291864510123,
+          "control_mae": 1.2293119303723599,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 2.0936129210425203,
+          "chunk_mae": 2.612656214686691,
+          "control_mae": 2.3800128302613244,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.06646220201218966,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f2_basic_only_seed42",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 2,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.163861275377585,
+      "control_mae": 1.4874740785349247,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.715775758741817,
+      "recording_bootstrap_ci95": [
+        1.0991971287744264,
+        1.875751028295423
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7945112054440993,
+          "chunk_mae": 1.320162240072345,
+          "control_mae": 1.0991971287744264,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.533211345311071,
+          "chunk_mae": 2.111389277411289,
+          "control_mae": 1.875751028295423,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.06276594100927468,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f2_correction_balanced_seed17",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.1656059643467862,
+      "control_mae": 1.4112566860366487,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5913020662894957,
+      "recording_bootstrap_ci95": [
+        1.2530105059028518,
+        1.5695028661704453
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9725216800439442,
+          "chunk_mae": 1.4499519799195282,
+          "control_mae": 1.2530105059028518,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.3586902486496284,
+          "chunk_mae": 1.7326521526594632,
+          "control_mae": 1.5695028661704453,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.06321144699177239,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f2_correction_balanced_seed42",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 2,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.0801207758386653,
+      "control_mae": 1.3790755245750996,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5851173433597012,
+      "recording_bootstrap_ci95": [
+        1.1787832009454144,
+        1.5793678482047846
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8499556255678758,
+          "chunk_mae": 1.402284802908593,
+          "control_mae": 1.1787832009454144,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.3102859261094546,
+          "chunk_mae": 1.7679498838108094,
+          "control_mae": 1.5793678482047846,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.06509109599574003,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f2_correction_concat_seed17",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.1154944307148393,
+      "control_mae": 1.3937592521879842,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6110303127052563,
+      "recording_bootstrap_ci95": [
+        1.1628665427366893,
+        1.6246519616392792
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8657452584581172,
+          "chunk_mae": 1.380983034346966,
+          "control_mae": 1.1628665427366893,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.3652436029715616,
+          "chunk_mae": 1.8410775910635464,
+          "control_mae": 1.6246519616392792,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.06901306500367355,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f2_correction_concat_seed42",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 2,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.001356567749588,
+      "control_mae": 1.3006441673055358,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.518770573302322,
+      "recording_bootstrap_ci95": [
+        1.0705937736846032,
+        1.5306945609264686
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7706676252344822,
+          "chunk_mae": 1.2848779436544324,
+          "control_mae": 1.0705937736846032,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.2320455102646937,
+          "chunk_mae": 1.7526632029502118,
+          "control_mae": 1.5306945609264686,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.07059476000722498,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f3_basic_only_seed17",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.8521028682344198,
+      "control_mae": 2.0752542351788663,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 2.2670450880849904,
+      "recording_bootstrap_ci95": [
+        1.360545314372854,
+        2.7899631559848785
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 1.142696700408949,
+          "chunk_mae": 1.535549909087783,
+          "control_mae": 1.360545314372854,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 2.5615090360598907,
+          "chunk_mae": 2.9985402670821975,
+          "control_mae": 2.7899631559848785,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.06656654200924095,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f3_basic_only_seed42",
+    "family": "act",
+    "regime": "basic_only",
+    "fold": 3,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.199614079533241,
+      "control_mae": 1.5156450242411794,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.774058722923939,
+      "recording_bootstrap_ci95": [
+        1.074143020185173,
+        1.957147028297186
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7824991278825922,
+          "chunk_mae": 1.3038911652480456,
+          "control_mae": 1.074143020185173,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.61672903118389,
+          "chunk_mae": 2.2442262805998325,
+          "control_mae": 1.957147028297186,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.06151843500265386,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f3_correction_balanced_seed17",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.3067104015329507,
+      "control_mae": 1.5666927759759242,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.7598324949252055,
+      "recording_bootstrap_ci95": [
+        1.25863575681727,
+        1.8747497951345784
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 1.0023468631379149,
+          "chunk_mae": 1.451583279362807,
+          "control_mae": 1.25863575681727,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.6110739399279868,
+          "chunk_mae": 2.068081710487604,
+          "control_mae": 1.8747497951345784,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.06324337999103591,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f3_correction_balanced_seed42",
+    "family": "act",
+    "regime": "correction_balanced",
+    "fold": 3,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.081849874504922,
+      "control_mae": 1.4312385328032884,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.677612396810117,
+      "recording_bootstrap_ci95": [
+        1.1760611631346087,
+        1.686415902471968
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8265048855691092,
+          "chunk_mae": 1.412517636591661,
+          "control_mae": 1.1760611631346087,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.337194863440735,
+          "chunk_mae": 1.942707157028573,
+          "control_mae": 1.686415902471968,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.06100002900348045,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f3_correction_concat_seed17",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.1360876538017963,
+      "control_mae": 1.4361650377762973,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6602564814369352,
+      "recording_bootstrap_ci95": [
+        1.1790550355370164,
+        1.6932750400155783
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.876507099004502,
+          "chunk_mae": 1.4016660525866433,
+          "control_mae": 1.1790550355370164,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.3956682085990906,
+          "chunk_mae": 1.918846910287227,
+          "control_mae": 1.6932750400155783,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.061031474004266784,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "act_f3_correction_concat_seed42",
+    "family": "act",
+    "regime": "correction_concat",
+    "fold": 3,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.1097877492029842,
+      "control_mae": 1.439407418393308,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6811505680264038,
+      "recording_bootstrap_ci95": [
+        1.1732850174109142,
+        1.7055298193757022
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8599351803038983,
+          "chunk_mae": 1.403879518838639,
+          "control_mae": 1.1732850174109142,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.3596403181020702,
+          "chunk_mae": 1.9584216172141689,
+          "control_mae": 1.7055298193757022,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.06151845000567846,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f0_basic_only_seed17",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.1650621119388513,
+      "control_mae": 1.4426077958637817,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6784259667189925,
+      "recording_bootstrap_ci95": [
+        1.1071313230703907,
+        1.7780842686571725
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.806319311155495,
+          "chunk_mae": 1.3397798770708396,
+          "control_mae": 1.1071313230703907,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.5238049127222077,
+          "chunk_mae": 2.0170720563671454,
+          "control_mae": 1.7780842686571725,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.019588968003517948,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f0_basic_only_seed42",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 0,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.17422591014998,
+      "control_mae": 1.4251846477216636,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6636432996749506,
+      "recording_bootstrap_ci95": [
+        1.119862122738615,
+        1.730507172704712
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8435718220599154,
+          "chunk_mae": 1.3533955184703177,
+          "control_mae": 1.119862122738615,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.5048799982400445,
+          "chunk_mae": 1.9738910808795835,
+          "control_mae": 1.730507172704712,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.017253878992050886,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f0_correction_balanced_seed17",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.0156388066694864,
+      "control_mae": 1.2185138944878626,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4159512567883068,
+      "recording_bootstrap_ci95": [
+        1.0637646053277008,
+        1.3732631836480242
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8242017119488818,
+          "chunk_mae": 1.2865158291995948,
+          "control_mae": 1.0637646053277008,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.2070759013900911,
+          "chunk_mae": 1.545386684377019,
+          "control_mae": 1.3732631836480242,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.01711313299892936,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f0_correction_balanced_seed42",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 0,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.105146561678234,
+      "control_mae": 1.3395253976021149,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5631335867980303,
+      "recording_bootstrap_ci95": [
+        1.1886886903580198,
+        1.4903621048462101
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9199479042638278,
+          "chunk_mae": 1.426061435371426,
+          "control_mae": 1.1886886903580198,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.2903452190926405,
+          "chunk_mae": 1.7002057382246343,
+          "control_mae": 1.4903621048462101,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.017009852002956904,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f0_correction_concat_seed17",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 0,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.024666568557246,
+      "control_mae": 1.2259507319301783,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.431935959735805,
+      "recording_bootstrap_ci95": [
+        1.123527300696001,
+        1.328374163164356
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8629565006452249,
+          "chunk_mae": 1.3612337374518104,
+          "control_mae": 1.123527300696001,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.1863766364692672,
+          "chunk_mae": 1.5026381820197996,
+          "control_mae": 1.328374163164356,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.017232060999958776,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f0_correction_concat_seed42",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 0,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 0.9476985215207652,
+      "control_mae": 1.2049032517642302,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.425882467703307,
+      "recording_bootstrap_ci95": [
+        1.0751240898108652,
+        1.3346824137175954
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7788854475985182,
+          "chunk_mae": 1.2983454922412305,
+          "control_mae": 1.0751240898108652,
+          "frames": 141
+        },
+        "11": {
+          "point_mae": 1.1165115954430123,
+          "chunk_mae": 1.5534194431653836,
+          "control_mae": 1.3346824137175954,
+          "frames": 123
+        }
+      },
+      "sampled_frames": 264,
+      "elapsed_s": 0.017115005000960082,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9941105770445247,
+      "point_mae": 1.3076027035713196,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "11": {
+          "control_mae": 1.8274732907936178,
+          "point_mae": 1.2573004961013794
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f1_basic_only_seed17",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.0671241532116613,
+      "control_mae": 1.3730714452907073,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6151094868727651,
+      "recording_bootstrap_ci95": [
+        1.1294093430042267,
+        1.616733547577188
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8134811860344089,
+          "chunk_mae": 1.3614393176761925,
+          "control_mae": 1.1294093430042267,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.3207671203889138,
+          "chunk_mae": 1.868779656069338,
+          "control_mae": 1.616733547577188,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.018930690988781862,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f1_basic_only_seed42",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 1,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.0606803097694206,
+      "control_mae": 1.313511678044042,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5478758611172363,
+      "recording_bootstrap_ci95": [
+        1.1050294916680519,
+        1.5219938644200317
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8239121871425751,
+          "chunk_mae": 1.345459871046932,
+          "control_mae": 1.1050294916680519,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.297448432396266,
+          "chunk_mae": 1.7502918511875405,
+          "control_mae": 1.5219938644200317,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.016980088999844156,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f1_correction_balanced_seed17",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 0.8933486814950906,
+      "control_mae": 1.1349119764197146,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.3287707947111165,
+      "recording_bootstrap_ci95": [
+        1.0412336725292477,
+        1.2285902803101816
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7701209743394919,
+          "chunk_mae": 1.2685423307385004,
+          "control_mae": 1.0412336725292477,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.0165763886506893,
+          "chunk_mae": 1.3889992586837328,
+          "control_mae": 1.2285902803101816,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.017100123994168825,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f1_correction_balanced_seed42",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 1,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 0.9630228428264085,
+      "control_mae": 1.223706566762878,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4379621098107005,
+      "recording_bootstrap_ci95": [
+        1.1349904055291034,
+        1.3124227279966527
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8673898263814601,
+          "chunk_mae": 1.3597734504980399,
+          "control_mae": 1.1349904055291034,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.0586558592713569,
+          "chunk_mae": 1.516150769123361,
+          "control_mae": 1.3124227279966527,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.017035903001669794,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f1_correction_concat_seed17",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 1,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 0.9547346071387908,
+      "control_mae": 1.205277887189537,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4258072003062772,
+      "recording_bootstrap_ci95": [
+        1.1650290229219071,
+        1.245526751457167
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8718098063840933,
+          "chunk_mae": 1.4138304219178275,
+          "control_mae": 1.1650290229219071,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.0376594078934882,
+          "chunk_mae": 1.4377839786947266,
+          "control_mae": 1.245526751457167,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.017196187996887602,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f1_correction_concat_seed42",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 1,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 0.9912795974453171,
+      "control_mae": 1.183480289168112,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4045942234696722,
+      "recording_bootstrap_ci95": [
+        1.1404648803650064,
+        1.2264956979712178
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.905475488896911,
+          "chunk_mae": 1.3890878604658952,
+          "control_mae": 1.1404648803650064,
+          "frames": 141
+        },
+        "12": {
+          "point_mae": 1.0770837059937233,
+          "chunk_mae": 1.4201005864734493,
+          "control_mae": 1.2264956979712178,
+          "frames": 121
+        }
+      },
+      "sampled_frames": 262,
+      "elapsed_s": 0.017212741004186682,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9824415526712458,
+      "point_mae": 1.2574480175971985,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "12": {
+          "control_mae": 1.8041352420470602,
+          "point_mae": 1.1569911241531372
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f2_basic_only_seed17",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.058979926277643,
+      "control_mae": 1.3406342395129016,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.577879950090586,
+      "recording_bootstrap_ci95": [
+        1.0257190527222682,
+        1.6555494263035353
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7339892797436275,
+          "chunk_mae": 1.2629671842916637,
+          "control_mae": 1.0257190527222682,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.3839705728116583,
+          "chunk_mae": 1.8927927158895086,
+          "control_mae": 1.6555494263035353,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.018813731003319845,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f2_basic_only_seed42",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 2,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.203179908096236,
+      "control_mae": 1.4423390685656141,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6693859576759693,
+      "recording_bootstrap_ci95": [
+        1.0684850167298148,
+        1.8161931204014137
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8069580392845979,
+          "chunk_mae": 1.2938515260709937,
+          "control_mae": 1.0684850167298148,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.5994017769078739,
+          "chunk_mae": 2.0449203892809447,
+          "control_mae": 1.8161931204014137,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.017158224000013433,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f2_correction_balanced_seed17",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 0.9660097291926328,
+      "control_mae": 1.1893799957201974,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4032609382359085,
+      "recording_bootstrap_ci95": [
+        1.1413710901500485,
+        1.2373889012903463
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.9341250857774247,
+          "chunk_mae": 1.3610595179365037,
+          "control_mae": 1.1413710901500485,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 0.9978943726078409,
+          "chunk_mae": 1.4454623585353132,
+          "control_mae": 1.2373889012903463,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.017108407002524473,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f2_correction_balanced_seed42",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 2,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.0723754430011931,
+      "control_mae": 1.2667731206568296,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4767780531604489,
+      "recording_bootstrap_ci95": [
+        1.1162613867022466,
+        1.4172848546114125
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8790839692802294,
+          "chunk_mae": 1.3706731821628326,
+          "control_mae": 1.1162613867022466,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.265666916722157,
+          "chunk_mae": 1.582882924158065,
+          "control_mae": 1.4172848546114125,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.017110326007241383,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f2_correction_concat_seed17",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 2,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 0.9525468141661732,
+      "control_mae": 1.2346875008670775,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.4522269589921968,
+      "recording_bootstrap_ci95": [
+        1.1409864119181397,
+        1.3283885898160153
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8147113215416035,
+          "chunk_mae": 1.3754326770914362,
+          "control_mae": 1.1409864119181397,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 1.0903823067907428,
+          "chunk_mae": 1.5290212408929575,
+          "control_mae": 1.3283885898160153,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.018583355995360762,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f2_correction_concat_seed42",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 2,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 0.8442659392907874,
+      "control_mae": 1.1156682383666245,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.3452282854688402,
+      "recording_bootstrap_ci95": [
+        1.0308143881195826,
+        1.2005220886136665
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7164533888617306,
+          "chunk_mae": 1.2734677491458595,
+          "control_mae": 1.0308143881195826,
+          "frames": 141
+        },
+        "13": {
+          "point_mae": 0.9720784897198442,
+          "chunk_mae": 1.4169888217918207,
+          "control_mae": 1.2005220886136665,
+          "frames": 122
+        }
+      },
+      "sampled_frames": 263,
+      "elapsed_s": 0.017558856998221017,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9299841135740938,
+      "point_mae": 1.2135910391807556,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "13": {
+          "control_mae": 1.6992203638527563,
+          "point_mae": 1.0692771673202515
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f3_basic_only_seed17",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.205087591211756,
+      "control_mae": 1.5467100592411247,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.8269354039454018,
+      "recording_bootstrap_ci95": [
+        1.0845944784211774,
+        2.008825640061072
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8038775670401593,
+          "chunk_mae": 1.3353561186198648,
+          "control_mae": 1.0845944784211774,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.6062976153833526,
+          "chunk_mae": 2.318514689270939,
+          "control_mae": 2.008825640061072,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.01862836799409706,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f3_basic_only_seed42",
+    "family": "cnn",
+    "regime": "basic_only",
+    "fold": 3,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.1741097008294248,
+      "control_mae": 1.510448216686163,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.778589182307806,
+      "recording_bootstrap_ci95": [
+        1.0408385584117672,
+        1.9800578749605589
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7192220012558267,
+          "chunk_mae": 1.2909211626289585,
+          "control_mae": 1.0408385584117672,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.6289974004030228,
+          "chunk_mae": 2.2662572019866536,
+          "control_mae": 1.9800578749605589,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.01721719700435642,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f3_correction_balanced_seed17",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.037923018629224,
+      "control_mae": 1.3437012903082817,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5806722937164999,
+      "recording_bootstrap_ci95": [
+        1.1066280988091273,
+        1.5807744818074363
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8396833031735522,
+          "chunk_mae": 1.3146102350231603,
+          "control_mae": 1.1066280988091273,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.2361627340848957,
+          "chunk_mae": 1.8467343524098396,
+          "control_mae": 1.5807744818074363,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.017215259998920374,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f3_correction_balanced_seed42",
+    "family": "cnn",
+    "regime": "correction_balanced",
+    "fold": 3,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 1.049731428161256,
+      "control_mae": 1.3696467731904762,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.6215224387209104,
+      "recording_bootstrap_ci95": [
+        1.0863521259727207,
+        1.6529414204082318
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8410390135667003,
+          "chunk_mae": 1.3143736174766054,
+          "control_mae": 1.0863521259727207,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.2584238427558117,
+          "chunk_mae": 1.9286712599652154,
+          "control_mae": 1.6529414204082318,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.016723934997571632,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f3_correction_concat_seed17",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 3,
+    "seed": 17,
+    "metrics": {
+      "point_mae": 1.0503190921189258,
+      "control_mae": 1.3470337144245432,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5944879486111372,
+      "recording_bootstrap_ci95": [
+        1.0994507294174627,
+        1.5946166994316238
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.8382195503787792,
+          "chunk_mae": 1.3240538979253025,
+          "control_mae": 1.0994507294174627,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.2624186338590724,
+          "chunk_mae": 1.8649219992969717,
+          "control_mae": 1.5946166994316238,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.017131286003859714,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  },
+  {
+    "name": "cnn_f3_correction_concat_seed42",
+    "family": "cnn",
+    "regime": "correction_concat",
+    "fold": 3,
+    "seed": 42,
+    "metrics": {
+      "point_mae": 0.977134983860175,
+      "control_mae": 1.3100976395933097,
+      "selection_metric": "recording-balanced MAE over first 10 future control steps",
+      "chunk_mae": 1.5628191722800393,
+      "recording_bootstrap_ci95": [
+        1.0920287637000388,
+        1.528166515486581
+      ],
+      "per_episode": {
+        "9": {
+          "point_mae": 0.7711585667116422,
+          "chunk_mae": 1.3270164734505592,
+          "control_mae": 1.0920287637000388,
+          "frames": 141
+        },
+        "14": {
+          "point_mae": 1.183111401008708,
+          "chunk_mae": 1.7986218711095197,
+          "control_mae": 1.528166515486581,
+          "frames": 112
+        }
+      },
+      "sampled_frames": 253,
+      "elapsed_s": 0.016878296999493614,
+      "units": "LeRobot normalized motor positions; not metres or task success"
+    },
+    "persistence": {
+      "name": "hold_current_state",
+      "training_required": false,
+      "control_mae": 1.9705572826085347,
+      "point_mae": 1.2067811489105225,
+      "per_episode": {
+        "9": {
+          "control_mae": 2.1607478632954313,
+          "point_mae": 1.3579049110412598
+        },
+        "14": {
+          "control_mae": 1.7803667019216383,
+          "point_mae": 1.0556573867797852
+        }
+      },
+      "interpretation": "Low motor MAE alone can reward staying still; task success must be verified."
+    }
+  }
+]

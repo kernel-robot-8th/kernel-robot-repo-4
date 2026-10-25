@@ -1,0 +1,585 @@
+[
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T09:15:12.428021+00:00",
+    "config": {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 5625,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "lightweight_final_all15",
+      "seed": 17,
+      "fold": 0,
+      "regime": "correction_concat",
+      "train_episodes": 15,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "validation": [],
+        "test": []
+      }
+    },
+    "steps": 5625,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt",
+    "normalization_statistics": {
+      "state_mean": [
+        8.710186004638672,
+        -40.117549896240234,
+        39.085540771484375,
+        -5.213334083557129,
+        -0.6874226331710815,
+        60.069210052490234
+      ],
+      "state_std": [
+        12.613896369934082,
+        20.48861312866211,
+        7.977600574493408,
+        25.044357299804688,
+        2.5835394859313965,
+        2.94474458694458
+      ],
+      "action_mean": [
+        8.738356590270996,
+        -40.58122253417969,
+        38.599822998046875,
+        -7.512175559997559,
+        -1.0804589986801147,
+        58.49753952026367
+      ],
+      "action_std": [
+        12.71255874633789,
+        20.503984451293945,
+        8.011650085449219,
+        25.752586364746094,
+        2.7641103267669678,
+        5.094659328460693
+      ],
+      "fitted_episodes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ]
+    },
+    "training_recordings": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "independent_test_available": false,
+    "elapsed_s": 22.420399389986414,
+    "history": [
+      {
+        "step": 1,
+        "training_loss": 0.8810980916023254,
+        "elapsed_s": 0.3212821899942355
+      },
+      {
+        "step": 250,
+        "training_loss": 0.22227849066257477,
+        "elapsed_s": 1.2739993489958579
+      },
+      {
+        "step": 500,
+        "training_loss": 0.1957787424325943,
+        "elapsed_s": 2.1655413929984206
+      },
+      {
+        "step": 750,
+        "training_loss": 0.1441371738910675,
+        "elapsed_s": 3.0931320269883145
+      },
+      {
+        "step": 1000,
+        "training_loss": 0.15344677865505219,
+        "elapsed_s": 4.068036170996493
+      },
+      {
+        "step": 1250,
+        "training_loss": 0.13813838362693787,
+        "elapsed_s": 5.04955902499205
+      },
+      {
+        "step": 1500,
+        "training_loss": 0.14476092159748077,
+        "elapsed_s": 6.064860209997278
+      },
+      {
+        "step": 1750,
+        "training_loss": 0.12366528064012527,
+        "elapsed_s": 7.0752933629992185
+      },
+      {
+        "step": 2000,
+        "training_loss": 0.10717029124498367,
+        "elapsed_s": 8.0863037629897
+      },
+      {
+        "step": 2250,
+        "training_loss": 0.12225756049156189,
+        "elapsed_s": 9.101567958990927
+      },
+      {
+        "step": 2500,
+        "training_loss": 0.1343262940645218,
+        "elapsed_s": 10.112311051998404
+      },
+      {
+        "step": 2750,
+        "training_loss": 0.09540918469429016,
+        "elapsed_s": 11.12564922599995
+      },
+      {
+        "step": 3000,
+        "training_loss": 0.11139598488807678,
+        "elapsed_s": 12.140720405994216
+      },
+      {
+        "step": 3250,
+        "training_loss": 0.1118263378739357,
+        "elapsed_s": 13.083525266993092
+      },
+      {
+        "step": 3500,
+        "training_loss": 0.12120681256055832,
+        "elapsed_s": 14.070402747995104
+      },
+      {
+        "step": 3750,
+        "training_loss": 0.10012352466583252,
+        "elapsed_s": 15.050225543993292
+      },
+      {
+        "step": 4000,
+        "training_loss": 0.11916927248239517,
+        "elapsed_s": 16.031018646986922
+      },
+      {
+        "step": 4250,
+        "training_loss": 0.09914363920688629,
+        "elapsed_s": 17.01431445599883
+      },
+      {
+        "step": 4500,
+        "training_loss": 0.11106361448764801,
+        "elapsed_s": 18.001589845996932
+      },
+      {
+        "step": 4750,
+        "training_loss": 0.0861893817782402,
+        "elapsed_s": 18.989133025999763
+      },
+      {
+        "step": 5000,
+        "training_loss": 0.0958680734038353,
+        "elapsed_s": 19.97102832199016
+      },
+      {
+        "step": 5250,
+        "training_loss": 0.08935649693012238,
+        "elapsed_s": 20.94837179899332
+      },
+      {
+        "step": 5500,
+        "training_loss": 0.09606537967920303,
+        "elapsed_s": 21.925550228988868
+      }
+    ],
+    "scope": "All-data candidate, not a validated real-robot policy"
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T09:44:18.748990+00:00",
+    "config": {
+      "name": "native_act_final_all15",
+      "family": "native_act",
+      "regime": "all_data",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "validation": [],
+        "test": []
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.0
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 8500,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 0,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model",
+    "best_validation_mae": null,
+    "validation_checkpoints": [],
+    "steps": 8500,
+    "selected_step": 8500,
+    "requested_steps": 8500,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/dataset",
+    "elapsed_s": 1745.2326679229736,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]",
+      "--dataset.eval_split=0.0",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream",
+      "--steps=8500",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=0",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "independent_test_available": false
+  }
+]

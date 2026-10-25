@@ -1,0 +1,5098 @@
+[
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T02:21:34.925551+00:00",
+    "config": {
+      "name": "native_act_f0_basic_only_seed17",
+      "family": "native_act",
+      "fold": 0,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          8,
+          12
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.13636363636363635
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+    "best_validation_mae": 2.7414809736940597,
+    "validation_checkpoints": [
+      {
+        "control_mae": 4.646913694341977,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.127952883640925,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 6.16587450504303,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.3159729412860344,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4505340539746814,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 4.181411828597387,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.194510087784794,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4446731814079814,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.944346994161606,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.977680835790104,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.11272703939014,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.8426346321900686,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.9755953381044997,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.190539785143402,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.7606508910655974,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.965188448958927,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2812842196888394,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.6490926782290143,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.9851869673364693,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2960089387165175,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.674364995956421,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.8902841745979257,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3395918019943767,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.4409765472014744,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.7414809736940597,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.132043954398897,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.3509179929892223,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.7946901370253827,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.1716271945171886,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.417753079533577,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 9000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/dataset",
+    "elapsed_s": 2169.4869627952576,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 8, 12]",
+      "--dataset.eval_split=0.13636363636363635",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T02:56:50.218909+00:00",
+    "config": {
+      "name": "native_act_f0_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 0,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14,
+          8,
+          12
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.11538461538461539
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+    "best_validation_mae": 2.2212618514067595,
+    "validation_checkpoints": [
+      {
+        "control_mae": 4.439306585821841,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.683208914266692,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 5.195404257376989,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.1587164364755154,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.7664516692360244,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.5509812037150064,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.0902472856971954,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.794251110818651,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 3.3862434605757397,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.673024019805921,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4147785359786615,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.9312695036331813,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.5749940999680097,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.353272032406595,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.796716167529424,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.400990861405929,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.239909308652083,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.5620724141597746,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.4435819341076748,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.262854254908032,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.624309613307317,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.2212618514067595,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.053600555492772,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.3889231473207473,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.3670481136275665,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2493391972449093,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.4847570300102233,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.267800320022636,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.0667219625578985,
+            "frames": 72
+          },
+          "12": {
+            "control_mae": 2.4688786774873734,
+            "frames": 60
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 8000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/dataset",
+    "elapsed_s": 2113.384011030197,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 13, 14, 8, 12]",
+      "--dataset.eval_split=0.11538461538461539",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_correction_concat_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      13,
+      14
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T03:32:11.552298+00:00",
+    "config": {
+      "name": "native_act_f1_basic_only_seed17",
+      "family": "native_act",
+      "fold": 1,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          8,
+          13
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.13636363636363635
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+    "best_validation_mae": 3.28697300067202,
+    "validation_checkpoints": [
+      {
+        "control_mae": 4.8586198537388245,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.1344493288132877,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 6.5827903786643605,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 4.038714011734138,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.492753602564335,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 5.584674420903941,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.732533799270626,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.397023342549801,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 5.068044255991451,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.64527702904247,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.1252795689635806,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 5.165274489121359,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.6804533615328356,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3405803822808795,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 5.020326340784792,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.406733549914182,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2822465582026377,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 4.531220541625727,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.556790539217886,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3455838643842273,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 4.767997214051544,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.4396921526878153,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3439181190398006,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 4.53546618633583,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.28697300067202,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.054583564400673,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 4.519362436943367,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.3898220182767984,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2775911490122476,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 4.502052887541349,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 9000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/dataset",
+    "elapsed_s": 2119.072226524353,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 8, 13]",
+      "--dataset.eval_split=0.13636363636363635",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_basic_only_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T04:07:43.014767+00:00",
+    "config": {
+      "name": "native_act_f1_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 1,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14,
+          8,
+          13
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.11538461538461539
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+    "best_validation_mae": 2.386697371006826,
+    "validation_checkpoints": [
+      {
+        "control_mae": 3.8601262513242784,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.435745030641556,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 4.284507472007001,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.226253965167237,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.9998611882328987,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 3.4526467421015754,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.8509802993909474,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.553862111435996,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 3.148098487345899,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.983047650546813,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.946607567369938,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 3.0194877337236874,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.657974063644427,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.433325721157922,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 2.8826224061309316,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.558371918381129,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4211068666643567,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 2.6956369700979015,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.83695396985214,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.5568220822347536,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 3.1170858574695273,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.386697371006826,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.154549094537894,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 2.6188456474757587,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.63936104969493,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.375995891789595,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 2.9027262076002653,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.4564691584740506,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3090695217251778,
+            "frames": 72
+          },
+          "13": {
+            "control_mae": 2.6038687952229234,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 8000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/dataset",
+    "elapsed_s": 2128.826418161392,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 14, 8, 13]",
+      "--dataset.eval_split=0.11538461538461539",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f1_correction_concat_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      11,
+      14
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T04:43:01.261414+00:00",
+    "config": {
+      "name": "native_act_f2_basic_only_seed17",
+      "family": "native_act",
+      "fold": 2,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          8,
+          14
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.13636363636363635
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+    "best_validation_mae": 3.1816029717170053,
+    "validation_checkpoints": [
+      {
+        "control_mae": 4.33986528608061,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.121862197915713,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 5.5578683742455075,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.779736108959667,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.477136605315738,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 5.082335612603596,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.6269009698123216,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.35869373795059,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.895108201674053,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.5367558321191206,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.168048251834181,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.90546341240406,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.535820142085117,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.376252195901341,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.695388088268893,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.5462018121329564,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3684460835324392,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.7239575407334735,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.4590429837505026,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2588512202103934,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.659234747290611,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.294156771389738,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.365304162932767,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.223009379846709,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.329104218691114,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.122374470863077,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.535833966519151,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.1816029717170053,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.1061884885032973,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.257017454930714,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 10000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/dataset",
+    "elapsed_s": 2116.219836473465,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 8, 14]",
+      "--dataset.eval_split=0.13636363636363635",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_basic_only_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T05:18:21.188757+00:00",
+    "config": {
+      "name": "native_act_f2_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 2,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12,
+          8,
+          14
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.11538461538461539
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/010000/pretrained_model",
+    "best_validation_mae": 2.573503174301651,
+    "validation_checkpoints": [
+      {
+        "control_mae": 3.7895220282177133,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.182105121513208,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 4.396938934922218,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.272541131705992,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.697030858033233,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.8480514053787505,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.6936213990289066,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3408790164523654,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.046363781605448,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.886711435392499,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.445632491260767,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.327790379524231,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.0550757073279886,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.7314293430083327,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.378722071647644,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.814084506697125,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.442487387193574,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.185681626200676,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.758641852745934,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3480321996741824,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.169251505817686,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.680187995826441,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2640749000840716,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.0963010915688107,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.6557734929734753,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2721489692727723,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.039398016674178,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.573503174301651,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.1278510698013835,
+            "frames": 72
+          },
+          "14": {
+            "control_mae": 3.019155278801918,
+            "frames": 56
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 10000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/dataset",
+    "elapsed_s": 2117.558211326599,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 8, 14]",
+      "--dataset.eval_split=0.11538461538461539",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f2_correction_concat_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      11,
+      12
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T05:53:43.341039+00:00",
+    "config": {
+      "name": "native_act_f3_basic_only_seed17",
+      "family": "native_act",
+      "fold": 3,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          8,
+          11
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.13636363636363635
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+    "best_validation_mae": 3.1364942422316484,
+    "validation_checkpoints": [
+      {
+        "control_mae": 4.894957290008962,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.2069819983508854,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 6.58293258166704,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.6965646670150734,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.467507070137395,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.925622263892752,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.475555563864649,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.371869035065174,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.579242092664124,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.5086257265565175,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2916857401529946,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.72556571296004,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.4382385374513373,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4138604592945843,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.46261661560809,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.4369146325684854,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.354646823472447,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.519182441664523,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.2810384083220328,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.3139137633972697,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.248163053246795,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.1412579886859557,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.254283107817173,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.0282328695547385,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.1517094359046123,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.2527949810028076,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 4.050623890806417,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 3.1364942422316484,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.274705475403203,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 3.998283009060094,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 10000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/dataset",
+    "elapsed_s": 2120.892541885376,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 8, 11]",
+      "--dataset.eval_split=0.13636363636363635",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_basic_only_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10
+    ],
+    "independent_test_available": true
+  },
+  {
+    "status": "completed",
+    "finished_at": "2026-10-25T06:29:03.602600+00:00",
+    "config": {
+      "name": "native_act_f3_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 3,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    "effective_upstream_config": {
+      "dataset": {
+        "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+        "repo_type": "dataset",
+        "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/dataset",
+        "episodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13,
+          8,
+          11
+        ],
+        "image_transforms": {
+          "enable": false,
+          "max_num_transforms": 3,
+          "random_order": false,
+          "tfs": {
+            "brightness": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "brightness": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "contrast": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "contrast": [
+                  0.8,
+                  1.2
+                ]
+              }
+            },
+            "saturation": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "saturation": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "hue": {
+              "weight": 1.0,
+              "type": "ColorJitter",
+              "kwargs": {
+                "hue": [
+                  -0.05,
+                  0.05
+                ]
+              }
+            },
+            "sharpness": {
+              "weight": 1.0,
+              "type": "SharpnessJitter",
+              "kwargs": {
+                "sharpness": [
+                  0.5,
+                  1.5
+                ]
+              }
+            },
+            "affine": {
+              "weight": 1.0,
+              "type": "RandomAffine",
+              "kwargs": {
+                "degrees": [
+                  -5.0,
+                  5.0
+                ],
+                "translate": [
+                  0.05,
+                  0.05
+                ]
+              }
+            }
+          }
+        },
+        "revision": null,
+        "use_imagenet_stats": true,
+        "video_backend": "pyav",
+        "return_uint8": false,
+        "depth_output_unit": "mm",
+        "streaming": false,
+        "eval_split": 0.11538461538461539
+      },
+      "env": null,
+      "policy": {
+        "type": "act",
+        "n_obs_steps": 1,
+        "input_features": {
+          "observation.state": {
+            "type": "STATE",
+            "shape": [
+              6
+            ]
+          },
+          "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          },
+          "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+              3,
+              480,
+              640
+            ]
+          }
+        },
+        "output_features": {
+          "action": {
+            "type": "ACTION",
+            "shape": [
+              6
+            ]
+          }
+        },
+        "device": "cuda",
+        "use_amp": false,
+        "use_peft": false,
+        "push_to_hub": false,
+        "repo_id": null,
+        "private": null,
+        "tags": null,
+        "license": null,
+        "pretrained_path": null,
+        "pretrained_revision": null,
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "normalization_mapping": {
+          "VISUAL": "MEAN_STD",
+          "STATE": "MEAN_STD",
+          "ACTION": "MEAN_STD"
+        },
+        "vision_backbone": "resnet18",
+        "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+        "replace_final_stride_with_dilation": false,
+        "pre_norm": false,
+        "dim_model": 512,
+        "n_heads": 8,
+        "dim_feedforward": 3200,
+        "feedforward_activation": "relu",
+        "n_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "use_vae": true,
+        "latent_dim": 32,
+        "n_vae_encoder_layers": 4,
+        "temporal_ensemble_coeff": null,
+        "dropout": 0.1,
+        "kl_weight": 10.0,
+        "optimizer_lr": 1e-05,
+        "optimizer_weight_decay": 0.0001,
+        "optimizer_lr_backbone": 1e-05
+      },
+      "reward_model": null,
+      "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream",
+      "job_name": "act",
+      "resume": false,
+      "seed": 17,
+      "cudnn_deterministic": false,
+      "num_workers": 2,
+      "batch_size": 8,
+      "prefetch_factor": 2,
+      "persistent_workers": true,
+      "dataloader_multiprocessing_context": "spawn",
+      "steps": 10000,
+      "env_eval_freq": 0,
+      "log_freq": 100,
+      "eval_steps": 1000,
+      "max_eval_samples": 192,
+      "tolerance_s": 0.0001,
+      "save_checkpoint": true,
+      "save_freq": 1000,
+      "use_policy_training_preset": true,
+      "optimizer": {
+        "type": "adamw",
+        "lr": 1e-05,
+        "weight_decay": 0.0001,
+        "grad_clip_norm": 10.0,
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08
+      },
+      "scheduler": null,
+      "eval": {
+        "n_episodes": 50,
+        "batch_size": 16,
+        "use_async_envs": true,
+        "recording": false,
+        "recording_repo_id": null,
+        "recording_private": false
+      },
+      "wandb": {
+        "enable": false,
+        "disable_artifact": false,
+        "project": "lerobot",
+        "entity": null,
+        "notes": null,
+        "run_id": null,
+        "mode": null,
+        "add_tags": true
+      },
+      "peft": null,
+      "job": {
+        "target": null,
+        "image": "huggingface/lerobot-gpu:latest",
+        "timeout": "2d",
+        "detach": false,
+        "tags": []
+      },
+      "save_checkpoint_to_hub": false,
+      "sample_weighting": null,
+      "rename_map": {},
+      "checkpoint_path": null
+    },
+    "source_kind": "unmodified_lerobot_train",
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/009000/pretrained_model",
+    "best_validation_mae": 2.308149072794559,
+    "validation_checkpoints": [
+      {
+        "control_mae": 3.2674663215536346,
+        "per_episode": {
+          "8": {
+            "control_mae": 3.3529612777961626,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 3.1819713653111066,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/001000/pretrained_model",
+        "steps": 1000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.7492192951260046,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.8367410227656364,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.6616975674863723,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/002000/pretrained_model",
+        "steps": 2000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.5015104776367085,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.298659639639987,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.70436131563343,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/003000/pretrained_model",
+        "steps": 3000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.5891080403222086,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.469910857578119,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.7083052230662985,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/004000/pretrained_model",
+        "steps": 4000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.5242473725365215,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4758021934992738,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.572692551573769,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/005000/pretrained_model",
+        "steps": 5000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.5269134841818626,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4078599909941354,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.6459669773695897,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/006000/pretrained_model",
+        "steps": 6000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.4978074160742088,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.284504757159286,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.711110074989131,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/007000/pretrained_model",
+        "steps": 7000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.593564851877902,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.5551894737614527,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.6319402299943517,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/008000/pretrained_model",
+        "steps": 8000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.308149072794559,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.1965683636566005,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.419729781932518,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/009000/pretrained_model",
+        "steps": 9000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      },
+      {
+        "control_mae": 2.4591039220627757,
+        "per_episode": {
+          "8": {
+            "control_mae": 2.4072080668475895,
+            "frames": 72
+          },
+          "11": {
+            "control_mae": 2.510999777277962,
+            "frames": 61
+          }
+        },
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream/checkpoints/010000/pretrained_model",
+        "steps": 10000,
+        "learned_parameters": 51597190,
+        "input_features": {
+          "observation.state": [
+            6
+          ],
+          "observation.images.wrist": [
+            3,
+            480,
+            640
+          ],
+          "observation.images.top": [
+            3,
+            480,
+            640
+          ]
+        },
+        "metric": "Recording-balanced first-10-step motor MAE; not physical task success"
+      }
+    ],
+    "steps": 10000,
+    "selected_step": 9000,
+    "requested_steps": 10000,
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/dataset",
+    "elapsed_s": 2119.178938150406,
+    "upstream_exit_code": 0,
+    "command": [
+      "/home/team11/venv/omx_mujoco/bin/python",
+      "-m",
+      "lerobot.scripts.lerobot_train",
+      "--policy.type=act",
+      "--policy.device=cuda",
+      "--policy.push_to_hub=false",
+      "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+      "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/dataset",
+      "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 12, 13, 8, 11]",
+      "--dataset.eval_split=0.11538461538461539",
+      "--dataset.video_backend=pyav",
+      "--dataset.image_transforms.enable=false",
+      "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f3_correction_concat_seed17/upstream",
+      "--steps=10000",
+      "--batch_size=8",
+      "--seed=17",
+      "--save_freq=1000",
+      "--eval_steps=1000",
+      "--max_eval_samples=192",
+      "--log_freq=100",
+      "--env_eval_freq=0",
+      "--num_workers=2",
+      "--prefetch_factor=2",
+      "--wandb.enable=false"
+    ],
+    "normalization_fitted_on": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      12,
+      13
+    ],
+    "independent_test_available": true
+  }
+]

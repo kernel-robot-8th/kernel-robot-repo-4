@@ -1,13 +1,15 @@
 {
-  "status": "running",
+  "status": "completed",
   "started_at": "2026-10-25T01:45:24.474931+00:00",
   "deadline_epoch": 1792935924.474931,
   "pid": 2062292,
-  "phase": "native_training",
-  "current_job": "native_act_f0_basic_only_seed17",
+  "phase": "finished",
+  "current_job": null,
   "failures": [],
   "publication": "pending",
-  "updated_at": "2026-10-25T02:02:53.501531+00:00",
-  "completed_lightweight": 0,
-  "completed_native": 0
+  "updated_at": "2026-10-25T09:44:19.614769+00:00",
+  "completed_lightweight": 48,
+  "completed_native": 8,
+  "finished_at": "2026-10-25T09:44:19.614737+00:00",
+  "elapsed_s": 28735.13983273506
 }

@@ -1,0 +1,20 @@
+{
+  "selected_at": "2026-10-25T09:13:34.025052+00:00",
+  "lightweight": {
+    "family": "cnn",
+    "regime": "correction_concat",
+    "validation_mean": 1.217095703143963,
+    "trials": [
+      "cnn_f0_correction_concat_seed17",
+      "cnn_f0_correction_concat_seed42",
+      "cnn_f1_correction_concat_seed17",
+      "cnn_f1_correction_concat_seed42",
+      "cnn_f2_correction_concat_seed17",
+      "cnn_f2_correction_concat_seed42",
+      "cnn_f3_correction_concat_seed17",
+      "cnn_f3_correction_concat_seed42"
+    ]
+  },
+  "native": "correction_concat",
+  "basis": "Validation scores only; held-out evaluation follows"
+}
