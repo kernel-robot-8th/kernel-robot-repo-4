@@ -1,15 +1,17 @@
 {
   "pytest_integration": {
-    "passed": 15,
+    "passed": 17,
     "failed": 0,
     "skipped": 0
   },
   "colcon_build": "passed",
-  "colcon_test": "15 passed with --python-testing pytest",
+  "colcon_test": "17 passed with --python-testing pytest",
   "ruff": "passed",
   "synthetic_end_to_end": "3 model families, locked synthetic test, persistence baseline, actual MuJoCo rollout, montage and report passed",
   "smoke_metrics_are_not_real_dataset_results": true,
   "ament_flake8": "passed with package configuration",
   "ament_pep257": "passed",
-  "standalone_html": "embedded images decoded and JSON parsed; actual running trial evidence confirmed"
+  "standalone_html": "8 embedded images decoded; parameter guide, scene correction, and evidence JSON parsed",
+  "parameter_guide": "All recorded configuration keys covered; 36 trial rows; 3 actual best/last checkpoint comparisons",
+  "scene_count_correction": "15 original initial frames reviewed; 9 controlled demonstration replays; original model results explicitly marked as mismatched-scene evidence"
 }

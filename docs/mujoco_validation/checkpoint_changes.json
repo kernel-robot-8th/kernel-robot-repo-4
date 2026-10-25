@@ -1,0 +1,138 @@
+{
+  "models": [
+    {
+      "trial": "state_bc_8_seed97",
+      "training_config": {
+        "family": "state",
+        "horizon": 32,
+        "action_steps": 10,
+        "train_episodes": 8,
+        "dropout": 0.1,
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "batch_size": 24,
+        "max_steps": 30000,
+        "min_steps": 1000,
+        "patience": 10,
+        "validation_every": 250,
+        "augmentation": false,
+        "state_noise": 0,
+        "name": "state_bc_8_seed97",
+        "seed": 97
+      },
+      "best_step": 5750,
+      "last_saved_step": 8250,
+      "groups": [
+        {
+          "group": "관절 행동 출력 신경망",
+          "learned_scalars": 116928,
+          "mean_absolute_change": 0.01884752096007163,
+          "relative_l2_change_percent": 33.1008030841855
+        }
+      ],
+      "comparison": "Actual best.pt versus last.pt learned parameters; optimizer and buffers excluded"
+    },
+    {
+      "trial": "cnn_bc_8_seed17",
+      "training_config": {
+        "family": "cnn",
+        "horizon": 32,
+        "action_steps": 10,
+        "train_episodes": 8,
+        "dropout": 0.1,
+        "lr": 0.0003,
+        "weight_decay": 0.0001,
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "batch_size": 24,
+        "max_steps": 30000,
+        "min_steps": 1000,
+        "patience": 10,
+        "validation_every": 250,
+        "augmentation": false,
+        "state_noise": 0,
+        "name": "cnn_bc_8_seed17",
+        "seed": 17
+      },
+      "best_step": 5000,
+      "last_saved_step": 7500,
+      "groups": [
+        {
+          "group": "CNN 영상 인코더",
+          "learned_scalars": 175312,
+          "mean_absolute_change": 0.004937747706740308,
+          "relative_l2_change_percent": 22.052360381930118
+        },
+        {
+          "group": "관절 행동 출력 신경망",
+          "learned_scalars": 182464,
+          "mean_absolute_change": 0.006584377800349146,
+          "relative_l2_change_percent": 20.50566789409801
+        }
+      ],
+      "comparison": "Actual best.pt versus last.pt learned parameters; optimizer and buffers excluded"
+    },
+    {
+      "trial": "act_short_chunk_8_seed42",
+      "training_config": {
+        "family": "act",
+        "horizon": 16,
+        "action_steps": 5,
+        "train_episodes": 8,
+        "dropout": 0.1,
+        "lr": 0.0001,
+        "weight_decay": 0.0001,
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "batch_size": 24,
+        "max_steps": 30000,
+        "min_steps": 1000,
+        "patience": 10,
+        "validation_every": 250,
+        "augmentation": false,
+        "state_noise": 0,
+        "name": "act_short_chunk_8_seed42",
+        "seed": 42
+      },
+      "best_step": 10000,
+      "last_saved_step": 12500,
+      "groups": [
+        {
+          "group": "ACT 잠재 변수 인코더",
+          "learned_scalars": 406720,
+          "mean_absolute_change": 0.0006235884965207501,
+          "relative_l2_change_percent": 1.9406902230200922
+        },
+        {
+          "group": "ACT 영상 인코더",
+          "learned_scalars": 11166912,
+          "mean_absolute_change": 0.0021680160447416267,
+          "relative_l2_change_percent": 12.243022182771476
+        },
+        {
+          "group": "ACT 관측 변환기",
+          "learned_scalars": 467584,
+          "mean_absolute_change": 0.0012111652306516947,
+          "relative_l2_change_percent": 2.2914000745082226
+        },
+        {
+          "group": "ACT 행동 변환기",
+          "learned_scalars": 266880,
+          "mean_absolute_change": 0.0023444583851342056,
+          "relative_l2_change_percent": 2.839868818691617
+        },
+        {
+          "group": "ACT 입력·출력 투영 및 나머지 학습 가중치",
+          "learned_scalars": 774,
+          "mean_absolute_change": 0.001995669696363094,
+          "relative_l2_change_percent": 7.252445306586878
+        }
+      ],
+      "comparison": "Actual best.pt versus last.pt learned parameters; optimizer and buffers excluded"
+    }
+  ],
+  "initial_snapshot_available": false,
+  "limitation": "Initial weights were not saved. These are best-to-last changes, not initial-to-final changes. Magnitude is not a performance improvement measure."
+}

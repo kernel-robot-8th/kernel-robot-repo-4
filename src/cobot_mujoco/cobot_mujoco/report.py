@@ -7,6 +7,8 @@ from pathlib import Path
 
 from .analysis import summarize_results
 from .common import read_json, utc_now
+from .parameter_guide import checkpoint_html, parameter_html
+from .scene_review import review_html
 
 
 def escape(value):
@@ -69,6 +71,20 @@ def make_report(run, destination, evidence=None):
     final = read_json(run / "final_evaluation.json") if (run / "final_evaluation.json").exists() else []
     diagnostics = read_json(run / "diagnostics.json") if (run / "diagnostics.json").exists() else {}
     source = read_json(run / "data_manifest.json") if (run / "data_manifest.json").exists() else {}
+    review = (
+        read_json(run / "scene_count_review.json") if (run / "scene_count_review.json").exists() else None
+    )
+    correction_html = review_html(review)
+    if review and evidence:
+        correction_html += inline_image(
+            Path(evidence) / "box_count_proof.jpg", "원본 2번 녹화: 시작 시 박스 2개 → 첫 이동 뒤 20초에 1개"
+        )
+    schedule = read_json(run / "schedule.json") if (run / "schedule.json").exists() else None
+    guide, guide_data = parameter_html(trials, schedule["sweep"]) if schedule else ("", {})
+    weights = (
+        read_json(run / "checkpoint_changes.json") if (run / "checkpoint_changes.json").exists() else None
+    )
+    guide += checkpoint_html(weights)
     findings = summarize_results(trials, final, diagnostics)
     findings_rows = []
     for comparison in findings["scarcity"]:
@@ -91,6 +107,15 @@ def make_report(run, destination, evidence=None):
             "배치 성공. 이 결과와 실측 보정 조건이 해결되기 전에는 정책의 물리 성공률로 현장 성능을 판단할 수 없습니다.</li>"
         )
     pending = status.get("current_trial", "—")
+    elapsed = status.get("elapsed_s")
+    duration = (
+        f"{int(elapsed // 3600)}시간 {int(elapsed % 3600 // 60)}분" if elapsed is not None else "진행 중"
+    )
+    stop_labels = {
+        "validation_early_stopping": "검증 개선 중단으로 조기 종료",
+        "budget_exhausted": "시간 상한 도달",
+        "maximum_steps": "최대 학습 단계 도달",
+    }
     table_rows, curves = [], []
     for trial in trials:
         config = trial["config"]
@@ -102,7 +127,7 @@ def make_report(run, destination, evidence=None):
             f"<td>{config['family']}</td><td>{config['train_episodes']}</td><td>{config['seed']}</td>"
             f"<td>{trial['steps']:,}</td><td>{number(trial['elapsed_s'] / 60, 1)}분</td>"
             f"<td>{number(trial['best_validation_mae'])}</td><td>{number(gap)}</td>"
-            f"<td>{escape(trial['stop_reason'])}</td></tr>"
+            f"<td>{escape(stop_labels.get(trial['stop_reason'], trial['stop_reason']))}</td></tr>"
         )
         curves.append(
             f"<details><summary>{escape(config['name'])} · val {trial['best_validation_mae']:.3f}</summary>"
@@ -136,7 +161,9 @@ def make_report(run, destination, evidence=None):
         montage = (
             inline_image(
                 Path(evidence) / candidate["rollout_montage"],
-                "선택된 정책의 nominal 장면 · 시작, 25%, 50%, 75%, 종료",
+                "기존 정책 실행 · 기본 박스 3개 오류 장면 · 시작, 25%, 50%, 75%, 종료"
+                if review
+                else "선택된 정책의 nominal 장면 · 시작, 25%, 50%, 75%, 종료",
             )
             if evidence and candidate.get("rollout_montage")
             else ""
@@ -186,9 +213,19 @@ def make_report(run, destination, evidence=None):
             + "".join(
                 [
                     inline_image(evidence / "real_top.jpg", "실제 녹화 · top 카메라 · 에피소드 2 시작"),
-                    inline_image(evidence / "sim_top.jpg", "MuJoCo · 같은 초기 관절 자세 · top"),
+                    inline_image(
+                        evidence / "sim_top.jpg",
+                        "기존 MuJoCo · 박스 3개 오류 장면 · top"
+                        if review
+                        else "MuJoCo · 같은 초기 관절 자세 · top",
+                    ),
                     inline_image(evidence / "real_wrist.jpg", "실제 녹화 · wrist 카메라 · 에피소드 2 시작"),
-                    inline_image(evidence / "sim_wrist.jpg", "MuJoCo · 같은 초기 관절 자세 · wrist"),
+                    inline_image(
+                        evidence / "sim_wrist.jpg",
+                        "기존 MuJoCo · 박스 3개 오류 장면 · wrist"
+                        if review
+                        else "MuJoCo · 같은 초기 관절 자세 · wrist",
+                    ),
                 ]
             )
             + "</div>"
@@ -200,6 +237,9 @@ def make_report(run, destination, evidence=None):
         "trials": trials,
         "final_evaluation": final,
         "source": source,
+        "scene_count_review": review,
+        "parameter_guide": guide_data,
+        "checkpoint_changes": weights,
     }
     payload = json.dumps(raw, ensure_ascii=False, indent=2).replace("<", "\\u003c")
     completed = status.get("status") in {"completed", "completed_with_failures", "budget_reached", "stopped"}
@@ -218,6 +258,7 @@ h2{{font-size:24px;margin:42px 0 18px}}h3{{font-size:18px}}a,.green{{color:var(-
 details{{margin:10px 0;padding:14px 18px}}summary{{cursor:pointer}}svg{{max-width:760px;width:100%;display:block}}.legend{{font-size:12px;margin:0}}
 .images{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}figure{{margin:0;background:var(--panel);border-radius:12px;overflow:hidden}}img{{width:100%;display:block}}figcaption{{padding:10px 16px}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}}select{{background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px;margin-bottom:12px}}article{{margin:16px 0}}
+.guide{{white-space:normal;min-width:860px}}.guide td{{vertical-align:top;overflow-wrap:anywhere}}.guide td:first-child{{min-width:150px}}
 footer{{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:12px}}@media(max-width:800px){{.grid{{grid-template-columns:1fr 1fr}}.images{{grid-template-columns:1fr}}main{{padding:28px 16px}}h1{{font-size:28px}}}}
 </style></head><body><main>
 <div class="eyebrow">OMX • Recording-disjoint experiments • MuJoCo</div>
@@ -227,10 +268,12 @@ footer{{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:
 <div class="grid"><div class="card"><strong>{len(trials)}</strong><span>완료된 학습 실험 / 계획 {status.get("planned_trials", 36)}개</span></div>
 <div class="card"><strong>8 / 2 / 5</strong><span>학습 / 검증 / 잠금 테스트 녹화</span></div>
 <div class="card"><strong>{source.get("total_frames", 14292):,}</strong><span>원본 프레임 · 카메라 2대 · 30Hz</span></div>
-<div class="card"><strong>≤12시간</strong><span>전체 실행 상한 · 조기 종료·재개 지원</span></div></div>
+<div class="card"><strong>{duration}</strong><span>실제 실행 시간 · 허용 상한 12시간</span></div></div>
 <div class="warning"><strong>시뮬레이션은 아직 현장 검증을 통과하지 않았습니다.</strong><br>
 상자·작업대·원형 수신 로봇 치수와 카메라 외부 파라미터는 영상 기반 추정입니다. 제조사 모델의 관절 기하와
 실제 장면의 접촉·성공률 검증은 별개입니다. 아래 임시 물리 판정은 실물 성공률 또는 배포 승인으로 사용할 수 없습니다.</div>
+{correction_html}
+<p><a href='#parameter-guide'>학습 파라미터 설명서·실제 변경표로 이동</a></p>
 <h2>실제 영상과 재현 장면</h2>{evidence_html}
 <p class="muted">화면 공유 도구에 연결된 화면이 없어 저장된 카메라 영상을 확인했습니다. 초기 세션에는 쌓인 상자,
 나중 세션에는 한 개 상자와 바뀐 초기 팔 자세가 관찰됩니다. 이는 테스트 세션의 분포 변화입니다.</p>
@@ -240,6 +283,7 @@ footer{{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:
 <p>앞 10개 미래 제어 스텝의 검증 MAE로 각 모델 계열의 체크포인트를 고른 뒤 마지막에만 테스트를 엽니다.
 지표는 녹화별 평균을 다시 평균하며 bootstrap도 녹화 단위입니다. 관절 명령 오차는 물체 이동 성공률과 다릅니다.
 세 개 시드는 물체·실측 데이터 다양성을 추가하지 않습니다.</p></article>
+{guide}
 <h2>학습 비교 결과</h2><select id="family" aria-label="모델 계열"><option value="all">전체 계열</option><option>state</option><option>cnn</option><option>act</option></select>
 <div class="scroll"><table id="trials"><thead><tr><th>실험</th><th>계열</th><th>녹화 수</th><th>시드</th><th>스텝</th><th>시간</th><th>최저 검증 MAE</th><th>검증−학습 차이</th><th>종료 사유</th></tr></thead><tbody>
 {"".join(table_rows) or '<tr><td colspan="9">아직 완료된 실험이 없습니다. 실행 중 결과가 여기에 추가됩니다.</td></tr>'}</tbody></table></div>
@@ -256,13 +300,14 @@ footer{{margin-top:48px;border-top:1px solid var(--line);padding-top:18px;color:
 <ul>{"".join(findings_rows) or "<li>비교할 완료 실험을 기다리고 있습니다.</li>"}</ul>
 <p>실패 예제가 없으므로 실패 탐지기 정확도·재현율은 산출하지 않았습니다. 다른 초기 배치·조명·상자 수·실패 시연을 추가하고,
 시뮬레이터의 접촉·카메라 보정을 마친 뒤 독립 현장 시도로 확인해야 합니다.</p></article>
-<h2>잠금 테스트와 물리 시뮬레이션</h2>
+<h2>잠금 테스트와 기존 물리 평가 기록</h2>
+{'<p class="amber">아래 오프라인 오차는 실제 녹화로 계산한 값이고, 물리 평가·이미지는 정정 전의 기본 3개 장면과 1개 변화 조건 기록입니다. 박스 2개로 바로잡은 장면의 정책 성공률이 아닙니다.</p>' if review else ""}
 {"".join(final_sections) or '<p class="muted">학습·선택 완료 후 평가합니다. 현재 테스트 성능은 발표하지 않았습니다.</p>'}
 <article><p>물리 판정: 원래 위치에서 25mm 이상 들린 상자가 원형 수신대 내부에 완전히 들어가,
 손을 놓은 상태에서 속도 0.04m/s 미만으로 15프레임 유지되어야 합니다. 강제 부착·물체 텔레포트는 사용하지 않습니다.
 일반 장면, 위치 변화, 낮은 마찰, 무거운 상자, 카메라 변화, 한 개 상자를 고정된 시드로 비교합니다.
 초기 물체 배치가 결정적인 조건의 같은 시드 반복은 독립적인 현장 시도와 같지 않습니다.</p></article>
-<h2>기하·접촉 재생 검증</h2><details open><summary>현재 진단 기록</summary><pre>{escape(json.dumps(diagnostics, ensure_ascii=False, indent=2))}</pre></details>
+<h2>기하·접촉 재생 검증</h2><details open><summary>{"기존 실행의 진단 기록: 당시 기본 박스 3개" if review else "현재 진단 기록"}</summary><pre>{escape(json.dumps(diagnostics, ensure_ascii=False, indent=2))}</pre></details>
 <h2>출처·재현·남은 조건</h2><article>
 <p>원본 데이터 <a href="https://huggingface.co/datasets/{escape(source.get("source_repo", "Sungah/omx_1024_test_jihyeok_success"))}">Hugging Face</a> · Apache-2.0 ·
 리비전 <code>{escape(source.get("source_revision", "pending"))}</code>.<br>

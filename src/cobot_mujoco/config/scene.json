@@ -8,7 +8,7 @@
   "table_top": 0.12,
   "box_center_xy": [0.18, -0.008],
   "box_half_size": [0.03, 0.03, 0.02],
-  "box_count": 3,
+  "box_count": 2,
   "box_mass": 0.018,
   "friction": 1.2,
   "receiver_center_xy": [0.15, 0.205],

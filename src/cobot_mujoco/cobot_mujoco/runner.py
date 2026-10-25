@@ -54,7 +54,7 @@ def publish_report(report_dir):
                 "user.email=125938592+JiHyeokHeo@users.noreply.github.com",
                 "commit",
                 "-m",
-                "docs(cobot_mujoco): record bounded training and simulation results",
+                "[검증 보고서·결과 기록] 학습 및 시뮬레이션 평가 보고서 갱신",
             ],
             cwd=REPOSITORY,
             check=True,

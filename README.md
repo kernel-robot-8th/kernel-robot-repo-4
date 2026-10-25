@@ -45,6 +45,8 @@
 상태 BC·시각 CNN BC·ACT 학습을 녹화 단위로 비교합니다. 실제 장치에 연결하지 않는 독립 실험 패키지입니다.
 설치·최대 12시간 실행·중단·검증 절차는 [검증 문서](src/cobot_mujoco/docs/validation.md),
 결과는 [HTML 보고서](docs/mujoco_validation/report.html)를 보세요. 물리 환경은 아직 현장 검증을 통과하지 않았습니다.
+학습 설정의 기능·실제 변경값은 [파라미터 설명서](src/cobot_mujoco/docs/parameters.md)를 참고하세요.
+기존 기본 장면의 박스 3개 설정 오류를 2개로 정정했으며, 원래 0/108회는 동일 장면의 모델 성공률로 해석할 수 없습니다.
 
 도커로 하려면 [`docs/dev_docker_guide.md`](docs/dev_docker_guide.md)를 보세요. (도커를 처음 써도 이 문서부터 따라 하면 됩니다)
 
