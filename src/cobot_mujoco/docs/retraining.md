@@ -93,3 +93,22 @@ cat ~/omx_sim_runs/retraining_20261025/status.json
 ## MuJoCo의 남은 한계
 
 기본 박스 수는 2개로 수정했지만 성공 시연 명령의 물리 재생이 아직 배치를 재현하지 못한다. 이번 재학습의 효능을 보정 전 정책 성공률 0회로 판단하지 않는다. 실측 치수·카메라·접촉·모터 응답 보정을 거쳐 실제 성공 시연을 재현한 뒤 물리 성공률 검증을 진행해야 한다. 실제 로봇은 이 실행기에 연결하지 않는다.
+
+## 디스코드 30분 진행 알림
+
+사용자 요청에 따라 로컬 사용자 타이머 `omx-retraining-discord.timer`가 30분마다
+`cobot_mujoco.progress_notify`를 실행한다. 기존 웹훅 파일
+`~/.local/share/codex-discord/webhook`을 읽으며 웹훅 주소는 Git·로그·명령 인자에 넣지 않는다.
+누적 시간, 실제 완료 건수, 현재 작업·스텝, 감독기·학습기 생존 상태를 전송한다.
+직전 알림과 작업·스텝이 같으면 변화 없음 문구를 추가한다. Discord 응답의 메시지 ID를
+실행 폴더 `discord_notification.json`에 기록해 전달 성공을 확인한다.
+
+정기 확인에서 전체 실행 종료를 확인하면 최종 상태를 보내고 타이머를 자동 해제한다.
+감독기 중단도 알림에 표시하며, 12시간 상한 이후 1시간이 지났고 감독기도 종료된 경우에는
+마지막 상태를 보내고 알림을 멈춘다. 이 타이머는 현재 PC의 사용자 세션에서 동작한다.
+
+```bash
+systemctl --user list-timers --all omx-retraining-discord.timer
+journalctl --user -u omx-retraining-discord.service -n 10 --no-pager
+systemctl --user disable --now omx-retraining-discord.timer  # 알림만 중단
+```
