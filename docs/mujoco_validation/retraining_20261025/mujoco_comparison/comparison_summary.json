@@ -1,0 +1,9 @@
+{
+  "policy_runs": 66,
+  "hold_runs": 6,
+  "recorded_replays": 6,
+  "policy_stable_placement": 0,
+  "replay_stable_placement": 0,
+  "calibration_passed": false,
+  "all_rollouts_completed": true
+}

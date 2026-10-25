@@ -1,0 +1,16 @@
+{
+  "verified_at": "2026-10-25T10:28:11.441134+00:00",
+  "rollouts_completed": 72,
+  "steps_per_rollout": 1500,
+  "simulated_seconds_per_rollout": 50,
+  "recorded_replays": 6,
+  "mp4_count": 24,
+  "all_mp4_seconds": 50,
+  "montages": 72,
+  "learning_curves": 56,
+  "tests_passed": 25,
+  "lint": "passed",
+  "html_links_assets_and_render": "passed",
+  "adapter_smoke": "native ACT and lightweight ACT real MuJoCo execution passed",
+  "scene_calibration_passed": false
+}

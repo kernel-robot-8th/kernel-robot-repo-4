@@ -1,0 +1,73 @@
+[
+  {
+    "family": "act",
+    "all_data_refit": false,
+    "jobs": 24,
+    "actual_min": 6750,
+    "actual_max": 20000,
+    "selected_min": 4250,
+    "selected_max": 19750,
+    "total_optimizer_updates": 330250,
+    "target_reached_count": 3,
+    "stop_reasons": {
+      "maximum_steps": 3,
+      "validation_early_stopping": 21
+    }
+  },
+  {
+    "family": "cnn",
+    "all_data_refit": false,
+    "jobs": 24,
+    "actual_min": 4750,
+    "actual_max": 10500,
+    "selected_min": 2250,
+    "selected_max": 8000,
+    "total_optimizer_updates": 175750,
+    "target_reached_count": 0,
+    "stop_reasons": {
+      "validation_early_stopping": 24
+    }
+  },
+  {
+    "family": "cnn",
+    "all_data_refit": true,
+    "jobs": 1,
+    "actual_min": 5625,
+    "actual_max": 5625,
+    "selected_min": 5625,
+    "selected_max": 5625,
+    "total_optimizer_updates": 5625,
+    "target_reached_count": 1,
+    "stop_reasons": {
+      "completed": 1
+    }
+  },
+  {
+    "family": "native_act",
+    "all_data_refit": false,
+    "jobs": 8,
+    "actual_min": 10000,
+    "actual_max": 10000,
+    "selected_min": 8000,
+    "selected_max": 10000,
+    "total_optimizer_updates": 80000,
+    "target_reached_count": 8,
+    "stop_reasons": {
+      "completed": 8
+    }
+  },
+  {
+    "family": "native_act",
+    "all_data_refit": true,
+    "jobs": 1,
+    "actual_min": 8500,
+    "actual_max": 8500,
+    "selected_min": 8500,
+    "selected_max": 8500,
+    "total_optimizer_updates": 8500,
+    "target_reached_count": 1,
+    "stop_reasons": {
+      "completed": 1
+    }
+  }
+]
