@@ -1,0 +1,99 @@
+{
+  "protocol_version": "user_collection_roles_v2",
+  "maximum_hours": 12,
+  "trial_budget_seconds": 600,
+  "finalization_reserve_seconds": 5400,
+  "seeds": [
+    17,
+    42
+  ],
+  "basic_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "correction_ids": [
+    11,
+    12,
+    13,
+    14
+  ],
+  "basic_train_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    10
+  ],
+  "basic_validation_ids": [
+    8
+  ],
+  "basic_test_ids": [
+    9
+  ],
+  "regimes": [
+    "basic_only",
+    "correction_concat",
+    "correction_balanced"
+  ],
+  "base": {
+    "horizon": 16,
+    "action_steps": 5,
+    "dropout": 0.1,
+    "lr": 0.0001,
+    "weight_decay": 0.0001,
+    "dim_model": 128,
+    "dim_feedforward": 512,
+    "batch_size": 24,
+    "max_steps": 20000,
+    "min_steps": 1500,
+    "patience": 10,
+    "validation_every": 250,
+    "augmentation": false,
+    "state_noise": 0
+  },
+  "families": [
+    {
+      "family": "cnn",
+      "lr": 0.0003
+    },
+    {
+      "family": "act",
+      "lr": 0.0001
+    }
+  ],
+  "native": {
+    "steps": 10000,
+    "save_freq": 1000,
+    "batch_size": 8,
+    "trial_budget_seconds": 2400,
+    "seed": 17,
+    "architecture": "Unmodified LeRobot ACT defaults: 640x480, dim_model 512, feedforward 3200, encoder 4, chunk 100",
+    "regimes": [
+      "basic_only",
+      "correction_concat"
+    ],
+    "refit_budget_seconds": 2400
+  },
+  "refit": {
+    "seed": 17,
+    "minimum_steps": 1500,
+    "maximum_steps": 20000,
+    "budget_seconds": 1800,
+    "selection": "Choose supplementary-data family/regime using validation means only; fixed-duration refit on all 15 recordings; no independent final test remains."
+  },
+  "simulation_policy": "Do not publish policy task success until recorded-success replay and physical calibration gates pass.",
+  "interpretation": "Four supplementary recording folds; each holds out one for validation and one for evaluation, trains on the remaining two. This is exploratory cross-validation on already inspected collected data, not a newly collected independent test."
+}

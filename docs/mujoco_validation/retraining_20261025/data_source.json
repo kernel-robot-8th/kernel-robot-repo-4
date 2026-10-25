@@ -1,0 +1,8 @@
+{
+  "repository": "Sungah/omx_1024_test_jihyeok_success",
+  "revision": "3502381b21fe15eae125dc36570779737ca85a71",
+  "local_source": "/home/team11/omx_sim_data/omx_1024_test_jihyeok_success",
+  "decoded_cache": "/home/team11/omx_sim_data/cache_v1",
+  "active_partition": "Per-trial split_plan in frozen_trial_plan.json",
+  "legacy_cache_partition_labels_used": false
+}

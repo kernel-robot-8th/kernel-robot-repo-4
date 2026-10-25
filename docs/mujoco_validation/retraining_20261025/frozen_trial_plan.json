@@ -1,0 +1,3171 @@
+{
+  "frozen_at": "2026-10-25T01:45:24.474931+00:00",
+  "lightweight": [
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f0_basic_only_seed17",
+      "seed": 17,
+      "fold": 0,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f0_correction_concat_seed17",
+      "seed": 17,
+      "fold": 0,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f0_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 0,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f0_basic_only_seed17",
+      "seed": 17,
+      "fold": 0,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f0_correction_concat_seed17",
+      "seed": 17,
+      "fold": 0,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f0_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 0,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f1_basic_only_seed17",
+      "seed": 17,
+      "fold": 1,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f1_correction_concat_seed17",
+      "seed": 17,
+      "fold": 1,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f1_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 1,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f1_basic_only_seed17",
+      "seed": 17,
+      "fold": 1,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f1_correction_concat_seed17",
+      "seed": 17,
+      "fold": 1,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f1_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 1,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f2_basic_only_seed17",
+      "seed": 17,
+      "fold": 2,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f2_correction_concat_seed17",
+      "seed": 17,
+      "fold": 2,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f2_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 2,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f2_basic_only_seed17",
+      "seed": 17,
+      "fold": 2,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f2_correction_concat_seed17",
+      "seed": 17,
+      "fold": 2,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f2_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 2,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f3_basic_only_seed17",
+      "seed": 17,
+      "fold": 3,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f3_correction_concat_seed17",
+      "seed": 17,
+      "fold": 3,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f3_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 3,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f3_basic_only_seed17",
+      "seed": 17,
+      "fold": 3,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f3_correction_concat_seed17",
+      "seed": 17,
+      "fold": 3,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f3_correction_balanced_seed17",
+      "seed": 17,
+      "fold": 3,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f0_basic_only_seed42",
+      "seed": 42,
+      "fold": 0,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f0_correction_concat_seed42",
+      "seed": 42,
+      "fold": 0,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f0_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 0,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f0_basic_only_seed42",
+      "seed": 42,
+      "fold": 0,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f0_correction_concat_seed42",
+      "seed": 42,
+      "fold": 0,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f0_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 0,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "correction_train_ids": [
+        13,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f1_basic_only_seed42",
+      "seed": 42,
+      "fold": 1,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f1_correction_concat_seed42",
+      "seed": 42,
+      "fold": 1,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f1_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 1,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f1_basic_only_seed42",
+      "seed": 42,
+      "fold": 1,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f1_correction_concat_seed42",
+      "seed": 42,
+      "fold": 1,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f1_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 1,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        14
+      ],
+      "correction_train_ids": [
+        11,
+        14
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f2_basic_only_seed42",
+      "seed": 42,
+      "fold": 2,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f2_correction_concat_seed42",
+      "seed": 42,
+      "fold": 2,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f2_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 2,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f2_basic_only_seed42",
+      "seed": 42,
+      "fold": 2,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f2_correction_concat_seed42",
+      "seed": 42,
+      "fold": 2,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f2_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 2,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        11,
+        12
+      ],
+      "correction_train_ids": [
+        11,
+        12
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f3_basic_only_seed42",
+      "seed": 42,
+      "fold": 3,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f3_correction_concat_seed42",
+      "seed": 42,
+      "fold": 3,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "cnn",
+      "name": "cnn_f3_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 3,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f3_basic_only_seed42",
+      "seed": 42,
+      "fold": 3,
+      "regime": "basic_only",
+      "train_episodes": 9,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "correction_train_ids": [],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f3_correction_concat_seed42",
+      "seed": 42,
+      "fold": 3,
+      "regime": "correction_concat",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "uniform",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "horizon": 16,
+      "action_steps": 5,
+      "dropout": 0.1,
+      "lr": 0.0001,
+      "weight_decay": 0.0001,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "batch_size": 24,
+      "max_steps": 20000,
+      "min_steps": 1500,
+      "patience": 10,
+      "validation_every": 250,
+      "augmentation": false,
+      "state_noise": 0,
+      "family": "act",
+      "name": "act_f3_correction_balanced_seed42",
+      "seed": 42,
+      "fold": 3,
+      "regime": "correction_balanced",
+      "train_episodes": 11,
+      "train_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        12,
+        13
+      ],
+      "correction_train_ids": [
+        12,
+        13
+      ],
+      "sampling": "correction_balanced",
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    }
+  ],
+  "native": [
+    {
+      "name": "native_act_f0_basic_only_seed17",
+      "family": "native_act",
+      "fold": 0,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "name": "native_act_f0_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 0,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    },
+    {
+      "name": "native_act_f1_basic_only_seed17",
+      "family": "native_act",
+      "fold": 1,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "name": "native_act_f1_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 1,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          14
+        ],
+        "validation": [
+          8,
+          13
+        ],
+        "test": [
+          9,
+          12
+        ]
+      }
+    },
+    {
+      "name": "native_act_f2_basic_only_seed17",
+      "family": "native_act",
+      "fold": 2,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "name": "native_act_f2_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 2,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          11,
+          12
+        ],
+        "validation": [
+          8,
+          14
+        ],
+        "test": [
+          9,
+          13
+        ]
+      }
+    },
+    {
+      "name": "native_act_f3_basic_only_seed17",
+      "family": "native_act",
+      "fold": 3,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    },
+    {
+      "name": "native_act_f3_correction_concat_seed17",
+      "family": "native_act",
+      "fold": 3,
+      "regime": "correction_concat",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          12,
+          13
+        ],
+        "validation": [
+          8,
+          11
+        ],
+        "test": [
+          9,
+          14
+        ]
+      }
+    }
+  ],
+  "base_collection": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "supplementary_collection": [
+    11,
+    12,
+    13,
+    14
+  ],
+  "independent_new_test_available": false
+}

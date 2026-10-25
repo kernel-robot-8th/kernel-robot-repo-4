@@ -1,0 +1,21 @@
+{
+  "lerobot_version": "0.6.1",
+  "train_module": "/home/team11/venv/lerobot061/lib/python3.12/site-packages/lerobot/scripts/lerobot_train.py",
+  "train_source_sha256": "059bda054bbb188d4a40d0a32941aa4d9ac59252a37d67a258e685a0a6d063ec",
+  "upstream_training_code_modified": false,
+  "architecture": {
+    "dim_model": 512,
+    "dim_feedforward": 3200,
+    "n_encoder_layers": 4,
+    "n_decoder_layers": 1,
+    "n_vae_encoder_layers": 4,
+    "chunk_size": 100,
+    "n_action_steps": 100,
+    "images": [
+      3,
+      480,
+      640
+    ],
+    "optimizer_lr": 1e-05
+  }
+}
