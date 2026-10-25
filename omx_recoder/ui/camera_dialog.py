@@ -56,13 +56,15 @@ class CameraPickerDialog(QDialog):
                 thumb.setPixmap(to_pixmap(cam["frame"], 320, 240))
             else:
                 thumb.setText("프레임 없음")
-            info = QLabel(f"{cam['id']}\n{cam['width']}x{cam['height']} @ {cam['fps']:.0f}fps" if cam["fps"] else str(cam["id"]))
+            name = f"{cam['id']} ({cam['alias']})" if cam["alias"] else str(cam["id"])
+            info = QLabel(f"{name}\n{cam['width']}x{cam['height']} @ {cam['fps']:.0f}fps" if cam["fps"] else name)
             combo = QComboBox()
             combo.addItems([NONE_ROLE, *CAMERA_ROLES])
-            role = cur_ids.get(str(cam["id"]))
+            role = cur_ids.get(str(cam["id"])) or cur_ids.get(str(cam["alias"])) or cam["alias_role"]
             if role:
                 combo.setCurrentText(role)
-            self.combos.append((cam["id"], combo))
+            # Save the udev alias when present so the role survives /dev/videoN renumbering.
+            self.combos.append((cam["alias"] or cam["id"], combo))
             r, c = divmod(i, 2)
             box = QVBoxLayout()
             w = QWidget()

@@ -431,8 +431,8 @@ class MainWindow(QMainWindow):
         errs = self.cameras.connect(self.cfg["cameras"])
         for e in errs:
             self._log(e, error=True)
-        roles = self.cameras.roles
-        self._log(f"카메라 연결: {', '.join(roles) if roles else '없음'}")
+        paths = self.cameras.paths
+        self._log(f"카메라 연결: {', '.join(f'{r}({p})' for r, p in paths.items()) if paths else '없음'}")
 
     def _find_cameras(self):
         if self.ctrl.running:

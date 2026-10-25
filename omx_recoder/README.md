@@ -37,6 +37,7 @@ python main.py
 **설정 탭**에서 진행합니다.
 
 1. `카메라 찾기` → 미리보기를 보고 각 카메라를 `wrist` / `top`으로 지정
+   - udev 별칭(`/dev/cam_wrist`, `/dev/cam_top`, `~/il_ws/udev/install.sh`)이 있으면 역할이 미리 선택되고 별칭 경로로 저장됩니다. 경로 칸이 비어 있어도 별칭이 있으면 자동으로 연결합니다.
 2. `로그인 확인` → Hugging Face 토큰 입력 (write 권한, HF 업로드할 때만 필요)
 3. `설정 저장`
 
