@@ -1,0 +1,16 @@
+{
+  "verified_at": "2026-10-25T11:02:37.314469+00:00",
+  "tests_passed": 28,
+  "build": "passed",
+  "lint": "passed",
+  "new_rollouts": 144,
+  "new_replays": 12,
+  "new_videos": 48,
+  "all_videos_seconds": 50,
+  "raw_state_policy_diagnostics": "9 observed states x 3 profiles x 2 frozen models",
+  "visual_ablation_dynamics": "Original vs visual trajectories equal within 1e-9 in integration test",
+  "total_box_mass_preserved": true,
+  "html_links_and_render": "passed",
+  "canonical_default": "scene_appearance_v2",
+  "physical_grasp_success": false
+}

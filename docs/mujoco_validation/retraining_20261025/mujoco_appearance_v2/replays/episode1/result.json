@@ -1,0 +1,18 @@
+{
+  "box_count": 2,
+  "success_any_box": false,
+  "success_all_boxes": false,
+  "placed_boxes": 0,
+  "lifted_boxes": 0,
+  "max_lift_m": 0.020250826946047212,
+  "contact_frames": 1332,
+  "force_saturation_fraction": 0.27927927927927926,
+  "mean_target_jump_normalized": 0.4833458098932722,
+  "steps": 1332,
+  "scene_validated": false,
+  "real_world_success_claim_allowed": false,
+  "episode": 1,
+  "ee_tracking_rmse_m": 0.01170093119731076,
+  "joint_tracking_mae": 0.8336998224258423,
+  "mode": "recorded_action_replay_through_dynamics"
+}

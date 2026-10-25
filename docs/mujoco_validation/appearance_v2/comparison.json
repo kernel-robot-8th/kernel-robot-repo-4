@@ -1,0 +1,2138 @@
+{
+  "generated_at": "2026-10-25T11:01:36.015401+00:00",
+  "summary": [
+    {
+      "profile": "before",
+      "status": "completed",
+      "policy_runs": 66,
+      "hold_runs": 6,
+      "stable_placements": 0,
+      "finger_box_contact_frames": 96,
+      "lifted_runs": 1,
+      "replays": 6,
+      "replay_successes": 0,
+      "rgb_print_detections": 0,
+      "rgb_cases": 9
+    },
+    {
+      "profile": "visual",
+      "status": "completed",
+      "policy_runs": 66,
+      "hold_runs": 6,
+      "stable_placements": 0,
+      "finger_box_contact_frames": 1060,
+      "lifted_runs": 0,
+      "replays": 6,
+      "replay_successes": 0,
+      "rgb_print_detections": 8,
+      "rgb_cases": 9
+    },
+    {
+      "profile": "v2",
+      "status": "completed",
+      "policy_runs": 66,
+      "hold_runs": 6,
+      "stable_placements": 0,
+      "finger_box_contact_frames": 878,
+      "lifted_runs": 0,
+      "replays": 6,
+      "replay_successes": 0,
+      "rgb_print_detections": 8,
+      "rgb_cases": 9
+    }
+  ],
+  "probe": {
+    "scope": "Inspected-recording diagnostic; RGB-only matcher is not fed to ACT/CNN. Same state, frozen weights, changing camera inputs. Not a semantic recognition or task success certificate.",
+    "camera_fit_recordings": [
+      0,
+      11
+    ],
+    "additional_inspected_recording": 2,
+    "image_cases": [
+      {
+        "case": "ep0_0s",
+        "episode": 0,
+        "seconds": 0,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 38,
+          "matches": 74,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6869201660156,
+              266.7405090332031
+            ],
+            [
+              387.68109130859375,
+              143.92005920410156
+            ],
+            [
+              515.4052124023438,
+              140.24807739257812
+            ],
+            [
+              539.3832397460938,
+              261.64453125
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 8,
+          "matches": 18,
+          "template": "lid_two",
+          "polygon": [
+            [
+              313.3432922363281,
+              386.1102294921875
+            ],
+            [
+              320.0086975097656,
+              388.1001281738281
+            ],
+            [
+              315.96783447265625,
+              386.36871337890625
+            ],
+            [
+              317.59857177734375,
+              386.9277038574219
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep0_0s",
+        "episode": 0,
+        "seconds": 0,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 38,
+          "matches": 74,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6869201660156,
+              266.7405090332031
+            ],
+            [
+              387.68109130859375,
+              143.92005920410156
+            ],
+            [
+              515.4052124023438,
+              140.24807739257812
+            ],
+            [
+              539.3832397460938,
+              261.64453125
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 32,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.9852836879432624
+      },
+      {
+        "case": "ep0_0s",
+        "episode": 0,
+        "seconds": 0,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 38,
+          "matches": 74,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6869201660156,
+              266.7405090332031
+            ],
+            [
+              387.68109130859375,
+              143.92005920410156
+            ],
+            [
+              515.4052124023438,
+              140.24807739257812
+            ],
+            [
+              539.3832397460938,
+              261.64453125
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 32,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.9852836879432624
+      },
+      {
+        "case": "ep0_5s",
+        "episode": 0,
+        "seconds": 5,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 25,
+          "matches": 48,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.4523010253906,
+              267.1610412597656
+            ],
+            [
+              387.3836975097656,
+              143.50755310058594
+            ],
+            [
+              515.5210571289062,
+              140.12008666992188
+            ],
+            [
+              539.2683715820312,
+              261.987060546875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 8,
+          "matches": 41,
+          "template": "lid_two",
+          "polygon": [
+            [
+              456.02288818359375,
+              411.54901123046875
+            ],
+            [
+              460.7957763671875,
+              438.2912292480469
+            ],
+            [
+              466.05126953125,
+              406.1279296875
+            ],
+            [
+              454.0860900878906,
+              415.692626953125
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep0_5s",
+        "episode": 0,
+        "seconds": 5,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 25,
+          "matches": 48,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.4523010253906,
+              267.1610412597656
+            ],
+            [
+              387.3836975097656,
+              143.50755310058594
+            ],
+            [
+              515.5210571289062,
+              140.12008666992188
+            ],
+            [
+              539.2683715820312,
+              261.987060546875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 39,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.9815196280383732
+      },
+      {
+        "case": "ep0_5s",
+        "episode": 0,
+        "seconds": 5,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 25,
+          "matches": 48,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.4523010253906,
+              267.1610412597656
+            ],
+            [
+              387.3836975097656,
+              143.50755310058594
+            ],
+            [
+              515.5210571289062,
+              140.12008666992188
+            ],
+            [
+              539.2683715820312,
+              261.987060546875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 39,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.9815196280383732
+      },
+      {
+        "case": "ep0_10s",
+        "episode": 0,
+        "seconds": 10,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 21,
+          "matches": 51,
+          "template": "lid_two",
+          "polygon": [
+            [
+              398.51123046875,
+              266.5526428222656
+            ],
+            [
+              386.10589599609375,
+              141.74241638183594
+            ],
+            [
+              515.7702026367188,
+              140.1739959716797
+            ],
+            [
+              536.5939331054688,
+              260.7448425292969
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 5,
+          "matches": 26,
+          "template": "lid_two",
+          "polygon": [
+            [
+              457.4787292480469,
+              298.3726806640625
+            ],
+            [
+              425.6111145019531,
+              273.413818359375
+            ],
+            [
+              436.59857177734375,
+              277.4886474609375
+            ],
+            [
+              430.6905822753906,
+              273.8138732910156
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep0_10s",
+        "episode": 0,
+        "seconds": 10,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 21,
+          "matches": 51,
+          "template": "lid_two",
+          "polygon": [
+            [
+              398.51123046875,
+              266.5526428222656
+            ],
+            [
+              386.10589599609375,
+              141.74241638183594
+            ],
+            [
+              515.7702026367188,
+              140.1739959716797
+            ],
+            [
+              536.5939331054688,
+              260.7448425292969
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 39,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.9848754448398577
+      },
+      {
+        "case": "ep0_10s",
+        "episode": 0,
+        "seconds": 10,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 21,
+          "matches": 51,
+          "template": "lid_two",
+          "polygon": [
+            [
+              398.51123046875,
+              266.5526428222656
+            ],
+            [
+              386.10589599609375,
+              141.74241638183594
+            ],
+            [
+              515.7702026367188,
+              140.1739959716797
+            ],
+            [
+              536.5939331054688,
+              260.7448425292969
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 39,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.9848754448398577
+      },
+      {
+        "case": "ep2_0s",
+        "episode": 2,
+        "seconds": 0,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 14,
+          "matches": 35,
+          "template": "lid_two",
+          "polygon": [
+            [
+              513.6923828125,
+              124.77550506591797
+            ],
+            [
+              530.7426147460938,
+              243.92709350585938
+            ],
+            [
+              396.5021667480469,
+              249.6679229736328
+            ],
+            [
+              380.5738525390625,
+              126.97848510742188
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 6,
+          "matches": 14,
+          "template": "lid_two",
+          "polygon": [
+            [
+              509.3419189453125,
+              391.70587158203125
+            ],
+            [
+              470.9873962402344,
+              399.45965576171875
+            ],
+            [
+              494.5307922363281,
+              390.5790710449219
+            ],
+            [
+              485.6958312988281,
+              392.52874755859375
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep2_0s",
+        "episode": 2,
+        "seconds": 0,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 14,
+          "matches": 35,
+          "template": "lid_two",
+          "polygon": [
+            [
+              513.6923828125,
+              124.77550506591797
+            ],
+            [
+              530.7426147460938,
+              243.92709350585938
+            ],
+            [
+              396.5021667480469,
+              249.6679229736328
+            ],
+            [
+              380.5738525390625,
+              126.97848510742188
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 18,
+          "matches": 38,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6363830566406,
+              266.17205810546875
+            ],
+            [
+              386.9201354980469,
+              142.6263885498047
+            ],
+            [
+              515.289306640625,
+              140.1857452392578
+            ],
+            [
+              537.0867919921875,
+              261.0707702636719
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.7386078595317725
+      },
+      {
+        "case": "ep2_0s",
+        "episode": 2,
+        "seconds": 0,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 14,
+          "matches": 35,
+          "template": "lid_two",
+          "polygon": [
+            [
+              513.6923828125,
+              124.77550506591797
+            ],
+            [
+              530.7426147460938,
+              243.92709350585938
+            ],
+            [
+              396.5021667480469,
+              249.6679229736328
+            ],
+            [
+              380.5738525390625,
+              126.97848510742188
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 18,
+          "matches": 38,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6363830566406,
+              266.17205810546875
+            ],
+            [
+              386.9201354980469,
+              142.6263885498047
+            ],
+            [
+              515.289306640625,
+              140.1857452392578
+            ],
+            [
+              537.0867919921875,
+              261.0707702636719
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.7386078595317725
+      },
+      {
+        "case": "ep2_5s",
+        "episode": 2,
+        "seconds": 5,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 8,
+          "matches": 42,
+          "template": "lid_two",
+          "polygon": [
+            [
+              115.3408203125,
+              179.62623596191406
+            ],
+            [
+              116.96249389648438,
+              177.24765014648438
+            ],
+            [
+              115.86593627929688,
+              175.35598754882812
+            ],
+            [
+              117.506591796875,
+              177.3362579345703
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 5,
+          "matches": 25,
+          "template": "lid_two",
+          "polygon": [
+            [
+              575.7451782226562,
+              419.5144958496094
+            ],
+            [
+              533.2147827148438,
+              374.2237548828125
+            ],
+            [
+              536.5265502929688,
+              394.7181701660156
+            ],
+            [
+              3634.40380859375,
+              214.9007568359375
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep2_5s",
+        "episode": 2,
+        "seconds": 5,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 8,
+          "matches": 42,
+          "template": "lid_two",
+          "polygon": [
+            [
+              115.3408203125,
+              179.62623596191406
+            ],
+            [
+              116.96249389648438,
+              177.24765014648438
+            ],
+            [
+              115.86593627929688,
+              175.35598754882812
+            ],
+            [
+              117.506591796875,
+              177.3362579345703
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 36,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep2_5s",
+        "episode": 2,
+        "seconds": 5,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 8,
+          "matches": 42,
+          "template": "lid_two",
+          "polygon": [
+            [
+              115.3408203125,
+              179.62623596191406
+            ],
+            [
+              116.96249389648438,
+              177.24765014648438
+            ],
+            [
+              115.86593627929688,
+              175.35598754882812
+            ],
+            [
+              117.506591796875,
+              177.3362579345703
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 36,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep2_10s",
+        "episode": 2,
+        "seconds": 10,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 9,
+          "matches": 38,
+          "template": "lid_two",
+          "polygon": [
+            [
+              554.02001953125,
+              109.80524444580078
+            ],
+            [
+              554.7443237304688,
+              109.11012268066406
+            ],
+            [
+              555.322509765625,
+              108.5422134399414
+            ],
+            [
+              554.8224487304688,
+              109.03901672363281
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 11,
+          "matches": 20,
+          "template": "lid_two",
+          "polygon": [
+            [
+              325.7276306152344,
+              225.65281677246094
+            ],
+            [
+              325.3992614746094,
+              225.67645263671875
+            ],
+            [
+              325.5868225097656,
+              225.69688415527344
+            ],
+            [
+              325.5057067871094,
+              225.69534301757812
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep2_10s",
+        "episode": 2,
+        "seconds": 10,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 9,
+          "matches": 38,
+          "template": "lid_two",
+          "polygon": [
+            [
+              554.02001953125,
+              109.80524444580078
+            ],
+            [
+              554.7443237304688,
+              109.11012268066406
+            ],
+            [
+              555.322509765625,
+              108.5422134399414
+            ],
+            [
+              554.8224487304688,
+              109.03901672363281
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 36,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep2_10s",
+        "episode": 2,
+        "seconds": 10,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 9,
+          "matches": 38,
+          "template": "lid_two",
+          "polygon": [
+            [
+              554.02001953125,
+              109.80524444580078
+            ],
+            [
+              554.7443237304688,
+              109.11012268066406
+            ],
+            [
+              555.322509765625,
+              108.5422134399414
+            ],
+            [
+              554.8224487304688,
+              109.03901672363281
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 19,
+          "matches": 36,
+          "template": "lid_two",
+          "polygon": [
+            [
+              397.6601867675781,
+              266.1407165527344
+            ],
+            [
+              386.88446044921875,
+              142.63720703125
+            ],
+            [
+              515.3118896484375,
+              140.18435668945312
+            ],
+            [
+              537.0560913085938,
+              261.0474548339844
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_0s",
+        "episode": 11,
+        "seconds": 0,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 6,
+          "matches": 18,
+          "template": "lid_two",
+          "polygon": [
+            [
+              597.31201171875,
+              452.8962097167969
+            ],
+            [
+              590.3846435546875,
+              399.8009338378906
+            ],
+            [
+              585.2823486328125,
+              430.0645446777344
+            ],
+            [
+              582.8587646484375,
+              422.0576171875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 5,
+          "matches": 16,
+          "template": "lid_two",
+          "polygon": [
+            [
+              288.72698974609375,
+              433.18988037109375
+            ],
+            [
+              1046.7939453125,
+              -411.6812744140625
+            ],
+            [
+              318.17681884765625,
+              407.6236267089844
+            ],
+            [
+              402.2298278808594,
+              314.7528381347656
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_0s",
+        "episode": 11,
+        "seconds": 0,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 6,
+          "matches": 18,
+          "template": "lid_two",
+          "polygon": [
+            [
+              597.31201171875,
+              452.8962097167969
+            ],
+            [
+              590.3846435546875,
+              399.8009338378906
+            ],
+            [
+              585.2823486328125,
+              430.0645446777344
+            ],
+            [
+              582.8587646484375,
+              422.0576171875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 7,
+          "matches": 11,
+          "template": "lid_one",
+          "polygon": [
+            [
+              349.3791809082031,
+              218.92987060546875
+            ],
+            [
+              344.5001525878906,
+              119.39557647705078
+            ],
+            [
+              457.57281494140625,
+              118.27863311767578
+            ],
+            [
+              475.3297424316406,
+              215.58164978027344
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_0s",
+        "episode": 11,
+        "seconds": 0,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": false,
+          "inliers": 6,
+          "matches": 18,
+          "template": "lid_two",
+          "polygon": [
+            [
+              597.31201171875,
+              452.8962097167969
+            ],
+            [
+              590.3846435546875,
+              399.8009338378906
+            ],
+            [
+              585.2823486328125,
+              430.0645446777344
+            ],
+            [
+              582.8587646484375,
+              422.0576171875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 7,
+          "matches": 11,
+          "template": "lid_one",
+          "polygon": [
+            [
+              349.3791809082031,
+              218.92987060546875
+            ],
+            [
+              344.5001525878906,
+              119.39557647705078
+            ],
+            [
+              457.57281494140625,
+              118.27863311767578
+            ],
+            [
+              475.3297424316406,
+              215.58164978027344
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_5s",
+        "episode": 11,
+        "seconds": 5,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 0,
+          "matches": 0,
+          "template": "pink_lid_color_region",
+          "polygon": [
+            [
+              349.96417236328125,
+              247.9531707763672
+            ],
+            [
+              341.601318359375,
+              120.41960144042969
+            ],
+            [
+              468.44927978515625,
+              112.10169982910156
+            ],
+            [
+              476.8121337890625,
+              239.63526916503906
+            ]
+          ],
+          "method": "RGB pink-cap color region with area, shape and border checks; diagnostic only"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 4,
+          "matches": 11,
+          "template": "lid_two",
+          "polygon": [
+            [
+              53.593650817871094,
+              443.3586730957031
+            ],
+            [
+              116.35476684570312,
+              415.4971923828125
+            ],
+            [
+              235.78924560546875,
+              357.1043701171875
+            ],
+            [
+              152.71165466308594,
+              397.2182312011719
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_5s",
+        "episode": 11,
+        "seconds": 5,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 0,
+          "matches": 0,
+          "template": "pink_lid_color_region",
+          "polygon": [
+            [
+              349.96417236328125,
+              247.9531707763672
+            ],
+            [
+              341.601318359375,
+              120.41960144042969
+            ],
+            [
+              468.44927978515625,
+              112.10169982910156
+            ],
+            [
+              476.8121337890625,
+              239.63526916503906
+            ]
+          ],
+          "method": "RGB pink-cap color region with area, shape and border checks; diagnostic only"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 7,
+          "matches": 11,
+          "template": "lid_one",
+          "polygon": [
+            [
+              349.3791809082031,
+              218.92987060546875
+            ],
+            [
+              344.5001525878906,
+              119.39557647705078
+            ],
+            [
+              457.57281494140625,
+              118.27863311767578
+            ],
+            [
+              475.3297424316406,
+              215.58164978027344
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.7259358288770054
+      },
+      {
+        "case": "ep11_5s",
+        "episode": 11,
+        "seconds": 5,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 0,
+          "matches": 0,
+          "template": "pink_lid_color_region",
+          "polygon": [
+            [
+              349.96417236328125,
+              247.9531707763672
+            ],
+            [
+              341.601318359375,
+              120.41960144042969
+            ],
+            [
+              468.44927978515625,
+              112.10169982910156
+            ],
+            [
+              476.8121337890625,
+              239.63526916503906
+            ]
+          ],
+          "method": "RGB pink-cap color region with area, shape and border checks; diagnostic only"
+        },
+        "sim_rgb_detection": {
+          "detected": true,
+          "inliers": 7,
+          "matches": 11,
+          "template": "lid_one",
+          "polygon": [
+            [
+              349.3791809082031,
+              218.92987060546875
+            ],
+            [
+              344.5001525878906,
+              119.39557647705078
+            ],
+            [
+              457.57281494140625,
+              118.27863311767578
+            ],
+            [
+              475.3297424316406,
+              215.58164978027344
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.7259358288770054
+      },
+      {
+        "case": "ep11_10s",
+        "episode": 11,
+        "seconds": 10,
+        "profile": "before",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 0,
+          "matches": 0,
+          "template": "pink_lid_color_region",
+          "polygon": [
+            [
+              350.2079162597656,
+              231.0792236328125
+            ],
+            [
+              339.2079162597656,
+              121.07923126220703
+            ],
+            [
+              463.8613586425781,
+              108.6138916015625
+            ],
+            [
+              474.8613586425781,
+              218.6138916015625
+            ]
+          ],
+          "method": "RGB pink-cap color region with area, shape and border checks; diagnostic only"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 4,
+          "matches": 10,
+          "template": "lid_two",
+          "polygon": [
+            [
+              631.0458374023438,
+              75.9727554321289
+            ],
+            [
+              939.6275634765625,
+              -72.47299194335938
+            ],
+            [
+              -1595.48193359375,
+              1521.06103515625
+            ],
+            [
+              -934.0716552734375,
+              1001.7625732421875
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_10s",
+        "episode": 11,
+        "seconds": 10,
+        "profile": "visual",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 0,
+          "matches": 0,
+          "template": "pink_lid_color_region",
+          "polygon": [
+            [
+              350.2079162597656,
+              231.0792236328125
+            ],
+            [
+              339.2079162597656,
+              121.07923126220703
+            ],
+            [
+              463.8613586425781,
+              108.6138916015625
+            ],
+            [
+              474.8613586425781,
+              218.6138916015625
+            ]
+          ],
+          "method": "RGB pink-cap color region with area, shape and border checks; diagnostic only"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 6,
+          "matches": 21,
+          "template": "lid_two",
+          "polygon": [
+            [
+              371.0893249511719,
+              130.58583068847656
+            ],
+            [
+              382.671630859375,
+              127.06095886230469
+            ],
+            [
+              369.77227783203125,
+              131.37693786621094
+            ],
+            [
+              368.98992919921875,
+              131.0319366455078
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      },
+      {
+        "case": "ep11_10s",
+        "episode": 11,
+        "seconds": 10,
+        "profile": "v2",
+        "real_rgb_detection": {
+          "detected": true,
+          "inliers": 0,
+          "matches": 0,
+          "template": "pink_lid_color_region",
+          "polygon": [
+            [
+              350.2079162597656,
+              231.0792236328125
+            ],
+            [
+              339.2079162597656,
+              121.07923126220703
+            ],
+            [
+              463.8613586425781,
+              108.6138916015625
+            ],
+            [
+              474.8613586425781,
+              218.6138916015625
+            ]
+          ],
+          "method": "RGB pink-cap color region with area, shape and border checks; diagnostic only"
+        },
+        "sim_rgb_detection": {
+          "detected": false,
+          "inliers": 6,
+          "matches": 21,
+          "template": "lid_two",
+          "polygon": [
+            [
+              371.0893249511719,
+              130.58583068847656
+            ],
+            [
+              382.671630859375,
+              127.06095886230469
+            ],
+            [
+              369.77227783203125,
+              131.37693786621094
+            ],
+            [
+              368.98992919921875,
+              131.0319366455078
+            ]
+          ],
+          "method": "RGB SIFT+RANSAC; diagnostic, not ACT/CNN input"
+        },
+        "print_polygon_iou": 0.0
+      }
+    ],
+    "policy_responses": [
+      {
+        "case": "ep0_0s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6678901314735413,
+        "sim_image_target_mae": 6.844104290008545,
+        "real_vs_sim_prediction_mae": 6.742879867553711,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_0s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6678901314735413,
+        "sim_image_target_mae": 11.092641830444336,
+        "real_vs_sim_prediction_mae": 11.371553421020508,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_0s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6678901314735413,
+        "sim_image_target_mae": 11.092641830444336,
+        "real_vs_sim_prediction_mae": 11.371553421020508,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_5s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.9352326989173889,
+        "sim_image_target_mae": 5.54289436340332,
+        "real_vs_sim_prediction_mae": 6.362452983856201,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_5s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.9352326989173889,
+        "sim_image_target_mae": 2.551831007003784,
+        "real_vs_sim_prediction_mae": 2.226339817047119,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_5s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.9352326989173889,
+        "sim_image_target_mae": 2.5519859790802,
+        "real_vs_sim_prediction_mae": 2.2262356281280518,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_10s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6254399418830872,
+        "sim_image_target_mae": 4.65357780456543,
+        "real_vs_sim_prediction_mae": 4.15645694732666,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_10s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6254399418830872,
+        "sim_image_target_mae": 4.506425857543945,
+        "real_vs_sim_prediction_mae": 4.016697406768799,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_10s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6254399418830872,
+        "sim_image_target_mae": 4.506425857543945,
+        "real_vs_sim_prediction_mae": 4.016697406768799,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_0s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.7772746086120605,
+        "sim_image_target_mae": 8.929622650146484,
+        "real_vs_sim_prediction_mae": 8.503226280212402,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_0s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.7772746086120605,
+        "sim_image_target_mae": 12.331953048706055,
+        "real_vs_sim_prediction_mae": 12.2000093460083,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_0s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.7772746086120605,
+        "sim_image_target_mae": 12.331953048706055,
+        "real_vs_sim_prediction_mae": 12.2000093460083,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_5s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.8860410451889038,
+        "sim_image_target_mae": 8.39233684539795,
+        "real_vs_sim_prediction_mae": 8.334421157836914,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_5s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.8860410451889038,
+        "sim_image_target_mae": 1.495007872581482,
+        "real_vs_sim_prediction_mae": 1.9036777019500732,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_5s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.8860410451889038,
+        "sim_image_target_mae": 1.495007872581482,
+        "real_vs_sim_prediction_mae": 1.9036777019500732,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_10s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.5796346068382263,
+        "sim_image_target_mae": 4.2061920166015625,
+        "real_vs_sim_prediction_mae": 4.283189296722412,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_10s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.5796346068382263,
+        "sim_image_target_mae": 5.338233470916748,
+        "real_vs_sim_prediction_mae": 5.278614521026611,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep2_10s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.5796346068382263,
+        "sim_image_target_mae": 5.338233470916748,
+        "real_vs_sim_prediction_mae": 5.278614521026611,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_0s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 2.4015114307403564,
+        "sim_image_target_mae": 11.283291816711426,
+        "real_vs_sim_prediction_mae": 12.50234603881836,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_0s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 2.4015114307403564,
+        "sim_image_target_mae": 11.673101425170898,
+        "real_vs_sim_prediction_mae": 12.930526733398438,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_0s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 2.4015114307403564,
+        "sim_image_target_mae": 11.673101425170898,
+        "real_vs_sim_prediction_mae": 12.930526733398438,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_5s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.4611800014972687,
+        "sim_image_target_mae": 4.047800064086914,
+        "real_vs_sim_prediction_mae": 4.5089802742004395,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_5s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.4611800014972687,
+        "sim_image_target_mae": 3.8319334983825684,
+        "real_vs_sim_prediction_mae": 4.19557523727417,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_5s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.4611800014972687,
+        "sim_image_target_mae": 3.8319334983825684,
+        "real_vs_sim_prediction_mae": 4.19557523727417,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_10s",
+        "family": "native",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.3122361898422241,
+        "sim_image_target_mae": 9.662814140319824,
+        "real_vs_sim_prediction_mae": 10.523770332336426,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_10s",
+        "family": "native",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.3122361898422241,
+        "sim_image_target_mae": 12.568163871765137,
+        "real_vs_sim_prediction_mae": 13.856602668762207,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep11_10s",
+        "family": "native",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.3122361898422241,
+        "sim_image_target_mae": 12.568163871765137,
+        "real_vs_sim_prediction_mae": 13.856602668762207,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model"
+      },
+      {
+        "case": "ep0_0s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.8555369671460819,
+        "sim_image_target_mae": 2.7647330745929546,
+        "real_vs_sim_prediction_mae": 2.084491801434082,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_0s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.8555369671460819,
+        "sim_image_target_mae": 2.0050595879841135,
+        "real_vs_sim_prediction_mae": 1.3659369079100994,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_0s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.8555369671460819,
+        "sim_image_target_mae": 2.0050595879841135,
+        "real_vs_sim_prediction_mae": 1.3659369079100994,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_5s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.30724559233069665,
+        "sim_image_target_mae": 1.8764884272039792,
+        "real_vs_sim_prediction_mae": 1.8079570530815625,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_5s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.30724559233069665,
+        "sim_image_target_mae": 2.4753419550175737,
+        "real_vs_sim_prediction_mae": 2.375313252316339,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_5s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.30724559233069665,
+        "sim_image_target_mae": 2.4753419550175737,
+        "real_vs_sim_prediction_mae": 2.375313252316339,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_10s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.3995064274044405,
+        "sim_image_target_mae": 2.271390758492413,
+        "real_vs_sim_prediction_mae": 2.2143670735849237,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_10s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.3995064274044405,
+        "sim_image_target_mae": 1.274840006822099,
+        "real_vs_sim_prediction_mae": 1.1991070142039704,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep0_10s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.3995064274044405,
+        "sim_image_target_mae": 1.274840006822099,
+        "real_vs_sim_prediction_mae": 1.1991070142039704,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_0s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.9494281767056225,
+        "sim_image_target_mae": 2.8271529378259803,
+        "real_vs_sim_prediction_mae": 2.0107935703605775,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_0s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.9494281767056225,
+        "sim_image_target_mae": 2.3787412211516847,
+        "real_vs_sim_prediction_mae": 1.3561729305686812,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_0s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 1.9494281767056225,
+        "sim_image_target_mae": 2.3787412211516847,
+        "real_vs_sim_prediction_mae": 1.3561729305686812,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_5s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6306467948037522,
+        "sim_image_target_mae": 3.295750586858679,
+        "real_vs_sim_prediction_mae": 2.852968187175932,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_5s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6306467948037522,
+        "sim_image_target_mae": 2.8937640314217785,
+        "real_vs_sim_prediction_mae": 2.3905182959300033,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_5s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.6306467948037522,
+        "sim_image_target_mae": 2.8937640314217785,
+        "real_vs_sim_prediction_mae": 2.3905182959300033,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_10s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.3797019164217321,
+        "sim_image_target_mae": 2.5055448787416674,
+        "real_vs_sim_prediction_mae": 2.6269478817069882,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_10s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.3797019164217321,
+        "sim_image_target_mae": 0.873446979966428,
+        "real_vs_sim_prediction_mae": 0.8042731275154836,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep2_10s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.3797019164217321,
+        "sim_image_target_mae": 0.873446979966428,
+        "real_vs_sim_prediction_mae": 0.8042731275154836,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_0s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.7991784706351812,
+        "sim_image_target_mae": 5.520914898429113,
+        "real_vs_sim_prediction_mae": 5.041523746703913,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_0s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.7991784706351812,
+        "sim_image_target_mae": 3.071177127818656,
+        "real_vs_sim_prediction_mae": 2.603355309828997,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_0s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.7991784706351812,
+        "sim_image_target_mae": 3.071177127818656,
+        "real_vs_sim_prediction_mae": 2.603355309828997,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_5s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.364656447458902,
+        "sim_image_target_mae": 0.8121611195541415,
+        "real_vs_sim_prediction_mae": 0.9559370101270258,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_5s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.364656447458902,
+        "sim_image_target_mae": 1.8580307175721669,
+        "real_vs_sim_prediction_mae": 1.6883008564328863,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_5s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.364656447458902,
+        "sim_image_target_mae": 1.8580307175721669,
+        "real_vs_sim_prediction_mae": 1.6883008564328863,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_10s",
+        "family": "cnn",
+        "profile": "before",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.377360631048908,
+        "sim_image_target_mae": 1.5473885107288217,
+        "real_vs_sim_prediction_mae": 1.4564118988679762,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_10s",
+        "family": "cnn",
+        "profile": "visual",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.377360631048908,
+        "sim_image_target_mae": 0.8828703777861001,
+        "real_vs_sim_prediction_mae": 0.92393948898925,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      },
+      {
+        "case": "ep11_10s",
+        "family": "cnn",
+        "profile": "v2",
+        "same_joint_state": true,
+        "real_image_target_mae": 0.377360631048908,
+        "sim_image_target_mae": 0.8828703777861001,
+        "real_vs_sim_prediction_mae": 0.92393948898925,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/lightweight_final_all15/final.pt"
+      }
+    ]
+  },
+  "policy_weights_changed": false,
+  "detector_is_policy_input": false,
+  "physical_calibration_certified": false
+}

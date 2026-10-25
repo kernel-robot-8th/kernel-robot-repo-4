@@ -1,0 +1,147 @@
+{
+  "created_at": "2026-10-25T10:49:22.466295+00:00",
+  "source_repo": "Sungah/omx_1024_test_jihyeok_success",
+  "source_revision": "3502381b21fe15eae125dc36570779737ca85a71",
+  "license": "Apache-2.0; source attribution retained",
+  "records": [
+    {
+      "texture": "lid_two",
+      "source_frame": "ep0_top_0s.png",
+      "source_quad_pixels": [
+        [
+          388,
+          144
+        ],
+        [
+          515,
+          140
+        ],
+        [
+          540,
+          262
+        ],
+        [
+          398,
+          266
+        ]
+      ],
+      "source_sha256": "78f152829cb0e210b7d261ec6a265089c87124200995026f837846683cc542ff"
+    },
+    {
+      "texture": "lid_one",
+      "source_frame": "ep11_top_0s.png",
+      "source_quad_pixels": [
+        [
+          344,
+          120
+        ],
+        [
+          459,
+          119
+        ],
+        [
+          476,
+          215
+        ],
+        [
+          350,
+          220
+        ]
+      ],
+      "source_sha256": "eb8d31f99e5377649a23d7459e9c82ce1862c2b95cf171285db602411f2e477c"
+    },
+    {
+      "camera": "top_2_boxes",
+      "fit_pixels": [
+        [
+          388,
+          144
+        ],
+        [
+          515,
+          140
+        ],
+        [
+          540,
+          262
+        ],
+        [
+          398,
+          266
+        ]
+      ],
+      "reprojection_rmse_pixels": 0.4043341560034157,
+      "fovy_assumed": 50,
+      "scope": "Planar image fit, not independent physical calibration"
+    },
+    {
+      "camera": "top_1_boxes",
+      "fit_pixels": [
+        [
+          344,
+          120
+        ],
+        [
+          459,
+          119
+        ],
+        [
+          476,
+          215
+        ],
+        [
+          350,
+          220
+        ]
+      ],
+      "reprojection_rmse_pixels": 0.7762839966600951,
+      "fovy_assumed": 50,
+      "scope": "Planar image fit, not independent physical calibration"
+    },
+    {
+      "camera": "wrist",
+      "episode": 0,
+      "seconds": 5,
+      "fit_pixels": [
+        [
+          194,
+          43
+        ],
+        [
+          438,
+          55
+        ],
+        [
+          591,
+          151
+        ],
+        [
+          111,
+          143
+        ]
+      ],
+      "reprojection_rmse_pixels": 2.9850803510517063,
+      "fovy_assumed": 70
+    }
+  ],
+  "warning": "Manual visible-corner annotations and assumed size/FOV. These do not certify physical scale, camera pose, or grasp contacts.",
+  "texture_uv_rotation": "90 degrees clockwise after perspective rectification",
+  "files": [
+    {
+      "name": "carpet.png",
+      "sha256": "c477b0297ccc1a571a337221d1caad58c771a631fbbfad8bf65cb1773146225b"
+    },
+    {
+      "name": "lid_one.png",
+      "sha256": "9391a03b34e7f018a1dad152186fbabbbab7978e88608cef1910ef95b7f106a3"
+    },
+    {
+      "name": "lid_two.png",
+      "sha256": "1d165dd3a527355cfbc75eb3e02bfcc0f77301f55d0a3f07bca4c0fdccd5d90d"
+    },
+    {
+      "name": "wood.png",
+      "sha256": "556220d0dae9e3d0b8b4a6abe76956e62a9dba080fababdc36a93f56922f09f9"
+    }
+  ]
+}

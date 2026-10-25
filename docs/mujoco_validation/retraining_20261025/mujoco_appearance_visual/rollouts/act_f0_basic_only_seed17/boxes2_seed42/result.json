@@ -1,0 +1,226 @@
+{
+  "model": "act_f0_basic_only_seed17",
+  "kind": "trials",
+  "action_interval": 5,
+  "case": "boxes2_seed42",
+  "seed": 42,
+  "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/trials/act_f0_basic_only_seed17/best.pt",
+  "success_any_box": false,
+  "success_all_boxes": false,
+  "placed_boxes": 0,
+  "lifted_boxes": 0,
+  "max_lift_m": 0.009989524871013122,
+  "contact_frames": 1500,
+  "force_saturation_fraction": 0.005333333333333333,
+  "mean_target_jump_normalized": 0.36601726682188274,
+  "steps": 1500,
+  "scene_validated": false,
+  "real_world_success_claim_allowed": false,
+  "ever_stable_placement": false,
+  "finger_box_contact_frames": 0,
+  "command_tracking_mae": 0.6753405933421011,
+  "target_limit_fraction": 0.0026666666666666666,
+  "final_box_positions": [
+    [
+      0.18822168759570979,
+      -0.00982512538170994,
+      0.1397886953777413
+    ],
+    [
+      0.19000749723187255,
+      -0.008195979601551967,
+      0.1797180579344224
+    ]
+  ],
+  "box_count": 2,
+  "completed_rollout": true,
+  "elapsed_s": 2.851011254999321,
+  "initial_state": [
+    -1.4900000095367432,
+    -59.02000045776367,
+    54.380001068115234,
+    29.8700008392334,
+    -0.8500000238418579,
+    62.810001373291016
+  ],
+  "actual_scene": {
+    "status": "recorded_texture_and_image_fit_v2_physical_calibration_pending",
+    "description": "Stacked heart-pattern boxes on a white source table, white circular receiver at robot left; base-frame metres. Dimensions and camera extrinsics require physical measurement.",
+    "fps": 30,
+    "timestep": 0.002,
+    "table_center_xy": [
+      0.235,
+      -0.005
+    ],
+    "table_half_xy": [
+      0.105,
+      0.115
+    ],
+    "table_top": 0.12,
+    "box_center_xy": [
+      0.1882186814566789,
+      -0.00983364680743843
+    ],
+    "box_half_size": [
+      0.03,
+      0.03,
+      0.02
+    ],
+    "box_count": 2,
+    "box_mass": 0.018,
+    "friction": 1.2,
+    "receiver_center_xy": [
+      0.15,
+      0.205
+    ],
+    "receiver_radius": 0.082,
+    "receiver_top": 0.12,
+    "top_camera_position": [
+      0.07785412381087295,
+      0.0584399702041905,
+      0.41486379899389736
+    ],
+    "top_camera_target": [
+      0.205,
+      0.0,
+      0.13
+    ],
+    "top_camera_fovy": 50,
+    "wrist_camera_position": [
+      0.08656633040616753,
+      0.011803353007865173,
+      0.0021005718523197728
+    ],
+    "wrist_camera_target": [
+      0.18,
+      0.0,
+      0.03
+    ],
+    "wrist_camera_fovy": 70,
+    "initial_state": [
+      -1.49,
+      -59.02,
+      54.38,
+      29.87,
+      -0.85,
+      62.81
+    ],
+    "single_box_initial_state": [
+      1.148,
+      -29.621,
+      39.683,
+      44.127,
+      1.441,
+      59.243
+    ],
+    "single_box_initial_state_source": "Existing local recorder init_pose.yaml, inspected before tuning",
+    "max_relative_target": 10.0,
+    "episode_seconds": 50,
+    "lift_threshold": 0.025,
+    "settle_speed": 0.04,
+    "success_hold_frames": 15,
+    "system_identification": {
+      "fitted_recordings": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "delay_steps": [
+        3,
+        3,
+        2,
+        4,
+        4,
+        3
+      ],
+      "command_bias": [
+        -0.0377172753,
+        0.4509981871,
+        0.4908826351,
+        2.3943114281,
+        0.3964323401,
+        0
+      ],
+      "note": "Approximate command-to-state lag and residual fit on training recordings only. Gripper bias is not fitted because of contact loads. This reduces trajectory error but does not validate grasp physics."
+    },
+    "calibration": {
+      "range_min": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "range_max": [
+        4095,
+        4095,
+        4095,
+        4095,
+        4095,
+        4095
+      ],
+      "drive_mode": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "center_tick": 2048,
+      "ticks_per_revolution": 4096
+    },
+    "validation_gate": {
+      "physical_dimensions_measured": false,
+      "camera_extrinsics_calibrated": false,
+      "contact_parameters_identified": false,
+      "demonstration_replay_success_confirmed": false,
+      "real_world_success_claim_allowed": false
+    },
+    "appearance": {
+      "version": "visual_only",
+      "textures": "recorded lid perspective rectification",
+      "lid_collision_split": false,
+      "dimensions_measured": false,
+      "soft_lighting": true
+    },
+    "top_camera_xyaxes": [
+      -0.03002170577021601,
+      -0.9995385300547921,
+      -0.0046286195082577974,
+      0.9294976169805702,
+      -0.02962042373189855,
+      0.36763679158292123
+    ],
+    "single_box_camera_override": {
+      "top_camera_position": [
+        0.022814214620608897,
+        0.036963532795412396,
+        0.379642411858514
+      ],
+      "top_camera_xyaxes": [
+        -0.019173141074569244,
+        -0.999719525300656,
+        -0.013901848580883613,
+        0.8846454617982437,
+        -0.023441745705383155,
+        0.46567466269709834
+      ],
+      "top_camera_fovy": 50
+    },
+    "wrist_camera_xyaxes": [
+      -0.017465657621265326,
+      -0.9991517908143113,
+      0.03729141612236815,
+      0.8348871472015672,
+      0.005947978026613003,
+      0.5503890196897314
+    ]
+  }
+}
