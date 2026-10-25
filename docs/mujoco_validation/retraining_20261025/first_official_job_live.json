@@ -1,0 +1,300 @@
+{
+  "verified_at": "2026-10-25T02:04:06.961503+00:00",
+  "supervisor_pid": 2062292,
+  "worker_pid": 67915,
+  "upstream_status": {
+    "status": "upstream_training",
+    "upstream_pid": 68044,
+    "started_at": "2026-10-25T01:45:28.149257+00:00",
+    "config": {
+      "name": "native_act_f0_basic_only_seed17",
+      "family": "native_act",
+      "fold": 0,
+      "regime": "basic_only",
+      "seed": 17,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      }
+    }
+  },
+  "actual_command": [
+    "/home/team11/venv/omx_mujoco/bin/python",
+    "-m",
+    "lerobot.scripts.lerobot_train",
+    "--policy.type=act",
+    "--policy.device=cuda",
+    "--policy.push_to_hub=false",
+    "--dataset.repo_id=Sungah/omx_1024_test_jihyeok_success",
+    "--dataset.root=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/dataset",
+    "--dataset.episodes=[0, 1, 2, 3, 4, 5, 6, 7, 10, 8, 12]",
+    "--dataset.eval_split=0.13636363636363635",
+    "--dataset.video_backend=pyav",
+    "--dataset.image_transforms.enable=false",
+    "--output_dir=/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream",
+    "--steps=10000",
+    "--batch_size=8",
+    "--seed=17",
+    "--save_freq=1000",
+    "--eval_steps=1000",
+    "--max_eval_samples=192",
+    "--log_freq=100",
+    "--env_eval_freq=0",
+    "--num_workers=2",
+    "--prefetch_factor=2",
+    "--wandb.enable=false"
+  ],
+  "last_saved_step": 5000,
+  "saved_checkpoint_config": {
+    "dataset": {
+      "repo_id": "Sungah/omx_1024_test_jihyeok_success",
+      "repo_type": "dataset",
+      "root": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/dataset",
+      "episodes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        8,
+        12
+      ],
+      "image_transforms": {
+        "enable": false,
+        "max_num_transforms": 3,
+        "random_order": false,
+        "tfs": {
+          "brightness": {
+            "weight": 1.0,
+            "type": "ColorJitter",
+            "kwargs": {
+              "brightness": [
+                0.8,
+                1.2
+              ]
+            }
+          },
+          "contrast": {
+            "weight": 1.0,
+            "type": "ColorJitter",
+            "kwargs": {
+              "contrast": [
+                0.8,
+                1.2
+              ]
+            }
+          },
+          "saturation": {
+            "weight": 1.0,
+            "type": "ColorJitter",
+            "kwargs": {
+              "saturation": [
+                0.5,
+                1.5
+              ]
+            }
+          },
+          "hue": {
+            "weight": 1.0,
+            "type": "ColorJitter",
+            "kwargs": {
+              "hue": [
+                -0.05,
+                0.05
+              ]
+            }
+          },
+          "sharpness": {
+            "weight": 1.0,
+            "type": "SharpnessJitter",
+            "kwargs": {
+              "sharpness": [
+                0.5,
+                1.5
+              ]
+            }
+          },
+          "affine": {
+            "weight": 1.0,
+            "type": "RandomAffine",
+            "kwargs": {
+              "degrees": [
+                -5.0,
+                5.0
+              ],
+              "translate": [
+                0.05,
+                0.05
+              ]
+            }
+          }
+        }
+      },
+      "revision": null,
+      "use_imagenet_stats": true,
+      "video_backend": "pyav",
+      "return_uint8": false,
+      "depth_output_unit": "mm",
+      "streaming": false,
+      "eval_split": 0.13636363636363635
+    },
+    "env": null,
+    "policy": {
+      "type": "act",
+      "n_obs_steps": 1,
+      "input_features": {
+        "observation.state": {
+          "type": "STATE",
+          "shape": [
+            6
+          ]
+        },
+        "observation.images.wrist": {
+          "type": "VISUAL",
+          "shape": [
+            3,
+            480,
+            640
+          ]
+        },
+        "observation.images.top": {
+          "type": "VISUAL",
+          "shape": [
+            3,
+            480,
+            640
+          ]
+        }
+      },
+      "output_features": {
+        "action": {
+          "type": "ACTION",
+          "shape": [
+            6
+          ]
+        }
+      },
+      "device": "cuda",
+      "use_amp": false,
+      "use_peft": false,
+      "push_to_hub": false,
+      "repo_id": null,
+      "private": null,
+      "tags": null,
+      "license": null,
+      "pretrained_path": null,
+      "pretrained_revision": null,
+      "chunk_size": 100,
+      "n_action_steps": 100,
+      "normalization_mapping": {
+        "VISUAL": "MEAN_STD",
+        "STATE": "MEAN_STD",
+        "ACTION": "MEAN_STD"
+      },
+      "vision_backbone": "resnet18",
+      "pretrained_backbone_weights": "ResNet18_Weights.IMAGENET1K_V1",
+      "replace_final_stride_with_dilation": false,
+      "pre_norm": false,
+      "dim_model": 512,
+      "n_heads": 8,
+      "dim_feedforward": 3200,
+      "feedforward_activation": "relu",
+      "n_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "use_vae": true,
+      "latent_dim": 32,
+      "n_vae_encoder_layers": 4,
+      "temporal_ensemble_coeff": null,
+      "dropout": 0.1,
+      "kl_weight": 10.0,
+      "optimizer_lr": 1e-05,
+      "optimizer_weight_decay": 0.0001,
+      "optimizer_lr_backbone": 1e-05
+    },
+    "reward_model": null,
+    "output_dir": "/home/team11/omx_sim_runs/retraining_20261025/native/native_act_f0_basic_only_seed17/upstream",
+    "job_name": "act",
+    "resume": false,
+    "seed": 17,
+    "cudnn_deterministic": false,
+    "num_workers": 2,
+    "batch_size": 8,
+    "prefetch_factor": 2,
+    "persistent_workers": true,
+    "dataloader_multiprocessing_context": "spawn",
+    "steps": 10000,
+    "env_eval_freq": 0,
+    "log_freq": 100,
+    "eval_steps": 1000,
+    "max_eval_samples": 192,
+    "tolerance_s": 0.0001,
+    "save_checkpoint": true,
+    "save_freq": 1000,
+    "use_policy_training_preset": true,
+    "optimizer": {
+      "type": "adamw",
+      "lr": 1e-05,
+      "weight_decay": 0.0001,
+      "grad_clip_norm": 10.0,
+      "betas": [
+        0.9,
+        0.999
+      ],
+      "eps": 1e-08
+    },
+    "scheduler": null,
+    "eval": {
+      "n_episodes": 50,
+      "batch_size": 16,
+      "use_async_envs": true,
+      "recording": false,
+      "recording_repo_id": null,
+      "recording_private": false
+    },
+    "wandb": {
+      "enable": false,
+      "disable_artifact": false,
+      "project": "lerobot",
+      "entity": null,
+      "notes": null,
+      "run_id": null,
+      "mode": null,
+      "add_tags": true
+    },
+    "peft": null,
+    "job": {
+      "target": null,
+      "image": "huggingface/lerobot-gpu:latest",
+      "timeout": "2d",
+      "detach": false,
+      "tags": []
+    },
+    "save_checkpoint_to_hub": false,
+    "sample_weighting": null,
+    "rename_map": {},
+    "checkpoint_path": null
+  },
+  "finished_comparison_jobs": 0,
+  "note": "Running first real comparison, not smoke; saved weights remain outside Git."
+}
