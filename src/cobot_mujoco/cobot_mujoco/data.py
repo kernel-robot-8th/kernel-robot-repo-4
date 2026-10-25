@@ -15,6 +15,24 @@ CAMERAS = ["wrist", "top"]
 HEIGHT, WIDTH = 96, 128
 
 
+def validate_split_plan(plan):
+    """Reject overlapping recording roles before fitting or evaluating a model."""
+    required = {"train", "validation", "test"}
+    if not required <= set(plan):
+        raise ValueError("Split plan needs train, validation, and test roles")
+    sets = {}
+    for role in required:
+        ids = plan[role]
+        if len(ids) != len(set(ids)) or any(not isinstance(i, int) or i < 0 for i in ids):
+            raise ValueError("Recording ids must be unique nonnegative integers in each role")
+        sets[role] = set(ids)
+    if any(
+        sets[a] & sets[b] for a, b in [("train", "validation"), ("train", "test"), ("validation", "test")]
+    ):
+        raise ValueError("Training, validation, and test recordings must be disjoint")
+    return plan
+
+
 def chunk_indices(start, end, index, horizon):
     """Pad the final action of this episode; never cross its recording boundary."""
     offsets = np.arange(horizon) + index
@@ -160,7 +178,7 @@ def prepare_dataset(source, cache, progress=print):
 class RecordingDataset(torch.utils.data.Dataset):
     """Read memory-mapped cameras with training-only normalization and masks."""
 
-    def __init__(self, cache, episode_ids, horizon, statistics=None, stride=3):
+    def __init__(self, cache, episode_ids, horizon, statistics=None, stride=3, split_plan=None):
         """Bind recording indices and training-fitted normalization to memory-mapped arrays."""
         self.cache = Path(cache)
         self.manifest = read_json(self.cache / "manifest.json")
@@ -168,6 +186,7 @@ class RecordingDataset(torch.utils.data.Dataset):
         self.actions = np.load(self.cache / "actions.npy", mmap_mode="r")
         self.images = np.load(self.cache / "images.npy", mmap_mode="r")
         self.horizon = horizon
+        self.split_plan = validate_split_plan(split_plan or SPLITS)
         records = {r["id"]: r for r in self.manifest["episodes"]}
         self.episode_ids = list(episode_ids)
         if not self.episode_ids or not set(self.episode_ids) <= set(records):
@@ -182,7 +201,7 @@ class RecordingDataset(torch.utils.data.Dataset):
             self.recording_ids.extend([episode] * len(idx))
             fitting.extend(range(r["start"], r["end"]))
         if statistics is None:
-            if not set(self.episode_ids) <= set(SPLITS["train"]):
+            if not set(self.episode_ids) <= set(self.split_plan["train"]):
                 raise ValueError("Normalization must be fitted on training recordings only")
             self.statistics = {
                 "state_mean": np.mean(self.states[fitting], axis=0).tolist(),
@@ -192,7 +211,7 @@ class RecordingDataset(torch.utils.data.Dataset):
                 "fitted_episodes": self.episode_ids,
             }
         else:
-            if not set(statistics["fitted_episodes"]) <= set(SPLITS["train"]):
+            if not set(statistics["fitted_episodes"]) <= set(self.split_plan["train"]):
                 raise ValueError("Statistics include nontraining recordings")
             self.statistics = statistics
 
@@ -214,3 +233,23 @@ class RecordingDataset(torch.utils.data.Dataset):
             "action_is_pad": torch.from_numpy(pad.copy()),
             "episode": self.recording_ids[item],
         }
+
+
+def correction_sample_weights(dataset, correction_ids):
+    """Assign equal source-domain probability and equal recording probability within domains."""
+    from collections import Counter
+
+    correction_ids = set(correction_ids)
+    present = set(dataset.recording_ids)
+    basic = present - correction_ids
+    corrections = present & correction_ids
+    if not basic or not corrections:
+        raise ValueError("Balanced correction sampling requires both training domains")
+    counts = Counter(dataset.recording_ids)
+    return torch.tensor(
+        [
+            0.5 / (len(corrections if episode in corrections else basic) * counts[episode])
+            for episode in dataset.recording_ids
+        ],
+        dtype=torch.float64,
+    )

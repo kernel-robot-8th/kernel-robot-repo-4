@@ -41,11 +41,17 @@
 
 ### OMX 학습·MuJoCo 검증 실험
 
+**현재 재학습:** 사용자 지정 기본 시연 0~10번과 보완 시연 11~14번의 역할을 반영해 학습을 다시 수행합니다.
+경량 CNN·ACT 비교 48건, **원본 해상도·기본 구조의 공식 `lerobot-train` ACT 비교 8건**,
+전체 15개 녹화를 반영한 마지막 경량·공식 ACT 모델 2건을 실행합니다.
+[재학습 절차·실제 파라미터](src/cobot_mujoco/docs/retraining.md)와 [현재 HTML 보고서](docs/mujoco_validation/report.html)를 확인하세요.
+실행은 `scripts/mujoco/run_retraining.sh`입니다. [1차 보고서](docs/mujoco_validation/round1_report.html)는 보관 기록입니다.
+
 `src/cobot_mujoco`는 저장된 실제 카메라 영상을 기준으로 OMX-F, 작업대, 상자, 흰 원형 수신 로봇을 재현하고
 상태 BC·시각 CNN BC·ACT 학습을 녹화 단위로 비교합니다. 실제 장치에 연결하지 않는 독립 실험 패키지입니다.
 설치·최대 12시간 실행·중단·검증 절차는 [검증 문서](src/cobot_mujoco/docs/validation.md),
 결과는 [HTML 보고서](docs/mujoco_validation/report.html)를 보세요. 물리 환경은 아직 현장 검증을 통과하지 않았습니다.
-학습 설정의 기능·실제 변경값은 [파라미터 설명서](src/cobot_mujoco/docs/parameters.md)를 참고하세요.
+1차 학습 설정의 기능·실제 변경값은 [기존 파라미터 설명서](src/cobot_mujoco/docs/parameters.md)를 참고하세요.
 기존 기본 장면의 박스 3개 설정 오류를 2개로 정정했으며, 원래 0/108회는 동일 장면의 모델 성공률로 해석할 수 없습니다.
 
 도커로 하려면 [`docs/dev_docker_guide.md`](docs/dev_docker_guide.md)를 보세요. (도커를 처음 써도 이 문서부터 따라 하면 됩니다)

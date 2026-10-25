@@ -8,10 +8,10 @@ import time
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from .common import read_json, utc_now, write_json
-from .data import RecordingDataset, SPLITS
+from .data import RecordingDataset, SPLITS, correction_sample_weights, validate_split_plan
 from .learning import evaluate, make_policy, prepare_batch, seed_everything
 
 
@@ -39,15 +39,30 @@ def train_trial(cache, config, output, budget_s):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device != "cuda":
         raise RuntimeError("Long sweep requires CUDA; CPU fallback must be explicitly configured")
-    order = np.random.default_rng(config["seed"]).permutation(SPLITS["train"])
-    training_ids = sorted(order[: config["train_episodes"]].tolist())
-    train = RecordingDataset(cache, training_ids, config["horizon"], stride=3)
+    split = validate_split_plan(config.get("split_plan", SPLITS))
+    order = np.random.default_rng(config["seed"]).permutation(split["train"])
+    training_ids = sorted(config.get("train_ids", order[: config["train_episodes"]].tolist()))
+    if set(training_ids) != set(split["train"]) and "train_ids" in config:
+        raise ValueError("Explicit training ids must match the frozen split plan")
+    train = RecordingDataset(cache, training_ids, config["horizon"], stride=3, split_plan=split)
     stats = train.statistics
-    validation = RecordingDataset(cache, SPLITS["validation"], config["horizon"], stats, stride=12)
-    probe = RecordingDataset(cache, training_ids, config["horizon"], stats, stride=24)
+    validation = RecordingDataset(
+        cache, split["validation"], config["horizon"], stats, stride=12, split_plan=split
+    )
+    probe = RecordingDataset(cache, training_ids, config["horizon"], stats, stride=24, split_plan=split)
     batch_size = config.get("batch_size", 24)
+    sampler = None
+    if config.get("sampling") == "correction_balanced":
+        weights = correction_sample_weights(train, config["correction_train_ids"])
+        sampler = WeightedRandomSampler(weights, num_samples=len(train), replacement=True)
     loader = DataLoader(
-        train, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True, drop_last=False
+        train,
+        batch_size=batch_size,
+        shuffle=sampler is None,
+        sampler=sampler,
+        num_workers=0,
+        pin_memory=True,
+        drop_last=False,
     )
     val_loader = DataLoader(validation, batch_size=batch_size, num_workers=0)
     train_probe = DataLoader(probe, batch_size=batch_size, num_workers=0)
@@ -145,7 +160,7 @@ def train_trial(cache, config, output, budget_s):
         "finished_at": utc_now(),
         "config": config,
         "training_episodes": training_ids,
-        "validation_episodes": SPLITS["validation"],
+        "validation_episodes": split["validation"],
         "test_episodes_used": [],
         "normalization_fitted_on": training_ids,
         "normalization_statistics": stats,
