@@ -1,0 +1,13 @@
+{
+  "status": "completed",
+  "phase": "mujoco_comparison",
+  "started_at": "2026-10-25T10:19:15.335371+00:00",
+  "pid": 3498402,
+  "current_job": null,
+  "completed_rollouts": 72,
+  "expected_rollouts": 72,
+  "completed_replays": 6,
+  "failures": [],
+  "updated_at": "2026-10-25T10:23:20.563791+00:00",
+  "finished_at": "2026-10-25T10:23:20.563784+00:00"
+}

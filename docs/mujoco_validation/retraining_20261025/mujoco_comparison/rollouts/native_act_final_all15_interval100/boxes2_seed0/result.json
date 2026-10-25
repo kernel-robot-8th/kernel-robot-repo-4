@@ -1,0 +1,187 @@
+{
+  "model": "native_act_final_all15_interval100",
+  "kind": "native",
+  "action_interval": 100,
+  "case": "boxes2_seed0",
+  "seed": 0,
+  "checkpoint": "/home/team11/omx_sim_runs/retraining_20261025/final/native_act_final_all15/upstream/checkpoints/008500/pretrained_model",
+  "success_any_box": false,
+  "success_all_boxes": false,
+  "placed_boxes": 0,
+  "lifted_boxes": 0,
+  "max_lift_m": 0.0026121997852348866,
+  "contact_frames": 1500,
+  "force_saturation_fraction": 0.06066666666666667,
+  "mean_target_jump_normalized": 1.155035656080514,
+  "steps": 1500,
+  "scene_validated": false,
+  "real_world_success_claim_allowed": false,
+  "ever_stable_placement": false,
+  "finger_box_contact_frames": 3,
+  "command_tracking_mae": 0.9738390744527181,
+  "target_limit_fraction": 0.012,
+  "final_box_positions": [
+    [
+      0.17994934365256718,
+      -0.008088453152537397,
+      0.13978881844572874
+    ],
+    [
+      0.17520187572429302,
+      -0.014444201434278381,
+      0.17975321944573117
+    ]
+  ],
+  "box_count": 2,
+  "completed_rollout": true,
+  "elapsed_s": 2.4876080179965356,
+  "initial_state": [
+    -1.4900000095367432,
+    -59.02000045776367,
+    54.380001068115234,
+    29.8700008392334,
+    -0.8500000238418579,
+    62.810001373291016
+  ],
+  "actual_scene": {
+    "status": "provisional_image_and_training_trajectory_estimate",
+    "description": "Stacked heart-pattern boxes on a white source table, white circular receiver at robot left; base-frame metres. Dimensions and camera extrinsics require physical measurement.",
+    "fps": 30,
+    "timestep": 0.002,
+    "table_center_xy": [
+      0.235,
+      -0.005
+    ],
+    "table_half_xy": [
+      0.105,
+      0.115
+    ],
+    "table_top": 0.12,
+    "box_center_xy": [
+      0.18,
+      -0.008
+    ],
+    "box_half_size": [
+      0.03,
+      0.03,
+      0.02
+    ],
+    "box_count": 2,
+    "box_mass": 0.018,
+    "friction": 1.2,
+    "receiver_center_xy": [
+      0.15,
+      0.205
+    ],
+    "receiver_radius": 0.082,
+    "receiver_top": 0.12,
+    "top_camera_position": [
+      0.075,
+      0.0,
+      0.48
+    ],
+    "top_camera_target": [
+      0.205,
+      0.0,
+      0.13
+    ],
+    "top_camera_fovy": 42,
+    "wrist_camera_position": [
+      0.055,
+      0.0,
+      0.05
+    ],
+    "wrist_camera_target": [
+      0.18,
+      0.0,
+      0.03
+    ],
+    "wrist_camera_fovy": 70,
+    "initial_state": [
+      -1.49,
+      -59.02,
+      54.38,
+      29.87,
+      -0.85,
+      62.81
+    ],
+    "single_box_initial_state": [
+      1.148,
+      -29.621,
+      39.683,
+      44.127,
+      1.441,
+      59.243
+    ],
+    "single_box_initial_state_source": "Existing local recorder init_pose.yaml, inspected before tuning",
+    "max_relative_target": 10.0,
+    "episode_seconds": 50,
+    "lift_threshold": 0.025,
+    "settle_speed": 0.04,
+    "success_hold_frames": 15,
+    "system_identification": {
+      "fitted_recordings": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "delay_steps": [
+        3,
+        3,
+        2,
+        4,
+        4,
+        3
+      ],
+      "command_bias": [
+        -0.0377172753,
+        0.4509981871,
+        0.4908826351,
+        2.3943114281,
+        0.3964323401,
+        0
+      ],
+      "note": "Approximate command-to-state lag and residual fit on training recordings only. Gripper bias is not fitted because of contact loads. This reduces trajectory error but does not validate grasp physics."
+    },
+    "calibration": {
+      "range_min": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "range_max": [
+        4095,
+        4095,
+        4095,
+        4095,
+        4095,
+        4095
+      ],
+      "drive_mode": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "center_tick": 2048,
+      "ticks_per_revolution": 4096
+    },
+    "validation_gate": {
+      "physical_dimensions_measured": false,
+      "camera_extrinsics_calibrated": false,
+      "contact_parameters_identified": false,
+      "demonstration_replay_success_confirmed": false,
+      "real_world_success_claim_allowed": false
+    }
+  }
+}
