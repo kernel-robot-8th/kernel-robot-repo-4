@@ -65,3 +65,39 @@ def test_sr_22_and_unresolved_priorities_are_preserved():
     broken = copy.deepcopy(registry)
     broken['sr_catalog']['items'][14]['priority'] = 'R'
     assert menu_registry.validate(broken)
+
+
+def test_control_split_covers_all_menus_without_reassigning_robot_functions():
+    """Keep two control deliverables distinct from device/data ownership."""
+    registry = _registry()
+    menus = {menu['id']: menu for menu in registry['menus']}
+    assert len(menus) == 34
+    assert {m['control_area'] for m in menus.values()} == {'operational', 'anomaly'}
+    assert sum(m['control_area'] == 'operational' for m in menus.values()) == 19
+    assert sum(m['control_area'] == 'anomaly' for m in menus.values()) == 15
+    assert menus['2.1']['control_owner'] == 'operation_control'
+    assert menus['2.1']['data_owner'] == 'navigation'
+    assert 'overhead pose' not in menus['2.1']['data_sources']
+    assert menus['4.3']['control_owner'] == 'anomaly_monitoring'
+    assert menus['4.3']['data_owner'] == 'vision'
+    assert menus['4.3']['commands'] == []
+    assert menus['3.7']['control_owner'] == 'operation_control'
+    assert menus['3.7']['screen_owner'] == 'manipulation'
+    assert registry['roles']['operation_control']['members'] == ['김지혜']
+    assert registry['roles']['anomaly_monitoring']['members'] == ['강건한']
+    assert registry['roles']['navigation']['members'] == ['김진호']
+    assert registry['roles']['manipulation']['members'] == ['강민석', '김성아', '허지석']
+    assert registry['roles']['vision']['members'] == ['손선아', '강건한']
+
+
+@pytest.mark.parametrize('field,value', [
+    ('control_area', 'robot_development'), ('control_area', None),
+    ('control_area', []), ('control_owner', 'navigation'),
+    ('control_owner', ''),
+])
+def test_invalid_or_crossed_control_responsibility_is_rejected(field, value):
+    """A wrong control lane must fail rather than silently assign robot developers."""
+    registry = _registry()
+    menu = next(m for m in registry['menus'] if m['id'] == '1.1')
+    menu[field] = value
+    assert menu_registry.validate(registry)

@@ -1,6 +1,6 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { IMPL_LABELS, STATUS_LABELS, phaseTitle, screenText } from "@/lib/registry";
+import { CONTROL_AREA_LABELS, IMPL_LABELS, STATUS_LABELS, controlOwnerText, phaseTitle, roleText, screenText } from "@/lib/registry";
 import type { Menu } from "@/shell/types";
 
 /** 틀 페이지와 메뉴 화면이 같이 쓰는 머리글. 정보는 전부 레지스트리에서 온다. */
@@ -26,6 +26,10 @@ export default function MenuHeader({ menu, kind }: { menu: Menu; kind: "placehol
         </div>
       </div>
       <h1 className="text-2xl font-bold tracking-tight text-neutral-100">{`${menu.id} ${menu.name}`}</h1>
+      <p className="text-sm text-muted-foreground">
+        {CONTROL_AREA_LABELS[menu.controlArea]} · 관제 구현: {controlOwnerText(menu.controlOwner)}
+        <span className="block text-xs">화면 구현: {roleText(menu.screenOwner)} · 기능·데이터 계약: {roleText(menu.dataOwner)}</span>
+      </p>
       {menu.commands.length > 0 && (
         <Alert variant="destructive">
           <AlertTitle>명령 메뉴: 게이트웨이 연결 전에는 비활성</AlertTitle>

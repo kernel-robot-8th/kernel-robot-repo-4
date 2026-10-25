@@ -241,16 +241,18 @@ def _render_menus(registry, add):
         members = [m for m in menus if m['depth1'] == group]
         add('### {}'.format(group))
         add('')
-        add('| ID | 이름 | 화면 | 단계 | 상태 | 구현도 | SR | 화면 담당 | 데이터 담당 | 결정 |')
-        add('|---|---|---|---|---|---|---|---|---|---|')
+        add('| ID | 이름 | 화면 | 단계 | 상태 | 구현도 | SR | 화면 담당 | 데이터 담당 | 결정 | 관제 영역 | 관제 구현 담당 |')
+        add('|---|---|---|---|---|---|---|---|---|---|---|---|')
         for menu in members:
-            add('| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
+            add('| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
                 _cell(menu['id']), _cell(menu['name']),
                 _cell(_screen_label(screens, menu['screen'])), _cell(menu['phase']),
                 _cell(menu['status']), _cell(_impl_cell(menu)), _cell(_sr_cell(menu)),
                 _cell(_role_name(roles, menu['screen_owner'])),
                 _cell(_role_name(roles, menu['data_owner'])),
-                _cell(_decision_refs(registry, menu['decisions']))))
+                _cell(_decision_refs(registry, menu['decisions'])),
+                menu_registry.CONTROL_AREAS[menu['control_area']],
+                _cell(_role_name(roles, menu['control_owner']))))
         add('')
         for menu in members:
             _render_menu_detail(registry, menu, add)

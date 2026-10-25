@@ -31,7 +31,7 @@ import yaml
 
 LOGGER = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REGISTRY_RELPATH = os.path.join('src', 'cobot_gui', 'config', 'menu_tree.yaml')
 
 # 원문 고정 사본. YAML 과 따로 둔다.
@@ -135,12 +135,15 @@ OPTIONAL_TOP_KEYS = ('notes',)
 MENU_KEYS = (
     'id', 'name', 'depth1', 'screen', 'phase', 'status', 'sr', 'sr_unconfirmed',
     'data_sources', 'commands', 'screen_owner', 'data_owner', 'decisions', 'notes',
+    'control_area', 'control_owner',
 )
 OPTIONAL_MENU_KEYS = ('also_shown_in', 'branch', 'sr_original', 'impl', 'impl_ref')
 MENU_LIST_KEYS = (
     'sr', 'sr_unconfirmed', 'data_sources', 'commands', 'decisions', 'notes',
 )
-OWNER_KEYS = ('screen_owner', 'data_owner')
+OWNER_KEYS = ('screen_owner', 'data_owner', 'control_owner')
+CONTROL_AREAS = {'operational': '로봇 수행 관제', 'anomaly': '이상 감지 관제'}
+CONTROL_OWNERS = {'operational': 'operation_control', 'anomaly': 'anomaly_monitoring'}
 SCREEN_KEYS = ('id', 'label', 'name', 'phase_note')
 PHASE_KEYS = ('id', 'title', 'roadmap_stage')
 ROLE_KEYS = ('name', 'packages', 'members')
@@ -564,6 +567,11 @@ def _validate_menu_placement(menu, label, ctx, errors):
 
 
 def _validate_menu_owners(menu, label, ctx, errors):
+    area = menu['control_area']
+    if not isinstance(area, str) or area not in CONTROL_AREAS:
+        errors.append('{}: control_area 는 operational 또는 anomaly'.format(label))
+    elif menu['control_owner'] != CONTROL_OWNERS[area]:
+        errors.append('{}: control_area 와 control_owner 가 다르다'.format(label))
     for key in OWNER_KEYS:
         value = menu[key]
         if value is None:
@@ -701,7 +709,7 @@ def validate(registry):
 
 def find_warnings(registry):
     """
-    활성 메뉴의 빈 담당 칸(screen_owner, data_owner)을 경고 목록으로 돌려준다.
+    활성 메뉴의 빈 담당 칸(screen_owner, data_owner, control_owner)을 경고 목록으로 돌려준다.
 
     없앤(removed) 메뉴는 보지 않는다. 결과는 메뉴 ID 순서다.
 
