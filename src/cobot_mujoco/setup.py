@@ -14,6 +14,7 @@ setup(
         ("share/ament_index/resource_index/packages", [f"resource/{PACKAGE}"]),
         (f"share/{PACKAGE}", ["package.xml"]),
         (f"share/{PACKAGE}/config", glob("config/*.json")),
+        (f"share/{PACKAGE}/config/textures", glob("config/textures/*")),
         (f"share/{PACKAGE}/docs", glob("docs/*")),
     ],
     package_data={PACKAGE: []},

@@ -129,6 +129,11 @@ def write_retraining_report(run, destination):
     detail = training_html(native + light + final)
     simulation = simulation_evidence(run, destination.parent)
     simulation_section = simulation_html(simulation)
+    appearance_link = (
+        '<p><a href="appearance_report.html">박스 외형·카메라 수정 전후 인식 정합·정책 반응·물리 비교</a></p>'
+        if (destination.parent / "appearance_report.html").exists()
+        else ""
+    )
     native_provenance = (
         read_json(run / "native_provenance.json") if (run / "native_provenance.json").exists() else {}
     )
@@ -182,6 +187,7 @@ code{{overflow-wrap:anywhere}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;f
 @media(max-width:800px){{.cards{{grid-template-columns:1fr 1fr}}main{{padding:20px 12px}}h1{{font-size:26px}}}}
 </style></head><body><main><p class="muted">데이터 역할 정정 · 기본 시연 / 보완 시연 · 공식 학습기 비교</p>
 <h1>보완 시연을 실제 학습에 넣고,<br>LeRobot 기본 ACT와 함께 다시 비교합니다.</h1>
+{appearance_link}
 <div class="warning"><strong>학습 상태: {esc(state.get("status"))} · 신규 MuJoCo 비교 상태: {esc(simulation["status"]["status"])}</strong><br>학습 완료는 시뮬레이션 검증 완료를 뜻하지 않습니다. <a href="simulation_report.html">MuJoCo 실제 실행·영상·결과로 이동</a> · <a href="#training-differences">학습 차이·스텝으로 이동</a></div>
 <p>생성 {esc(utc_now())} · 상태 <strong>{esc(state.get("status"))}</strong><br>현재 작업 {esc(state.get("current_job") or "없음")}</p>
 <p class="muted">현재 작업 상태 {esc(progress.get("status", "대기"))} · 마지막 저장 단계 {esc(progress.get("last_saved_upstream_step", progress.get("step", "—")))} · 공식 학습 PID {esc(progress.get("upstream_pid", "—"))}</p>
@@ -244,6 +250,7 @@ CNN 학습률 0.0003, ACT 0.0001, dropout 0.1, 가중치 감쇠 0.0001, 증강·
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         "<title>재학습 모델 MuJoCo 실제 비교</title><style>" + styles + "</style></head><body><main>"
         '<h1>재학습 모델의 MuJoCo 실행·비교 분석</h1><p><a href="report.html">전체 학습 보고서로 이동</a></p>'
+        + appearance_link
         + simulation_section
         + "</main></body></html>"
     )

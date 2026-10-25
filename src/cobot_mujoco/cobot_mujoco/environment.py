@@ -88,8 +88,35 @@ def build_scene(robot_assets, config):
     visual = ET.SubElement(root, "visual")
     ET.SubElement(visual, "global", offwidth="1280", offheight="960")
     ET.SubElement(visual, "headlight", ambient="0.45 0.45 0.45", diffuse="0.6 0.6 0.6")
+    appearance = config.get("appearance")
+    if appearance:
+        headlight = visual.find("headlight")
+        headlight.set("ambient", "0.65 0.65 0.65")
+        headlight.set("diffuse", "0.25 0.25 0.25")
+        for marker in root.findall(".//body[@name='end_effector_link']/geom"):
+            marker.set("rgba", "0 0 0 0")
+        asset = root.find("asset")
+        if asset is None:
+            asset = ET.SubElement(root, "asset")
+        for name in ["lid_two", "lid_one", "carpet", "wood"]:
+            path = PACKAGE / "config/textures" / f"{name}.png"
+            ET.SubElement(asset, "texture", name=name, type="2d", file=str(path))
+            ET.SubElement(
+                asset,
+                "material",
+                name=name,
+                texture=name,
+                texrepeat="1 1",
+                texuniform="false",
+                specular="0.05",
+                shininess="0.1",
+            )
+        asset.find("material[@name='carpet']").set("texrepeat", "8 8")
+        asset.find("material[@name='carpet']").set("texuniform", "true")
     world = root.find("worldbody")
-    ET.SubElement(world, "light", pos="0.2 0 1.2", dir="0 0 -1", diffuse="0.8 0.8 0.8")
+    ET.SubElement(
+        world, "light", pos="0.2 0 1.2", dir="0 0 -1", diffuse="0.1 0.1 0.1" if appearance else "0.8 0.8 0.8"
+    )
     ET.SubElement(
         world,
         "geom",
@@ -100,6 +127,10 @@ def build_scene(robot_assets, config):
         rgba="0.24 0.25 0.24 1",
         friction="1 0.005 0.0001",
     )
+    if appearance:
+        floor = world.find("geom[@name='floor']")
+        floor.set("material", "carpet")
+        floor.set("rgba", "1 1 1 1")
     ET.SubElement(
         world,
         "geom",
@@ -109,6 +140,10 @@ def build_scene(robot_assets, config):
         pos="0.015 0 -0.01",
         rgba="0.62 0.42 0.23 1",
     )
+    if appearance:
+        board = world.find("geom[@name='base_board']")
+        board.set("material", "wood")
+        board.set("rgba", "1 1 1 1")
     top = config["table_top"]
     ET.SubElement(
         world,
@@ -142,7 +177,7 @@ def build_scene(robot_assets, config):
             pos=text_vector([*config["box_center_xy"], top + half[2] * (2 * i + 1) + 0.001]),
         )
         ET.SubElement(body, "freejoint", name=f"box_{i}_free")
-        ET.SubElement(
+        collision = ET.SubElement(
             body,
             "geom",
             name=f"box_{i}_geom",
@@ -154,18 +189,46 @@ def build_scene(robot_assets, config):
             friction=f"{config['friction']} 0.005 0.0001",
             solref="0.008 1",
         )
+        if appearance:
+            collision.set("rgba", "0.58 0.21 0.15 1")
+            split_collision = appearance.get("lid_collision_split", True)
+            if split_collision:
+                collision.set("size", text_vector([half[0], half[1], half[2] * 0.65]))
+                collision.set("pos", f"0 0 {-half[2] * 0.35}")
+                collision.set("mass", str(config["box_mass"] * 0.65))
+            ET.SubElement(
+                body,
+                "geom",
+                name=f"box_{i}_cap_collision",
+                type="box",
+                size=text_vector([half[0] + 0.001, half[1] + 0.001, half[2] * 0.35]),
+                pos=f"0 0 {half[2] * 0.65}",
+                mass=str(config["box_mass"] * 0.35 if split_collision else 0),
+                rgba="0.89 0.87 0.81 1",
+                friction=f"{config['friction']} 0.005 0.0001",
+                condim="4",
+                solref="0.008 1",
+                contype="1" if split_collision else "0",
+                conaffinity="1" if split_collision else "0",
+            )
         ET.SubElement(
             body,
             "geom",
             name=f"box_{i}_lid",
             type="box",
             size=text_vector([half[0] + 0.001, half[1] + 0.001, 0.001]),
-            pos=f"0 0 {half[2]}",
+            pos=f"0 0 {half[2] + (0.0001 if appearance else 0)}",
             rgba="0.98 0.92 0.85 1",
             contype="0",
             conaffinity="0",
             mass="0",
         )
+        if appearance:
+            lid = body.find(f"geom[@name='box_{i}_lid']")
+            lid.set("size", text_vector([half[0] + 0.001, half[1] + 0.001, 0.0001]))
+            lid.set("rgba", "1 1 1 1")
+            lid.set("material", "lid_one" if config["box_count"] == 1 else "lid_two")
+            continue
         # Small heart-like markings represent the observed printed lids.
         for x in [-0.014, 0.0, 0.014]:
             for y in [-0.014, 0.0, 0.014]:
@@ -181,7 +244,7 @@ def build_scene(robot_assets, config):
                     mass="0",
                 )
     position, target = config["top_camera_position"], config["top_camera_target"]
-    ET.SubElement(
+    top_camera = ET.SubElement(
         world,
         "camera",
         name="top",
@@ -189,9 +252,11 @@ def build_scene(robot_assets, config):
         xyaxes=camera_axes(position, target),
         fovy=str(config["top_camera_fovy"]),
     )
+    if "top_camera_xyaxes" in config:
+        top_camera.set("xyaxes", text_vector(config["top_camera_xyaxes"]))
     wrist = root.find(".//body[@name='link5']")
     position, target = config["wrist_camera_position"], config["wrist_camera_target"]
-    ET.SubElement(
+    wrist_camera = ET.SubElement(
         wrist,
         "camera",
         name="wrist",
@@ -199,6 +264,8 @@ def build_scene(robot_assets, config):
         xyaxes=camera_axes(position, target),
         fovy=str(config["wrist_camera_fovy"]),
     )
+    if "wrist_camera_xyaxes" in config:
+        wrist_camera.set("xyaxes", text_vector(config["wrist_camera_xyaxes"]))
     return ET.tostring(root, encoding="unicode")
 
 
@@ -229,6 +296,7 @@ class OMXEnvironment:
             self.config["initial_state"] = self.config.get(
                 "single_box_initial_state", self.config["initial_state"]
             )
+            self.config.update(copy.deepcopy(self.config.get("single_box_camera_override", {})))
         elif scenario != "nominal":
             raise ValueError(f"Unknown predeclared scenario: {scenario}")
         self.model = mujoco.MjModel.from_xml_string(build_scene(assets, self.config))
@@ -349,6 +417,8 @@ class OMXEnvironment:
             self.renderers[key] = self.mujoco.Renderer(self.model, height=height, width=width)
         renderer = self.renderers[key]
         renderer.update_scene(self.data, camera=camera)
+        if self.config.get("appearance", {}).get("soft_lighting", False):
+            renderer.scene.flags[self.mujoco.mjtRndFlag.mjRND_SHADOW] = False
         return renderer.render().copy()
 
     def metrics(self):

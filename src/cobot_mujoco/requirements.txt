@@ -7,5 +7,6 @@ torchvision>=0.25,<1
 lerobot==0.6.1
 pyarrow>=20,<30
 Pillow>=11,<13
+opencv-python>=4.10,<5
 pytest>=8,<10
 ruff>=0.11,<1

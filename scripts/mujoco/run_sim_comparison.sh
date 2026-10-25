@@ -9,5 +9,6 @@ cd "$repo_dir"
 nohup setsid "$python_bin" -m cobot_mujoco.sim_comparison \
   --training "$training_run" --assets "$HOME/omx_sim_assets/robotis" \
   --cache "$HOME/omx_sim_data/cache_v1" \
+  --name mujoco_appearance_v2 --scene "$repo_dir/src/cobot_mujoco/config/scene_appearance_v2.json" \
   >> "$training_run/mujoco_comparison.log" 2>&1 < /dev/null &
 echo "MuJoCo 비교 시작: PID $! / $training_run/mujoco_comparison/status.json"

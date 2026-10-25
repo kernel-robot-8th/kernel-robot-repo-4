@@ -88,6 +88,7 @@ def scenarios(scene):
             config["box_count"] = boxes
             if boxes == 1:
                 config["initial_state"] = config["single_box_initial_state"]
+                config.update(copy.deepcopy(config.get("single_box_camera_override", {})))
             rows.append(
                 {
                     "name": f"boxes{boxes}_seed{seed}",
@@ -198,16 +199,25 @@ def rollout(controller, assets, case, output, seconds):
                 raise RuntimeError("Simulation video encoding failed")
 
 
-def run_comparison(training, assets, cache, seconds=50, publish=True, smoke=False):
+def run_comparison(
+    training,
+    assets,
+    cache,
+    seconds=50,
+    publish=True,
+    smoke=False,
+    run_name="mujoco_comparison",
+    scene_path=None,
+):
     """Persist every rollout independently and publish the revised report on completion."""
     from .retraining_report import write_retraining_report
 
     training = Path(training)
-    run = training / ("simulation_smoke" if smoke else "mujoco_comparison")
+    run = training / ("simulation_smoke" if smoke else run_name)
     run.mkdir(parents=True, exist_ok=True)
     lock = (run / "runner.lock").open("w")
     fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    scene = read_json(PACKAGE / "config/scene.json")
+    scene = read_json(scene_path or PACKAGE / "config/scene.json")
     models = frozen_models(training)
     cases = scenarios(scene)
     if smoke:
@@ -333,7 +343,7 @@ def run_comparison(training, assets, cache, seconds=50, publish=True, smoke=Fals
     finally:
         report()
         if not smoke:
-            target = report_root / "retraining_20261025/mujoco_comparison"
+            target = report_root / "retraining_20261025" / run.name
             target.mkdir(parents=True, exist_ok=True)
             for name in ["plan.json", "status.json"]:
                 shutil.copyfile(run / name, target / name)
@@ -361,9 +371,20 @@ def main():
     parser.add_argument("--seconds", type=int, default=50)
     parser.add_argument("--no-push", action="store_true")
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--name", default="mujoco_appearance_v2")
+    parser.add_argument("--scene")
     args = parser.parse_args()
     torch.set_num_threads(4)
-    run_comparison(args.training, args.assets, args.cache, args.seconds, not args.no_push, args.smoke)
+    run_comparison(
+        args.training,
+        args.assets,
+        args.cache,
+        args.seconds,
+        not args.no_push,
+        args.smoke,
+        args.name,
+        args.scene,
+    )
 
 
 if __name__ == "__main__":
