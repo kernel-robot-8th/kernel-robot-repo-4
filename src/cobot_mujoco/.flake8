@@ -12,4 +12,5 @@ per-file-ignores =
     */parameter_guide.py:E501
     */scene_review.py:E501
     */retraining_report.py:E501
+    */training_details.py:E501
 exclude = .git,__pycache__,build,install,log

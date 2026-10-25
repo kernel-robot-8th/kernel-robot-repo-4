@@ -28,6 +28,15 @@ def snapshot(run):
     """Read durable status and the last log portion without loading any model or secret."""
     run = Path(run)
     state = read_json(run / "status.json")
+    simulation_path = run / "mujoco_comparison/status.json"
+    simulation = read_json(simulation_path) if simulation_path.exists() else None
+    if simulation:
+        training_state = state
+        state = {
+            **simulation,
+            "deadline_epoch": training_state["deadline_epoch"],
+            "publication": "보고서 작성·게시 상태 별도 확인",
+        }
     current = state.get("current_job")
     progress = {"step": None, "maximum": None}
     for kind in ["native", "trials", "final"]:
@@ -59,13 +68,17 @@ def snapshot(run):
     supervisor_alive = alive(state.get("pid"))
     terminal = state["status"] in TERMINAL and not supervisor_alive
     expired = now.timestamp() > state["deadline_epoch"] + 3600 and not supervisor_alive
-    marker = [current, progress["step"], sum(c["finished"] for c in counts.values())]
+    marker = [
+        current,
+        progress["step"],
+        state.get("completed_rollouts", sum(c["finished"] for c in counts.values())),
+    ]
     previous_path = run / "discord_notification.json"
     previous = read_json(previous_path) if previous_path.exists() else {}
     stalled = previous.get("progress_marker") == marker and current is not None
     label = "종료" if terminal else "진행 중" if supervisor_alive else "감독 프로세스 중단 확인 필요"
     lines = [
-        f"**OMX 재학습 · {label}**",
+        f"**OMX {'MuJoCo 비교' if simulation else '재학습'} · {label}**",
         f"확인 시각: {now.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"누적 실행: {int(elapsed // 3600)}시간 {int(elapsed % 3600 // 60)}분 / 최대 12시간",
         f"공식 ACT 완료 {counts['native']['completed']}/8 · "
@@ -73,6 +86,11 @@ def snapshot(run):
         f"전체 시연 재학습 완료 {counts['final']['completed']}/2",
         f"현재 작업: {current or '없음'}",
     ]
+    if simulation:
+        lines.append(
+            f"신규 MuJoCo 실행: {state['completed_rollouts']}/{state['expected_rollouts']}회 · "
+            f"기록 명령 재생 {state['completed_replays']}/6회"
+        )
     if progress["step"] is not None:
         total = progress["maximum"]
         lines.append(

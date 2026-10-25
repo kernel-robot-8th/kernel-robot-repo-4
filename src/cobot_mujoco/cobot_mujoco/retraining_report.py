@@ -8,6 +8,14 @@ from pathlib import Path
 import numpy as np
 
 from .common import read_json, utc_now
+from .training_details import (
+    REASONS,
+    simulation_evidence,
+    simulation_html,
+    step_record,
+    step_summary,
+    training_html,
+)
 
 REGIMES = {
     "basic_only": "기본 시연만",
@@ -92,9 +100,13 @@ def write_retraining_report(run, destination):
         )
         train_mae = selected.get("training_mae")
         gap = selected.get("gap")
+        steps = step_record(row)
         job_rows.append(
             f"<tr><td>{esc(cfg['name'])}</td><td>{esc(REGIMES[cfg['regime']])}</td>"
-            f"<td>{row['steps']:,}</td><td>{'—' if score is None else f'{score:.3f}'}</td>"
+            f"<td>{steps['target_steps']:,}</td><td>{row['steps']:,}</td>"
+            f"<td>{steps['selected_step']:,}</td><td>{'도달' if steps['target_reached'] else '미도달'}</td>"
+            f"<td>{esc(REASONS.get(steps['stop_reason'], steps['stop_reason']))}</td>"
+            f"<td>{'—' if score is None else f'{score:.3f}'}</td>"
             f"<td>{'—' if train_mae is None else f'{train_mae:.3f}'}</td>"
             f"<td>{'—' if gap is None else f'{gap:.3f}'}</td>"
             f"<td>{row['elapsed_s'] / 60:.1f}분</td><td>{esc(row['status'])}</td></tr>"
@@ -109,10 +121,14 @@ def write_retraining_report(run, destination):
         )
     refit_rows = []
     for row in final:
+        steps = step_record(row)
         refit_rows.append(
             f"<tr><td>{esc(row['config']['name'])}</td><td>{esc(row['status'])}</td>"
-            f"<td>{row['steps']:,}</td><td>{esc(row['checkpoint'])}</td></tr>"
+            f"<td>{steps['target_steps']:,}</td><td>{row['steps']:,}</td><td>{esc(REASONS.get(steps['stop_reason'], steps['stop_reason']))}</td><td>{esc(row['checkpoint'])}</td></tr>"
         )
+    detail = training_html(native + light + final)
+    simulation = simulation_evidence(run, destination.parent)
+    simulation_section = simulation_html(simulation)
     native_provenance = (
         read_json(run / "native_provenance.json") if (run / "native_provenance.json").exists() else {}
     )
@@ -143,11 +159,14 @@ def write_retraining_report(run, destination):
         "heldout_evaluations": evaluations,
         "summary": summary,
         "all_data_refits": final,
+        "step_summary": step_summary(native + light + final),
+        "mujoco_comparison": simulation,
     }
     payload = json.dumps(raw, ensure_ascii=False, indent=2).replace("<", "\\u003c")
     refresh = (
         ""
         if state.get("status") in {"completed", "incomplete", "failed", "budget_reached", "stopped"}
+        and simulation["status"]["status"] != "running"
         else '<meta http-equiv="refresh" content="60">'
     )
     content = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -163,7 +182,8 @@ code{{overflow-wrap:anywhere}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;f
 @media(max-width:800px){{.cards{{grid-template-columns:1fr 1fr}}main{{padding:20px 12px}}h1{{font-size:26px}}}}
 </style></head><body><main><p class="muted">데이터 역할 정정 · 기본 시연 / 보완 시연 · 공식 학습기 비교</p>
 <h1>보완 시연을 실제 학습에 넣고,<br>LeRobot 기본 ACT와 함께 다시 비교합니다.</h1>
-<p>생성 {esc(utc_now())} · 상태 <strong>{esc(state.get("status"))}</strong><br>현재 작업 {esc(state.get("current_job", "—"))}</p>
+<div class="warning"><strong>학습 상태: {esc(state.get("status"))} · 신규 MuJoCo 비교 상태: {esc(simulation["status"]["status"])}</strong><br>학습 완료는 시뮬레이션 검증 완료를 뜻하지 않습니다. <a href="simulation_report.html">MuJoCo 실제 실행·영상·결과로 이동</a> · <a href="#training-differences">학습 차이·스텝으로 이동</a></div>
+<p>생성 {esc(utc_now())} · 상태 <strong>{esc(state.get("status"))}</strong><br>현재 작업 {esc(state.get("current_job") or "없음")}</p>
 <p class="muted">현재 작업 상태 {esc(progress.get("status", "대기"))} · 마지막 저장 단계 {esc(progress.get("last_saved_upstream_step", progress.get("step", "—")))} · 공식 학습 PID {esc(progress.get("upstream_pid", "—"))}</p>
 <div class="cards"><div class="card"><strong>{len(light)}/48</strong>경량 비교 학습</div>
 <div class="card"><strong>{len(native)}/8</strong>공식 ACT 비교 학습</div>
@@ -195,10 +215,11 @@ CNN 학습률 0.0003, ACT 0.0001, dropout 0.1, 가중치 감쇠 0.0001, 증강·
 250스텝마다 검증하고 개선 폭 0.005 초과가 10회 없으면 최소 1,500스텝 뒤 조기 종료합니다.
 공식 학습은 원래 루프의 고정 단계 학습과 1,000스텝 체크포인트를 사용합니다. 두 방식의 구조·해상도·관측 표본 수·학습량이 달라
 성능 차이를 모델 크기 하나의 영향으로 해석할 수 없습니다.</p></article>
-<h2>실제 학습 작업</h2><p>경량 모델은 선택 시점의 학습 MAE와 검증−학습 차이를 함께 기록합니다. 학습 오차가 내려가면서 검증 오차가 커지는지는 아래 원본 JSON의 단계별 history로 확인할 수 있습니다.
+{detail}
+<h2>실제 학습 작업 · 전체 56건</h2><p>경량 모델은 선택 시점의 학습 MAE와 검증−학습 차이를 함께 기록합니다. 학습 오차가 내려가면서 검증 오차가 커지는지는 위 곡선과 원본 JSON의 단계별 history로 확인할 수 있습니다.
 큰 차이는 과적합·수집 조건 차이의 신호이며 단독 원인 진단은 아닙니다. 공식 모델은 저장 단계별 검증 MAE를 기록하며, 학습 MAE를 별도로 측정하지 않은 칸은 비워 둡니다.</p>
-<div class="scroll"><table><thead><tr><th>실험</th><th>수집 데이터 사용 방식</th><th>저장 단계</th><th>최고 검증 MAE</th><th>선택 시 학습 MAE</th><th>검증−학습</th><th>소요 시간</th><th>상태</th></tr></thead><tbody>
-{"".join(job_rows) or '<tr><td colspan="8">현재 작업의 학습 로그가 수집 중입니다.</td></tr>'}</tbody></table></div>
+<div class="scroll"><table><thead><tr><th>실험</th><th>데이터 방식</th><th>목표step</th><th>실제 종료step</th><th>평가에 선택한step</th><th>목표 도달</th><th>종료 이유</th><th>최고 검증 MAE</th><th>선택 시 학습 MAE</th><th>검증−학습</th><th>소요 시간</th><th>작업 상태</th></tr></thead><tbody>
+{"".join(job_rows) or '<tr><td colspan="12">현재 작업의 학습 로그가 수집 중입니다.</td></tr>'}</tbody></table></div>
 <h2>보완 시연 학습 효과와 기본 동작 유지</h2><p>같은 녹화의 시드 평균을 먼저 낸 뒤 보완 평가 녹화 4개를 평균합니다.
 95% 구간도 고유 보완 녹화 단위 bootstrap입니다. 기본 평가 녹화는 9번 하나이므로 일반적인 기본 동작 성공률로 해석할 수 없습니다.
 지표는 앞 10개 미래 관절 명령의 MAE이며 물체 이동 성공률과 다릅니다.</p>
@@ -207,10 +228,8 @@ CNN 학습률 0.0003, ACT 0.0001, dropout 0.1, 가중치 감쇠 0.0001, 증강·
 <h2>전체 시연을 반영한 마지막 모델</h2><article><p>비교 검증으로 설정을 정한 뒤, 별도의 경량 후보와 공식 ACT를 0~14번 전체로 다시 학습합니다.
 이 모델에는 보완 11~14번 전부를 반영합니다. 학습에 모든 녹화를 사용하므로 독립 테스트 점수를 붙이지 않습니다.
 표의 경로는 로컬 가중치이며 대용량 모델을 Git에 넣지 않습니다.</p></article>
-<div class="scroll"><table><thead><tr><th>모델</th><th>상태</th><th>저장 단계</th><th>실제 체크포인트 경로</th></tr></thead><tbody>{"".join(refit_rows) or '<tr><td colspan="4">비교 학습 완료 후 생성합니다.</td></tr>'}</tbody></table></div>
-<h2>MuJoCo 검증 범위</h2><div class="warning">기본 박스 개수는 2개로 수정했지만 실제 성공 시연 명령 재생이 아직 배치 성공을 재현하지 못했습니다.
-추가 학습의 효과를 보정 전 물리 성공률 0회로 판단하지 않습니다. 이번 재학습에서는 정책 물리 성공률을 승인 지표로 발표하지 않고,
-접촉·치수·카메라 보정이 남아 있음을 표시합니다.</div>
+<div class="scroll"><table><thead><tr><th>모델</th><th>상태</th><th>목표step</th><th>실제 종료step</th><th>종료 이유</th><th>실제 체크포인트 경로</th></tr></thead><tbody>{"".join(refit_rows) or '<tr><td colspan="6">비교 학습 완료 후 생성합니다.</td></tr>'}</tbody></table></div>
+{simulation_section}
 <p><a href="round1_report.html">1차 보고서와 박스 개수 정정 기록</a> · <a href="../../src/cobot_mujoco/docs/retraining.md">재학습 절차·파라미터 설명</a></p>
 <details><summary>전체 설정·학습 결과·원본 실행 근거 JSON</summary><pre id="raw"></pre></details>
 <script type="application/json" id="evidence">{payload}</script><script>document.getElementById('raw').textContent=JSON.stringify(JSON.parse(document.getElementById('evidence').textContent),null,2)</script>
@@ -219,4 +238,14 @@ CNN 학습률 0.0003, ACT 0.0001, dropout 0.1, 가중치 감쇠 0.0001, 증강·
     tmp = destination.with_suffix(".tmp")
     tmp.write_text(content)
     tmp.replace(destination)
+    styles = content.split("<style>", 1)[1].split("</style>", 1)[0]
+    simulation_page = (
+        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        "<title>재학습 모델 MuJoCo 실제 비교</title><style>" + styles + "</style></head><body><main>"
+        '<h1>재학습 모델의 MuJoCo 실행·비교 분석</h1><p><a href="report.html">전체 학습 보고서로 이동</a></p>'
+        + simulation_section
+        + "</main></body></html>"
+    )
+    destination.with_name("simulation_report.html").write_text(simulation_page)
     return raw
