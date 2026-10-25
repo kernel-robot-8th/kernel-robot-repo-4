@@ -80,6 +80,11 @@ class MainWindow(QMainWindow):
         self.resume_run: Path | None = None
         self.train_root: Path | None = None
         self.train_eps = 0
+        self.train_lengths: dict[int, int] = {}
+        self.train_episodes: list[int] | None = None  # None = every episode
+        self.train_holdout: list[int] = []
+        self.train_split_error = ""
+        self.pending_holdout: dict | None = None
 
         tabs = QTabWidget()
         tabs.addTab(self._build_dashboard(), "대시보드")
@@ -362,9 +367,14 @@ class MainWindow(QMainWindow):
         self.lbl_train_data = QLabel()
         self.lbl_train_data.setWordWrap(True)
         self.lbl_train_data.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.ed_holdout = QLineEdit()
+        self.ed_holdout.setPlaceholderText("예: 5,9 또는 3-5 (비우면 전체 학습)")
+        self.ed_holdout.setToolTip("평가에 쓸 에피소드를 학습에서 뺍니다 (--dataset.episodes)")
+        self.ed_holdout.editingFinished.connect(self._update_train_data)
         df.addRow("데이터 폴더", prow)
+        df.addRow("평가용 제외 에피소드", self.ed_holdout)
         df.addRow("", self.lbl_train_data)
-        df.addRow("", QLabel("기본은 녹화한 Success 에피소드입니다. 결과는 데이터 폴더 옆 train/ 에 저장됩니다."))
+        df.addRow("", QLabel("기본은 녹화한 Success 에피소드입니다."))
         self.train_data_box = dbox
         left.addWidget(dbox)
 
@@ -386,14 +396,35 @@ class MainWindow(QMainWindow):
         self.sp_save_freq = QSpinBox()
         self.sp_save_freq.setRange(1, 10_000_000)
         self.ck_wandb = QCheckBox("Weights & Biases 기록")
+        self.ck_aug = QCheckBox("이미지 증강 (밝기·대비·채도·색조·선명도·이동)")
+        self.sp_epochs = QDoubleSpinBox()
+        self.sp_epochs.setRange(0.1, 100_000)
+        self.sp_epochs.setDecimals(1)
+        self.sp_epochs.setValue(20)
+        self.btn_epochs = QPushButton("step에 적용")
+        self.btn_epochs.setFocusPolicy(Qt.NoFocus)
+        self.btn_epochs.clicked.connect(self._apply_epochs)
+        erow = QHBoxLayout()
+        erow.addWidget(self.sp_epochs, 1)
+        erow.addWidget(self.btn_epochs)
+        self.lbl_epoch = QLabel()
+        self.lbl_epoch.setStyleSheet("color:#888;")
+        for sp in (self.sp_steps, self.sp_batch, self.sp_save_freq):
+            sp.valueChanged.connect(self._update_epoch_info)
+        self.ed_extra = QLineEdit()
+        self.ed_extra.setPlaceholderText("예: --policy.chunk_size=50 --seed=7 (맨 뒤에 붙어 위 값을 덮어씀)")
         pf.addRow("정책", self.cb_policy)
         pf.addRow("장치", self.cb_device)
         pf.addRow("학습 step", self.sp_steps)
         pf.addRow("batch size", self.sp_batch)
+        pf.addRow("epoch → step", erow)
+        pf.addRow("", self.lbl_epoch)
         pf.addRow("데이터 로더 worker", self.sp_workers)
         pf.addRow("로그 주기 (step)", self.sp_log_freq)
         pf.addRow("체크포인트 주기 (step)", self.sp_save_freq)
+        pf.addRow("", self.ck_aug)
         pf.addRow("", self.ck_wandb)
+        pf.addRow("추가 인자", self.ed_extra)
         left.addWidget(pbox)
         self.train_box = pbox
 
@@ -479,6 +510,9 @@ class MainWindow(QMainWindow):
         self.sp_log_freq.setValue(int(t["log_freq"]))
         self.sp_save_freq.setValue(int(t["save_freq"]))
         self.ck_wandb.setChecked(bool(t["wandb"]))
+        self.ck_aug.setChecked(bool(t["image_aug"]))
+        self.ed_holdout.setText(t["holdout_episodes"])
+        self.ed_extra.setText(t["extra_args"])
         self.ed_train_data.setText(t["dataset_root"])
         self._update_train_data()
 
@@ -521,6 +555,9 @@ class MainWindow(QMainWindow):
             log_freq=self.sp_log_freq.value(),
             save_freq=self.sp_save_freq.value(),
             wandb=self.ck_wandb.isChecked(),
+            image_aug=self.ck_aug.isChecked(),
+            holdout_episodes=self.ed_holdout.text().strip(),
+            extra_args=self.ed_extra.text().strip(),
         )
         return c
 
@@ -680,14 +717,63 @@ class MainWindow(QMainWindow):
         """Recheck the dataset; called on path or episode changes, not every tick."""
         root = self._train_data_root()
         self.train_root = root
+        if self.session:
+            default = trainer.dataset_root(Path(self.session["task_dir"]))
+            self.ed_train_data.setPlaceholderText(f"기본: {default}")
+        else:
+            self.ed_train_data.setPlaceholderText("기본: 세션 시작 후 <저장 경로>/<태스크명>/success")
+        custom = bool(self.ed_train_data.text().strip())
+        head = f"{'지정 경로' if custom else '기본 경로(세션)'}: {root}"
         self.train_eps = trainer.episode_count(root) if root else 0
         self.resume_run = trainer.latest_run(root) if root else None
+        self.train_lengths, self.train_episodes, self.train_holdout, self.train_split_error = {}, None, [], ""
         if root is None:
             self.lbl_train_data.setText("데이터 폴더를 지정하거나 대시보드에서 세션을 시작하세요.")
         elif not (root / "meta" / "info.json").exists():
-            self.lbl_train_data.setText(f"{root}\nLeRobot 데이터셋이 아닙니다 (meta/info.json 없음)")
+            self.lbl_train_data.setText(f"{head}\nLeRobot 데이터셋이 아닙니다 (meta/info.json 없음)")
         else:
-            self.lbl_train_data.setText(f"{root}\n에피소드 {self.train_eps}개")
+            try:
+                self.train_lengths = trainer.episode_lengths(root)
+            except Exception as e:  # noqa: BLE001
+                self._log(f"에피소드 길이를 읽지 못했습니다: {e}", error=True)
+            split = f"에피소드 {self.train_eps}개"
+            try:
+                self.train_holdout = trainer.parse_episode_list(self.ed_holdout.text(), self.train_eps)
+            except ValueError as e:
+                self.train_split_error = str(e)
+            if self.train_split_error:
+                split += f"   ·   제외 목록 오류: {self.train_split_error}"
+            elif self.train_holdout:
+                self.train_episodes = [i for i in range(self.train_eps) if i not in self.train_holdout]
+                shown = ", ".join(map(str, self.train_holdout))
+                split = f"학습 {len(self.train_episodes)}개 / 제외 {len(self.train_holdout)}개 ({shown})"
+                if not self.train_episodes:
+                    self.train_split_error = "모든 에피소드를 제외했습니다"
+                    split += "   ·   학습할 에피소드가 없습니다"
+            self.lbl_train_data.setText(f"{head}\n{split}\n결과 저장: {trainer.train_dir_for(root)}/")
+        self._update_epoch_info()
+
+    def _train_frames(self) -> int:
+        eps = self.train_episodes if self.train_episodes is not None else range(self.train_eps)
+        return sum(self.train_lengths.get(i, 0) for i in eps)
+
+    def _update_epoch_info(self):
+        spe = trainer.steps_per_epoch(self._train_frames(), self.sp_batch.value())
+        self.btn_epochs.setEnabled(spe > 0)
+        if spe == 0:
+            self.lbl_epoch.setText("epoch 환산: 데이터가 없습니다")
+            return
+        steps, save = self.sp_steps.value(), self.sp_save_freq.value()
+        # lerobot saves every save_freq steps and always at the final step.
+        ckpts = steps // save + (1 if steps % save else 0)
+        self.lbl_epoch.setText(
+            f"≈ {steps / spe:.1f} epoch (1 epoch = {spe} step, {self._train_frames()} 프레임) · 체크포인트 {ckpts}개"
+        )
+
+    def _apply_epochs(self):
+        spe = trainer.steps_per_epoch(self._train_frames(), self.sp_batch.value())
+        if spe:
+            self.sp_steps.setValue(max(self.sp_steps.minimum(), round(self.sp_epochs.value() * spe)))
 
     def _browse_train_data(self):
         start = self.train_root or self._resolve(self.ed_output.text() or "./output")
@@ -713,6 +799,12 @@ class MainWindow(QMainWindow):
         root = self.train_root
         if root is None:
             return
+        try:
+            extra = trainer.split_extra_args(self.cfg["train"]["extra_args"])
+        except ValueError as e:
+            QMessageBox.warning(self, "추가 인자", str(e))
+            return
+        self.pending_holdout = None
         if resume:
             run = self.resume_run
             if run is None:
@@ -721,15 +813,28 @@ class MainWindow(QMainWindow):
                 self.train_total = int(json.loads(trainer.resume_config(run).read_text())["steps"])
             except Exception:  # noqa: BLE001
                 self.train_total = 0
-            cmd = trainer.build_command(self.cfg["train"], None, "", run, resume_from=run)
+            cmd = trainer.build_command(self.cfg["train"], None, "", run, resume_from=run, extra=extra)
         else:
-            n = self.train_eps
-            if n == 0:
+            if self.train_eps == 0:
                 QMessageBox.warning(self, "학습", f"{root}\n에 학습할 에피소드가 없습니다.")
                 return
+            if self.train_split_error:
+                QMessageBox.warning(self, "평가용 제외 에피소드", self.train_split_error)
+                return
+            n = len(self.train_episodes) if self.train_episodes is not None else self.train_eps
             run = trainer.run_dir(root, self.cfg["train"]["policy"])
             self.train_total = int(self.cfg["train"]["steps"])
-            cmd = trainer.build_command(self.cfg["train"], root, trainer.default_repo_id(root), run)
+            cmd = trainer.build_command(
+                self.cfg["train"], root, trainer.default_repo_id(root), run, episodes=self.train_episodes, extra=extra
+            )
+            if self.train_holdout:
+                # lerobot refuses an existing output_dir, so this is written once the run has created it.
+                self.pending_holdout = {
+                    "dataset_root": str(root),
+                    "total_episodes": self.train_eps,
+                    "holdout_episodes": self.train_holdout,
+                    "train_episodes": self.train_episodes,
+                }
             self._log(f"학습 시작: {self.cfg['train']['policy']} · {root} ({n}개 에피소드) → {run}")
         self.pb_train.setRange(0, max(self.train_total, 1))
         self.pb_train.setValue(0)
@@ -738,6 +843,17 @@ class MainWindow(QMainWindow):
         self.lbl_train_out.setText(f"출력: {run}")
         self.train_log.clear()
         self.trainer.start(cmd, run)
+
+    def _write_holdout(self):
+        out = self.trainer.out_dir
+        if self.pending_holdout is None or out is None or not out.exists():
+            return
+        try:
+            (out / trainer.HOLDOUT_FILE).write_text(json.dumps(self.pending_holdout, indent=2))
+            self.train_log.appendPlainText(f"평가용 제외 에피소드 기록: {out / trainer.HOLDOUT_FILE}")
+        except OSError as e:
+            self._log(f"{trainer.HOLDOUT_FILE} 저장 실패: {e}", error=True)
+        self.pending_holdout = None
 
     def _open_train_dir(self):
         cands = [self.trainer.out_dir]
@@ -800,10 +916,12 @@ class MainWindow(QMainWindow):
         elif kind == "train_tqdm":
             self.lbl_train_tqdm.setText(payload)
         elif kind == "train_progress":
+            self._write_holdout()
             self.pb_train.setValue(min(payload["step"], self.pb_train.maximum()))
             ep = f"   epoch {payload['epoch']:.2f}" if "epoch" in payload else ""
             self.lbl_train_stat.setText(f"step {payload['step']}   loss {payload['loss']:.4f}{ep}")
         elif kind == "train_done":
+            self._write_holdout()
             ok = payload == 0
             if ok:
                 self._log("학습 완료")
@@ -854,7 +972,7 @@ class MainWindow(QMainWindow):
         can_train = not training and not recording and not pending and not saving
         self.train_box.setEnabled(not training)
         self.train_data_box.setEnabled(not training)
-        self.btn_train.setEnabled(can_train and self.train_eps > 0)
+        self.btn_train.setEnabled(can_train and self.train_eps > 0 and not self.train_split_error)
         self.btn_train.setStyleSheet(STYLE_GREEN if self.btn_train.isEnabled() else "")
         self.btn_train_resume.setEnabled(can_train and self.resume_run is not None)
         self.btn_train_stop.setEnabled(training)

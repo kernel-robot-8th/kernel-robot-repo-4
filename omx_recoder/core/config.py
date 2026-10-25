@@ -56,6 +56,9 @@ DEFAULTS = {
         "log_freq": 200,
         "save_freq": 20000,
         "wandb": False,
+        "image_aug": False,
+        "holdout_episodes": "",
+        "extra_args": "",
     },
 }
 

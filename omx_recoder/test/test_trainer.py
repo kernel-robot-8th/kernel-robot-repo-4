@@ -36,6 +36,60 @@ class BuildCommandTest(unittest.TestCase):
         )
 
 
+class TrainOptionsTest(unittest.TestCase):
+    def test_episodes_aug_and_extra_order(self):
+        cfg = dict(DEFAULTS["train"], image_aug=True)
+        cmd = trainer.build_command(cfg, Path("/d"), "local/x", Path("/o/r"), episodes=[0, 1, 3], extra=["--seed=7"])
+        i_ep = cmd.index("--dataset.episodes=[0,1,3]")
+        i_aug = cmd.index("--dataset.image_transforms.enable=true")
+        self.assertLess(cmd.index("--wandb.enable=false"), i_ep)
+        self.assertLess(i_ep, i_aug)
+        self.assertEqual(cmd[-1], "--seed=7")
+
+    def test_defaults_add_nothing(self):
+        cmd = trainer.build_command(DEFAULTS["train"], Path("/d"), "local/x", Path("/o/r"))
+        self.assertFalse(any(a.startswith(("--dataset.episodes", "--dataset.image_transforms")) for a in cmd))
+
+    def test_resume_keeps_extra(self):
+        cmd = trainer.build_command(DEFAULTS["train"], None, "", Path("/o/r"), resume_from=Path("/o/r"), extra=["--steps=50"])
+        self.assertEqual(cmd[-2:], ["--resume=true", "--steps=50"])
+
+    def test_parse_episode_list(self):
+        self.assertEqual(trainer.parse_episode_list("", 10), [])
+        self.assertEqual(trainer.parse_episode_list(" 9, 5 ,5", 10), [5, 9])
+        self.assertEqual(trainer.parse_episode_list("3-5,8", 10), [3, 4, 5, 8])
+        for bad in ("10", "a", "5-3", "1;2", "-1"):
+            with self.assertRaises(ValueError):
+                trainer.parse_episode_list(bad, 10)
+
+    def test_split_extra_args(self):
+        self.assertEqual(trainer.split_extra_args(""), [])
+        self.assertEqual(
+            trainer.split_extra_args("--seed=7 --rename_map='{\"a\": \"b c\"}'"),
+            ["--seed=7", '--rename_map={"a": "b c"}'],
+        )
+        for bad in ("--seed='7", "seed=7"):
+            with self.assertRaises(ValueError):
+                trainer.split_extra_args(bad)
+
+    def test_steps_per_epoch(self):
+        self.assertEqual(trainer.steps_per_epoch(10787, 16), 675)
+        self.assertEqual(trainer.steps_per_epoch(160, 16), 10)
+        self.assertEqual(trainer.steps_per_epoch(0, 16), 0)
+
+    def test_episode_lengths_across_files(self):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        with tempfile.TemporaryDirectory() as d:
+            ep = Path(d) / "meta" / "episodes" / "chunk-000"
+            ep.mkdir(parents=True)
+            pq.write_table(pa.table({"episode_index": [0, 1], "length": [40, 41], "x": [1, 2]}), ep / "file-000.parquet")
+            pq.write_table(pa.table({"episode_index": [2], "length": [42], "x": [3]}), ep / "file-001.parquet")
+            self.assertEqual(trainer.episode_lengths(Path(d)), {0: 40, 1: 41, 2: 42})
+            self.assertEqual(trainer.episode_lengths(Path(d) / "none"), {})
+
+
 class ParseLogLineTest(unittest.TestCase):
     def test_metrics_line(self):
         line = "INFO 2026-10-26 12:00:00 ot_train.py:435 step:1K smpl:8K ep:20 epch:0.50 loss:0.123 grdn:1.2 lr:1.0e-05"

@@ -53,3 +53,6 @@ train:
   log_freq: 200
   save_freq: 20000
   wandb: false
+  image_aug: false
+  holdout_episodes: ''
+  extra_args: ''

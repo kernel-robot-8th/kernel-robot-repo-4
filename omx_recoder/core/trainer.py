@@ -1,6 +1,8 @@
 import json
+import math
 import queue
 import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -11,6 +13,7 @@ POLICIES = ["act", "diffusion"]
 DEVICES = ["cuda", "cpu"]
 TRAIN_KIND = "success"  # only successful demos are imitation targets
 STOP_GRACE_MS = 10_000
+HOLDOUT_FILE = "omx_holdout.json"
 
 _STEP_RE = re.compile(r"\bstep:(\d+(?:\.\d+)?)([KMBTQ]?)(?=\s)")
 _EPOCH_RE = re.compile(r"\bepch:(\d+(?:\.\d+)?)")
@@ -34,6 +37,50 @@ def episode_count(root: Path) -> int:
         return int(json.loads(info.read_text()).get("total_episodes", 0))
     except (ValueError, OSError):
         return 0
+
+
+def episode_lengths(root: Path) -> dict[int, int]:
+    """Frames per episode from meta/episodes; the recorder starts a new parquet file per episode."""
+    import pyarrow.parquet as pq
+
+    out = {}
+    for f in sorted((Path(root) / "meta" / "episodes").glob("*/*.parquet")):
+        t = pq.read_table(f, columns=["episode_index", "length"]).to_pydict()
+        out.update(zip(map(int, t["episode_index"]), map(int, t["length"])))
+    return out
+
+
+def parse_episode_list(text: str, total: int) -> list[int]:
+    """'5, 9' or '3-5' -> sorted unique indices; raises ValueError on bad syntax or out-of-range."""
+    out = set()
+    for part in text.replace(" ", "").split(","):
+        if not part:
+            continue
+        m = re.fullmatch(r"(\d+)(?:-(\d+))?", part)
+        if not m:
+            raise ValueError(f"에피소드 번호 형식 오류: '{part}' (예: 5,9 또는 3-5)")
+        a, b = int(m.group(1)), int(m.group(2) or m.group(1))
+        if a > b:
+            raise ValueError(f"범위가 거꾸로 되어 있습니다: '{part}'")
+        if b >= total:
+            raise ValueError(f"에피소드 {b}이(가) 없습니다 (0~{total - 1})")
+        out.update(range(a, b + 1))
+    return sorted(out)
+
+
+def steps_per_epoch(frames: int, batch: int) -> int:
+    return math.ceil(frames / batch) if frames > 0 and batch > 0 else 0
+
+
+def split_extra_args(text: str) -> list[str]:
+    try:
+        args = shlex.split(text)
+    except ValueError as e:
+        raise ValueError(f"추가 인자를 나눌 수 없습니다: {e}") from e
+    bad = [a for a in args if not a.startswith("--")]
+    if bad:
+        raise ValueError(f"추가 인자는 --이름=값 형식이어야 합니다: {' '.join(bad)}")
+    return args
 
 
 def train_dir_for(data_root: Path) -> Path:
@@ -65,12 +112,27 @@ def latest_run(data_root: Path) -> Path | None:
     return max(runs, key=lambda p: p.stat().st_mtime) if runs else None
 
 
-def build_command(cfg_train: dict, root: Path, repo_id: str, out_dir: Path, resume_from: Path | None = None) -> list[str]:
+def build_command(
+    cfg_train: dict,
+    root: Path,
+    repo_id: str,
+    out_dir: Path,
+    resume_from: Path | None = None,
+    episodes: list[int] | None = None,
+    extra: list[str] | None = None,
+) -> list[str]:
     base = [sys.executable, "-m", "lerobot.scripts.lerobot_train"]
+    # Extra args go last so they override anything above, like options appended to omx_train's train.sh.
+    extra = list(extra or [])
     if resume_from is not None:
         # Every other option is restored from the checkpoint's own train_config.json.
-        return base + [f"--config_path={resume_config(resume_from)}", "--resume=true"]
+        return base + [f"--config_path={resume_config(resume_from)}", "--resume=true"] + extra
     c = cfg_train
+    opt = []
+    if episodes is not None:
+        opt.append(f"--dataset.episodes=[{','.join(map(str, episodes))}]")
+    if c.get("image_aug"):
+        opt.append("--dataset.image_transforms.enable=true")
     return base + [
         f"--dataset.repo_id={repo_id}",
         f"--dataset.root={root}",
@@ -86,7 +148,7 @@ def build_command(cfg_train: dict, root: Path, repo_id: str, out_dir: Path, resu
         f"--log_freq={int(c['log_freq'])}",
         f"--save_freq={int(c['save_freq'])}",
         f"--wandb.enable={'true' if c['wandb'] else 'false'}",
-    ]
+    ] + opt + extra
 
 
 def parse_log_line(line: str) -> dict | None:
