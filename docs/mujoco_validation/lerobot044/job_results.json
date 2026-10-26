@@ -1,0 +1,6960 @@
+[
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk100_base",
+      "chunk": 100,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk100_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 4.719476486742496,
+          "per_episode": {
+            "8": {
+              "control_mae": 4.289239858587583,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 5.14971311489741,
+              "samples": 60
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 4.226545415399266,
+          "per_episode": {
+            "0": {
+              "control_mae": 4.311005173058345,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 3.512117896761213,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 3.8870812034606934,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 4.309280163363407,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 3.995413377171471,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 4.219436111450196,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 3.8258130096253895,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 4.258176787333055,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 4.4952456676042996,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 4.743282563984394,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 4.935147615579458,
+              "samples": 13
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.49293107134323044,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk100_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 3.146095311144988,
+          "per_episode": {
+            "8": {
+              "control_mae": 3.0198254535595574,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 3.272365168730418,
+              "samples": 60
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 2.3828449946038237,
+          "per_episode": {
+            "0": {
+              "control_mae": 2.4404166176401336,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 2.1657597380025044,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 2.0730279636383058,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 2.392708841123079,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 2.214230702036903,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 2.191213366985321,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 2.2105373399598256,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 2.156734658913179,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 2.978572726249695,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 2.523874916136265,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 2.864218069956853,
+              "samples": 13
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.7632503165411642,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk100_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 2.104649542686012,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.0749060768220158,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.134393008550008,
+              "samples": 60
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.3949470644157538,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.5402639816547263,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.3433061561414175,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.15172819852829,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.3626401298924495,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.270409867877052,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.4054145073890687,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.3762309409323192,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.3803804706443439,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.4777623277444105,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.470649041235447,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.5656320865337665,
+              "samples": 13
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.7097024782702581,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk100_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 2.0619460141493215,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.0658297828502126,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.0580622454484305,
+              "samples": 60
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.0827295675247872,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.1470807441349686,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.9918116288525718,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.0192321181297301,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.0188697027532678,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.0423334382829212,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.0481766545772553,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.0620070142405373,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.1712389222600244,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 0.9171240513141339,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.2622297052294016,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.2299212629978473,
+              "samples": 13
+            }
+          },
+          "parameters": 12319622,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9792164466245343,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 3543.5328159332275,
+    "finished_at": "2026-10-26T11:00:03.302455+00:00",
+    "gpu_peak_device_mib": 3663,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk100_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk100_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk16_base",
+      "chunk": 16,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk16_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 2.247595363193088,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.9889105723963842,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.506280153989792,
+              "samples": 60
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.4924892793360807,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.527059945566901,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.428382406277316,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.4982933259010316,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.4623102451625622,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.3747984994025457,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.4810362553596497,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.2652705226625716,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.5645279044454747,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.5420045485863318,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.5419059097766876,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.7317925095558167,
+              "samples": 13
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.7551060838570074,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk16_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 2.0930626698252226,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.003903756125106,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.18222158352534,
+              "samples": 60
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.1474457695084632,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.1317152216516693,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.1545667137418474,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.0700374054908752,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.1576894835421914,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.02088577406747,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.3346589815616607,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.0148432070300692,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.308149985291741,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.169436133824862,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.1607111282646656,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.0992094301260436,
+              "samples": 13
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9456169003167594,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk16_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 1.8659884531878763,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.7246631611552503,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.007313745220502,
+              "samples": 60
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.8741392535105976,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.9440388751441035,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.8481389614088195,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.8937433362007141,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.8901602343509072,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.8400747903755733,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.9209090733528137,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.7642324552649543,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.9559555013071407,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 0.7367401237671192,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.017783023416996,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.8037554140274341,
+              "samples": 13
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9918491996772787,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk16_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 1.7964671932988696,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.6288728134499655,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.9640615731477737,
+              "samples": 60
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.7587618960454064,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.7400761051424618,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.684373962027686,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.6475660514831543,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.7864895933552792,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.6629958365644727,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.7339588677883149,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.6494331913334983,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.779923521659591,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 0.8727332330667056,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 0.9057430401444435,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.8830874539338626,
+              "samples": 13
+            }
+          },
+          "parameters": 12308870,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.037705297253463,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 2901.8684923648834,
+    "finished_at": "2026-10-26T08:09:51.377972+00:00",
+    "gpu_peak_device_mib": 3108,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk16_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk16_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk32_base",
+      "chunk": 32,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk32_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 2.8831500452425747,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.7638872696293726,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 3.0024128208557763,
+              "samples": 60
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.9013936571670145,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.7832587155802497,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.7806244705404555,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.908783724308014,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 2.238918545999025,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.6153954920314608,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.7819384729862213,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.7026744371368772,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 2.108136469667608,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.6401376219896169,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 2.1217507012188435,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 2.2337115773787866,
+              "samples": 13
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9817563880755602,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk32_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 2.25909645350443,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.1304827887150974,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.387710118293762,
+              "samples": 60
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.340715030845464,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.4323184469650532,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.405760564974376,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.0859655356407165,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.4286084582931118,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.294224208309537,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.4722110748291015,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.1694808034669786,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.4098994488065892,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.1593806193425105,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.5108364671468735,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.3791797115252569,
+              "samples": 13
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9183814226589659,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk32_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 2.048766156906883,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.9157616185645263,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.1817706952492397,
+              "samples": 60
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.0259865600232572,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.9801645659167191,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.959238914506776,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.828609082698822,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.0326123614060252,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.9973165534791493,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.0724520313739776,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.939531283719199,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.0574310584501787,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.1726966500282288,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.1551678068935871,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.0906318517831655,
+              "samples": 13
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.022779596883626,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk32_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 1.835122262603707,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.8278562757703993,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.8423882494370143,
+              "samples": 60
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.8263597112477072,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.8401308275502304,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.8028330483606884,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.7582978934049607,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.7975033521652222,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.7889867169516427,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.7749836587905884,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.7366080936931428,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.8677342181855981,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.0248037782999186,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 0.8219299949705601,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.876145241352228,
+              "samples": 13
+            }
+          },
+          "parameters": 12310918,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.0087625513559997,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 3010.478708267212,
+    "finished_at": "2026-10-26T09:00:05.441306+00:00",
+    "gpu_peak_device_mib": 3449,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk32_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk32_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk64_base",
+      "chunk": 64,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk64_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 4.281586916082436,
+          "per_episode": {
+            "8": {
+              "control_mae": 3.767664215630955,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 4.7955096165339155,
+              "samples": 60
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 3.3372562915934267,
+          "per_episode": {
+            "0": {
+              "control_mae": 3.044585669862813,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 2.926867174250739,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 3.32198627948761,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 3.4857932203694393,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 3.3029823019391014,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 3.498227689266205,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 3.0864137553033375,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 3.476279770786112,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 3.441310071028196,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 3.532609447836876,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 3.592763827397273,
+              "samples": 13
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9443306244890088,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk64_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 2.5246071910692587,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.331766127712197,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.7174482544263205,
+              "samples": 60
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.7373216604522816,
+          "per_episode": {
+            "0": {
+              "control_mae": 2.0168217893304496,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.6870596749441964,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.5350242400169372,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.7085448127043874,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.706693376813616,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.5574128818511963,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.658709656624567,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.2799171724102714,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.9973407020935645,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.9393133632838726,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 2.0237005949020386,
+              "samples": 13
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.787285530616977,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk64_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 2.3461907390091152,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.1994241591956882,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.4929573188225427,
+              "samples": 60
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.195739964433059,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.2933889832989922,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.1438046523502894,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.1096111857891082,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.2507653393243487,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.1912001343000502,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.0671413803100587,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.105907237245923,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.1116635975512592,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.0566474382693951,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.3036843352019787,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.5193253251222463,
+              "samples": 13
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.1504507745760562,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk64_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 2.0899190202355387,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.8472050825754802,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.332632957895597,
+              "samples": 60
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.8673567493579312,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.8971730809787224,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.8768489243728774,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.8260839128494263,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.8198249449855403,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.805232218333653,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.8727301430702209,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.7815792390278408,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.9221804561940107,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 0.9920364801700299,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 0.8926389273256063,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.8545959156293136,
+              "samples": 13
+            }
+          },
+          "parameters": 12315014,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.2225622708776074,
+        "config": {
+          "architecture": "light",
+          "dim_model": 128,
+          "dim_feedforward": 512,
+          "n_encoder_layers": 2,
+          "n_vae_encoder_layers": 2,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_light_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 3648.183531999588,
+    "finished_at": "2026-10-26T10:00:56.736055+00:00",
+    "gpu_peak_device_mib": 3633,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk64_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_light_chunk64_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk100_base",
+      "chunk": 100,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk100_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 3.1019384980201723,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.9643421272436776,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 3.2395348687966665,
+              "samples": 60
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 2.180123058012693,
+          "per_episode": {
+            "0": {
+              "control_mae": 2.242724987967261,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.9720866893018996,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 2.0675054836273192,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 2.313570941749372,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 2.0420907054628645,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.9173733580112458,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 2.0986017017137435,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 2.073183937506242,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 2.347471732359666,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 2.4168837033212185,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 2.4898603971187887,
+              "samples": 13
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9218154400074794,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk100_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 2.3150580670270653,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.142281119194296,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.487835014859835,
+              "samples": 60
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.3854914576872905,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.563432485892855,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.34320433650698,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.2014284181594848,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.3310713736634505,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.4810936763173057,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.3166304206848145,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.2120127365702675,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.2214844660325483,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.21779649074261,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.7488906607031822,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.6033609692866986,
+              "samples": 13
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.9295666093397748,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk100_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 2.631861161482003,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.3974913006855383,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.866231022278468,
+              "samples": 60
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.404092766459152,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.389487755709681,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.288580162184579,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.2968311321735382,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.3177708701083535,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2250264783700306,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.2876951134204864,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.2902089470908755,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.4116857810453936,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.404532987337846,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.7930865101516247,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.7401146934582636,
+              "samples": 13
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.227768395022851,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk100_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 2.3657102584011023,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.190084165169133,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.541336351633072,
+              "samples": 60
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.075578869738215,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.0600362743796974,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.9941733734948295,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.0851805245876311,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.0319652165237225,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.0583788553873699,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.9198409390449523,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.0190329523313613,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.1553115953098645,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.0332755652757792,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.3625361640006304,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.111636106784527,
+              "samples": 13
+            }
+          },
+          "parameters": 51597190,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 100,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 1.2901313886628873,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk100_base",
+          "chunk": 100,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 4185.685626745224,
+    "finished_at": "2026-10-26T06:13:15.487019+00:00",
+    "gpu_peak_device_mib": 5022,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk100_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk100_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk16_base",
+      "chunk": 16,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk16_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 2.339213004625506,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.116629040075673,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.561796969175339,
+              "samples": 60
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.5198085931305279,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.5332926357614582,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.590799158172948,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.2831322360038757,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.449208755242197,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2499930092266627,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.8421512818336487,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.6346736465181624,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.650163626128977,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.3840238085159888,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.513009961694479,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.587446405337407,
+              "samples": 13
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.8194044114949783,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk16_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 1.9148882036407788,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.928220088283221,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.9015563189983369,
+              "samples": 60
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.3186750656322894,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.3248902302363823,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.2848234176635742,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.171741921901703,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.2264620849960728,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2285080679825373,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.3801128900051116,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.2332224249839783,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.411663381890817,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.5389632628514216,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.2590184174478054,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.4460196219957793,
+              "samples": 13
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.5962131380084894,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk16_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 1.6836944644235903,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.6443450827565458,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.7230438460906348,
+              "samples": 60
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.0594147769691504,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.1714352482351764,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.0172215274402074,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.9927510583400726,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.0644980998415696,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.0109237475054604,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.0986265742778778,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.9785071724937076,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.0496668490496548,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.054310000859774,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.236347757279873,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.9792745113372803,
+              "samples": 13
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.6242796874544398,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk16_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 1.45367539934814,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.3670869531730812,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.5402638455231985,
+              "samples": 60
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.7841735495719458,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.9524099415746229,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.7687753944524697,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.7362732267379761,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.76585495785663,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.7186572338853564,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.7517620158195496,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.8374305197170803,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.775289152156223,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 0.7251326510539422,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 0.8447565510869026,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.7495674009506519,
+              "samples": 13
+            }
+          },
+          "parameters": 51554182,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 16,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.6695018497761941,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk16_base",
+          "chunk": 16,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 4036.7092368602753,
+    "finished_at": "2026-10-26T02:48:11.616917+00:00",
+    "gpu_peak_device_mib": 5050,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk16_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk16_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk32_base",
+      "chunk": 32,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 2.501441153552797,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.3513267868094974,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.651555520296097,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.6512866079987654,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.6681321160546665,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.799299446599824,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.4636555004119873,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.6623474610479254,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.4635201266833715,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.7768283009529113,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.7176386004402524,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.7562821832570163,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.5336296558380127,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.6368260402232409,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.6859932564772093,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.8501545455540316,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 1.9476396351224847,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.9496772496236696,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.9456020206212998,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.371824152927887,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.3850583310784965,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.2182445834789957,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.3497893977165223,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.1875935040022199,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2741986044815607,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.3792914295196532,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.3441245413961864,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.3552760183811188,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.2880162184055035,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.6078296564519405,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.700643397294558,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.5758154821945978,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 1.6957482466267213,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.6216384404235415,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.7698580528299013,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.174174676555089,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.2819528518051937,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.1738230798925673,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.2081686854362488,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.1023034547504627,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.0858397498017265,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.0985160601139068,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.1683401806013924,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.1991705921563236,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.2525448936682482,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.190889898687601,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.1543719951923077,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.5215735700716324,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 1.5517699380715688,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.5671780506769817,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.536361825466156,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.8774638294240468,
+          "per_episode": {
+            "0": {
+              "control_mae": 0.9530336332732233,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.8690530881285667,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.8440667593479156,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.7302713613761099,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.8102987351871672,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.9598549896478653,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.8558932258969262,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.9563308879733086,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 0.8812344418122218,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 0.948351027444005,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.8437139735772059,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.674306108647522,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_base",
+          "chunk": 32,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 4043.455510377884,
+    "finished_at": "2026-10-26T03:55:40.065627+00:00",
+    "gpu_peak_device_mib": 4892,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_base/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk32_decay1e3",
+      "chunk": 32,
+      "steps": 10000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000
+      ],
+      "variant": "decay1e3"
+    },
+    "actual_steps": 10000,
+    "requested_steps": 10000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_decay1e3/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 2.4768918760948715,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.3205343898799686,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.633249362309774,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.6447079676013034,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.647077032204332,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.7655328341892786,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.4268307209014892,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.6836932270150435,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.4815194322949363,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.7373752093315125,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.7405534131186349,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.7015272920781916,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.5820810107084422,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.6349406447261572,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.690656827046321,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.832183908493568,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_decay1e3",
+          "chunk": 32,
+          "steps": 10000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000
+          ],
+          "variant": "decay1e3"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_decay1e3/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 1.9435438356465764,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.9126837733719084,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.9744038979212444,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.3539648800065274,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.3663346726318886,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.2260682731866837,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.3570622038841247,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.2033159199513888,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2882291305632818,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.3476759719848632,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.3079665700594585,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.3064267743717541,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.2059798653309162,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.5529958009719849,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.7315584971354558,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.589578955640049,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_decay1e3",
+          "chunk": 32,
+          "steps": 10000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000
+          ],
+          "variant": "decay1e3"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_decay1e3/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 1.6739469188368983,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.6250043258898788,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.7228895117839178,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.1697084811954317,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.2931758165359497,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.1309286898800306,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.1535418701171876,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.1057445061834235,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.0211116756711687,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.121247398853302,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.1439757091658456,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.2259914834390988,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.3313380709061255,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.266129169613123,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.0736089027844942,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.5042384376414666,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_decay1e3",
+          "chunk": 32,
+          "steps": 10000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000
+          ],
+          "variant": "decay1e3"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 2048.7981622219086,
+    "finished_at": "2026-10-26T07:21:26.285498+00:00",
+    "gpu_peak_device_mib": 4820,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_decay1e3/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_decay1e3/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 3e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk32_lr3e5",
+      "chunk": 32,
+      "steps": 10000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000
+      ],
+      "variant": "lr3e5"
+    },
+    "actual_steps": 10000,
+    "requested_steps": 10000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_lr3e5/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 1.8686005069149865,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.7117856310473547,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.0254153827826182,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.6094792496180894,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.661999893599543,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.3951439644609178,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.4464071488380432,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.5363643859562122,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.6517133939833868,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.587833228111267,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.5674114596276056,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.4212599803100934,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.6846490043860216,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.816260952502489,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.9352283340234022,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.25912125729689706,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 3e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_lr3e5",
+          "chunk": 32,
+          "steps": 10000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000
+          ],
+          "variant": "lr3e5"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_lr3e5/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 1.7969970096730523,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.7719965556429491,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.8219974637031555,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.4152076250765246,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.561444842609866,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.3514918046338218,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.2111664152145385,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.1826168314406746,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2387297777902513,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.4008415055274963,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.2557329762549627,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.397235245867209,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.664644140463609,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.7832223065197468,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.5201580295195947,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.38178938459652767,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 3e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_lr3e5",
+          "chunk": 32,
+          "steps": 10000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000
+          ],
+          "variant": "lr3e5"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_lr3e5/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 1.478736755044924,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.3758881733649306,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.581585336724917,
+              "samples": 60
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.9363105971800235,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.1239670525337089,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.0103459815893854,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.8741948783397675,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.8663049120652048,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.8558253447214762,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.8873324906826019,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.9367568280015673,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.9905263998291709,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.030043906890429,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 0.9863100126385689,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 0.7378087616883792,
+              "samples": 13
+            }
+          },
+          "parameters": 51562374,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 32,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.5424261578649004,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 3e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk32_lr3e5",
+          "chunk": 32,
+          "steps": 10000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000
+          ],
+          "variant": "lr3e5"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 2033.924408197403,
+    "finished_at": "2026-10-26T06:47:14.455089+00:00",
+    "gpu_peak_device_mib": 4740,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_lr3e5/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk32_lr3e5/dataset",
+    "training_frames": 11136
+  },
+  {
+    "status": "completed",
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk64_base",
+      "chunk": 64,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "actual_steps": 20000,
+    "requested_steps": 20000,
+    "upstream_exit_code": 0,
+    "measurements": [
+      {
+        "step": 2000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk64_base/upstream/checkpoints/002000/pretrained_model",
+        "validation": {
+          "control_mae": 2.4904775185717476,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.2463196929958134,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.7346353441476823,
+              "samples": 60
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.889541428508587,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.7361280774248058,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.96420176752976,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.6057144021987915,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.93598704275332,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.9257876901399522,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.689279191493988,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.9035740012214297,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.6295300044796683,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 2.146629246381613,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 2.1264354288578033,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 2.121688861113328,
+              "samples": 13
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.6009360900631606,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 5000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk64_base/upstream/checkpoints/005000/pretrained_model",
+        "validation": {
+          "control_mae": 2.237929519969556,
+          "per_episode": {
+            "8": {
+              "control_mae": 2.0152930397954254,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.460566000143687,
+              "samples": 60
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.5138878190530578,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.4683910299991738,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.5858521610498428,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.4546288096904754,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.2907140254974365,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.5147739123730433,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.4693182146549224,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.5011345062937056,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.3740893656557256,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.4863710495141835,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.8722304180264473,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.6352625168286836,
+              "samples": 13
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.7240417009164983,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 10000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk64_base/upstream/checkpoints/010000/pretrained_model",
+        "validation": {
+          "control_mae": 2.042558353063133,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.9022413500481181,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 2.182875356078148,
+              "samples": 60
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 1.2743791992265703,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.2802284853211765,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 1.1746229135564394,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 1.29700172662735,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 1.2076383452666433,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 1.2266985263143266,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 1.1278265690803528,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 1.1949994280224754,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 1.3114353228699078,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.5529068318697123,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.4622338507324457,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.1825791918314421,
+              "samples": 13
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.7681791538365628,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      },
+      {
+        "step": 20000,
+        "checkpoint": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk64_base/upstream/checkpoints/020000/pretrained_model",
+        "validation": {
+          "control_mae": 1.7601741664939456,
+          "per_episode": {
+            "8": {
+              "control_mae": 1.6346952882077959,
+              "samples": 72
+            },
+            "12": {
+              "control_mae": 1.8856530447800954,
+              "samples": 60
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "training_probe": {
+          "control_mae": 0.9424694042699923,
+          "per_episode": {
+            "0": {
+              "control_mae": 1.0085767785022999,
+              "samples": 29
+            },
+            "1": {
+              "control_mae": 0.8864338546991348,
+              "samples": 28
+            },
+            "2": {
+              "control_mae": 0.8775028395652771,
+              "samples": 25
+            },
+            "3": {
+              "control_mae": 0.8565537208005002,
+              "samples": 19
+            },
+            "4": {
+              "control_mae": 0.831795776174182,
+              "samples": 21
+            },
+            "5": {
+              "control_mae": 0.9006460845470429,
+              "samples": 25
+            },
+            "6": {
+              "control_mae": 0.9507673184076945,
+              "samples": 21
+            },
+            "7": {
+              "control_mae": 0.9428161802616987,
+              "samples": 22
+            },
+            "10": {
+              "control_mae": 1.0436461522028997,
+              "samples": 13
+            },
+            "13": {
+              "control_mae": 1.0639561861753464,
+              "samples": 16
+            },
+            "14": {
+              "control_mae": 1.0044685556338384,
+              "samples": 13
+            }
+          },
+          "parameters": 51578758,
+          "input_shapes": {
+            "observation.state": [
+              6
+            ],
+            "observation.images.wrist": [
+              3,
+              480,
+              640
+            ],
+            "observation.images.top": [
+              3,
+              480,
+              640
+            ]
+          },
+          "backbone": "resnet18",
+          "chunk": 64,
+          "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+          "units": "Original LeRobot motor units, not degrees, metres, or task success"
+        },
+        "gap": 0.8177047622239534,
+        "config": {
+          "architecture": "standard",
+          "dim_model": 512,
+          "dim_feedforward": 3200,
+          "n_encoder_layers": 4,
+          "n_vae_encoder_layers": 4,
+          "n_decoder_layers": 1,
+          "vision_backbone": "resnet18",
+          "image_shape": [
+            3,
+            480,
+            640
+          ],
+          "batch_size": 8,
+          "seed": 17,
+          "lr": 1e-05,
+          "backbone_lr": 1e-05,
+          "weight_decay": 0.0001,
+          "dropout": 0.1,
+          "split_plan": {
+            "train": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              10,
+              13,
+              14
+            ],
+            "validation": [
+              8,
+              12
+            ],
+            "test": [
+              9,
+              11
+            ]
+          },
+          "save_freq": 1000,
+          "name": "act044_standard_chunk64_base",
+          "chunk": 64,
+          "steps": 20000,
+          "comparison_steps": [
+            2000,
+            5000,
+            10000,
+            20000
+          ],
+          "variant": "base"
+        },
+        "lerobot_version": "0.4.4"
+      }
+    ],
+    "elapsed_s": 4061.948798418045,
+    "finished_at": "2026-10-26T05:03:27.138371+00:00",
+    "gpu_peak_device_mib": 4890,
+    "gpu_memory_scope": "Whole GPU memory sampled while upstream trainer runs; includes other GPU processes",
+    "source": {
+      "lerobot_version": "0.4.4",
+      "python": "/home/team11/venv/il/bin/python",
+      "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+      "torch": "2.10.0+cu128",
+      "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+      "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+      "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+      "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+      "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+      "upstream_training_code_modified": false
+    },
+    "checkpoint_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk64_base/upstream/checkpoints",
+    "dataset_root": "/home/team11/omx_sim_runs/retraining_044_20261026/jobs/act044_standard_chunk64_base/dataset",
+    "training_frames": 11136
+  }
+]

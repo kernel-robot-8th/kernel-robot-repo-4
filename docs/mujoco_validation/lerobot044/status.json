@@ -1,16 +1,20 @@
 {
-  "status": "running",
-  "phase": "training_validation",
+  "status": "stopped",
+  "phase": "finished",
   "started_at": "2026-10-26T01:40:18.039401+00:00",
   "deadline_epoch": 1793022018.039401,
   "pid": 4075352,
-  "current_job": "act044_standard_chunk16_base",
-  "failures": [],
+  "current_job": null,
+  "failures": [
+    "act044_light_chunk32_lr3e5"
+  ],
   "publication": "pending",
   "expected_jobs": 12,
   "expected_comparison_cells": 44,
   "lerobot_version": "0.4.4",
-  "completed_jobs": 0,
-  "completed_comparisons": 0,
-  "updated_at": "2026-10-26T01:51:12.566227+00:00"
+  "completed_jobs": 10,
+  "completed_comparisons": 38,
+  "updated_at": "2026-10-26T11:04:09.346908+00:00",
+  "finished_at": "2026-10-26T11:04:09.344871+00:00",
+  "elapsed_s": 33831.30548477173
 }
