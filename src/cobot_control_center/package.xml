@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_control_center</name>
+  <version>0.0.0</version>
+  <description>FMS 관제 코어 패키지. 지금은 맵 계약 도구(map_hash, map_lint)만 있다. 노드 로직은 로드맵 S2 에서 넣는다. 로봇 토픽을 발행하지 않는다. 맵은 cobot_bringup 의 install 결과(share/cobot_bringup/config/maps)에서 파일로만 읽고, 그 패키지의 코드는 가져다 쓰지 않는다.</description>
+  <maintainer email="rkd1rjs2@gmail.com">rkd1rjs2</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- cobot_bringup 의 맵 파일을 실행 때 읽지만 여기 적지 않는다. bringup 은 나중에 각 패키지
+       launch 를 include 하려고 이 패키지에 의존하게 되어, 적으면 순환 의존이 된다.
+       빌드는 두 패키지를 함께 고른다 (docs/fms_map_contract.md 2절). -->
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

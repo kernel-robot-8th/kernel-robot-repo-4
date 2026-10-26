@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/* 토큰 이름은 홈랩 관리자 화면과 같다(--color-background 등).
+   값은 김성아 팀원의 omx_recoder (PySide6) 실제 데스크톱 앱과 1:1 일치하는 각진(0px) 솔리드 테마이다. */
+:root {
+  --background: #141414;
+  --foreground: #e0e0e0;
+  --card: #1e1e1e;
+  --card-foreground: #ffffff;
+  --popover: #1e1e1e;
+  --popover-foreground: #ffffff;
+  --primary: #1565c0;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e0e0e0;
+  --muted: #242424;
+  --muted-foreground: #888888;
+  --accent: #2d2d2d;
+  --accent-foreground: #ffffff;
+  --destructive: #c62828;
+  --destructive-foreground: #ffffff;
+  --border: #383838;
+  --input: #383838;
+  --ring: #1565c0;
+  --ok: #2e7d32;
+  --warn: #ef6c00;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #141414;
+    --foreground: #e0e0e0;
+    --card: #1e1e1e;
+    --card-foreground: #ffffff;
+    --popover: #1e1e1e;
+    --popover-foreground: #ffffff;
+    --primary: #1565c0;
+    --primary-foreground: #ffffff;
+    --secondary: #2a2a2a;
+    --secondary-foreground: #e0e0e0;
+    --muted: #242424;
+    --muted-foreground: #888888;
+    --accent: #2d2d2d;
+    --accent-foreground: #ffffff;
+    --destructive: #c62828;
+    --destructive-foreground: #ffffff;
+    --border: #383838;
+    --input: #383838;
+    --ring: #1565c0;
+    --ok: #2e7d32;
+    --warn: #ef6c00;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --radius: 0px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    border-radius: 0px !important;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    /* 외부 글꼴을 쓰지 않는다 (현장은 인터넷이 없다). */
+    font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
+      "Noto Sans KR", sans-serif;
+  }
+}
+
+/* 김성아 팀원 omx_recoder 실물 정의 5대 솔리드 스타일 (형광색 없음, 순수 직각 사각형) */
+.omx-style-green {
+  background-color: #2e7d32 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
+}
+.omx-style-red {
+  background-color: #c62828 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
+}
+.omx-style-orange {
+  background-color: #ef6c00 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
+}
+.omx-style-blue {
+  background-color: #1565c0 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
+}
+.omx-style-gray {
+  background-color: #616161 !important;
+  color: #ffffff !important;
+  font-weight: bold !important;
+  border-radius: 0px !important;
+}
+.omx-cam-box {
+  background-color: #111111 !important;
+  color: #888888 !important;
+  border: 1px solid #333333 !important;
+  border-radius: 0px !important;
+}

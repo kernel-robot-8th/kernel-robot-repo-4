@@ -1,0 +1,17 @@
+# RecoveryTask.action - 자율 회수 봇 급파 및 수거 액션 인터페이스
+# Goal
+uint32 incident_id
+geometry_msgs/Point target_location
+string target_item_type
+string destination_station       # "HOME_RECOVERY_POCKET"
+---
+# Result
+bool success
+float32 recovery_duration_sec
+string final_disposition         # "RE_INJECTED" or "DISCARDED"
+string error_message
+---
+# Feedback
+string current_phase             # "DISPATCHING", "SWEEPING_LANE", "POCKET_DELIVERED", "ARM_SORTING"
+float32 progress_percent
+float32 current_distance_to_target

@@ -1,0 +1,38 @@
+[
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "arm_id": "omx_1",
+    "mode": "ROS_MANAGED",
+    "source": "잠금 파일 없음"
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "arm_id": "omx_2",
+    "mode": "LEROBOT_EXCLUSIVE",
+    "source": "잠금 파일 sha256:3fa9…c1"
+  },
+  {
+    "header": {
+      "stamp": {
+        "sec": 1792718099,
+        "nanosec": 0
+      },
+      "frame_id": ""
+    },
+    "arm_id": "omx_3",
+    "mode": "OFFLINE",
+    "source": "팔 노드 응답 없음"
+  }
+]
