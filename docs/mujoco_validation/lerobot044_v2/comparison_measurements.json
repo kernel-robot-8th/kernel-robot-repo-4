@@ -1,1 +1,527 @@
-[]
+[
+  {
+    "step": 10000,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_20261026/jobs/v2_standard_position_b8_c32/upstream/checkpoints/010000/pretrained_model",
+    "config": {
+      "name": "v2_standard_position_b8_c32",
+      "architecture": "standard",
+      "current": false,
+      "batch_size": 8,
+      "chunk": 32,
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "steps": 40000,
+      "comparison_steps": [
+        10000,
+        20000,
+        40000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "validation": {
+      "control_mae": 2.4130030272110528,
+      "per_episode": {
+        "2": {
+          "first10_mae": 2.424685311176487,
+          "frames": 592,
+          "horizon1": {
+            "joint_mae": 2.358004570007324,
+            "gripper_mae": 1.1481761932373047,
+            "per_joint_mae": [
+              2.4535813331604004,
+              1.766675353050232,
+              1.610314130783081,
+              4.704897403717041,
+              1.2545560598373413,
+              1.1481754779815674
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.16666666666666666,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 260,
+            "open_err_s": 0.3,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 447
+          },
+          "ensemble001": {
+            "joint_mae": 3.4472124576568604,
+            "gripper_mae": 1.379359483718872,
+            "per_joint_mae": [
+              2.228132963180542,
+              3.4995169639587402,
+              2.0152978897094727,
+              8.300363540649414,
+              1.192750096321106,
+              1.3793590068817139
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.03333333333333333,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 264,
+            "open_err_s": 0.8333333333333334,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 413
+          }
+        },
+        "6": {
+          "first10_mae": 2.4013207432456185,
+          "frames": 643,
+          "horizon1": {
+            "joint_mae": 2.499615430831909,
+            "gripper_mae": 1.1073284149169922,
+            "per_joint_mae": [
+              2.218426465988159,
+              2.754032611846924,
+              1.8691489696502686,
+              4.656435489654541,
+              1.0000300407409668,
+              1.1073293685913086
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.43333333333333335,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 316,
+            "open_err_s": 0.16666666666666666,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 529
+          },
+          "ensemble001": {
+            "joint_mae": 2.791029214859009,
+            "gripper_mae": 1.2248326539993286,
+            "per_joint_mae": [
+              2.1689634323120117,
+              2.983677864074707,
+              2.8884012699127197,
+              4.946985244750977,
+              0.9671162962913513,
+              1.2248327732086182
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.36666666666666664,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 318,
+            "open_err_s": 0.1,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 521
+          }
+        }
+      },
+      "stride": 1,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "training_probe": {
+      "control_mae": 1.1944857072858153,
+      "per_episode": {
+        "0": {
+          "first10_mae": 1.0762568658048457,
+          "frames": 33
+        },
+        "1": {
+          "first10_mae": 1.203188993036747,
+          "frames": 24
+        },
+        "3": {
+          "first10_mae": 1.2609072302778561,
+          "frames": 24
+        },
+        "4": {
+          "first10_mae": 1.1357060074806213,
+          "frames": 26
+        },
+        "5": {
+          "first10_mae": 1.2757533948336328,
+          "frames": 28
+        },
+        "7": {
+          "first10_mae": 1.2151017522811889,
+          "frames": 25
+        }
+      },
+      "stride": 24,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "gap": 1.2185173199252375
+  },
+  {
+    "step": 20000,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_20261026/jobs/v2_standard_position_b8_c32/upstream/checkpoints/020000/pretrained_model",
+    "config": {
+      "name": "v2_standard_position_b8_c32",
+      "architecture": "standard",
+      "current": false,
+      "batch_size": 8,
+      "chunk": 32,
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "steps": 40000,
+      "comparison_steps": [
+        10000,
+        20000,
+        40000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "validation": {
+      "control_mae": 2.206331398001502,
+      "per_episode": {
+        "2": {
+          "first10_mae": 1.9638084750119094,
+          "frames": 592,
+          "horizon1": {
+            "joint_mae": 1.8761610984802246,
+            "gripper_mae": 0.870090901851654,
+            "per_joint_mae": [
+              2.022132158279419,
+              1.4698879718780518,
+              1.3937690258026123,
+              3.3709261417388916,
+              1.1240910291671753,
+              0.8700911998748779
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.2,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 259,
+            "open_err_s": 0.3,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 447
+          },
+          "ensemble001": {
+            "joint_mae": 2.9029271602630615,
+            "gripper_mae": 1.1993968486785889,
+            "per_joint_mae": [
+              2.0935919284820557,
+              2.712263822555542,
+              1.9740097522735596,
+              6.593690395355225,
+              1.1410831212997437,
+              1.1993968486785889
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.06666666666666667,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 263,
+            "open_err_s": 0.36666666666666664,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 449
+          }
+        },
+        "6": {
+          "first10_mae": 2.448854320991095,
+          "frames": 643,
+          "horizon1": {
+            "joint_mae": 2.5693159103393555,
+            "gripper_mae": 1.16531240940094,
+            "per_joint_mae": [
+              1.6535032987594604,
+              2.854673385620117,
+              1.8535348176956177,
+              5.521544456481934,
+              0.9633244872093201,
+              1.1653122901916504
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.4666666666666667,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 315,
+            "open_err_s": 0.13333333333333333,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 528
+          },
+          "ensemble001": {
+            "joint_mae": 2.973968267440796,
+            "gripper_mae": 1.372413992881775,
+            "per_joint_mae": [
+              1.6739518642425537,
+              3.0026674270629883,
+              2.9309628009796143,
+              6.316729545593262,
+              0.945529580116272,
+              1.3724135160446167
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.36666666666666664,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 318,
+            "open_err_s": 0.06666666666666667,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 522
+          }
+        }
+      },
+      "stride": 1,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "training_probe": {
+      "control_mae": 0.9668341347650943,
+      "per_episode": {
+        "0": {
+          "first10_mae": 0.9179922992532904,
+          "frames": 33
+        },
+        "1": {
+          "first10_mae": 0.9759007828931013,
+          "frames": 24
+        },
+        "3": {
+          "first10_mae": 0.8915267176926136,
+          "frames": 24
+        },
+        "4": {
+          "first10_mae": 0.9454781642326942,
+          "frames": 26
+        },
+        "5": {
+          "first10_mae": 0.940383109663214,
+          "frames": 28
+        },
+        "7": {
+          "first10_mae": 1.129723734855652,
+          "frames": 25
+        }
+      },
+      "stride": 24,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "gap": 1.2394972632364079
+  },
+  {
+    "step": 40000,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_20261026/jobs/v2_standard_position_b8_c32/upstream/checkpoints/040000/pretrained_model",
+    "config": {
+      "name": "v2_standard_position_b8_c32",
+      "architecture": "standard",
+      "current": false,
+      "batch_size": 8,
+      "chunk": 32,
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "steps": 40000,
+      "comparison_steps": [
+        10000,
+        20000,
+        40000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "validation": {
+      "control_mae": 1.890656132571356,
+      "per_episode": {
+        "2": {
+          "first10_mae": 1.727026101755532,
+          "frames": 592,
+          "horizon1": {
+            "joint_mae": 1.5699427127838135,
+            "gripper_mae": 0.8683260083198547,
+            "per_joint_mae": [
+              1.510999083518982,
+              1.0607364177703857,
+              1.190966248512268,
+              3.0425941944122314,
+              1.0444177389144897,
+              0.8683260083198547
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.2,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 259,
+            "open_err_s": 0.3,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 447
+          },
+          "ensemble001": {
+            "joint_mae": 2.6639883518218994,
+            "gripper_mae": 1.2736157178878784,
+            "per_joint_mae": [
+              1.6477973461151123,
+              2.5438432693481445,
+              1.8624333143234253,
+              6.15247106552124,
+              1.113394856452942,
+              1.2736154794692993
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.13333333333333333,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 261,
+            "open_err_s": 0.36666666666666664,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 449
+          }
+        },
+        "6": {
+          "first10_mae": 2.05428616338718,
+          "frames": 643,
+          "horizon1": {
+            "joint_mae": 2.0619707107543945,
+            "gripper_mae": 1.0606118440628052,
+            "per_joint_mae": [
+              1.0510398149490356,
+              2.5006377696990967,
+              1.535600185394287,
+              4.353257656097412,
+              0.8693189024925232,
+              1.0606112480163574
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.43333333333333335,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 316,
+            "open_err_s": 0.16666666666666666,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 529
+          },
+          "ensemble001": {
+            "joint_mae": 2.60086989402771,
+            "gripper_mae": 1.3899859189987183,
+            "per_joint_mae": [
+              1.1563364267349243,
+              3.115959882736206,
+              2.6352436542510986,
+              5.16911506652832,
+              0.9276936650276184,
+              1.38998544216156
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.4,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 317,
+            "open_err_s": 0.13333333333333333,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 528
+          }
+        }
+      },
+      "stride": 1,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "training_probe": {
+      "control_mae": 0.5539971619798578,
+      "per_episode": {
+        "0": {
+          "first10_mae": 0.5114606587272702,
+          "frames": 33
+        },
+        "1": {
+          "first10_mae": 0.5813094408561786,
+          "frames": 24
+        },
+        "3": {
+          "first10_mae": 0.55832256625096,
+          "frames": 24
+        },
+        "4": {
+          "first10_mae": 0.49678075542816746,
+          "frames": 26
+        },
+        "5": {
+          "first10_mae": 0.5396237868283477,
+          "frames": 28
+        },
+        "7": {
+          "first10_mae": 0.6364857637882233,
+          "frames": 25
+        }
+      },
+      "stride": 24,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "gap": 1.3366589705914982
+  }
+]
