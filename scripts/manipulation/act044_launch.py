@@ -195,6 +195,12 @@ def launch_command(args, checkpoint):
         "--play_sounds=false",
         f"--display_data={str(args.display).lower()}",
     ]
+    if args.init_pose:
+        command[1:3] = [
+            str(Path(__file__).with_name("act044_record.py")),
+            f"--init-pose-file={args.init_pose_file}",
+            f"--init-pose-duration={args.init_pose_duration}",
+        ]
     return command, target
 
 
@@ -218,6 +224,21 @@ def main():
     parser.add_argument("--step", type=int)
     parser.add_argument("--latest", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--init-pose",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("ACT044_INIT_POSE", "true").lower() in {"true", "1", "yes"},
+    )
+    parser.add_argument(
+        "--init-pose-file",
+        type=Path,
+        default=Path(
+            os.environ.get("ACT044_INIT_POSE_FILE", str(Path(__file__).with_name("act044_init_pose.json")))
+        ),
+    )
+    parser.add_argument(
+        "--init-pose-duration", type=float, default=float(os.environ.get("ACT044_INIT_POSE_DURATION", "3"))
+    )
     parser.add_argument("--duration", type=float, default=float(os.environ.get("ACT044_DURATION", "10")))
     parser.add_argument("--action-steps", type=int, default=int(os.environ.get("ACT044_ACTION_STEPS", "5")))
     parser.add_argument(
@@ -283,6 +304,15 @@ def main():
         raise ValueError("duration과 max-relative-target은 양수여야 합니다.")
     if not args.port or not args.top or not args.wrist:
         raise ValueError("팔로워 포트와 top/wrist 카메라 경로를 설정하세요.")
+    if args.init_pose:
+        # The local helper uses only the standard library; validation never opens hardware.
+        sys.path.insert(0, str(Path(__file__).parent))
+        from act044_init import load_pose
+
+        pose = load_pose(args.init_pose_file)
+        if not math.isfinite(args.init_pose_duration) or args.init_pose_duration <= 0:
+            raise ValueError("Init 이동 시간은 유한한 양수여야 합니다.")
+        print("추론 전 Init 이동:", pose, f"/ {args.init_pose_duration}초", flush=True)
     command, target = launch_command(args, checkpoint)
     print("실행 명령:\n" + shlex.join(command), flush=True)
     print("실물 평가 기록:", target, flush=True)

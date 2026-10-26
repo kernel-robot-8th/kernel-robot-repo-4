@@ -1,0 +1,12 @@
+{
+  "source": "/home/team11/omx-record-dashboard/omx_recoder/init_pose.yaml",
+  "units": "normalized",
+  "init": {
+    "shoulder_pan": 1.148,
+    "shoulder_lift": -29.621,
+    "elbow_flex": 39.683,
+    "wrist_flex": 44.127,
+    "wrist_roll": 1.441,
+    "gripper": 59.243
+  }
+}

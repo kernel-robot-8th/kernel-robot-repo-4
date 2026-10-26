@@ -82,6 +82,9 @@ def test_launcher_uses_record_for_044_and_never_uploads_evaluation_recordings(tm
         action_steps=5,
         temporal_ensemble=False,
         temporal_ensemble_coeff=0.01,
+        init_pose=False,
+        init_pose_file=REPOSITORY / "scripts/manipulation/act044_init_pose.json",
+        init_pose_duration=3,
         robot_id="omx_follower_arm",
         port="/dev/follower",
         max_relative_target=3,
@@ -102,6 +105,10 @@ def test_launcher_uses_record_for_044_and_never_uploads_evaluation_recordings(tm
     args.max_relative_target = None
     unlimited_command, _ = module.launch_command(args, path)
     assert "--robot.max_relative_target=null" in unlimited_command
+    args.init_pose = True
+    init_command, _ = module.launch_command(args, path)
+    assert init_command[1].endswith("act044_record.py")
+    assert "--init-pose-duration=3" in init_command
     cameras = json.loads(next(a.split("=", 1)[1] for a in command if a.startswith("--robot.cameras=")))
     assert set(cameras) == {"top", "wrist"}
     assert isinstance(cameras["top"]["fps"], int)
