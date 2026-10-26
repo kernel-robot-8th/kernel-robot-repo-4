@@ -46,6 +46,8 @@ ACT 일반형·경량형(모두 ResNet18+Transformer)의 chunk·step·학습률�
 12개 학습 경로·44개 검증 시점을 계획했으며, 독립 CNN·MuJoCo·실물 실행은 포함하지 않습니다.
 [0.4.4 진행·비교 보고서](docs/mujoco_validation/lerobot044/report.html) ·
 [실험 기준·재현 방법](src/cobot_mujoco/docs/act044.md).
+오늘 모델의 실물 추론 실행기는 `~/il_ws/run_act044.sh`, 설정은 `~/il_ws/act044_inference.env`입니다.
+[모델 번호 1~12·실행 명령·추론 설정 안내](src/cobot_mujoco/docs/act044_inference.md)를 확인하세요.
 아래의 이전 학습·MuJoCo·박스 외형 비교는 0.6.1 기반 보관 결과입니다.
 
 **박스 외형 개선:** 실제 하트 인쇄 텍스처·카메라·조명을 기본 장면에 반영했습니다.
