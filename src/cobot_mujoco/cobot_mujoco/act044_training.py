@@ -104,7 +104,8 @@ def trial_plan():
             "Existing inspected data makes this exploratory validation, not a new independent field test."
         ),
         "step_interpretation": (
-            "Step comparisons share one continuous training trajectory; they are not independent reinitializations. "
+            "Step comparisons share one continuous training trajectory; "
+            "they are not independent reinitializations. "
             "No automatic LR schedule. Backbone LR held at 1e-5 in the main-LR sweep."
         ),
     }
