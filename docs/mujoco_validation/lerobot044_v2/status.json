@@ -9,11 +9,11 @@
   "expected_jobs": 25,
   "expected_comparison_cells": 75,
   "report_path": "lerobot044_v2/report.html",
-  "current_job": "v2_standard_position_b8_c64",
+  "current_job": "v2_standard_position_b8_c100",
   "failures": [],
   "publication": "pushed",
-  "completed_jobs": 2,
-  "completed_comparisons": 6,
-  "updated_at": "2026-10-26T19:13:53.044258+00:00",
+  "completed_jobs": 3,
+  "completed_comparisons": 9,
+  "updated_at": "2026-10-26T21:32:31.510635+00:00",
   "current_step": 40000
 }
