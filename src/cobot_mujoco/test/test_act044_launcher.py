@@ -80,6 +80,8 @@ def test_launcher_uses_record_for_044_and_never_uploads_evaluation_recordings(tm
         wrist_fps=30,
         device="cuda",
         action_steps=5,
+        temporal_ensemble=False,
+        temporal_ensemble_coeff=0.01,
         robot_id="omx_follower_arm",
         port="/dev/follower",
         max_relative_target=3,
@@ -91,6 +93,12 @@ def test_launcher_uses_record_for_044_and_never_uploads_evaluation_recordings(tm
     assert "--dataset.push_to_hub=false" in command
     assert "--robot.use_degrees=false" in command
     assert "--policy.n_action_steps=5" in command
+    assert "--policy.temporal_ensemble_coeff=null" in command
+    args.action_steps = 1
+    args.temporal_ensemble = True
+    ensemble_command, _ = module.launch_command(args, path)
+    assert "--policy.n_action_steps=1" in ensemble_command
+    assert "--policy.temporal_ensemble_coeff=0.01" in ensemble_command
     cameras = json.loads(next(a.split("=", 1)[1] for a in command if a.startswith("--robot.cameras=")))
     assert set(cameras) == {"top", "wrist"}
     assert isinstance(cameras["top"]["fps"], int)

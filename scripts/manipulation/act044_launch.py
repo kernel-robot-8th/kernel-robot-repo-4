@@ -18,6 +18,7 @@ import argparse
 from datetime import datetime
 from importlib.metadata import version
 import json
+import math
 import os
 from pathlib import Path
 import shlex
@@ -173,6 +174,8 @@ def launch_command(args, checkpoint):
         f"--policy.path={checkpoint}",
         f"--policy.device={args.device}",
         f"--policy.n_action_steps={args.action_steps}",
+        "--policy.temporal_ensemble_coeff="
+        + (str(args.temporal_ensemble_coeff) if args.temporal_ensemble else "null"),
         "--robot.type=omx_follower",
         f"--robot.id={args.robot_id}",
         f"--robot.port={args.port}",
@@ -217,6 +220,17 @@ def main():
     parser.add_argument("--duration", type=float, default=float(os.environ.get("ACT044_DURATION", "10")))
     parser.add_argument("--action-steps", type=int, default=int(os.environ.get("ACT044_ACTION_STEPS", "5")))
     parser.add_argument(
+        "--temporal-ensemble",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("ACT044_TEMPORAL_ENSEMBLE", "false").lower() in {"true", "1", "yes"},
+        help="ACT temporal ensembling을 켭니다. action-steps=1이 필요합니다.",
+    )
+    parser.add_argument(
+        "--temporal-ensemble-coeff",
+        type=float,
+        default=float(os.environ.get("ACT044_TEMPORAL_ENSEMBLE_COEFF", "0.01")),
+    )
+    parser.add_argument(
         "--max-relative-target", type=float, default=float(os.environ.get("ACT044_MAX_RELATIVE_TARGET", "3"))
     )
     parser.add_argument("--device", choices=["cuda", "cpu"], default=os.environ.get("ACT044_DEVICE", "cuda"))
@@ -250,6 +264,10 @@ def main():
     cfg = read(checkpoint / "config.json")
     if not 1 <= args.action_steps <= cfg["chunk_size"]:
         raise ValueError("action-steps는 1 이상이며 모델 chunk 이하여야 합니다.")
+    if args.temporal_ensemble and args.action_steps != 1:
+        raise ValueError("Temporal ensembling은 --action-steps 1과 함께 사용하세요.")
+    if not math.isfinite(args.temporal_ensemble_coeff):
+        raise ValueError("temporal-ensemble-coeff는 유한한 숫자여야 합니다.")
     if args.duration <= 0 or args.max_relative_target <= 0:
         raise ValueError("duration과 max-relative-target은 양수여야 합니다.")
     if not args.port or not args.top or not args.wrist:

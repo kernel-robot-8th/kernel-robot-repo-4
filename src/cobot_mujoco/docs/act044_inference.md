@@ -1,5 +1,7 @@
 # 오늘 학습한 LeRobot 0.4.4 모델 실행 안내
 
+매 스텝 추론과 겹치는 행동 평균 설정은 [Temporal Ensembling 안내](act044_temporal_ensemble.md)를 참고한다.
+
 ## 파일 위치
 
 - 실행기: `/home/team11/il_ws/run_act044.sh`
@@ -83,6 +85,8 @@ nano ~/il_ws/act044_inference.env
 | `ACT044_RUN_DIR` | 오늘 0.4.4 학습 루트 | `--run-dir` | 선택할 학습 결과 폴더 |
 | `ACT044_DURATION` | 10 | `--duration 50` | 한 번 구동하는 시간(초) |
 | `ACT044_ACTION_STEPS` | 5 | `--action-steps 10` | 예측한 행동을 몇 스텝 실행한 뒤 다시 예측할지 |
+| `ACT044_TEMPORAL_ENSEMBLE` | false | `--temporal-ensemble` / `--no-temporal-ensemble` | 겹치는 예측 평균; 켜면 action steps 1 필요 |
+| `ACT044_TEMPORAL_ENSEMBLE_COEFF` | 0.01 | `--temporal-ensemble-coeff 0.01` | 앙상블 가중 계수; 활성화 옵션과 함께 사용 |
 | `ACT044_MAX_RELATIVE_TARGET` | 3 | `--max-relative-target 3` | 현재 관절 대비 한 스텝 목표 변화 제한 |
 | `ACT044_DEVICE` | cuda | `--device cpu` | 추론 장치 |
 | `ACT044_DISPLAY` | false | `--display` / `--no-display` | 원본 LeRobot Rerun 화면 표시 |
