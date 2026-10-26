@@ -138,30 +138,4 @@ ament_export_dependencies(
   zstd
 )
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  find_package(test_msgs REQUIRED)
-  ament_lint_auto_find_test_dependencies()
-
-  add_subdirectory(test)
-
-  add_library(${PROJECT_NAME}_test_component_lib SHARED
-    test/domain_bridge/test_component.cpp
-  )
-  ament_target_dependencies(${PROJECT_NAME}_test_component_lib
-    rclcpp
-    rclcpp_components
-    test_msgs
-  )
-  rclcpp_components_register_node(${PROJECT_NAME}_test_component_lib
-    PLUGIN "domain_bridge::TestComponent"
-    EXECUTABLE test_component)
-
-  install(TARGETS ${PROJECT_NAME}_test_component_lib
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION lib/${PROJECT_NAME}
-  )
-endif()
-
 ament_package()

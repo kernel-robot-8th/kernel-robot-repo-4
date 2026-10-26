@@ -32,8 +32,9 @@
 ## 설치
 
 ```sh
-cd <워크스페이스>
-colcon build --packages-select domain_bridge
+cd <워크스페이스>   # 최상위(src/ 가 있는 곳)에서 실행
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install --packages-select cobot_domain_bridge
 source install/setup.bash
 ```
 
@@ -42,17 +43,17 @@ source install/setup.bash
 `launch/bridges.launch.xml` 하나로 3대 브릿지를 한 번에 띄운다.
 
 ```sh
-ros2 launch domain_bridge bridges.launch.xml
+ros2 launch cobot_domain_bridge bridges.launch.xml
 ```
 
 일부 로봇만 띄우려면 로봇 이름을 `false` 로 지정한다.
 
 ```sh
 # pinky2 제외
-ros2 launch domain_bridge bridges.launch.xml pinky2:=false
+ros2 launch cobot_domain_bridge bridges.launch.xml pinky2:=false
 
 # pinky1 만
-ros2 launch domain_bridge bridges.launch.xml pinky2:=false pinky3:=false
+ros2 launch cobot_domain_bridge bridges.launch.xml pinky2:=false pinky3:=false
 ```
 
 | 인자 | 기본값 | 설명 |
@@ -64,13 +65,13 @@ ros2 launch domain_bridge bridges.launch.xml pinky2:=false pinky3:=false
 내부적으로는 로봇마다 아래 명령을 하나씩 실행한다.
 
 ```sh
-ros2 run domain_bridge domain_bridge $(ros2 pkg prefix --share domain_bridge)/config/pinky_bridge_pinky1.yaml
+ros2 run cobot_domain_bridge domain_bridge $(ros2 pkg prefix --share cobot_domain_bridge)/config/pinky_bridge_pinky1.yaml
 ```
 
 ### 다른 런치 파일에서 포함하기
 
 ```xml
-<include file="$(find-pkg-share domain_bridge)/launch/bridges.launch.xml">
+<include file="$(find-pkg-share cobot_domain_bridge)/launch/bridges.launch.xml">
   <arg name="pinky3" value="false" />
 </include>
 ```
@@ -106,9 +107,11 @@ ROS_DOMAIN_ID=100 ros2 topic echo /pinky1/amcl_pose --once
 ### 단일 yaml 로 실행
 
 `launch/domain_bridge.launch.xml` 은 yaml 하나를 받아 브릿지 하나를 띄우는 업스트림 런치 파일이다.
+`config:=` 인자가 필수라서 생략하면 `Included launch description missing required argument 'config'` 오류가 난다.
+핑키 3대를 띄우려면 이 파일이 아니라 위의 `bridges.launch.xml` 을 쓴다.
 
 ```sh
-ros2 launch domain_bridge domain_bridge.launch.xml config:=examples/example_bridge_config.yaml
+ros2 launch cobot_domain_bridge domain_bridge.launch.xml config:=examples/example_bridge_config.yaml
 ```
 
 선택 인자 `from_domain`, `to_domain` 으로 yaml 안의 도메인 ID 를 덮어쓸 수 있다.
@@ -116,9 +119,9 @@ ros2 launch domain_bridge domain_bridge.launch.xml config:=examples/example_brid
 ### CLI
 
 ```sh
-ros2 run domain_bridge domain_bridge <yaml>
-ros2 run domain_bridge domain_bridge --from 7 --to 8 <yaml>
-ros2 run domain_bridge domain_bridge --help
+ros2 run cobot_domain_bridge domain_bridge <yaml>
+ros2 run cobot_domain_bridge domain_bridge --from 7 --to 8 <yaml>
+ros2 run cobot_domain_bridge domain_bridge --help
 ```
 
 ### C++ 라이브러리

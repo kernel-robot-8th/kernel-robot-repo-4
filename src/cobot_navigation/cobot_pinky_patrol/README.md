@@ -1,6 +1,6 @@
 # cobot_pinky_patrol
 
-Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_node_pinky1`, `pinky_patrol_node_pinky2`, `pinky_patrol_node_pinky3`)는 위험 구역에 **한 대만** 들어가도록 `zone_traffic_control`의 대기열 슬롯 방식과 연동합니다.
+Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_node_pinky1`, `pinky_patrol_node_pinky2`, `pinky_patrol_node_pinky3`)는 위험 구역에 **한 대만** 들어가도록 `cobot_zone_traffic_control`의 대기열 슬롯 방식과 연동합니다.
 
 ## 주요 기능
 
@@ -26,8 +26,8 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 | 파일 | 실행 위치 | 역할 |
 |---|---|---|
 | `cobot_pinky_patrol/pinky_patrol_node_pinky{1,2}.py` | 각 로봇 | 순찰·goto, 구역 진입 절차 |
-| `zone_traffic_control/.../zone_gate_client.py` | 각 로봇 (import) | 진입 요청·취소·이탈 통보, 허가·슬롯 수신 |
-| `zone_traffic_control/.../zone_manager_node.py` | 관제 PC (1대) | 점유자 1명 + FIFO 대기열, 허가·슬롯 좌표 발행 |
+| `cobot_zone_traffic_control/.../zone_gate_client.py` | 각 로봇 (import) | 진입 요청·취소·이탈 통보, 허가·슬롯 수신 |
+| `cobot_zone_traffic_control/.../zone_manager_node.py` | 관제 PC (1대) | 점유자 1명 + FIFO 대기열, 허가·슬롯 좌표 발행 |
 | `pinky_patrol_cmd/pinky_control_client.py` | 관제 PC | 터미널에서 명령 전송 |
 
 - 로봇 코드에는 슬롯 좌표가 없습니다. 앵커 `ZONE_ENTRY (1.0, -0.7, 0.0)`와 출구 `ZONE_EXIT (0.7, -0.5, 3.14)`만 있고, 슬롯은 매니저가 `queue_slot`으로 줍니다.
@@ -54,11 +54,11 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 git clone https://github.com/cdwlsgh1-source/pinky_slam_nav.git
 cd pinky_slam_nav
 source /opt/ros/jazzy/setup.bash
-colcon build --packages-select zone_traffic_control cobot_pinky_patrol
+colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
 source install/setup.bash
 ```
 
-관제 PC는 `colcon build --packages-select zone_traffic_control domain_bridge` 후 `source install/setup.bash` 합니다.
+관제 PC는 `colcon build --packages-select cobot_zone_traffic_control domain_bridge` 후 `source install/setup.bash` 합니다.
 
 ## 실행 방법
 
@@ -73,7 +73,7 @@ source install/setup.bash
 3. **관제 PC**: zone_manager (새 터미널)
    ```bash
    export ROS_DOMAIN_ID=100
-   ros2 launch zone_traffic_control zone_manager.launch.xml
+   ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
    ```
 4. **각 로봇**: 순찰 노드
    ```bash

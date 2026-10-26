@@ -17,7 +17,7 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 PKG = HERE.parent                                   # cobot_pinky_patrol/
-ZONE_PKG = PKG.parent / 'zone_traffic_control'      # zone_traffic_control/
+ZONE_PKG = PKG.parent / 'cobot_zone_traffic_control'  # cobot_zone_traffic_control/
 for p in (str(PKG), str(ZONE_PKG)):
     if p not in sys.path:
         sys.path.insert(0, p)
@@ -103,10 +103,10 @@ def env():
     from rclpy.node import Node
     from std_msgs.msg import String
     from nav2_simple_commander.robot_navigator import TaskResult
-    from zone_traffic_control.zone_gate_client import ZoneGateClient
+    from cobot_zone_traffic_control.zone_gate_client import ZoneGateClient
 
     mgr = subprocess.Popen(
-        [sys.executable, '-m', 'zone_traffic_control.zone_manager_node',
+        [sys.executable, '-m', 'cobot_zone_traffic_control.zone_manager_node',
          '--ros-args', '--params-file', str(ZONE_PKG / 'config/zone_params.yaml')],
         cwd=str(ZONE_PKG), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     rclpy.init()
@@ -239,7 +239,7 @@ EXIT = tuple(_POINTS['ZONE_EXIT'])     # 락 반납 출구
 def _slot(k):
     """zone_params.yaml 의 앵커/후방 벡터/간격으로 슬롯 k 를 계산 (매니저가 발행하는 값과 같은 규칙)."""
     import yaml
-    from zone_traffic_control.zone_manager_node import normalize_dir, slot_pose
+    from cobot_zone_traffic_control.zone_manager_node import normalize_dir, slot_pose
     prm = yaml.safe_load((ZONE_PKG / 'config/zone_params.yaml').read_text(encoding='utf-8'))
     prm = prm['zone_manager_node']['ros__parameters']
     x, y, yaw = slot_pose(k, prm['queue_anchor'], normalize_dir(prm['queue_back_dir']),

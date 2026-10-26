@@ -48,9 +48,9 @@ from std_msgs.msg import String
 from pinky_interfaces.srv import SetLed
 import json, math, os, time, threading, subprocess
 
-# zone_traffic_control 패키지가 설치되어 있어야 합니다.
-from zone_traffic_control.zone_gate_client import (ZoneGateClient,
-                                                     choose_entry_target)
+# cobot_zone_traffic_control 패키지가 설치되어 있어야 합니다.
+from cobot_zone_traffic_control.zone_gate_client import (ZoneGateClient,
+                                                         choose_entry_target)
 
 
 class PinkyPatrolNode(Node):
