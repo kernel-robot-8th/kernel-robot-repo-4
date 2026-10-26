@@ -1,0 +1,22 @@
+[Unit]
+Description=OMX 1026 v2 ACT 0.4.4 training and validation without a time cutoff
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/omx-mujoco-validation
+Environment=PYTHONPATH=%h/omx-mujoco-validation/src/cobot_mujoco
+Environment=OMP_NUM_THREADS=4
+Environment=OPENBLAS_NUM_THREADS=4
+ExecStart=%h/venv/il/bin/python -m cobot_mujoco.actv2_runner --run %h/omx_sim_runs/retraining_044_v2_20261026 --source %h/omx-record-dashboard/omx_recoder/output/1026_JiHyeok_v2/success
+Restart=on-failure
+RestartSec=60
+RuntimeMaxSec=infinity
+TimeoutStopSec=40
+KillMode=control-group
+StandardOutput=append:%h/omx_sim_runs/retraining_044_v2_20261026/supervisor.log
+StandardError=inherit
+ExecStopPost=/usr/bin/systemctl --user start --no-block omx-actv2-discord.service
+
+[Install]
+WantedBy=default.target

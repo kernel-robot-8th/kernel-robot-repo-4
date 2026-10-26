@@ -68,7 +68,8 @@ def snapshot(run):
     elapsed = (now - datetime.fromisoformat(state["started_at"])).total_seconds()
     supervisor_alive = alive(state.get("pid"))
     terminal = state["status"] in TERMINAL and not supervisor_alive
-    expired = now.timestamp() > state["deadline_epoch"] + 3600 and not supervisor_alive
+    deadline = state.get("deadline_epoch")
+    expired = deadline is not None and now.timestamp() > deadline + 3600 and not supervisor_alive
     marker = [
         current,
         progress["step"],
@@ -81,7 +82,8 @@ def snapshot(run):
     lines = [
         f"**OMX {'ACT 0.4.4 학습·검증' if act044 else 'MuJoCo 비교' if simulation else '재학습'} · {label}**",
         f"확인 시각: {now.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}",
-        f"누적 실행: {int(elapsed // 3600)}시간 {int(elapsed % 3600 // 60)}분 / 최대 12시간",
+        f"누적 실행: {int(elapsed // 3600)}시간 {int(elapsed % 3600 // 60)}분 / "
+        + ("시간 제한 없음" if deadline is None else "최대 12시간"),
         (
             f"학습 실행 완료 {counts['jobs']['completed']}/{state.get('expected_jobs', 12)} · "
             f"검증 비교 {state.get('completed_comparisons', 0)}/{state.get('expected_comparison_cells', 44)}"
@@ -118,7 +120,7 @@ def snapshot(run):
     if terminal or expired:
         lines.append(f"최종 상태: {state['status']} · Git 게시: {state.get('publication', '확인 필요')}")
         lines.append("이 실행의 30분 정기 알림을 종료합니다.")
-    report = "lerobot044/report.html" if act044 else "report.html"
+    report = state.get("report_path", "lerobot044/report.html" if act044 else "report.html")
     lines.append(
         "보고서: https://github.com/kernel-robot-8th/kernel-robot-repo-4/blob/"
         f"feature/manipulation-mujoco-validation/docs/mujoco_validation/{report}"

@@ -41,7 +41,13 @@
 
 ### OMX 학습·MuJoCo 검증 실험
 
-**현재 학습은 LeRobot 0.4.4입니다.** 로컬 `il_ws/src/lerobot` 원본 train으로
+**신규 1026 v2 데이터 학습은 LeRobot 0.4.4입니다.** 성공 9개 에피소드로
+일반형·경량형, 전류 미포함·포함, 배치 8·16, chunk 32·64·100을 비교하고
+배치32 1개를 추가합니다. 총 25개 학습에서 10k·20k·40k 저장본 75개를 비교하며 시간 제한은 없습니다.
+[신규 학습 기준·실행 방법](src/cobot_mujoco/docs/actv2.md) ·
+[신규 진행·비교 보고서](docs/mujoco_validation/lerobot044_v2/report.html).
+
+아래는 이전 1024 데이터의 0.4.4 학습입니다. 로컬 `il_ws/src/lerobot` 원본 train으로
 ACT 일반형·경량형(모두 ResNet18+Transformer)의 chunk·step·학습률·감쇠를 비교합니다.
 12개 학습 경로·44개 검증 시점을 계획했으며, 독립 CNN·MuJoCo·실물 실행은 포함하지 않습니다.
 [0.4.4 진행·비교 보고서](docs/mujoco_validation/lerobot044/report.html) ·

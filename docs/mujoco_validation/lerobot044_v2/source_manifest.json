@@ -1,0 +1,105 @@
+{
+  "original": "/home/team11/omx-record-dashboard/omx_recoder/output/1026_JiHyeok_v2/success",
+  "files": {
+    "data/chunk-000/file-000.parquet": {
+      "bytes": 85353,
+      "sha256": "48bd0031b605b5f32a2758d2489e414d196376e1825d0bdf7febfbb5d6c8c6b7"
+    },
+    "data/chunk-000/file-001.parquet": {
+      "bytes": 71069,
+      "sha256": "ca3dc82ac8d1d0ffde5add70ea33358a2c664ea9cf483e48beaa852f58d116bb"
+    },
+    "data/chunk-000/file-002.parquet": {
+      "bytes": 71407,
+      "sha256": "990d7f2c87e9ba5a85d04c86edc0778eb70c47655f7e3d8d7fef7314f23cebf7"
+    },
+    "data/chunk-000/file-003.parquet": {
+      "bytes": 71423,
+      "sha256": "b58f5970698d9b62fcd1924afa8d2060c1f457035630e1de59782fc8ac2db93d"
+    },
+    "data/chunk-000/file-004.parquet": {
+      "bytes": 73664,
+      "sha256": "53155075a9ba2a37d6f302201583bfa9607a285a48322bff0409fc17a38e5f59"
+    },
+    "data/chunk-000/file-005.parquet": {
+      "bytes": 76301,
+      "sha256": "0537e5b5aae0cb2506eeed81751bd1e3375114e0b71b42aa404970ac7c81faed"
+    },
+    "data/chunk-000/file-006.parquet": {
+      "bytes": 76224,
+      "sha256": "1f25f779ef5ef7fe99b9f5364c1aeee43e66a5978d1bb02fffa63af85d6e409b"
+    },
+    "data/chunk-000/file-007.parquet": {
+      "bytes": 71479,
+      "sha256": "61db0d7ac789d392fb48200e1084f39f9ff067eaca04e42e12b8b96d75d85661"
+    },
+    "data/chunk-000/file-008.parquet": {
+      "bytes": 73603,
+      "sha256": "cef2df6a5e0dbd9d97c4376dccce971e25be7a252457ba5c8df40aadd72b6ba2"
+    },
+    "meta/collector_episodes.jsonl": {
+      "bytes": 1150,
+      "sha256": "f77dae7bfd79e16b2c25aa52d5733ac4f4bb16955f8cf0b47b0dca8d359bcb24"
+    },
+    "meta/collector_info.json": {
+      "bytes": 803,
+      "sha256": "e215c43d9d4eee3dbc80c2ec22c8cbd8426849aa3db6b3628386373825196e3e"
+    },
+    "meta/episodes/chunk-000/file-000.parquet": {
+      "bytes": 91322,
+      "sha256": "734f039a11204bda540aa01ad7aa8907149324525da1a39a0e8012aeb8481664"
+    },
+    "meta/episodes/chunk-000/file-001.parquet": {
+      "bytes": 91301,
+      "sha256": "c960d04a048dc655626afe1de9c1702a2c2d2ea6dcecb65fa0f3e09228b62952"
+    },
+    "meta/episodes/chunk-000/file-002.parquet": {
+      "bytes": 91301,
+      "sha256": "0b4ac62163e4efd83a41e729768ec046fd2a948bd439d5096ad6ed1223782157"
+    },
+    "meta/episodes/chunk-000/file-003.parquet": {
+      "bytes": 91288,
+      "sha256": "9ad6418712adf7f9c58b5dca584503d86539ec90bb7b790d591071c30075c4fd"
+    },
+    "meta/episodes/chunk-000/file-004.parquet": {
+      "bytes": 91318,
+      "sha256": "12d86e5a3bc0d479fa333f422e042f2eaa071fef0ef272a4eb26cf11f86c5c49"
+    },
+    "meta/episodes/chunk-000/file-005.parquet": {
+      "bytes": 91332,
+      "sha256": "0a5efba5b16347239c64f5f4d121daed19cb10ed38761553b3f6a7d2d4403a21"
+    },
+    "meta/episodes/chunk-000/file-006.parquet": {
+      "bytes": 91371,
+      "sha256": "b1bf5e2f4bc8221cbd44c17832a25b14ca5b51542fd2cafbd05c268a0c9aef3a"
+    },
+    "meta/episodes/chunk-000/file-007.parquet": {
+      "bytes": 91331,
+      "sha256": "8b90548018527b2e9647b276135cfeffbd9b4aee112272700373f0d7f188ad8d"
+    },
+    "meta/episodes/chunk-000/file-008.parquet": {
+      "bytes": 91340,
+      "sha256": "793b595952456a3816614a45cfc8a95c388fb1e6c8f7e4c163e99cc629a3a500"
+    },
+    "meta/info.json": {
+      "bytes": 5759,
+      "sha256": "744d8e6860cd48201ee6380f739f5db9812fe5da6cfd237246a960d5a32165f5"
+    },
+    "meta/stats.json": {
+      "bytes": 25829,
+      "sha256": "8d9fe1460d39b216eb56c65e674dd7289351072142669a77a557fb8609977fd9"
+    },
+    "meta/tasks.parquet": {
+      "bytes": 2110,
+      "sha256": "4de26ced3f17a3b0a0b224338cc6a3c69001750f84143f03a55cfd9e3f60662f"
+    },
+    "videos/observation.images.top/chunk-000/file-000.mp4": {
+      "bytes": 181537230,
+      "sha256": "4008e51c14a77dd6bcf6fb71d1ec15cc86cb97b61d4ccf1b55ca0e4590822f4c"
+    },
+    "videos/observation.images.wrist/chunk-000/file-000.mp4": {
+      "bytes": 30382403,
+      "sha256": "6ca840615ca6171f11aef27d8534a683242286dde2b58de6b23365f18d7071fd"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=OMX 1026 v2 training progress to the existing Discord webhook
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/omx-mujoco-validation
+Environment=PYTHONPATH=%h/omx-mujoco-validation/src/cobot_mujoco
+ExecStart=/usr/bin/python3 -m cobot_mujoco.progress_notify --run %h/omx_sim_runs/retraining_044_v2_20261026 --timer-unit omx-actv2-discord.timer
+TimeoutStartSec=40
+Restart=on-failure
+RestartSec=60
