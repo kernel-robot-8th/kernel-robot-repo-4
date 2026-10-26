@@ -227,7 +227,7 @@ def main():
     parser.add_argument(
         "--init-pose",
         action=argparse.BooleanOptionalAction,
-        default=os.environ.get("ACT044_INIT_POSE", "true").lower() in {"true", "1", "yes"},
+        default=os.environ.get("ACT044_INIT_POSE", "false").lower() in {"true", "1", "yes"},
     )
     parser.add_argument(
         "--init-pose-file",

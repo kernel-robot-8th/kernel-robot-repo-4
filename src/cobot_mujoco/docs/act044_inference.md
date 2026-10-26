@@ -2,38 +2,19 @@
 
 매 스텝 추론과 겹치는 행동 평균 설정은 [Temporal Ensembling 안내](act044_temporal_ensemble.md)를 참고한다.
 
-## 추론 전 Init 자세 이동
+## 추론 시작 자세
 
-실행기는 이제 기본적으로 대시보드에 저장된 Init 자세로 약 3초간 이동한 뒤 추론을 시작한다.
-`scripts/manipulation/act044_init_pose.json`은 설정 당시
-`/home/team11/omx-record-dashboard/omx_recoder/init_pose.yaml`의 `init` 복사본이다.
-팔 관절 정규화 위치는 순서대로 `1.148, -29.621, 39.683, 44.127, 1.441`, 그리퍼는 `59.243`이다.
-이 값은 현재 저장된 대시보드 자세이며 모든 학습 에피소드의 시작 자세가 동일하다는 뜻은 아니다.
-
-연결 후 Init으로 이동하고 도달을 확인한 뒤 원본 LeRobot 0.4.4 추론 루프를 시작한다.
-Init 이동 중에는 관절당 현재 위치 대비 명령 변화량을 3 이내로 제한한다.
-설정 시간 후 목표 오차가 모두 3 이내인지 확인하며, 추가 3초 동안에도 도달하지 못하면
-추론을 시작하지 않고 연결을 해제한다. 연결 해제 시 토크가 해제된다.
-`--no-relative-target`은 추론 중 제한을 해제하는 옵션이며 Init 이동의 제한은 유지한다.
+사용자 요청에 따라 자동 Init 이동을 기본 실행에서 해제했다.
+`ACT044_INIT_POSE=false`이며, 현재 로봇 자세에서 바로 추론한다.
+HTML의 한 줄 명령도 Init 보조 진입점을 제거하고 원본 `lerobot.scripts.lerobot_record`를 호출한다.
 
 ```bash
-# 실제 구동: Init 이동 후 일반형 1번 추론, 앙상블 켬, 추론 중 목표 변화량 제한 해제
-./run_act044.sh run 1 --step 20000 --action-steps 1 --temporal-ensemble \
-  --no-relative-target --duration 50
-
-# 명령만 확인: Init 이동도 실행하지 않음
-./run_act044.sh run 1 --step 20000 --action-steps 1 --temporal-ensemble --dry-run
-
-# 해당 실행에서 Init 이동 생략
-./run_act044.sh run 1 --no-init-pose
+./run_act044.sh run 7 --step 20000 --action-steps 1 --temporal-ensemble \
+  --temporal-ensemble-coeff 0.01 --no-relative-target --duration 50
 ```
 
-설정 파일의 `ACT044_INIT_POSE=true`, `ACT044_INIT_POSE_DURATION=3`이 기본값이다.
-다른 자세 파일은 `--init-pose-file /절대경로/pose.json`으로 선택한다.
-`list`, `checkpoints`, `check`, `--dry-run`에서는 로봇 초기화 이동을 하지 않는다.
-원본 LeRobot 설치 파일은 수정하지 않고 `act044_record.py`에서 연결 직후의 Init 이동만 추가한다.
-HTML의 `.env` 없는 한 줄 명령도 같은 Init 보조 진입점으로 변경했다.
-Init 기능을 추가하는 과정에서는 실제 로봇을 구동하지 않았으며 가짜 모터로 도달·실패를 검사했다.
+명시적으로 `--init-pose`를 지정한 경우에만 기존 Init 이동 기능을 사용한다.
+`--no-init-pose`로 해당 실행에서 비활성화를 명시할 수도 있다.
 
 ## 파일 위치
 
