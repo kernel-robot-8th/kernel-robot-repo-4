@@ -1,16 +1,17 @@
 # SmolVLA 학습 · 추론
 
-LeRobot 0.6.1에서 [lerobot/smolvla_base](https://huggingface.co/lerobot/smolvla_base)를 Docker로 미세조정·평가하고, 설치된 lerobot으로 OMX 로봇에서 추론합니다.
+LeRobot 0.4.4에서 [lerobot/smolvla_base](https://huggingface.co/lerobot/smolvla_base)를 Docker로 미세조정·평가하고, 설치된 lerobot으로 OMX 로봇에서 추론합니다.
 
 ## 파일
 
 | 파일 | 역할 |
 |---|---|
-| `Dockerfile` | 학습 이미지 (python 3.12, lerobot[training,smolvla] 0.6.1) |
+| `Dockerfile` | 학습 이미지 (python 3.12, lerobot[smolvla] 0.4.4) |
 | `train.sh` | 학습. **lerobot-train 옵션 전체**가 들어 있고, 주석 없는 줄 = 마지막 학습에 쓴 값 |
-| `inference.sh` | 로봇 추론. **lerobot-rollout 옵션 전체**가 들어 있고, 주석 없는 줄 = 기본 실행 값 |
+| `inference.sh` | 로봇 추론. **lerobot-record 옵션 전체**가 들어 있고, 주석 없는 줄 = 기본 실행 값 (0.4.4에는 lerobot-rollout이 없음) |
 | `keep_checkpoints.sh` | 학습 중 필요한 체크포인트만 남기기 (`KEEP_STEPS`로 자동 실행) |
-| `omx_rollout.py` | lerobot-rollout 실행기 (+ 그리퍼 전류 로봇 타입) |
+| `omx_record.py` | lerobot-record 실행기 (+ 그리퍼 전류 로봇 타입). `inference.sh`가 사용 |
+| `omx_rollout.py` | lerobot 0.6.1용 lerobot-rollout 실행기 (0.4.4에서는 사용 안 함) |
 | `omx_grip_robot.py` | `omx_follower_grip` 로봇 타입 (관절 6 + 그리퍼 전류) |
 | `tools.sh` | 아래 Python 도구를 학습 이미지 안에서 실행 |
 | `eval_policy.py` | 학습에서 뺀 에피소드로 평가 (녹화 영상 기반) |
@@ -22,7 +23,7 @@ LeRobot 0.6.1에서 [lerobot/smolvla_base](https://huggingface.co/lerobot/smolvl
 
 ```bash
 cd omx_train/SmolVLA
-docker build -t omx-smolvla:0.6.1 .              # 최초 1회
+docker build -t omx-smolvla:0.4.4 .              # 최초 1회
 hf download Sungah/omx_box_merged --repo-type dataset --local-dir data/box_merged
 ./train.sh 0                                     # GPU 0
 ```
@@ -98,7 +99,7 @@ M=/outputs/train/smolvla_box_merged_ho/checkpoints/020000/pretrained_model
 로봇 PC에서 **Docker 없이**, 설치된 lerobot으로 실행합니다. **NVIDIA GPU가 필요합니다** (CPU는 예측 1회 약 10초).
 
 ```bash
-pip install "lerobot[dynamixel,smolvla]==0.6.1"  # 로봇 PC에 lerobot이 없을 때
+pip install "lerobot[dynamixel,smolvla]==0.4.4"  # 로봇 PC에 lerobot이 없을 때
 lerobot-find-port                                 # → ROBOT_PORT
 lerobot-find-cameras opencv                       # → TOP_CAM(위쪽), WRIST_CAM(손목). 사진으로 구분
 lerobot-calibrate --robot.type=omx_follower --robot.port=/dev/ttyACM0 --robot.id=omx_follower  # 최초 1회
@@ -116,7 +117,8 @@ MODEL=outputs/train/smolvla_box_merged_ho/checkpoints/020000/pretrained_model \
 | 작업 문장 | `Pick up the box and place it on the white round robot.` (학습 때와 같아야 함) |
 | 실행 길이 | 모델 기본 50스텝 |
 | 안전 | `--robot.max_relative_target=10` (한 스텝 최대 이동량) |
-| 실행 시간 | 30초, 끝나면 시작 자세로 복귀 |
+| 실행 시간 | 30초 1회 (`--dataset.episode_time_s=30 --dataset.num_episodes=1`) |
+| 실행 기록 | `outputs/eval/<시각>/`에 평가 데이터셋으로 저장 (Hub 업로드 안 함). 키보드 → 일찍 끝내기 / ← 다시 / Esc 중지 |
 
 **`inference.sh` 사용 예시**
 
@@ -132,35 +134,34 @@ MODEL=outputs/train/smolvla_box_merged_ho/checkpoints/002000/pretrained_model \
 hf download Sungah/omx_box_smolvla --local-dir omx_box_smolvla
 MODEL=omx_box_smolvla/models/smolvla_merged ./inference.sh
 
-# 4) RTC: 실행하는 동안 다음 동작을 미리 예측해 끊김을 줄임
-./inference.sh --inference.type=rtc --inference.rtc.execution_horizon=10
+# 4) 한 번 예측 후 25스텝만 실행 (반응이 빠름. RTC는 0.6.1 lerobot-rollout 전용이라 0.4.4에서는 불가)
+./inference.sh --policy.n_action_steps=25
 
 # 5) 생성 단계를 줄여 예측을 빠르게 (품질이 떨어질 수 있음)
 ./inference.sh --policy.num_steps=5
 
 # 6) 60초 동안, 안전 제한을 조금 풀어서 (동작이 너무 느릴 때)
-./inference.sh --duration=60 --robot.max_relative_target=20
+./inference.sh --dataset.episode_time_s=60 --robot.max_relative_target=20
 
 # 7) 그리퍼 전류로 학습한 모델 (config.json의 state 크기를 7로 고친 모델)
 MODEL=outputs/train/smolvla_grip/checkpoints/last/pretrained_model ./inference.sh --robot.type=omx_follower_grip
 
 # 8) 다른 작업 문장으로 학습한 모델 (학습 데이터와 같은 문장)
 MODEL=outputs/train/smolvla_1024/checkpoints/last/pretrained_model \
-  ./inference.sh --task="상자를 짚어서 흰 바구니 안에 넣는다."
+  ./inference.sh --dataset.single_task="상자를 짚어서 흰 바구니 안에 넣는다."
 
 # 9) 카메라·관절 값을 실시간 화면으로 보면서
 ./inference.sh --display_data=true
 
-# 10) 실행하면서 에피소드 단위로 녹화 (5회, 회당 30초, 사이에 15초 정리 시간)
-./inference.sh --strategy.type=episodic --duration=0 \
-  --dataset.repo_id=Sungah/eval_omx_smolvla --dataset.single_task="Pick up the box and place it on the white round robot." \
-  --dataset.root=outputs/rollout_recordings/eval_smolvla --dataset.num_episodes=5 \
-  --dataset.episode_time_s=30 --dataset.reset_time_s=15 --dataset.push_to_hub=false
+# 10) 연속 5회 실행·녹화 (회당 30초, 사이에 15초 정리 시간)
+./inference.sh --dataset.num_episodes=5 --dataset.episode_time_s=30 --dataset.reset_time_s=15
 ```
 
+- **lerobot 0.6.1로 학습한 모델**(아래 Hugging Face 번들 포함)은 `config.json`의 `pretrained_revision` 항목 때문에 0.4.4에서 읽히지 않습니다. 한 번 지우고 쓰세요:
+  `python -c "import json,sys;p=sys.argv[1]+'/config.json';c=json.load(open(p));c.pop('pretrained_revision',None);json.dump(c,open(p,'w'),indent=4)" <모델 폴더>`
 - 모델은 반드시 `MODEL`로 바꾸세요. `--policy.path`를 뒤에 붙이면 lerobot이 첫 값만 써서 적용되지 않습니다
-- 그 밖의 옵션은 뒤에 붙이면 덮어씁니다 (`--robot.type`, `--strategy.type`, `--inference.type`도 마지막 값이 적용됨)
-- 4)·9)·10)은 실물 로봇에서 확인하지 않은 기능입니다
+- 그 밖의 옵션은 뒤에 붙이면 덮어씁니다 (`--robot.type`, `--dataset.*`도 마지막 값이 적용됨)
+- 9)·10)은 실물 로봇에서 확인하지 않은 기능입니다
 
 학습된 모델은 Hugging Face에도 있습니다: [Sungah/omx_box_smolvla](https://huggingface.co/Sungah/omx_box_smolvla)
 

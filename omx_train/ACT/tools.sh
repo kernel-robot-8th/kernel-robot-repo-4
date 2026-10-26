@@ -10,7 +10,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 GPU="${1:-0}"; shift || true
 SCRIPT="$1"; shift
-IMAGE="${IMAGE:-omx-act:0.6.1}"
+IMAGE="${IMAGE:-omx-act:0.4.4}"
 DATA_DIR="${DATA_DIR:-$HERE/data}"
 OUT_DIR="${OUT_DIR:-$HERE/outputs}"
 mkdir -p "$HERE/.home" "$DATA_DIR" "$OUT_DIR"
