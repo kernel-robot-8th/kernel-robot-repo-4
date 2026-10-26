@@ -44,15 +44,10 @@ fk:
   - 0.0
   - 0.0
 train:
+  omx_train_dir: ../omx_train
   dataset_root: ''
   policy: act
-  device: cuda
-  steps: 100000
-  batch_size: 8
-  num_workers: 4
-  log_freq: 200
-  save_freq: 20000
+  gpu: 0
+  params: {}
   wandb: false
-  image_aug: false
   holdout_episodes: ''
-  extra_args: ''

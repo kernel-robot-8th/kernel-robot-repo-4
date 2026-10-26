@@ -7,53 +7,112 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import trainer  # noqa: E402
-from core.config import DEFAULTS  # noqa: E402
+
+OMX_DIR = Path(__file__).resolve().parents[2] / "omx_train"
+
+
+class TrainScriptTest(unittest.TestCase):
+    """Reads the real omx_train scripts, so the dashboard notices when train.sh changes shape."""
+
+    def test_defaults_come_from_train_sh(self):
+        act = trainer.script_defaults(trainer.train_script(OMX_DIR, "act"))
+        self.assertEqual(set(act), set(trainer.PARAMS))
+        self.assertEqual(act["batch_size"], 16)
+        smol = trainer.script_defaults(trainer.train_script(OMX_DIR, "smolvla"))
+        self.assertEqual(smol["batch_size"], 64)
+
+    def test_commented_options_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            sh = Path(d) / "train.sh"
+            sh.write_text("ARGS=(\n  # --steps=5\n  --steps=7   # note\n  --batch_size=3\n  --log_freq=x\n)\n")
+            self.assertEqual(trainer.script_defaults(sh), {"steps": 7, "batch_size": 3})
+
+    def test_image_name(self):
+        self.assertEqual(trainer.image_name(OMX_DIR, "act"), "omx-act:0.6.1")
+        self.assertEqual(trainer.image_name(OMX_DIR, "smolvla"), "omx-smolvla:0.6.1")
 
 
 class BuildCommandTest(unittest.TestCase):
     def test_new_run(self):
-        cmd = trainer.build_command(DEFAULTS["train"], Path("/d/success"), "local/t_success", Path("/o/act_1"))
-        self.assertEqual(cmd[1:3], ["-m", "lerobot.scripts.lerobot_train"])
-        for arg in (
-            "--dataset.repo_id=local/t_success",
-            "--dataset.root=/d/success",
-            "--policy.type=act",
-            "--policy.device=cuda",
-            "--policy.push_to_hub=false",
-            "--output_dir=/o/act_1",
-            "--job_name=act_1",
-            "--steps=100000",
-            "--batch_size=8",
-            "--wandb.enable=false",
-        ):
-            self.assertIn(arg, cmd)
-
-    def test_resume(self):
-        cmd = trainer.build_command(DEFAULTS["train"], None, "", Path("/o/act_1"), resume_from=Path("/o/act_1"))
+        args = trainer.overrides({"steps": 20, "batch_size": 4}, image_aug=True, wandb=False) + ["--seed=7"]
+        argv, env = trainer.build_train(OMX_DIR, "act", 1, Path("/d/shoe/success"), "shoe_act_1", [0, 2], args)
+        self.assertEqual(argv[:3], ["bash", str(OMX_DIR / "ACT" / "train.sh"), "1"])
         self.assertEqual(
-            cmd[3:],
-            ["--config_path=/o/act_1/checkpoints/last/pretrained_model/train_config.json", "--resume=true"],
+            argv[3:],
+            ["--steps=20", "--batch_size=4", "--dataset.image_transforms.enable=true", "--wandb.enable=false", "--seed=7"],
         )
+        self.assertEqual(env["DATA_DIR"], "/d/shoe")
+        self.assertEqual(env["DATASET"], "success")
+        self.assertEqual(env["JOB_NAME"], "shoe_act_1")
+        self.assertEqual(env["EPISODES"], "[0,2]")
+        self.assertEqual(env["DETACH"], "1")
+        self.assertEqual(env["KEEP_STEPS"], "")
+
+    def test_every_episode_is_empty(self):
+        _, env = trainer.build_train(OMX_DIR, "smolvla", 0, Path("/d/x"), "j", None, [])
+        # empty, not unset: SmolVLA's train.sh otherwise falls back to its box_merged holdout list
+        self.assertEqual(env["EPISODES"], "")
+
+    def test_resume_restores_dataset_from_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            omx = Path(d)
+            run = trainer.outputs_dir(omx, "act") / "job1"
+            run.mkdir(parents=True)
+            trainer.run_meta_path(omx, "act", "job1").write_text(json.dumps({"dataset_root": "/rec/shoe/success"}))
+            argv, env = trainer.build_resume(omx, "act", 0, run, ["--steps=50"])
+            self.assertEqual(argv[-1], "--steps=50")
+            self.assertEqual(env["RESUME"], "1")
+            self.assertEqual((env["DATA_DIR"], env["DATASET"], env["JOB_NAME"]), ("/rec/shoe", "success", "job1"))
+
+    def test_resume_cli_run_uses_saved_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            omx = Path(d)
+            run = trainer.outputs_dir(omx, "act") / "act_box"
+            cfg = trainer.resume_config(run)
+            cfg.parent.mkdir(parents=True)
+            cfg.write_text(json.dumps({"dataset": {"root": "/data/box_merged"}, "steps": 100}))
+            _, env = trainer.build_resume(omx, "act", 0, run, [])
+            self.assertEqual(env["DATASET"], "box_merged")
+            self.assertNotIn("DATA_DIR", env)  # train.sh's own default
+
+    def test_shell_line_is_reproducible(self):
+        argv, env = trainer.build_train(OMX_DIR, "act", 0, Path("/d/my task/success"), "j", None, ["--steps=5"])
+        line = trainer.shell_line(argv, env, OMX_DIR)
+        self.assertIn("DATA_DIR='/d/my task'", line)
+        self.assertIn("ACT/train.sh 0 --steps=5", line)
+        self.assertNotIn("DETACH", line)
+
+    def test_last_override(self):
+        self.assertEqual(trainer.last_override(["--steps=5", "--seed=1", "--steps=9"], "steps"), "9")
+        self.assertIsNone(trainer.last_override(["--seed=1"], "steps"))
+
+
+class NamesTest(unittest.TestCase):
+    def test_job_and_container(self):
+        job = trainer.job_name("shoe box/1", "act", now=0)
+        self.assertRegex(job, r"^shoe_box_1_act_\d{8}_\d{6}$")
+        self.assertEqual(trainer.container_name(job), "omx-train-" + job)
+
+    def test_runs_and_find_job(self):
+        with tempfile.TemporaryDirectory() as d:
+            omx = Path(d)
+            self.assertEqual(trainer.list_runs(omx, "act"), [])
+            run = trainer.outputs_dir(omx, "smolvla") / "j1"
+            run.mkdir(parents=True)
+            self.assertEqual(trainer.list_runs(omx, "smolvla"), [])  # no checkpoint yet
+            cfg = trainer.resume_config(run)
+            cfg.parent.mkdir(parents=True)
+            cfg.write_text("{}")
+            self.assertEqual(trainer.list_runs(omx, "smolvla"), [run])
+            self.assertEqual(trainer.find_job(omx, "j1"), "smolvla")
+            self.assertIsNone(trainer.find_job(omx, "other"))
+
+    def test_started_at(self):
+        self.assertEqual(trainer.parse_started_at("1970-01-01T00:01:40.123456789Z"), 100.0)
+        self.assertIsNone(trainer.parse_started_at("0001-01-01T00:00:00Z"))
 
 
 class TrainOptionsTest(unittest.TestCase):
-    def test_episodes_aug_and_extra_order(self):
-        cfg = dict(DEFAULTS["train"], image_aug=True)
-        cmd = trainer.build_command(cfg, Path("/d"), "local/x", Path("/o/r"), episodes=[0, 1, 3], extra=["--seed=7"])
-        i_ep = cmd.index("--dataset.episodes=[0,1,3]")
-        i_aug = cmd.index("--dataset.image_transforms.enable=true")
-        self.assertLess(cmd.index("--wandb.enable=false"), i_ep)
-        self.assertLess(i_ep, i_aug)
-        self.assertEqual(cmd[-1], "--seed=7")
-
-    def test_defaults_add_nothing(self):
-        cmd = trainer.build_command(DEFAULTS["train"], Path("/d"), "local/x", Path("/o/r"))
-        self.assertFalse(any(a.startswith(("--dataset.episodes", "--dataset.image_transforms")) for a in cmd))
-
-    def test_resume_keeps_extra(self):
-        cmd = trainer.build_command(DEFAULTS["train"], None, "", Path("/o/r"), resume_from=Path("/o/r"), extra=["--steps=50"])
-        self.assertEqual(cmd[-2:], ["--resume=true", "--steps=50"])
-
     def test_parse_episode_list(self):
         self.assertEqual(trainer.parse_episode_list("", 10), [])
         self.assertEqual(trainer.parse_episode_list(" 9, 5 ,5", 10), [5, 9])
@@ -106,14 +165,14 @@ class ParseLogLineTest(unittest.TestCase):
 
 class EmitLineTest(unittest.TestCase):
     def test_tqdm_kept_out_of_log(self):
-        t = trainer.Trainer(Path("."))
+        t = trainer.Trainer(OMX_DIR)
         t._emit_line("Training:  25%|##5       | 5/20 [00:01<00:03,  4.10step/s]")
         t._emit_line("INFO step:5 smpl:20 ep:1 epch:0.25 loss:1.5")
         kinds = [t.events.get_nowait()[0] for _ in range(t.events.qsize())]
         self.assertEqual(kinds, ["train_tqdm", "train_log", "train_progress"])
 
     def test_metrics_glued_to_tqdm(self):
-        t = trainer.Trainer(Path("."))
+        t = trainer.Trainer(OMX_DIR)
         bar = "Training:  50%|#####     | 5/10 [00:01<00:00,  6.14step/s]"
         t._emit_line(bar + "INFO ot_train.py:435 step:5 smpl:20 epch:0.25 loss:50.148")
         events = [t.events.get_nowait() for _ in range(t.events.qsize())]
@@ -128,29 +187,8 @@ class DatasetTest(unittest.TestCase):
             root = trainer.dataset_root(Path(d))
             self.assertEqual(trainer.episode_count(root), 0)
             (root / "meta").mkdir(parents=True)
-            (root / "meta" / "info.json").write_text(json.dumps({"total_episodes": 0}))
-            self.assertEqual(trainer.episode_count(root), 0)
             (root / "meta" / "info.json").write_text(json.dumps({"total_episodes": 7}))
             self.assertEqual(trainer.episode_count(root), 7)
-
-    def test_latest_run_needs_checkpoint(self):
-        with tempfile.TemporaryDirectory() as d:
-            self.assertIsNone(trainer.latest_run(Path(d)))
-            data = Path(d) / "success"
-            self.assertIsNone(trainer.latest_run(data))
-            run = trainer.train_dir_for(data) / "act_1"
-            run.mkdir(parents=True)
-            self.assertIsNone(trainer.latest_run(data))
-            cfg = trainer.resume_config(run)
-            cfg.parent.mkdir(parents=True)
-            cfg.write_text("{}")
-            self.assertEqual(trainer.latest_run(data), run)
-
-    def test_paths_follow_dataset(self):
-        data = Path("/data/shoe box/success")
-        self.assertEqual(trainer.train_dir_for(data), Path("/data/shoe box/train"))
-        self.assertEqual(trainer.run_dir(data, "act").parent, Path("/data/shoe box/train"))
-        self.assertEqual(trainer.default_repo_id(data), "local/shoe_box_success")
 
 
 if __name__ == "__main__":

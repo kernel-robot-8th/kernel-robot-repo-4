@@ -47,18 +47,16 @@ DEFAULTS = {
         "offsets_deg": [0.0, 0.0, 0.0, 0.0, 0.0],
     },
     "train": {
+        # Training runs omx_train/<policy>/train.sh in Docker; relative paths are from this app folder.
+        "omx_train_dir": "../omx_train",
         "dataset_root": "",
         "policy": "act",
-        "device": "cuda",
-        "steps": 100000,
-        "batch_size": 8,
-        "num_workers": 4,
-        "log_freq": 200,
-        "save_freq": 20000,
+        "gpu": 0,
+        # policy -> {steps, batch_size, save_freq, log_freq, num_workers, image_aug, extra_args};
+        # missing numbers = train.sh values
+        "params": {},
         "wandb": False,
-        "image_aug": False,
         "holdout_episodes": "",
-        "extra_args": "",
     },
 }
 

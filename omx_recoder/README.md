@@ -11,6 +11,7 @@ OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하�
 - LeRobot 0.4.4가 설치된 가상환경
 - 리더암·팔로워암 USB 연결 (udev 설정 불필요: BringUp 때 모터 ID로 보드를 자동 감지)
 - 팔로워암 전원(12V) 연결
+- (학습 탭을 쓸 때) Docker + nvidia-container-toolkit, NVIDIA GPU — 아래 **Docker 설치** 참고
 
 **설치**
 ```bash
@@ -18,7 +19,7 @@ OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하�
 git clone --filter=blob:none --sparse -b tool/omx-ai_record_dashboard \
   https://github.com/kernel-robot-8th/kernel-robot-repo-4.git
 cd kernel-robot-repo-4
-git sparse-checkout set omx_recoder
+git sparse-checkout set omx_recoder omx_train   # 학습 탭은 omx_train을 씀
 cd omx_recoder
 
 source ~/venv/il/bin/activate
@@ -87,24 +88,46 @@ python main.py
 - 기본은 **비공개(private)** 입니다.
 
 ### ⑦ 학습 (선택)
-**학습 탭**에서 정책을 학습합니다. 기본으로는 녹화한 `success/` 데이터를 쓰고, `fail/` 데이터는 쓰지 않습니다.
-1. 학습할 데이터를 정합니다. 학습 탭에 데이터 폴더와 에피소드 수가 표시됩니다.
-   - **기본**: `데이터 폴더` 칸을 비워 두면 현재 세션(`<저장 경로>/<태스크명>/success`)을 씁니다.
-   - **다른 데이터**: `폴더 선택`으로 LeRobot 데이터셋 폴더(`meta/info.json`이 있는 폴더)를 지정합니다. 이때는 세션을 시작하지 않아도 됩니다. `세션 폴더로`를 누르면 기본값으로 돌아갑니다.
-   - 학습 결과는 데이터 폴더 옆 `train/`에 저장됩니다. 예: `.../shoe_box_pick/success` → `.../shoe_box_pick/train/`
-   - **평가용 제외 에피소드**: `5,9`나 `3-5`처럼 적으면 그 에피소드를 학습에서 뺍니다(`--dataset.episodes`). 처음 보는 에피소드로 평가할 때 씁니다. 뺀 목록은 결과 폴더의 `omx_holdout.json`에 남습니다.
-2. 학습 설정을 고릅니다.
-   - 정책: `act`(기본) 또는 `diffusion`
-   - 장치: `cuda`(GPU) / `cpu`
-   - 그 외: step 수, batch size 등
-   - **epoch → step**: epoch 수를 넣고 `step에 적용`을 누르면 step 수를 채웁니다 (1 epoch = 학습 프레임 수 / batch). 아래 줄에 현재 step이 몇 epoch인지와 저장될 체크포인트 개수가 표시됩니다.
-   - **이미지 증강**: 켜면 학습 이미지의 밝기·대비·색 등을 무작위로 바꿉니다. 시연이 적을 때 도움이 됩니다.
-   - **추가 인자**: 화면에 없는 lerobot-train 옵션을 `--이름=값` 형식으로 적습니다. 예: `--policy.chunk_size=50 --seed=7`. 명령 맨 뒤에 붙어 위 설정을 덮어쓰고, `이어서 학습`에도 적용됩니다.
-3. `학습 시작`을 누르면 `lerobot-train`이 별도 프로세스로 실행됩니다. 진행률, loss, 로그가 화면에 표시됩니다.
-4. `중지`로 언제든 멈출 수 있습니다. 체크포인트가 저장된 뒤라면 `이어서 학습`으로 마지막 체크포인트부터 다시 시작합니다.
-5. `출력 폴더 열기`로 결과를 확인합니다. 학습된 정책은 `checkpoints/last/pretrained_model/`에 있습니다.
+**학습 탭**은 `omx_train/<정책>/train.sh`(Docker, LeRobot 0.6.1)를 실행하는 화면입니다. 터미널에서 `./train.sh`로 학습하는 것과 같은 스크립트·같은 결과 폴더를 씁니다. 기본으로는 녹화한 `success/` 데이터를 쓰고, `fail/` 데이터는 쓰지 않습니다.
 
-> 학습 설정은 앱을 끌 때 `config.yaml`의 `train:` 항목에 저장됩니다.
+0. **학습 환경** 칸에서 Docker 상태를 확인합니다. 처음에는 `이미지 빌드`를 한 번 누릅니다 (정책별, 수 분 걸림).
+1. 학습할 데이터를 정합니다.
+   - **기본**: `데이터 폴더` 칸을 비워 두면 현재 세션(`<저장 경로>/<태스크명>/success`)을 씁니다.
+   - **다른 데이터**: `폴더 선택`으로 LeRobot 데이터셋 폴더(`meta/info.json`이 있는 폴더)를 지정합니다. HF에 있는 데이터는 `hf download <저장소> --repo-type dataset --local-dir <폴더>`로 먼저 받아 둡니다 (비공개 저장소는 `hf auth login` 필요).
+   - **평가용 제외 에피소드**: `5,9`나 `3-5`처럼 적으면 그 에피소드를 학습에서 뺍니다 (train.sh의 `EPISODES`).
+2. 학습 설정을 고릅니다.
+   - 정책: `ACT` 또는 `SmolVLA` (`omx_train/ACT`, `omx_train/SmolVLA`)
+   - step·batch·체크포인트 주기 등은 처음에 train.sh에 적힌 값(마지막 학습 설정)으로 채워지고, 바꾼 값은 train.sh 뒤에 덮어쓰는 인자로 넘어갑니다. `train.sh 값으로`로 되돌립니다.
+   - **epoch → step**: epoch 수를 넣고 `step에 적용`을 누르면 step 수를 채웁니다 (1 epoch = 학습 프레임 수 / batch).
+   - **추가 인자**: 화면에 없는 lerobot-train 옵션을 `--이름=값` 형식으로 적습니다. 예: `--policy.chunk_size=50 --seed=7`
+   - 위 값들(step·batch 등, 이미지 증강, 추가 인자)은 **정책마다 따로 저장**됩니다. 정책을 바꾸면 그 정책에서 마지막으로 쓴 값이 다시 채워집니다.
+   - GPU 메모리 16GB에서 SmolVLA 기본 batch 64(약 15GB)는 빠듯하니 batch를 줄이세요.
+3. `학습 시작`을 누르면 train.sh가 Docker 컨테이너(`omx-train-<태스크>_<정책>_<시각>`)를 띄웁니다. 진행률, loss, 로그가 화면에 표시됩니다. 로그 첫 줄은 같은 학습을 터미널에서 실행하는 명령입니다.
+4. **대시보드를 꺼도 학습은 계속됩니다.** 다시 켜면 실행 중인(또는 그사이 끝난) 학습에 자동으로 다시 연결합니다. 터미널에서는 `docker logs -f omx-train-<이름>`으로 볼 수 있습니다.
+5. `중지`로 멈춥니다 (`docker stop`). 체크포인트가 저장된 학습은 목록에서 골라 `이어서 학습`으로 마지막 체크포인트부터 다시 시작합니다.
+6. 결과는 `omx_train/<정책>/outputs/train/<이름>/`에 저장됩니다. 학습된 정책은 `checkpoints/last/pretrained_model/`에 있고, 옆의 `<이름>.run.json`에 데이터 경로·제외한 에피소드·실행 명령이 남습니다. 평가·로봇 추론은 [omx_train](../omx_train/README.md)을 참고하세요.
+
+> 학습 설정은 앱을 끌 때 `config.yaml`의 `train:` 항목에 저장됩니다. `train.omx_train_dir`로 omx_train 위치를 바꿀 수 있습니다 (기본 `../omx_train`).
+
+#### Docker 설치 (학습 PC에서 한 번, sudo 필요)
+Ubuntu 기준입니다. 자세한 내용은 [Docker](https://docs.docker.com/engine/install/ubuntu/), [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) 문서를 따르세요.
+```bash
+# 1) Docker Engine
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER        # 로그아웃 후 다시 로그인해야 적용 (sudo 없이 docker 실행)
+
+# 2) NVIDIA Container Toolkit (컨테이너에서 GPU 사용)
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
+
+# 3) 확인
+docker run --rm --gpus all ubuntu nvidia-smi
+```
+> docker 그룹에 들어가면 그 계정은 사실상 root 권한을 갖습니다. 여러 사람이 쓰는 PC라면 관리자와 상의하세요.
 
 ---
 
@@ -138,12 +161,14 @@ output/<태스크명>/
 │   ├── data/       # parquet
 │   ├── videos/     # wrist, top 영상
 │   └── meta/
-├── fail/           # 실패 에피소드 (같은 구조)
-└── train/          # 학습 결과
-    └── <정책>_<날짜_시각>/
-        └── checkpoints/
-            ├── <step>/pretrained_model/
-            └── last/pretrained_model/   # 가장 최근 체크포인트
+└── fail/           # 실패 에피소드 (같은 구조)
+
+omx_train/<ACT|SmolVLA>/outputs/train/     # 학습 결과 (학습 탭·train.sh 공통)
+├── <태스크>_<정책>_<날짜_시각>.run.json   # 데이터 경로, 제외 에피소드, 실행 명령
+└── <태스크>_<정책>_<날짜_시각>/
+    └── checkpoints/
+        ├── <step>/pretrained_model/
+        └── last/pretrained_model/         # 가장 최근 체크포인트
 ```
 
 **주요 데이터**

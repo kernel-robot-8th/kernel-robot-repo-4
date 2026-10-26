@@ -1,6 +1,7 @@
 import json
 import queue
 import threading
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
@@ -75,16 +76,17 @@ class MainWindow(QMainWindow):
         self.uploading = False
         self.last_task_text = self.cfg["session"]["task_text"]
         self.counts = {"success": 0, "fail": 0}
-        self.trainer = Trainer(APP_DIR)
+        self.trainer = Trainer(self._omx_dir())
         self.train_total = 0
-        self.resume_run: Path | None = None
+        self.train_policy = ""  # policy whose values the settings box currently shows
+        self.docker_ok = False
+        self.image_ok = False
         self.train_root: Path | None = None
         self.train_eps = 0
         self.train_lengths: dict[int, int] = {}
         self.train_episodes: list[int] | None = None  # None = every episode
         self.train_holdout: list[int] = []
         self.train_split_error = ""
-        self.pending_holdout: dict | None = None
 
         tabs = QTabWidget()
         tabs.addTab(self._build_dashboard(), "대시보드")
@@ -92,6 +94,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self._build_settings(), "설정")
         self.setCentralWidget(tabs)
         self._load_settings_to_ui()
+        self._attach_running_train()
 
         QApplication.instance().installEventFilter(self)
         self.timer = QTimer(self)
@@ -348,6 +351,24 @@ class MainWindow(QMainWindow):
         left = QVBoxLayout()
         h.addLayout(left, 1)
 
+        ebox = QGroupBox("학습 환경 (omx_train · Docker)")
+        ev = QVBoxLayout(ebox)
+        self.lbl_docker = QLabel()
+        self.lbl_docker.setWordWrap(True)
+        self.btn_build = QPushButton("이미지 빌드")
+        self.btn_build.setToolTip("선택한 정책 폴더의 Dockerfile로 학습 이미지를 만듭니다 (처음 한 번, 수 분 걸림)")
+        self.btn_build.clicked.connect(self._build_image)
+        btn_check = QPushButton("다시 확인")
+        btn_check.clicked.connect(self._check_docker)
+        erow = QHBoxLayout()
+        for b in (self.btn_build, btn_check):
+            b.setFocusPolicy(Qt.NoFocus)
+            erow.addWidget(b)
+        erow.addStretch()
+        ev.addWidget(self.lbl_docker)
+        ev.addLayout(erow)
+        left.addWidget(ebox)
+
         dbox = QGroupBox("데이터")
         df = QFormLayout(dbox)
         self.ed_train_data = QLineEdit()
@@ -369,24 +390,32 @@ class MainWindow(QMainWindow):
         self.lbl_train_data.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.ed_holdout = QLineEdit()
         self.ed_holdout.setPlaceholderText("예: 5,9 또는 3-5 (비우면 전체 학습)")
-        self.ed_holdout.setToolTip("평가에 쓸 에피소드를 학습에서 뺍니다 (--dataset.episodes)")
+        self.ed_holdout.setToolTip("평가에 쓸 에피소드를 학습에서 뺍니다 (train.sh의 EPISODES)")
         self.ed_holdout.editingFinished.connect(self._update_train_data)
         df.addRow("데이터 폴더", prow)
         df.addRow("평가용 제외 에피소드", self.ed_holdout)
         df.addRow("", self.lbl_train_data)
-        df.addRow("", QLabel("기본은 녹화한 Success 에피소드입니다."))
         self.train_data_box = dbox
         left.addWidget(dbox)
 
-        pbox = QGroupBox("학습 설정")
+        pbox = QGroupBox("학습 설정 (train.sh에 덮어쓸 값)")
         pf = QFormLayout(pbox)
         self.cb_policy = QComboBox()
-        self.cb_policy.addItems(trainer.POLICIES)
-        self.cb_device = QComboBox()
-        self.cb_device.addItems(trainer.DEVICES)
+        for key, folder in trainer.POLICIES.items():
+            self.cb_policy.addItem(folder, key)
+        self.cb_policy.currentIndexChanged.connect(self._policy_changed)
+        self.btn_train_defaults = QPushButton("train.sh 값으로")
+        self.btn_train_defaults.setToolTip("아래 값을 train.sh에 적힌 값(마지막 학습 설정)으로 되돌립니다")
+        self.btn_train_defaults.setFocusPolicy(Qt.NoFocus)
+        self.btn_train_defaults.clicked.connect(self._reset_train_params)
+        polrow = QHBoxLayout()
+        polrow.addWidget(self.cb_policy, 1)
+        polrow.addWidget(self.btn_train_defaults)
+        self.sp_gpu = QSpinBox()
+        self.sp_gpu.setRange(0, 15)
         self.sp_steps = QSpinBox()
         self.sp_steps.setRange(10, 10_000_000)
-        self.sp_steps.setSingleStep(10_000)
+        self.sp_steps.setSingleStep(1000)
         self.sp_batch = QSpinBox()
         self.sp_batch.setRange(1, 1024)
         self.sp_workers = QSpinBox()
@@ -413,8 +442,8 @@ class MainWindow(QMainWindow):
             sp.valueChanged.connect(self._update_epoch_info)
         self.ed_extra = QLineEdit()
         self.ed_extra.setPlaceholderText("예: --policy.chunk_size=50 --seed=7 (맨 뒤에 붙어 위 값을 덮어씀)")
-        pf.addRow("정책", self.cb_policy)
-        pf.addRow("장치", self.cb_device)
+        pf.addRow("정책", polrow)
+        pf.addRow("GPU 번호", self.sp_gpu)
         pf.addRow("학습 step", self.sp_steps)
         pf.addRow("batch size", self.sp_batch)
         pf.addRow("epoch → step", erow)
@@ -431,20 +460,27 @@ class MainWindow(QMainWindow):
         xbox = QGroupBox("실행")
         xg = QGridLayout(xbox)
         self.btn_train = QPushButton("학습 시작")
+        self.cb_runs = QComboBox()
+        self.cb_runs.setToolTip("체크포인트가 남은 학습 (최신순)")
         self.btn_train_resume = QPushButton("이어서 학습")
         self.btn_train_stop = QPushButton("중지")
-        self.btn_train_open = QPushButton("출력 폴더 열기")
+        self.btn_train_open = QPushButton("결과 폴더 열기")
         self.btn_train.setMinimumHeight(48)
-        self.btn_train.clicked.connect(lambda: self._start_train(resume=False))
-        self.btn_train_resume.clicked.connect(lambda: self._start_train(resume=True))
+        self.btn_train.clicked.connect(self._start_train)
+        self.btn_train_resume.clicked.connect(self._resume_train)
         self.btn_train_stop.clicked.connect(self.trainer.stop)
         self.btn_train_open.clicked.connect(self._open_train_dir)
         for b in (self.btn_train, self.btn_train_resume, self.btn_train_stop, self.btn_train_open):
             b.setFocusPolicy(Qt.NoFocus)
         xg.addWidget(self.btn_train, 0, 0, 1, 2)
-        xg.addWidget(self.btn_train_resume, 1, 0)
-        xg.addWidget(self.btn_train_stop, 1, 1)
-        xg.addWidget(self.btn_train_open, 2, 0, 1, 2)
+        xg.addWidget(self.cb_runs, 1, 0)
+        xg.addWidget(self.btn_train_resume, 1, 1)
+        xg.addWidget(self.btn_train_stop, 2, 0)
+        xg.addWidget(self.btn_train_open, 2, 1)
+        note = QLabel("학습은 Docker 컨테이너에서 돌아 대시보드를 꺼도 계속되고, 다시 열면 이어서 표시합니다.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#888;")
+        xg.addWidget(note, 3, 0, 1, 2)
         left.addWidget(xbox)
         left.addStretch()
 
@@ -470,7 +506,7 @@ class MainWindow(QMainWindow):
         self.train_log.setReadOnly(True)
         self.train_log.setFocusPolicy(Qt.ClickFocus)
         self.train_log.setMaximumBlockCount(2000)
-        right.addWidget(QLabel("학습 로그"))
+        right.addWidget(QLabel("학습 로그 (첫 줄 = 같은 학습을 터미널에서 실행하는 명령)"))
         right.addWidget(self.train_log, 1)
         return root
 
@@ -502,18 +538,20 @@ class MainWindow(QMainWindow):
         self.ed_fk_signs.setText(", ".join(str(int(s)) for s in c["fk"]["signs"]))
         self.ed_fk_offsets.setText(", ".join(f"{o:g}" for o in c["fk"]["offsets_deg"]))
         t = c["train"]
-        self.cb_policy.setCurrentText(t["policy"])
-        self.cb_device.setCurrentText(t["device"])
-        self.sp_steps.setValue(int(t["steps"]))
-        self.sp_batch.setValue(int(t["batch_size"]))
-        self.sp_workers.setValue(int(t["num_workers"]))
-        self.sp_log_freq.setValue(int(t["log_freq"]))
-        self.sp_save_freq.setValue(int(t["save_freq"]))
+        # Older config.yaml kept these once for every policy; they now belong to the saved policy.
+        legacy = {k: t.pop(k) for k in ("image_aug", "extra_args") if k in t}
+        if legacy:
+            saved = (t.get("params") or {}).get(t["policy"]) or {}
+            t["params"] = {**(t.get("params") or {}), t["policy"]: {**legacy, **saved}}
+        self.cb_policy.blockSignals(True)
+        self.cb_policy.setCurrentIndex(max(self.cb_policy.findData(t["policy"]), 0))
+        self.cb_policy.blockSignals(False)
+        self.sp_gpu.setValue(int(t["gpu"]))
         self.ck_wandb.setChecked(bool(t["wandb"]))
-        self.ck_aug.setChecked(bool(t["image_aug"]))
         self.ed_holdout.setText(t["holdout_episodes"])
-        self.ed_extra.setText(t["extra_args"])
         self.ed_train_data.setText(t["dataset_root"])
+        self._load_train_params()
+        self._check_docker()
         self._update_train_data()
 
     def _collect_settings(self) -> dict:
@@ -545,20 +583,19 @@ class MainWindow(QMainWindow):
         if len(signs) != 5 or len(offs) != 5:
             raise ValueError("FK 부호/오프셋은 5개 값을 쉼표로 구분해 입력하세요.")
         c["fk"].update(signs=signs, offsets_deg=offs)
-        c["train"].update(
-            dataset_root=self.ed_train_data.text().strip(),
-            policy=self.cb_policy.currentText(),
-            device=self.cb_device.currentText(),
-            steps=self.sp_steps.value(),
-            batch_size=self.sp_batch.value(),
-            num_workers=self.sp_workers.value(),
-            log_freq=self.sp_log_freq.value(),
-            save_freq=self.sp_save_freq.value(),
-            wandb=self.ck_wandb.isChecked(),
-            image_aug=self.ck_aug.isChecked(),
-            holdout_episodes=self.ed_holdout.text().strip(),
-            extra_args=self.ed_extra.text().strip(),
-        )
+        params = dict(c["train"].get("params") or {})
+        if self.train_policy:
+            params[self.train_policy] = self._train_params()
+        # Rebuilt rather than updated so keys of the old local-lerobot trainer drop out of config.yaml.
+        c["train"] = {
+            "omx_train_dir": c["train"]["omx_train_dir"],
+            "dataset_root": self.ed_train_data.text().strip(),
+            "policy": self._policy(),
+            "gpu": self.sp_gpu.value(),
+            "params": params,
+            "wandb": self.ck_wandb.isChecked(),
+            "holdout_episodes": self.ed_holdout.text().strip(),
+        }
         return c
 
     def _save_settings(self) -> bool:
@@ -705,6 +742,83 @@ class MainWindow(QMainWindow):
 
         threading.Thread(target=work, daemon=True).start()
 
+    # ================================================================== training (omx_train/<policy>/train.sh)
+    def _omx_dir(self) -> Path:
+        p = Path(self.cfg["train"]["omx_train_dir"]).expanduser()
+        return (p if p.is_absolute() else APP_DIR / p).resolve()
+
+    def _policy(self) -> str:
+        return self.cb_policy.currentData() or "act"
+
+    def _param_spins(self) -> dict:
+        return {
+            "steps": self.sp_steps,
+            "batch_size": self.sp_batch,
+            "save_freq": self.sp_save_freq,
+            "log_freq": self.sp_log_freq,
+            "num_workers": self.sp_workers,
+        }
+
+    def _train_params(self) -> dict:
+        """Values kept per policy: an extra argument of one policy may not exist in the other."""
+        params = {k: sp.value() for k, sp in self._param_spins().items()}
+        params.update(image_aug=self.ck_aug.isChecked(), extra_args=self.ed_extra.text().strip())
+        return params
+
+    def _script_defaults(self, policy: str) -> dict:
+        try:
+            return trainer.script_defaults(trainer.train_script(self.trainer.omx_dir, policy))
+        except OSError:
+            return {}
+
+    def _load_train_params(self):
+        """Show the saved values of the selected policy, or train.sh's when there are none yet."""
+        policy = self._policy()
+        self.train_policy = policy
+        saved = (self.cfg["train"].get("params") or {}).get(policy) or {}
+        values = {**self._script_defaults(policy), **saved}
+        for k, sp in self._param_spins().items():
+            if k in values:
+                sp.setValue(int(values[k]))
+        self.ck_aug.setChecked(bool(saved.get("image_aug", False)))
+        self.ed_extra.setText(saved.get("extra_args", ""))
+        self._refresh_runs()
+
+    def _policy_changed(self, _index: int):
+        if self.train_policy:
+            self.cfg["train"].setdefault("params", {})[self.train_policy] = self._train_params()
+        self._load_train_params()
+        self._check_docker()
+        self._update_train_data()
+
+    def _reset_train_params(self):
+        for k, v in self._script_defaults(self._policy()).items():
+            self._param_spins()[k].setValue(int(v))
+
+    def _check_docker(self):
+        omx = self.trainer.omx_dir
+        if not trainer.train_script(omx, self._policy()).exists():
+            self.docker_ok = self.image_ok = False
+            self.lbl_docker.setText(f"omx_train을 찾을 수 없습니다: {omx} (config.yaml의 train.omx_train_dir)")
+            return
+        image = trainer.image_name(omx, self._policy())
+        self.docker_ok, self.image_ok, msg = trainer.docker_status(image)
+        self.lbl_docker.setText(f"{msg}\n폴더: {trainer.policy_dir(omx, self._policy())}")
+        self.lbl_docker.setStyleSheet("" if self.image_ok else "color:#ef6c00;")
+
+    def _build_image(self):
+        if self.trainer.busy:
+            return
+        self.train_log.clear()
+        self._log(f"이미지 빌드 시작: {trainer.image_name(self.trainer.omx_dir, self._policy())}")
+        self.lbl_train_stat.setText("이미지 빌드 중...")
+        self.trainer.build_image(self._policy())
+
+    def _refresh_runs(self):
+        self.cb_runs.clear()
+        for run in trainer.list_runs(self.trainer.omx_dir, self._policy()):
+            self.cb_runs.addItem(run.name, str(run))
+
     def _train_data_root(self) -> Path | None:
         text = self.ed_train_data.text().strip()
         if text:
@@ -713,19 +827,22 @@ class MainWindow(QMainWindow):
             return trainer.dataset_root(Path(self.session["task_dir"]))
         return None
 
+    def _train_task_name(self, root: Path) -> str:
+        return self.session["task_name"] if self.session and not self.ed_train_data.text().strip() else root.parent.name
+
     def _update_train_data(self):
-        """Recheck the dataset; called on path or episode changes, not every tick."""
         root = self._train_data_root()
         self.train_root = root
+        # The full default path is too long for the field, so it goes in the tooltip; the label below shows it too.
         if self.session:
-            default = trainer.dataset_root(Path(self.session["task_dir"]))
-            self.ed_train_data.setPlaceholderText(f"기본: {default}")
+            default = str(trainer.dataset_root(Path(self.session["task_dir"])))
         else:
-            self.ed_train_data.setPlaceholderText("기본: 세션 시작 후 <저장 경로>/<태스크명>/success")
+            default = "세션 시작 후 <저장 경로>/<태스크명>/success"
+        self.ed_train_data.setPlaceholderText("비우면 세션 데이터 사용")
+        self.ed_train_data.setToolTip(f"LeRobot 데이터셋 폴더 (meta/info.json이 있는 폴더)\n비우면: {default}")
         custom = bool(self.ed_train_data.text().strip())
         head = f"{'지정 경로' if custom else '기본 경로(세션)'}: {root}"
         self.train_eps = trainer.episode_count(root) if root else 0
-        self.resume_run = trainer.latest_run(root) if root else None
         self.train_lengths, self.train_episodes, self.train_holdout, self.train_split_error = {}, None, [], ""
         if root is None:
             self.lbl_train_data.setText("데이터 폴더를 지정하거나 대시보드에서 세션을 시작하세요.")
@@ -749,8 +866,9 @@ class MainWindow(QMainWindow):
                 split = f"학습 {len(self.train_episodes)}개 / 제외 {len(self.train_holdout)}개 ({shown})"
                 if not self.train_episodes:
                     self.train_split_error = "모든 에피소드를 제외했습니다"
-                    split += "   ·   학습할 에피소드가 없습니다"
-            self.lbl_train_data.setText(f"{head}\n{split}\n결과 저장: {trainer.train_dir_for(root)}/")
+            out = trainer.outputs_dir(self.trainer.omx_dir, self._policy())
+            job = f"{self._train_task_name(root)}_{self._policy()}_<시각>"
+            self.lbl_train_data.setText(f"{head}\n{split}\n결과 저장: {out}/{job}/")
         self._update_epoch_info()
 
     def _train_frames(self) -> int:
@@ -786,79 +904,112 @@ class MainWindow(QMainWindow):
         self.ed_train_data.clear()
         self._update_train_data()
 
-    def _start_train(self, resume: bool):
-        if self.trainer.running:
-            return
+    def _train_preflight(self) -> list[str] | None:
+        """Extra arguments when a run may start now, else None (after telling the user why)."""
+        if self.trainer.busy:
+            return None
         s = self.ctrl.snapshot()
         if s.get("recording") or s.get("pending") or self.recorder.busy:
             QMessageBox.warning(self, "학습", "녹화·저장이 끝난 뒤에 학습을 시작하세요.")
-            return
+            return None
         if not self._save_settings():
+            return None
+        try:
+            return trainer.split_extra_args(self.ed_extra.text())
+        except ValueError as e:
+            QMessageBox.warning(self, "추가 인자", str(e))
+            return None
+
+    def _start_train(self):
+        extra = self._train_preflight()
+        if extra is None:
             return
         self._update_train_data()
         root = self.train_root
         if root is None:
             return
-        try:
-            extra = trainer.split_extra_args(self.cfg["train"]["extra_args"])
-        except ValueError as e:
-            QMessageBox.warning(self, "추가 인자", str(e))
+        if self.train_eps == 0:
+            QMessageBox.warning(self, "학습", f"{root}\n에 학습할 에피소드가 없습니다.")
             return
-        self.pending_holdout = None
-        if resume:
-            run = self.resume_run
-            if run is None:
-                return
-            try:
-                self.train_total = int(json.loads(trainer.resume_config(run).read_text())["steps"])
-            except Exception:  # noqa: BLE001
-                self.train_total = 0
-            cmd = trainer.build_command(self.cfg["train"], None, "", run, resume_from=run, extra=extra)
-        else:
-            if self.train_eps == 0:
-                QMessageBox.warning(self, "학습", f"{root}\n에 학습할 에피소드가 없습니다.")
-                return
-            if self.train_split_error:
-                QMessageBox.warning(self, "평가용 제외 에피소드", self.train_split_error)
-                return
-            n = len(self.train_episodes) if self.train_episodes is not None else self.train_eps
-            run = trainer.run_dir(root, self.cfg["train"]["policy"])
-            self.train_total = int(self.cfg["train"]["steps"])
-            cmd = trainer.build_command(
-                self.cfg["train"], root, trainer.default_repo_id(root), run, episodes=self.train_episodes, extra=extra
-            )
-            if self.train_holdout:
-                # lerobot refuses an existing output_dir, so this is written once the run has created it.
-                self.pending_holdout = {
-                    "dataset_root": str(root),
-                    "total_episodes": self.train_eps,
-                    "holdout_episodes": self.train_holdout,
-                    "train_episodes": self.train_episodes,
-                }
-            self._log(f"학습 시작: {self.cfg['train']['policy']} · {root} ({n}개 에피소드) → {run}")
-        self.pb_train.setRange(0, max(self.train_total, 1))
+        if self.train_split_error:
+            QMessageBox.warning(self, "평가용 제외 에피소드", self.train_split_error)
+            return
+        omx, policy = self.trainer.omx_dir, self._policy()
+        params = self._train_params()
+        args = trainer.overrides(params, self.ck_aug.isChecked(), self.ck_wandb.isChecked()) + extra
+        job = trainer.job_name(self._train_task_name(root), policy)
+        argv, env = trainer.build_train(omx, policy, self.sp_gpu.value(), root, job, self.train_episodes, args)
+        steps = trainer.last_override(args, "steps")
+        total = int(steps) if steps and steps.isdigit() else params["steps"]
+        meta = {
+            "policy": policy,
+            "job": job,
+            "dataset_root": str(root),
+            "total_episodes": self.train_eps,
+            "holdout_episodes": self.train_holdout,
+            "train_episodes": self.train_episodes,
+            "steps": total,
+            "command": trainer.shell_line(argv, env, omx),
+            "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        meta_path = trainer.run_meta_path(omx, policy, job)
+        try:
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+        except OSError as e:
+            QMessageBox.warning(self, "학습", f"실행 정보를 저장하지 못했습니다: {e}")
+            return
+        n = len(self.train_episodes) if self.train_episodes is not None else self.train_eps
+        self._log(f"학습 시작: {trainer.POLICIES[policy]} · {root} ({n}개 에피소드) → {job}")
+        self._begin_progress(total)
+        self.trainer.start(argv, env, policy)
+
+    def _resume_train(self):
+        extra = self._train_preflight()
+        run = self.cb_runs.currentData()
+        if extra is None or not run:
+            return
+        run = Path(run)
+        omx, policy = self.trainer.omx_dir, self._policy()
+        argv, env = trainer.build_resume(omx, policy, self.sp_gpu.value(), run, extra)
+        steps = trainer.last_override(extra, "steps")
+        try:
+            total = int(steps) if steps else int(json.loads(trainer.resume_config(run).read_text())["steps"])
+        except (OSError, ValueError, KeyError):
+            total = 0
+        self._log(f"이어서 학습: {run}")
+        self._begin_progress(total)
+        self.trainer.start(argv, env, policy)
+
+    def _begin_progress(self, total: int):
+        self.train_total = int(total)
+        # range (0, 0) = busy bar when the total step count is unknown
+        self.pb_train.setRange(0, max(self.train_total, 0))
         self.pb_train.setValue(0)
         self.lbl_train_stat.setText("시작 중...")
         self.lbl_train_tqdm.clear()
-        self.lbl_train_out.setText(f"출력: {run}")
         self.train_log.clear()
-        self.trainer.start(cmd, run)
 
-    def _write_holdout(self):
-        out = self.trainer.out_dir
-        if self.pending_holdout is None or out is None or not out.exists():
-            return
-        try:
-            (out / trainer.HOLDOUT_FILE).write_text(json.dumps(self.pending_holdout, indent=2))
-            self.train_log.appendPlainText(f"평가용 제외 에피소드 기록: {out / trainer.HOLDOUT_FILE}")
-        except OSError as e:
-            self._log(f"{trainer.HOLDOUT_FILE} 저장 실패: {e}", error=True)
-        self.pending_holdout = None
+    def _attach_running_train(self):
+        """Pick up a training container started before the dashboard was (re)opened."""
+        attached = None
+        for name, state in trainer.train_containers():
+            job = name[len(trainer.CONTAINER_PREFIX):]
+            policy = trainer.find_job(self.trainer.omx_dir, job)
+            if policy is None:
+                continue
+            if attached is None:
+                self.cb_policy.setCurrentIndex(self.cb_policy.findData(policy))
+                meta = trainer.read_meta(self.trainer.omx_dir, policy, job)
+                self._begin_progress(int(meta.get("steps") or 0))
+                if self.trainer.attach(name):
+                    attached = name
+                    self._log(f"학습 컨테이너에 다시 연결: {name} ({state})")
+            elif state == "running":
+                self._log(f"다른 학습도 실행 중입니다: {name} (docker logs -f {name})")
 
     def _open_train_dir(self):
-        cands = [self.trainer.out_dir]
-        if self.train_root:
-            cands += [trainer.train_dir_for(self.train_root), self.train_root]
+        cands = [self.trainer.out_dir, trainer.outputs_dir(self.trainer.omx_dir, self._policy())]
         d = next((p for p in cands if p and p.exists()), None)
         if d:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
@@ -916,12 +1067,11 @@ class MainWindow(QMainWindow):
         elif kind == "train_tqdm":
             self.lbl_train_tqdm.setText(payload)
         elif kind == "train_progress":
-            self._write_holdout()
-            self.pb_train.setValue(min(payload["step"], self.pb_train.maximum()))
+            if self.train_total > 0:
+                self.pb_train.setValue(min(payload["step"], self.pb_train.maximum()))
             ep = f"   epoch {payload['epoch']:.2f}" if "epoch" in payload else ""
             self.lbl_train_stat.setText(f"step {payload['step']}   loss {payload['loss']:.4f}{ep}")
         elif kind == "train_done":
-            self._write_holdout()
             ok = payload == 0
             if ok:
                 self._log("학습 완료")
@@ -931,7 +1081,18 @@ class MainWindow(QMainWindow):
                 self._log(f"학습 비정상 종료 (코드 {payload}) — 학습 탭 로그를 확인하세요", error=True)
             head = "완료" if ok else ("중지됨" if self.trainer.stop_requested else "오류")
             self.lbl_train_stat.setText(f"{head}   {self.lbl_train_stat.text()}")
-            self._update_train_data()
+            self.pb_train.setRange(0, max(self.train_total, 1))
+            if ok:
+                self.pb_train.setValue(self.pb_train.maximum())
+            self._refresh_runs()
+        elif kind == "build_done":
+            if payload == 0:
+                self._log("학습 이미지 빌드 완료")
+                self.lbl_train_stat.setText("이미지 빌드 완료")
+            else:
+                self._log(f"학습 이미지 빌드 실패 (코드 {payload}) — 학습 탭 로그를 확인하세요", error=True)
+                self.lbl_train_stat.setText("이미지 빌드 실패")
+            self._check_docker()
 
     def _refresh(self):
         s = self.ctrl.snapshot()
@@ -969,15 +1130,18 @@ class MainWindow(QMainWindow):
         self.btn_upload.setEnabled(bool(self.session) and not self.uploading and not recording and not pending and not saving)
 
         training = self.trainer.running
-        can_train = not training and not recording and not pending and not saving
-        self.train_box.setEnabled(not training)
-        self.train_data_box.setEnabled(not training)
+        busy = self.trainer.busy
+        can_train = not busy and not recording and not pending and not saving and self.docker_ok and self.image_ok
+        self.train_box.setEnabled(not busy)
+        self.train_data_box.setEnabled(not busy)
+        self.btn_build.setEnabled(self.docker_ok and not busy)
         self.btn_train.setEnabled(can_train and self.train_eps > 0 and not self.train_split_error)
         self.btn_train.setStyleSheet(STYLE_GREEN if self.btn_train.isEnabled() else "")
-        self.btn_train_resume.setEnabled(can_train and self.resume_run is not None)
-        self.btn_train_stop.setEnabled(training)
-        self.btn_train_stop.setStyleSheet(STYLE_RED if training else "")
-        self.btn_train_open.setEnabled(self.train_root is not None)
+        self.cb_runs.setEnabled(not busy)
+        self.btn_train_resume.setEnabled(can_train and self.cb_runs.count() > 0)
+        stoppable = self.trainer.phase in ("follow", "build")
+        self.btn_train_stop.setEnabled(stoppable)
+        self.btn_train_stop.setStyleSheet(STYLE_RED if stoppable else "")
         if training:
             t = int(self.trainer.elapsed())
             self.lbl_train_out.setText(f"출력: {self.trainer.out_dir}\n경과 {t // 3600:d}:{t // 60 % 60:02d}:{t % 60:02d}")
@@ -1095,7 +1259,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         s = self.ctrl.snapshot()
         if self.trainer.running:
-            if QMessageBox.question(self, "종료", "학습이 진행 중입니다. 학습을 중지하고 종료할까요?") != QMessageBox.Yes:
+            msg = "학습은 Docker 컨테이너에서 계속 진행됩니다. 다시 열면 진행 상황에 다시 연결합니다. 종료할까요?"
+            if QMessageBox.question(self, "종료", msg) != QMessageBox.Yes:
+                event.ignore()
+                return
+        elif self.trainer.busy:
+            if QMessageBox.question(self, "종료", "학습 이미지를 빌드하는 중입니다. 빌드를 중단하고 종료할까요?") != QMessageBox.Yes:
                 event.ignore()
                 return
         if self.ctrl.running:
@@ -1109,7 +1278,7 @@ class MainWindow(QMainWindow):
             self._log("Servo OFF 후 종료 중...")
             QApplication.processEvents()
             self.ctrl.shutdown(timeout=60)
-        self.trainer.stop_blocking()
+        self.trainer.detach()
         self.recorder.close()
         self.cameras.disconnect()
         try:
