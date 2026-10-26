@@ -43,5 +43,50 @@
     },
     "actual_steps": 40000,
     "finished_at": "2026-10-26T16:56:53.951014+00:00"
+  },
+  {
+    "status": "completed",
+    "config": {
+      "name": "v2_standard_position_b8_c64",
+      "architecture": "standard",
+      "current": false,
+      "batch_size": 8,
+      "chunk": 64,
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "steps": 40000,
+      "comparison_steps": [
+        10000,
+        20000,
+        40000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "actual_steps": 40000,
+    "finished_at": "2026-10-26T19:13:53.043455+00:00"
   }
 ]
