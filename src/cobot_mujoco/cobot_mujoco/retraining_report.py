@@ -187,6 +187,7 @@ code{{overflow-wrap:anywhere}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;f
 @media(max-width:800px){{.cards{{grid-template-columns:1fr 1fr}}main{{padding:20px 12px}}h1{{font-size:26px}}}}
 </style></head><body><main><p class="muted">데이터 역할 정정 · 기본 시연 / 보완 시연 · 공식 학습기 비교</p>
 <h1>보완 시연을 실제 학습에 넣고,<br>LeRobot 기본 ACT와 함께 다시 비교합니다.</h1>
+<p class="warning">이 페이지는 이전 <strong>LeRobot 0.6.1</strong> 학습 기록입니다. <a href="lerobot044/report.html">현재 LeRobot 0.4.4 ACT 학습·검증 보고서</a>를 별도로 확인하세요.</p>
 {appearance_link}
 <div class="warning"><strong>학습 상태: {esc(state.get("status"))} · 신규 MuJoCo 비교 상태: {esc(simulation["status"]["status"])}</strong><br>학습 완료는 시뮬레이션 검증 완료를 뜻하지 않습니다. <a href="simulation_report.html">MuJoCo 실제 실행·영상·결과로 이동</a> · <a href="#training-differences">학습 차이·스텝으로 이동</a></div>
 <p>생성 {esc(utc_now())} · 상태 <strong>{esc(state.get("status"))}</strong><br>현재 작업 {esc(state.get("current_job") or "없음")}</p>

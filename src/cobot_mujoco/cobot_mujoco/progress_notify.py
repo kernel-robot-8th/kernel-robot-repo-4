@@ -28,6 +28,7 @@ def snapshot(run):
     """Read durable status and the last log portion without loading any model or secret."""
     run = Path(run)
     state = read_json(run / "status.json")
+    act044 = state.get("lerobot_version") == "0.4.4"
     simulation_path = run / "mujoco_comparison/status.json"
     simulation = read_json(simulation_path) if simulation_path.exists() else None
     if simulation:
@@ -39,7 +40,7 @@ def snapshot(run):
         }
     current = state.get("current_job")
     progress = {"step": None, "maximum": None}
-    for kind in ["native", "trials", "final"]:
+    for kind in ["native", "trials", "final", "jobs"]:
         job = run / kind / str(current)
         if not current or not job.exists():
             continue
@@ -57,7 +58,7 @@ def snapshot(run):
                 progress.update(step=int(matches[-1][0]), maximum=int(matches[-1][1]))
         break
     counts = {}
-    for kind in ["native", "trials", "final"]:
+    for kind in ["native", "trials", "final", "jobs"]:
         results = [read_json(p) for p in (run / kind).glob("*/result.json")]
         counts[kind] = {
             "finished": len(results),
@@ -78,12 +79,17 @@ def snapshot(run):
     stalled = previous.get("progress_marker") == marker and current is not None
     label = "종료" if terminal else "진행 중" if supervisor_alive else "감독 프로세스 중단 확인 필요"
     lines = [
-        f"**OMX {'MuJoCo 비교' if simulation else '재학습'} · {label}**",
+        f"**OMX {'ACT 0.4.4 학습·검증' if act044 else 'MuJoCo 비교' if simulation else '재학습'} · {label}**",
         f"확인 시각: {now.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"누적 실행: {int(elapsed // 3600)}시간 {int(elapsed % 3600 // 60)}분 / 최대 12시간",
-        f"공식 ACT 완료 {counts['native']['completed']}/8 · "
-        f"경량 완료 {counts['trials']['completed']}/48 · "
-        f"전체 시연 재학습 완료 {counts['final']['completed']}/2",
+        (
+            f"학습 실행 완료 {counts['jobs']['completed']}/{state.get('expected_jobs', 12)} · "
+            f"검증 비교 {state.get('completed_comparisons', 0)}/{state.get('expected_comparison_cells', 44)}"
+            if act044
+            else f"공식 ACT 완료 {counts['native']['completed']}/8 · "
+            f"경량 완료 {counts['trials']['completed']}/48 · "
+            f"전체 시연 재학습 완료 {counts['final']['completed']}/2"
+        ),
         f"현재 작업: {current or '없음'}",
     ]
     if simulation:
@@ -112,9 +118,10 @@ def snapshot(run):
     if terminal or expired:
         lines.append(f"최종 상태: {state['status']} · Git 게시: {state.get('publication', '확인 필요')}")
         lines.append("이 실행의 30분 정기 알림을 종료합니다.")
+    report = "lerobot044/report.html" if act044 else "report.html"
     lines.append(
         "보고서: https://github.com/kernel-robot-8th/kernel-robot-repo-4/blob/"
-        "feature/manipulation-mujoco-validation/docs/mujoco_validation/report.html"
+        f"feature/manipulation-mujoco-validation/docs/mujoco_validation/{report}"
     )
     return "\n".join(lines), {"progress_marker": marker, "terminal": terminal or expired}
 

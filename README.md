@@ -41,6 +41,13 @@
 
 ### OMX 학습·MuJoCo 검증 실험
 
+**현재 학습은 LeRobot 0.4.4입니다.** 로컬 `il_ws/src/lerobot` 원본 train으로
+ACT 일반형·경량형(모두 ResNet18+Transformer)의 chunk·step·학습률·감쇠를 비교합니다.
+12개 학습 경로·44개 검증 시점을 계획했으며, 독립 CNN·MuJoCo·실물 실행은 포함하지 않습니다.
+[0.4.4 진행·비교 보고서](docs/mujoco_validation/lerobot044/report.html) ·
+[실험 기준·재현 방법](src/cobot_mujoco/docs/act044.md).
+아래의 이전 학습·MuJoCo·박스 외형 비교는 0.6.1 기반 보관 결과입니다.
+
 **박스 외형 개선:** 실제 하트 인쇄 텍스처·카메라·조명을 기본 장면에 반영했습니다.
 [수정 전후 박스 정합·모델 반응·물리 비교](docs/mujoco_validation/appearance_report.html)와
 [변경 범위·재현 방법](src/cobot_mujoco/docs/appearance.md)을 확인하세요.
