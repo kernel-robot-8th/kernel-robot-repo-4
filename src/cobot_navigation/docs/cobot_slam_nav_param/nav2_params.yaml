@@ -80,7 +80,7 @@ controller_server:
       stateful: true                         # 플러그인이 이전 상태를 기억할지 여부
 
       # 기본 주행 및 속도
-      desired_linear_vel: 0.15                # [m/s] 목표 기본 직진 속도
+      desired_linear_vel: 0.08                # [m/s] 목표 기본 직진 속도
       allow_reversing: False                  # 후진 허용 여부 (false: 무조건 전진/제자리 회전으로 해결)
       max_angular_accel: 1.5                  # [rad/s^2] 최대 각가속도 (회전할 때 얼마나 빨리 가속할지)
 
@@ -155,7 +155,7 @@ controller_server:
     general_goal_checker: 
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
-      xy_goal_tolerance: 0.1                    # [m] 목표 지점 반경 0.25m 안에 들어오면 도착 인정
+      xy_goal_tolerance: 0.025                  # [m] 목표 지점 반경 0.25m 안에 들어오면 도착 인정
       yaw_goal_tolerance: 0.17                  # [rad] 목표 각도 오차 약 10도 이내면 올바르게 본 것으로 인정
 
     # ==========================================================
@@ -180,13 +180,13 @@ local_costmap:
       rolling_window: true
       width: 3
       height: 3
-      resolution: 0.025          # → 0.025 정도로 낮추면 정밀도↑ (연산량↑ 트레이드오프)
+      resolution: 0.01          # → 0.025 정도로 낮추면 정밀도↑ (연산량↑ 트레이드오프)
       #robot_radius: 0.22
       footprint: '[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]'
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 8.0
         inflation_radius: 0.45   # 벽과의 거리를 좁히려면 안전지대 자체의 폭을 줄여야 함
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -245,7 +245,7 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0
+        cost_scaling_factor: 10.0
         inflation_radius: 0.45
       always_send_full_costmap: True
 
@@ -327,7 +327,7 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.25, 0.0, 1.5]
+    max_velocity: [0.1, 0.0, 1.5]
     min_velocity: [-0.25, 0.0, -1.5]
     max_accel: [2.5, 0.0, 3.2]
     max_decel: [-2.5, 0.0, -3.2]
