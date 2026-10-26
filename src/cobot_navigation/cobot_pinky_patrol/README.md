@@ -25,10 +25,10 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 
 | 파일 | 실행 위치 | 역할 |
 |---|---|---|
-| `cobot_pinky_patrol/pinky_patrol_node_pinky{1,2}.py` | 각 로봇 | 순찰·goto, 구역 진입 절차 |
+| `cobot_pinky_patrol/pinky_patrol_node_pinky{1,2,3}.py` | 각 로봇 | 순찰·goto, 구역 진입 절차 |
 | `cobot_zone_traffic_control/.../zone_gate_client.py` | 각 로봇 (import) | 진입 요청·취소·이탈 통보, 허가·슬롯 수신 |
 | `cobot_zone_traffic_control/.../zone_manager_node.py` | 관제 PC (1대) | 점유자 1명 + FIFO 대기열, 허가·슬롯 좌표 발행 |
-| `pinky_patrol_cmd/pinky_control_client.py` | 관제 PC | 터미널에서 명령 전송 |
+| `cobot_pinky_patrol_cmd/pinky_control_client.py` | 관제 PC | 터미널에서 명령 전송 |
 
 - 로봇 코드에는 슬롯 좌표가 없습니다. 앵커 `ZONE_ENTRY (1.0, -0.7, 0.0)`와 출구 `ZONE_EXIT (0.7, -0.5, 3.14)`만 있고, 슬롯은 매니저가 `queue_slot`으로 줍니다.
 - **같은 구역의 로봇은 모두 같은 대기열 방식으로 맞추세요.** 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.
@@ -58,7 +58,7 @@ colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
 source install/setup.bash
 ```
 
-관제 PC는 `colcon build --packages-select cobot_zone_traffic_control domain_bridge` 후 `source install/setup.bash` 합니다.
+관제 PC는 `colcon build --packages-select cobot_zone_traffic_control cobot_domain_bridge` 후 `source install/setup.bash` 합니다.
 
 ## 실행 방법
 
@@ -68,7 +68,7 @@ source install/setup.bash
 2. **관제 PC**: 도메인 브릿지
    ```bash
    export ROS_DOMAIN_ID=100
-   ros2 launch domain_bridge bridges.launch.xml
+   ros2 launch cobot_domain_bridge bridges.launch.xml
    ```
 3. **관제 PC**: zone_manager (새 터미널)
    ```bash
@@ -92,17 +92,17 @@ source install/setup.bash
 
 ## 사용 예시
 
-관제 PC(저장소 루트)에서 `ROS_DOMAIN_ID=100`으로 실행합니다.
+관제 PC(워크스페이스 최상위)에서 `ROS_DOMAIN_ID=100`으로 실행합니다.
 
 ```bash
-python3 pinky_patrol_cmd/pinky_control_client.py pinky1 monitor          # 상태 출력 (별도 터미널, Ctrl+C 종료)
-python3 pinky_patrol_cmd/pinky_control_client.py pinky1 start            # 전체 순찰
-python3 pinky_patrol_cmd/pinky_control_client.py pinky1 goto P2 P3 P6    # 지점 이동 후 홈 복귀
-python3 pinky_patrol_cmd/pinky_control_client.py pinky1 stop             # 중지
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 monitor          # 상태 출력 (별도 터미널, Ctrl+C 종료)
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 start            # 전체 순찰
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 goto P2 P3 P6    # 지점 이동 후 홈 복귀
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 stop             # 중지
 
 # 대기열 확인: 두 로봇에 구역 지점 goto를 거의 동시에 보내면 늦은 쪽이 QUEUEING으로 대기
-python3 pinky_patrol_cmd/pinky_control_client.py pinky1 goto P3
-python3 pinky_patrol_cmd/pinky_control_client.py pinky2 goto P3
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 goto P3
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky2 goto P3
 ros2 topic echo /zone_manager/status      # free | occupied_by:<robot_id>
 ```
 

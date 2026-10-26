@@ -1,3 +1,5 @@
+> 실행 방법은 [`cobot_pinky_patrol/README.md`](../cobot_pinky_patrol/README.md)를 참고하세요. 이 문서는 `pinky_control_client.py` 코드 해설입니다.
+
 # A. 코드해석
 
 ## 코드 해석: `patrol_client.py` (초보자용 완전 쉬운 버전)

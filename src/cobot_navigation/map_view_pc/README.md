@@ -1,6 +1,6 @@
 # map_view_pc
 
-Pinky 로봇으로 만든 지도(`my_pinky_map10`)와, 지도 위에서 map 좌표(m)를 확인하고 순찰 waypoint 좌표를 정할 때 쓰는 웹 뷰어입니다.
+Pinky 로봇으로 만든 지도(`cobot_map_v6`)와, 지도 위에서 map 좌표(m)를 확인하고 순찰 waypoint 좌표를 정할 때 쓰는 웹 뷰어입니다.
 
 ## 주요 기능
 
@@ -13,16 +13,13 @@ Pinky 로봇으로 만든 지도(`my_pinky_map10`)와, 지도 위에서 map 좌�
 
 ## 설치 방법
 
-설치할 것이 없습니다. 최신 웹 브라우저만 있으면 됩니다. 저장소를 받아 둡니다.
+설치할 것이 없습니다. 최신 웹 브라우저만 있으면 됩니다. 이 저장소를 받아 두고 `src/cobot_navigation/map_view_pc` 에서 엽니다.
 
 ```bash
-git clone https://github.com/cdwlsgh1-source/pinky_slam_nav.git
-cd pinky_slam_nav/map_view_pc
+cd <워크스페이스>/src/cobot_navigation/map_view_pc
 ```
 
 ## 실행 방법
-
-**웹에서 바로 보기**: [🗺️ Pinky Map Viewer 실행하기](https://htmlpreview.github.io/?https://raw.githubusercontent.com/cdwlsgh1-source/pinky_slam_nav/main/map_view_pc/pinky_map_viewer.html)
 
 **로컬에서 열기** (`map_view_pc/` 폴더에서)
 
@@ -54,9 +51,8 @@ start pinky_map_viewer.html         # Windows (cmd)
    P1 — map: (0.650, 0.150) m   px: (82, 14)
    ```
 
-3. 기록된 `map` 좌표(m)를 순찰 노드의 waypoint나 웹 GUI 설정의 지점 좌표로 옮겨 적습니다.
-   - 웹 GUI는 `pinky_web_gui/config/robots.yaml`의 `map_yaml`로 이 폴더의 `my_pinky_map10.yaml`을 읽어 지도를 표시합니다.
-   - 지점 좌표(P1~P7 등)는 `pinky_web_gui/config/points.yaml`에 있습니다.
+3. 기록된 `map` 좌표(m)를 순찰 노드(`cobot_pinky_patrol`)의 지점 좌표 `POINTS`로 옮겨 적습니다.
+   - 지점 좌표는 노드 파일의 클래스 상수라 코드를 수정해야 바뀝니다.
 4. 지도에 표시된 `P1`, `P2` 같은 번호는 뷰어에서 클릭한 순서일 뿐이고, 순찰 노드의 지점 이름(P1~P7)과는 관계없습니다.
 
 ## 프로젝트 구조

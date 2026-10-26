@@ -41,10 +41,10 @@
 
 의존성은 `rclpy`, `std_msgs`, `launch`, `launch_ros` 입니다 (`package.xml`). Nav2 는 로봇 쪽 patrol 노드에서만 필요합니다.
 
-ROS 2 배포판은 **[TODO]** (기존 문서에 Jazzy 가 예시로만 언급됨, 확정 아님). 아래에서 `<ROS_DISTRO>` 를 실제 설치 값으로 바꾸세요.
+ROS 2 배포판은 Jazzy 입니다 (CLAUDE.md 환경 기준).
 
 ```bash
-source /opt/ros/<ROS_DISTRO>/setup.bash
+source /opt/ros/jazzy/setup.bash
 cd ~/dev_ws/kernel-robot-repo-4
 rosdep install --from-paths src/cobot_navigation/cobot_zone_traffic_control --ignore-src -r -y
 colcon build --packages-select cobot_zone_traffic_control
@@ -65,21 +65,23 @@ ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
 
 ### 2. 도메인 브릿지
 
-zone 토픽 6개를 로봇 도메인 ↔ 관제 도메인 사이에서 브릿지해야 합니다. 브릿지 설정은 `domain_bridge/config/pinky_bridge_pinky{1,2,3}.yaml` 의 `ZONE-QUEUE` 블록에 있습니다.
+zone 토픽 6개를 로봇 도메인 ↔ 관제 도메인 사이에서 브릿지해야 합니다. 브릿지 설정은 `cobot_domain_bridge/config/pinky_bridge_pinky{1,2,3}.yaml` 의 `ZONE-QUEUE` 블록에 있습니다.
 
 - `/zone_manager/request_entry`, `/zone_manager/notify_exit`, `/zone_manager/cancel_entry` (로봇 → 매니저)
 - `/zone_manager/grant_entry`, `/zone_manager/queue_slot`, `/zone_manager/status` (매니저 → 로봇)
 
 ### 3. 로봇: patrol 노드 (zone_gate_client 사용)
 
-`my_pinky_package/setup.py` 에 등록된 엔트리포인트 기준:
+`cobot_pinky_patrol/setup.py` 에 등록된 엔트리포인트 기준 (각 로봇에서 실행):
 
 ```bash
-ros2 run my_pinky_package pinky_patrol_node_pinky1 --ros-args -p robot_id:=pinky1
-ros2 run my_pinky_package pinky_patrol_node_pinky2 --ros-args -p robot_id:=pinky2
+export ROS_DOMAIN_ID=10   # pinky1 (pinky2 는 20, pinky3 은 30)
+ros2 run cobot_pinky_patrol pinky_patrol_node_pinky1 --ros-args -p robot_id:=pinky1
+# pinky2: ros2 run cobot_pinky_patrol pinky_patrol_node_pinky2 --ros-args -p robot_id:=pinky2
+# pinky3: ros2 run cobot_pinky_patrol pinky_patrol_node_pinky3 --ros-args -p robot_id:=pinky3
 ```
 
-(각각 해당 로봇에서 실행. 네임스페이스/도메인 설정은 **[TODO]**)
+로봇 네임스페이스는 쓰지 않고, 도메인 번호만 장비별로 다릅니다.
 
 ### 4. 관제 PC: 순찰 명령
 
@@ -139,7 +141,7 @@ gate.notify_exit()                # 구역을 나오면 락 반납
 
 | 파라미터 | yaml 값 | 코드 기본값 | 설명 |
 |---|---|---|---|
-| `robot_ids` | `["pinky1", "pinky2"]` | 동일 | patrol 노드의 `robot_id` 와 일치해야 함 |
+| `robot_ids` | `["pinky1", "pinky2", "pinky3"]` | 동일 | patrol 노드의 `robot_id` 와 일치해야 함 |
 | `max_hold_sec` | `120.0` | `120.0` | 점유 강제 해제 시간(초) |
 | `queue_anchor` | `[1.0, -0.7, 0.0]` | `[0.0, 0.0, 0.0]` | 슬롯 0 위치 `[x, y, yaw]` (map). patrol 노드의 `ZONE_ENTRY` 와 같아야 함 |
 | `queue_back_dir` | `[-1.0, 0.0]` | `[-1.0, 0.0]` | 줄이 늘어나는 방향 (자동 정규화) |
@@ -148,7 +150,7 @@ gate.notify_exit()                # 구역을 나오면 락 반납
 | `queue_stale_sec` | `5.0` | `5.0` | 재전송 끊김 판정 시간(초) |
 | `queue_advance_delay_sec` | `3.0` | `3.0` | 뒤 로봇 전진 지연(초) |
 
-> 주의: yaml 주석에는 "간격 0.50 m" 라고 적혀 있지만 실제 값은 `queue_spacing: 0.30` 입니다. 어느 쪽이 의도인지 **[TODO]** (수정 필요).
+> 슬롯 간격은 0.30 m 로 확정되었습니다 (0.20 m 는 충돌, 0.50 m 도 시험 후 0.30 m 선택, 2026-10-14. 근거는 yaml 주석).
 
 ## 프로젝트 구조
 
