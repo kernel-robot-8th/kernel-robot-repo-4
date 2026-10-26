@@ -12,6 +12,8 @@
 #   EPISODES : 학습에 쓸 에피소드 목록. 기본은 box_merged에서 평가용 8개를 뺀 목록, EPISODES= 로 비우면 전체
 #   뒤에 붙인 인자는 아래 값을 덮어씁니다(--policy.path 제외: lerobot이 첫 값만 씀). 예: ./train.sh 0 --steps=10000
 #   KEEP_STEPS: 남길 중간 체크포인트 (마지막은 항상 보관). 비우면(KEEP_STEPS=) 전부 보관
+#   RESUME=1  : outputs/train/$JOB_NAME 의 마지막 체크포인트에서 이어서 학습 (DATASET·DATA_DIR은 처음과 같게)
+#   DETACH=1  : 컨테이너를 백그라운드로 띄우고 바로 끝냄 (대시보드용). 로그: docker logs -f omx-train-$JOB_NAME
 #
 # 참고: 입력으로 쓸 값을 고르는 옵션(예: --state)은 없습니다. 모델 입력은 데이터셋의
 #   observation.state / observation.images.* 로 자동으로 정해집니다. 그리퍼 전류 같은 값을
@@ -27,6 +29,8 @@ IMAGE="${IMAGE:-omx-smolvla:0.6.1}"
 DATA_DIR="$(realpath "${DATA_DIR:-$HERE/data}")"
 OUT_DIR="${OUT_DIR:-$HERE/outputs}"
 [[ -d "$DATA_DIR/$DATASET/meta" ]] || { echo "dataset not found: $DATA_DIR/$DATASET" >&2; exit 1; }
+RESUME="${RESUME:-}"
+DETACH="${DETACH:-}"
 KEEP_STEPS="${KEEP_STEPS-002000}"
 # 학습에 쓸 에피소드: box_merged 72개 중 평가용 5,15,25,35,45,55,61,67 제외
 EPISODES="${EPISODES-[0,1,2,3,4,6,7,8,9,10,11,12,13,14,16,17,18,19,20,21,22,23,24,26,27,28,29,30,31,32,33,34,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,56,57,58,59,60,62,63,64,65,66,68,69,70,71]}"
@@ -201,11 +205,18 @@ ARGS=(
   # --reward_model.type=reward_classifier           # 보상 모델 학습용 (정책 학습에는 사용 안 함)
 )
 
-[[ -n "$EPISODES" ]] && ARGS+=(--dataset.episodes="$EPISODES")  # 학습에 쓸 에피소드 (평가용 제외)
+if [[ -n "$RESUME" ]]; then
+  # 나머지 설정은 체크포인트의 train_config.json에서 그대로 불러옴 (뒤에 붙인 인자는 여전히 덮어씀)
+  ARGS=(--config_path="/outputs/train/$JOB_NAME/checkpoints/last/pretrained_model/train_config.json" --resume=true)
+elif [[ -n "${EPISODES:-}" ]]; then
+  ARGS+=(--dataset.episodes="$EPISODES")  # 학습에 쓸 에피소드 (평가용 제외)
+fi
 mkdir -p "$HERE/.home" "$OUT_DIR/train"
 OUT_DIR="$(realpath "$OUT_DIR")"
 
-docker run --rm --name "omx-train-$JOB_NAME" \
+# --rm은 포그라운드 실행에만: DETACH면 끝난 뒤 종료 코드를 읽을 수 있게 컨테이너를 남김
+if [[ -n "$DETACH" ]]; then RUN=(-d); else RUN=(--rm); fi
+docker run "${RUN[@]}" --name "omx-train-$JOB_NAME" \
   --gpus "\"device=$GPU\"" \
   --user "$(id -u):$(id -g)" \
   --shm-size 16g \
@@ -213,6 +224,17 @@ docker run --rm --name "omx-train-$JOB_NAME" \
   "$IMAGE" \
   lerobot-train "${ARGS[@]}" "$@" &
 pid=$!
+
+if [[ -n "$DETACH" ]]; then
+  wait $pid  # docker run -d returns once the container has started
+  if [[ -n "$KEEP_STEPS" ]]; then
+    # outlive this script: the pruner exits by itself when the container is gone
+    # shellcheck disable=SC2086
+    setsid nohup "$HERE/keep_checkpoints.sh" "$OUT_DIR/train/$JOB_NAME/checkpoints" "omx-train-$JOB_NAME" $KEEP_STEPS \
+      >>"$OUT_DIR/train/$JOB_NAME.keep.log" 2>&1 &
+  fi
+  exit 0
+fi
 
 if [[ -n "$KEEP_STEPS" ]]; then
   sleep 60  # let the container start before watching it

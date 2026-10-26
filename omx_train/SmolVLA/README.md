@@ -69,6 +69,15 @@ DATASET=<데이터셋 폴더> EPISODES= ./train.sh 0 --rename_map='{}'
 
 # 9) 데이터·결과를 다른 위치에
 DATA_DIR=/mnt/ssd/lerobot_data OUT_DIR=/mnt/ssd/omx_outputs ./train.sh 0
+
+# 10) 끊긴 학습 이어서 (처음과 같은 DATASET·JOB_NAME, 마지막 체크포인트부터)
+RESUME=1 JOB_NAME=smolvla_try2 ./train.sh 0
+
+# 11) 백그라운드로 실행 (터미널을 닫아도 계속, 대시보드 학습 탭도 이 방식)
+DETACH=1 JOB_NAME=smolvla_try2 ./train.sh 0
+docker logs -f omx-train-smolvla_try2    # 로그 보기
+docker stop omx-train-smolvla_try2       # 중지
+docker rm omx-train-smolvla_try2         # 끝난 컨테이너 정리
 ```
 
 - 뒤에 붙인 옵션은 `train.sh` 안의 값을 덮어씁니다 (`--policy.path`만 예외: lerobot이 첫 값만 씀). `train.sh` 안의 주석(`#`) 줄을 풀어도 됩니다 (정책 값 = smolvla_base에서 실제로 적용된 값)

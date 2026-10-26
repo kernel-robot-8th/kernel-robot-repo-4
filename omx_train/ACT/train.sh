@@ -9,6 +9,8 @@
 #   DATASET  : DATA_DIR(기본 ./data) 아래 데이터셋 폴더 이름
 #   EPISODES : 학습에 쓸 에피소드 목록 (평가용 에피소드를 뺄 때). 비우면 전체
 #   뒤에 붙인 인자는 아래 값을 덮어씁니다. 예: ./train.sh 0 --steps=6742
+#   RESUME=1  : outputs/train/$JOB_NAME 의 마지막 체크포인트에서 이어서 학습 (DATASET·DATA_DIR은 처음과 같게)
+#   DETACH=1  : 컨테이너를 백그라운드로 띄우고 바로 끝냄 (대시보드용). 로그: docker logs -f omx-train-$JOB_NAME
 #
 # 참고: 입력으로 쓸 값을 고르는 옵션(예: --state)은 없습니다. 모델 입력은 데이터셋의
 #   observation.state / observation.images.* 로 자동으로 정해집니다. 그리퍼 전류 같은 값을
@@ -24,6 +26,8 @@ IMAGE="${IMAGE:-omx-act:0.6.1}"
 DATA_DIR="$(realpath "${DATA_DIR:-$HERE/data}")"
 OUT_DIR="${OUT_DIR:-$HERE/outputs}"
 [[ -d "$DATA_DIR/$DATASET/meta" ]] || { echo "dataset not found: $DATA_DIR/$DATASET" >&2; exit 1; }
+RESUME="${RESUME:-}"
+DETACH="${DETACH:-}"
 
 ARGS=(
   # ============================================================ 데이터셋 (--dataset.*)
@@ -163,11 +167,18 @@ ARGS=(
   # --reward_model.type=reward_classifier           # 보상 모델 학습용 (정책 학습에는 사용 안 함)
 )
 
-[[ -n "${EPISODES:-}" ]] && ARGS+=(--dataset.episodes="$EPISODES")
+if [[ -n "$RESUME" ]]; then
+  # 나머지 설정은 체크포인트의 train_config.json에서 그대로 불러옴 (뒤에 붙인 인자는 여전히 덮어씀)
+  ARGS=(--config_path="/outputs/train/$JOB_NAME/checkpoints/last/pretrained_model/train_config.json" --resume=true)
+elif [[ -n "${EPISODES:-}" ]]; then
+  ARGS+=(--dataset.episodes="$EPISODES")  # 학습에 쓸 에피소드 (평가용 제외)
+fi
 mkdir -p "$HERE/.home" "$OUT_DIR/train"
 OUT_DIR="$(realpath "$OUT_DIR")"
 
-docker run --rm --name "omx-train-$JOB_NAME" \
+# --rm은 포그라운드 실행에만: DETACH면 끝난 뒤 종료 코드를 읽을 수 있게 컨테이너를 남김
+if [[ -n "$DETACH" ]]; then RUN=(-d); else RUN=(--rm); fi
+docker run "${RUN[@]}" --name "omx-train-$JOB_NAME" \
   --gpus "\"device=$GPU\"" \
   --user "$(id -u):$(id -g)" \
   --shm-size 16g \
