@@ -1,0 +1,12 @@
+{
+  "lerobot_version": "0.4.4",
+  "python": "/home/team11/venv/il/bin/python",
+  "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+  "torch": "2.10.0+cu128",
+  "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+  "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+  "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+  "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+  "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+  "upstream_training_code_modified": false
+}

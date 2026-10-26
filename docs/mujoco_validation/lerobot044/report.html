@@ -1,0 +1,812 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>LeRobot 0.4.4 ACT 일반형·경량형 학습 비교</title><style>
+body{margin:0;background:#0b1120;color:#edf2fb;font:15px/1.8 system-ui,sans-serif}main{max-width:1360px;margin:auto;padding:32px 24px}h1{font-size:32px}h2{margin-top:36px}a{color:#55d7bd}article,.card,details{background:#141e30;border:1px solid #2a3850;border-radius:10px;padding:18px;margin:16px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card strong{display:block;font-size:26px}.warning{background:#30271b;border-left:4px solid #efb454;padding:18px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;border-bottom:1px solid #2a3850;padding:10px;vertical-align:top}pre{white-space:pre-wrap;overflow-wrap:anywhere}code{overflow-wrap:anywhere}svg{width:100%;max-width:720px}@media(max-width:800px){main{padding:16px}.cards{grid-template-columns:1fr 1fr}}</style></head><body><main>
+<h1>LeRobot 0.4.4 · ACT 일반형/경량형 비교</h1><p>갱신 2026-10-26T01:51:12.569690+00:00 · 상태 <strong>running</strong> · 실제 경과 0.18시간</p>
+<div class="warning"><strong>이번 실행은 로컬 il_ws의 LeRobot 0.4.4입니다.</strong> 독립 CNN 학습·MuJoCo·실물 실행을 포함하지 않습니다. <a href="../report.html">이전 0.6.1 학습 보고서</a>와 구분합니다.</div>
+<div class="cards"><div class="card"><strong>0/12</strong>종료한 학습 실행</div><div class="card"><strong>0/44</strong>학습·검증 비교 시점</div><div class="card"><strong>2종 구조</strong>일반형·경량형, 모두 ResNet18+Transformer</div><div class="card"><strong>0.4.4</strong>2.10.0+cu128 · 원본 train 루프</div></div>
+<p>현재 작업 <strong>act044_standard_chunk16_base</strong> · 단계 3034/20000 · 작업 상태 training</p>
+<h2>한 번에 무엇을 비교하는가</h2><article><p>구조 2개 × chunk 16·32·64·100 = 기본 학습 8개를 최대 20,000스텝 실행합니다. 각 경로의 2,000·5,000·10,000·20,000 체크포인트를 비교합니다.
+chunk 32에서는 일반형·경량형 각각 주 학습률 0.00003과 가중치 감쇠 0.001을 별도로 바꾼 4개 실행을 최대 10,000스텝 추가합니다. 기준은 학습률 0.00001·감쇠 0.0001입니다.
+추가 실행은 같은 10,000스텝의 기준 모델과 비교해야 합니다. 스텝 비교는 같은 연속 학습 경로의 저장본이며 독립 재초기화 실험이 아닙니다.</p></article>
+<div class="scroll"><table><thead><tr><th>항목</th><th>일반형</th><th>경량형</th><th>통제·해석</th></tr></thead><tbody>
+<tr><td>영상 인코더·입력</td><td>ImageNet ResNet18·두 카메라 640×480</td><td>동일</td><td>둘 다 ResNet18을 함께 학습. 경량형도 영상 해상도 유지</td></tr>
+<tr><td>Transformer 폭·중간 폭</td><td>512·3,200</td><td>128·512</td><td>구조 용량 차이</td></tr><tr><td>관측/VAE 인코더 깊이</td><td>4층·4층</td><td>2층·2층</td><td>디코더 1층·헤드 8개·잠재 32 동일</td></tr>
+<tr><td>Chunk</td><td colspan="2">16 / 32 / 64 / 100</td><td>30Hz에서 미래 0.53 / 1.07 / 2.13 / 3.33초</td></tr>
+<tr><td>Optimizer</td><td colspan="2">AdamW·배치 8·시드 17·dropout 0.1·KL 10</td><td>학습률 스케줄러·워밍업·영상 증강·관절 노이즈 없음</td></tr>
+<tr><td>주 학습률</td><td colspan="2">기준 0.00001 / 추가 0.00003</td><td>ResNet18 별도 학습률은 0.00001로 고정. 주 학습률 변경은 backbone 그룹에 적용되지 않음</td></tr>
+<tr><td>Weight decay</td><td colspan="2">기준 0.0001 / 추가 0.001</td><td>큰 가중치 억제. 강하면 과적합뿐 아니라 학습 부족도 가능</td></tr>
+<tr><td>비교 지표</td><td colspan="2">앞 10개 미래 관절 목표의 녹화별 평균 MAE</td><td>chunk 길이가 달라도 같은 10스텝. 물체 배치 성공률 아님</td></tr></tbody></table></div>
+<h2>데이터 역할과 누출 방지</h2><article><p>기본 시연 0~10번, 보완 시연 11~14번의 사용자 지정 역할을 유지합니다.
+학습 [0, 1, 2, 3, 4, 5, 6, 7, 10, 13, 14] · 검증 [8, 12] · 평가 [9, 11]입니다.
+학습 11,136프레임·11개 녹화만으로 관절·행동 통계를 집계합니다. 0.4.4 원본 train에는 학습 ID만 전달하고, 별도 검증기가 저장 체크포인트를 읽습니다.
+실제 영상 범위는 0~1 float이며 다시 255로 나누지 않습니다. 저장된 전처리기를 사용합니다.</p>
+<p>검증에서 구조별 후보를 고른 뒤 학습·검증에 사용하지 않은 9번·11번을 평가합니다. 이미 관찰했던 원본 데이터이므로 새 현장 독립 테스트라고 표현하지 않습니다.
+최종 선택 모델도 11개 녹화 학습 모델이며, 전체 15개 재학습 모델을 추가로 만들지는 않습니다.</p></article>
+<h2>Chunk·step·추가 파라미터 비교표</h2><p>각 셀은 검증 MAE입니다. ‘—’는 아직 결과가 없거나 그 실험에서 계획하지 않은 시점입니다. 작업 완료와 목표 step 도달은 구분합니다. GPU 메모리는 학습 중 장치 전체 사용량 표본의 최댓값(MiB)으로 다른 GPU 프로세스도 포함할 수 있습니다.</p>
+<div class="scroll"><table><thead><tr><th>실험</th><th>주 lr</th><th>감쇠</th><th>2,000</th><th>5,000</th><th>10,000</th><th>20,000</th><th>실제/목표 step</th><th>GPU 메모리</th><th>상태</th></tr></thead><tbody><tr><td>act044_standard_chunk16_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>진행</td></tr><tr><td>act044_standard_chunk32_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_standard_chunk64_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_standard_chunk100_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_standard_chunk32_lr3e5</td><td>3e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/10000</td><td>—</td><td>대기</td></tr><tr><td>act044_standard_chunk32_decay1e3</td><td>1e-05</td><td>0.001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/10000</td><td>—</td><td>대기</td></tr><tr><td>act044_light_chunk16_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_light_chunk32_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_light_chunk64_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_light_chunk100_base</td><td>1e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/20000</td><td>—</td><td>대기</td></tr><tr><td>act044_light_chunk32_lr3e5</td><td>3e-05</td><td>0.0001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/10000</td><td>—</td><td>대기</td></tr><tr><td>act044_light_chunk32_decay1e3</td><td>1e-05</td><td>0.001</td><td>—</td><td>—</td><td>—</td><td>—</td><td>진행·대기/10000</td><td>—</td><td>대기</td></tr></tbody></table></div>
+<h2>일반형 검증 곡선</h2><p>저장 체크포인트 검증 결과 수집 중</p><h2>경량형 검증 곡선</h2><p>저장 체크포인트 검증 결과 수집 중</p>
+<h2>과적합 신호: 학습·검증 오차를 함께 확인</h2><p>학습 오차가 낮아지는데 검증 오차가 올라가면 과적합 또는 수집 조건 차이를 의심합니다. 학습·검증이 모두 높고 같이 감소하면 학습 부족 가능성도 있습니다. 단일 gap 숫자로 원인을 확정하지 않습니다.</p>
+<div class="scroll"><table><thead><tr><th>실험</th><th>step</th><th>학습 표본 MAE</th><th>검증 MAE</th><th>검증−학습</th><th>기본 검증 8번</th><th>보완 검증 12번</th></tr></thead><tbody><tr><td colspan="7">검증 결과 대기</td></tr></tbody></table></div>
+<h2>10만 스텝이 과한가</h2><article><p>100,000스텝을 무조건 과하다고 단정하지 않습니다. <a href="https://huggingface.co/docs/lerobot/act">공식 ACT 안내</a>에도 100k 학습 예시가 있습니다.
+현재 학습 11,136프레임에서 배치 8×100,000은 약 800,000 표본, 관측 시작점 기준 약 71.8회 데이터 순회에 해당합니다. 끝 배치 등으로 달라지는 근삿값입니다.
+인접 프레임·겹치는 행동 chunk는 독립 시연이 아닙니다. 20,000스텝은 같은 계산으로 약 14.4회입니다. 이번에는 최대 20,000까지만 실행하고 검증 추이로 판단하며 100,000스텝 결과를 만들어내지 않습니다.</p></article>
+<h2>추가로 바꿀 수 있지만 이번에는 실행하지 않은 값</h2><article><p>Dropout은 특징 의존 억제, 밝기·대비·위치 증강은 외관 변화 대응, ResNet 별도 학습률은 영상 특징 적응 속도, 배치 크기는 갱신 안정성과 메모리, KL 가중치는 잠재 규제 강도를 바꿉니다.
+시드를 늘리면 초기값에 따른 변동을 확인할 수 있습니다. 이번에는 비교 원인을 줄이기 위해 이 값들을 고정했습니다. 후보 설명을 실제 실행 내역과 섞지 않습니다.</p></article>
+<h2>검증으로 선택한 두 후보와 별도 평가</h2><div class="scroll"><table><thead><tr><th>구조</th><th>선택 실험</th><th>step</th><th>검증 MAE</th><th>평가 MAE</th><th>실제 0.4.4 체크포인트 폴더</th></tr></thead><tbody><tr><td colspan="6">모든 비교 완료 후 검증 기준으로 선택</td></tr></tbody></table></div>
+<details><summary>원본 실행 경로·소스 해시·전체 설정·결과</summary><pre id="raw"></pre></details><script type="application/json" id="evidence">{
+  "plan": {
+    "required_lerobot": "0.4.4",
+    "maximum_hours": 12,
+    "final_reserve_seconds": 1800,
+    "source_repo": "Sungah/omx_1024_test_jihyeok_success",
+    "split_plan": {
+      "train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        13,
+        14
+      ],
+      "validation": [
+        8,
+        12
+      ],
+      "test": [
+        9,
+        11
+      ]
+    },
+    "trials": [
+      {
+        "architecture": "standard",
+        "dim_model": 512,
+        "dim_feedforward": 3200,
+        "n_encoder_layers": 4,
+        "n_vae_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_standard_chunk16_base",
+        "chunk": 16,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "standard",
+        "dim_model": 512,
+        "dim_feedforward": 3200,
+        "n_encoder_layers": 4,
+        "n_vae_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_standard_chunk32_base",
+        "chunk": 32,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "standard",
+        "dim_model": 512,
+        "dim_feedforward": 3200,
+        "n_encoder_layers": 4,
+        "n_vae_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_standard_chunk64_base",
+        "chunk": 64,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "standard",
+        "dim_model": 512,
+        "dim_feedforward": 3200,
+        "n_encoder_layers": 4,
+        "n_vae_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_standard_chunk100_base",
+        "chunk": 100,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "standard",
+        "dim_model": 512,
+        "dim_feedforward": 3200,
+        "n_encoder_layers": 4,
+        "n_vae_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 3e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_standard_chunk32_lr3e5",
+        "chunk": 32,
+        "steps": 10000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000
+        ],
+        "variant": "lr3e5"
+      },
+      {
+        "architecture": "standard",
+        "dim_model": 512,
+        "dim_feedforward": 3200,
+        "n_encoder_layers": 4,
+        "n_vae_encoder_layers": 4,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_standard_chunk32_decay1e3",
+        "chunk": 32,
+        "steps": 10000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000
+        ],
+        "variant": "decay1e3"
+      },
+      {
+        "architecture": "light",
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "n_encoder_layers": 2,
+        "n_vae_encoder_layers": 2,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_light_chunk16_base",
+        "chunk": 16,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "light",
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "n_encoder_layers": 2,
+        "n_vae_encoder_layers": 2,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_light_chunk32_base",
+        "chunk": 32,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "light",
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "n_encoder_layers": 2,
+        "n_vae_encoder_layers": 2,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_light_chunk64_base",
+        "chunk": 64,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "light",
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "n_encoder_layers": 2,
+        "n_vae_encoder_layers": 2,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_light_chunk100_base",
+        "chunk": 100,
+        "steps": 20000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000,
+          20000
+        ],
+        "variant": "base"
+      },
+      {
+        "architecture": "light",
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "n_encoder_layers": 2,
+        "n_vae_encoder_layers": 2,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 3e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_light_chunk32_lr3e5",
+        "chunk": 32,
+        "steps": 10000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000
+        ],
+        "variant": "lr3e5"
+      },
+      {
+        "architecture": "light",
+        "dim_model": 128,
+        "dim_feedforward": 512,
+        "n_encoder_layers": 2,
+        "n_vae_encoder_layers": 2,
+        "n_decoder_layers": 1,
+        "vision_backbone": "resnet18",
+        "image_shape": [
+          3,
+          480,
+          640
+        ],
+        "batch_size": 8,
+        "seed": 17,
+        "lr": 1e-05,
+        "backbone_lr": 1e-05,
+        "weight_decay": 0.001,
+        "dropout": 0.1,
+        "split_plan": {
+          "train": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            10,
+            13,
+            14
+          ],
+          "validation": [
+            8,
+            12
+          ],
+          "test": [
+            9,
+            11
+          ]
+        },
+        "save_freq": 1000,
+        "name": "act044_light_chunk32_decay1e3",
+        "chunk": 32,
+        "steps": 10000,
+        "comparison_steps": [
+          2000,
+          5000,
+          10000
+        ],
+        "variant": "decay1e3"
+      }
+    ],
+    "expected_jobs": 12,
+    "expected_comparison_cells": 44,
+    "selection": "Lowest validation recording-balanced first-10-step motor MAE per architecture, then open held-out recordings once for those two selections.",
+    "scope": "ACT ResNet18+Transformer only. No standalone CNN, no MuJoCo, no physical robot. Existing inspected data makes this exploratory validation, not a new independent field test.",
+    "step_interpretation": "Step comparisons share one continuous training trajectory; they are not independent reinitializations. No automatic LR schedule. Backbone LR held at 1e-5 in the main-LR sweep.",
+    "frozen_at": "2026-10-26T01:40:18.039401+00:00"
+  },
+  "runtime": {
+    "lerobot_version": "0.4.4",
+    "python": "/home/team11/venv/il/bin/python",
+    "python_version": "3.10.22 (main, Oct  1 2026, 15:39:47) [GCC 13.3.0]",
+    "torch": "2.10.0+cu128",
+    "package": "/home/team11/il_ws/src/lerobot/src/lerobot/__init__.py",
+    "source_git_commit": "8fff0fde7c79f23a93d845d1a50e985de01f8b8a",
+    "trainer": "/home/team11/il_ws/src/lerobot/src/lerobot/scripts/lerobot_train.py",
+    "trainer_sha256": "827a2b7e74341f1d89d5c508d62ce52592bb9cab0c74fe8a3de38e9f03886410",
+    "act_source_sha256": "69301fff11cbb8f4ba7bfe473a55ba488c3d2f89c25ecdfe512347a93b4ad04f",
+    "upstream_training_code_modified": false
+  },
+  "state": {
+    "status": "running",
+    "phase": "training_validation",
+    "started_at": "2026-10-26T01:40:18.039401+00:00",
+    "deadline_epoch": 1793022018.039401,
+    "pid": 4075352,
+    "current_job": "act044_standard_chunk16_base",
+    "failures": [],
+    "publication": "pending",
+    "expected_jobs": 12,
+    "expected_comparison_cells": 44,
+    "lerobot_version": "0.4.4",
+    "completed_jobs": 0,
+    "completed_comparisons": 0,
+    "updated_at": "2026-10-26T01:51:12.566227+00:00"
+  },
+  "jobs": [],
+  "measurements": [],
+  "selected": {},
+  "heldout": {},
+  "current_progress": {
+    "status": "training",
+    "started_at": "2026-10-26T01:40:55.834317+00:00",
+    "worker_pid": 3541085,
+    "upstream_pid": 3541108,
+    "config": {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk16_base",
+      "chunk": 16,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    "step": 3034,
+    "target": 20000
+  }
+}</script><script>document.getElementById('raw').textContent=JSON.stringify(JSON.parse(document.getElementById('evidence').textContent),null,2)</script>
+<p>실행 중 60초마다 화면 갱신 · 디스코드 30분 간격 진행 확인 · 종료 후 한국어 결과 커밋·푸시</p></main></body></html>

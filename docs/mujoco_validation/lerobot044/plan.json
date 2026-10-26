@@ -1,0 +1,681 @@
+{
+  "required_lerobot": "0.4.4",
+  "maximum_hours": 12,
+  "final_reserve_seconds": 1800,
+  "source_repo": "Sungah/omx_1024_test_jihyeok_success",
+  "split_plan": {
+    "train": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      10,
+      13,
+      14
+    ],
+    "validation": [
+      8,
+      12
+    ],
+    "test": [
+      9,
+      11
+    ]
+  },
+  "trials": [
+    {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk16_base",
+      "chunk": 16,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk32_base",
+      "chunk": 32,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk64_base",
+      "chunk": 64,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk100_base",
+      "chunk": 100,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 3e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk32_lr3e5",
+      "chunk": 32,
+      "steps": 10000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000
+      ],
+      "variant": "lr3e5"
+    },
+    {
+      "architecture": "standard",
+      "dim_model": 512,
+      "dim_feedforward": 3200,
+      "n_encoder_layers": 4,
+      "n_vae_encoder_layers": 4,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_standard_chunk32_decay1e3",
+      "chunk": 32,
+      "steps": 10000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000
+      ],
+      "variant": "decay1e3"
+    },
+    {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk16_base",
+      "chunk": 16,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk32_base",
+      "chunk": 32,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk64_base",
+      "chunk": 64,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk100_base",
+      "chunk": 100,
+      "steps": 20000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000,
+        20000
+      ],
+      "variant": "base"
+    },
+    {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 3e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk32_lr3e5",
+      "chunk": 32,
+      "steps": 10000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000
+      ],
+      "variant": "lr3e5"
+    },
+    {
+      "architecture": "light",
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "n_decoder_layers": 1,
+      "vision_backbone": "resnet18",
+      "image_shape": [
+        3,
+        480,
+        640
+      ],
+      "batch_size": 8,
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.001,
+      "dropout": 0.1,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          10,
+          13,
+          14
+        ],
+        "validation": [
+          8,
+          12
+        ],
+        "test": [
+          9,
+          11
+        ]
+      },
+      "save_freq": 1000,
+      "name": "act044_light_chunk32_decay1e3",
+      "chunk": 32,
+      "steps": 10000,
+      "comparison_steps": [
+        2000,
+        5000,
+        10000
+      ],
+      "variant": "decay1e3"
+    }
+  ],
+  "expected_jobs": 12,
+  "expected_comparison_cells": 44,
+  "selection": "Lowest validation recording-balanced first-10-step motor MAE per architecture, then open held-out recordings once for those two selections.",
+  "scope": "ACT ResNet18+Transformer only. No standalone CNN, no MuJoCo, no physical robot. Existing inspected data makes this exploratory validation, not a new independent field test.",
+  "step_interpretation": "Step comparisons share one continuous training trajectory; they are not independent reinitializations. No automatic LR schedule. Backbone LR held at 1e-5 in the main-LR sweep.",
+  "frozen_at": "2026-10-26T01:40:18.039401+00:00"
+}

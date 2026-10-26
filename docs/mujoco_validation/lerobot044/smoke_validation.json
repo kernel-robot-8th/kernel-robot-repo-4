@@ -1,0 +1,33 @@
+{
+  "control_mae": 10.324748128652573,
+  "per_episode": {
+    "8": {
+      "control_mae": 10.791193425655365,
+      "samples": 8
+    },
+    "12": {
+      "control_mae": 9.85830283164978,
+      "samples": 6
+    }
+  },
+  "parameters": 12308870,
+  "input_shapes": {
+    "observation.state": [
+      6
+    ],
+    "observation.images.wrist": [
+      3,
+      480,
+      640
+    ],
+    "observation.images.top": [
+      3,
+      480,
+      640
+    ]
+  },
+  "backbone": "resnet18",
+  "chunk": 16,
+  "rgb_input_scale": "float [0,1]; loaded saved processor performs ImageNet normalization",
+  "units": "Original LeRobot motor units, not degrees, metres, or task success"
+}
