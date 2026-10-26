@@ -108,6 +108,15 @@ nano ~/il_ws/act044_inference.env
 박스 배치에서 사용한다. 종료 시 0.4.4 드라이버는 토크를 해제하므로 팔을 지지할 준비가 필요하다.
 이 실행기를 만든 과정에서는 실제 모터를 구동하지 않았으며, 실물 성공률은 아직 검증되지 않았다.
 
+관절 목표 변화량 제한을 해당 실행에서 해제하려면 `--no-relative-target`을 추가한다.
+이는 원본 드라이버에 `--robot.max_relative_target=null`을 전달한다. 설정 파일의 기본값 3은 유지된다.
+
+```bash
+# 실제 구동: 1번 모델, Temporal Ensembling, 목표 변화량 제한 해제, 10초
+./run_act044.sh run 1 --step 20000 --action-steps 1 --temporal-ensemble \
+  --no-relative-target --duration 10
+```
+
 ## 기록·검사 범위
 
 0.4.4의 원본 `lerobot-record --policy.path=...`로 실행한다. 실행 영상·관절·행동 기록은

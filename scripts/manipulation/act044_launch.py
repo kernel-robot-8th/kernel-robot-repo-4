@@ -180,7 +180,8 @@ def launch_command(args, checkpoint):
         f"--robot.id={args.robot_id}",
         f"--robot.port={args.port}",
         "--robot.use_degrees=false",
-        f"--robot.max_relative_target={args.max_relative_target}",
+        "--robot.max_relative_target="
+        + ("null" if args.max_relative_target is None else str(args.max_relative_target)),
         "--robot.cameras=" + json.dumps(cameras),
         f"--dataset.repo_id=local/eval_{tag}_{suffix}",
         f"--dataset.root={target}",
@@ -233,6 +234,13 @@ def main():
     parser.add_argument(
         "--max-relative-target", type=float, default=float(os.environ.get("ACT044_MAX_RELATIVE_TARGET", "3"))
     )
+    parser.add_argument(
+        "--no-relative-target",
+        action="store_const",
+        const=None,
+        dest="max_relative_target",
+        help="이번 실행에서 관절 목표 변화량 제한을 해제합니다.",
+    )
     parser.add_argument("--device", choices=["cuda", "cpu"], default=os.environ.get("ACT044_DEVICE", "cuda"))
     parser.add_argument("--port", default=os.environ.get("ROBOT_PORT", ""))
     parser.add_argument("--robot-id", default=os.environ.get("ROBOT_ID", "omx_follower_arm"))
@@ -268,7 +276,10 @@ def main():
         raise ValueError("Temporal ensembling은 --action-steps 1과 함께 사용하세요.")
     if not math.isfinite(args.temporal_ensemble_coeff):
         raise ValueError("temporal-ensemble-coeff는 유한한 숫자여야 합니다.")
-    if args.duration <= 0 or args.max_relative_target <= 0:
+    if args.duration <= 0 or (
+        args.max_relative_target is not None
+        and (not math.isfinite(args.max_relative_target) or args.max_relative_target <= 0)
+    ):
         raise ValueError("duration과 max-relative-target은 양수여야 합니다.")
     if not args.port or not args.top or not args.wrist:
         raise ValueError("팔로워 포트와 top/wrist 카메라 경로를 설정하세요.")
