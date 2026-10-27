@@ -9,10 +9,16 @@ ROS 를 import 하지 않으므로 로봇·Nav2 없이 단위 테스트할 수 �
 """
 import math
 
-# 구역과 무관하게 반드시 있어야 하는 지점 이름 (goto 허용 지점 P1~P7).
-# 구역별 진입/출구 지점(ZONE_<구역>_ENTRY / ZONE_<구역>_EXIT)은 구역 이름에 따라 달라지므로
+# 이름 규칙 (모두 대문자):  P = 일반 지점, Z = 구역 지점(ZA/ZB/ZC), I = 초기 위치(홈, I1/I2/I3),
+#                           W = 대기 위치(WA/WB/WC, 대기열 슬롯 0), Z<구역>_EXIT = 구역 출구.
+# 구역과 무관하게 반드시 있어야 하는 일반 지점 이름 (goto 허용 지점).
+# 구역 지점(Z<구역>)과 홈(I<n>)은 zone_points / home_name 이 가리키고 validate_* 가 존재를 검사한다.
+# 구역별 대기/출구 지점(W<구역> / Z<구역>_EXIT)은 구역 이름에 따라 달라지므로
 # required_names(zone_names) 가 덧붙인다. 이름 자체는 코드가 참조하므로 좌표와 달리 코드에 남긴다.
-REQUIRED_POINTS = ('P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7')
+REQUIRED_POINTS = ('P1', 'P2')
+# 일반 지점은 P1~P10 까지 쓸 수 있다. P3~P10 은 선택이라 YAML 에 좌표가 있는 것만 goto 로 갈 수 있다
+# (좌표를 모르는 지점을 (0,0,0) 으로 채우면 goto 때 원점으로 가므로 아예 정의하지 않는다).
+MAX_GENERAL_POINTS = 10
 
 
 class PointsConfigError(ValueError):
@@ -58,7 +64,7 @@ def validate_points(points, required, home_name):
 
     :param points: ``parse_points`` 결과
     :param required: 있어야 하는 지점 이름들 (보통 ``REQUIRED_POINTS``)
-    :param home_name: goto 완료 후 복귀할 지점 이름 (``points`` 안에 있어야 함)
+    :param home_name: 유휴 복귀할 홈 지점 이름 (I<n>) (``points`` 안에 있어야 함)
     :raises PointsConfigError: 누락된 이름을 한꺼번에 알려 준다 (하나씩 고치며 재시작하지 않게)
     """
     missing = [n for n in required if n not in points]
@@ -68,7 +74,7 @@ def validate_points(points, required, home_name):
             f'[x, y] 또는 [x, y, yaw] 로 추가하세요 (YAML 을 지정했는지도 확인: launch 또는 --params-file).')
     if not home_name:
         raise PointsConfigError(
-            'home_name 이 비어 있습니다. config/pinkyN.yaml 에 home_name: P1 처럼 지점 이름을 쓰세요.')
+            'home_name 이 비어 있습니다. config/pinkyN.yaml 에 home_name: I1 처럼 지점 이름을 쓰세요.')
     if home_name not in points:
         raise PointsConfigError(
             f"home_name '{home_name}' 이(가) points 에 없습니다. 있는 지점: {sorted(points)}")
@@ -78,17 +84,28 @@ def validate_points(points, required, home_name):
 # 위험구역 (구역마다 진입/출구 좌표 한 쌍과 소속 지점 목록을 가진다)
 # ---------------------------------------------------------------------------
 def entry_name(zone):
-    """구역 ``zone`` 의 진입(토큰 요청·획득) 지점 이름. 예: ``A`` -> ``ZONE_A_ENTRY``."""
-    return f'ZONE_{zone}_ENTRY'
+    """구역 ``zone`` 의 대기(토큰 요청·획득) 지점 이름. 예: ``A`` -> ``WA``."""
+    return f'W{zone}'
 
 
 def exit_name(zone):
-    """구역 ``zone`` 의 출구(토큰 반납) 지점 이름. 예: ``A`` -> ``ZONE_A_EXIT``."""
-    return f'ZONE_{zone}_EXIT'
+    """구역 ``zone`` 의 출구(토큰 반납) 지점 이름. 예: ``A`` -> ``ZA_EXIT``."""
+    return f'Z{zone}_EXIT'
+
+
+def optional_general_names():
+    """선택 일반 지점 이름 ``['P3', ..., 'P10']`` (YAML 에 있으면 읽고, 없으면 건너뛴다)."""
+    return [f'P{i}' for i in range(len(REQUIRED_POINTS) + 1, MAX_GENERAL_POINTS + 1)]
+
+
+def general_names(points):
+    """``points`` 안의 일반 지점(P1~P10) 이름만 번호순으로 돌려준다."""
+    allowed = {f'P{i}' for i in range(1, MAX_GENERAL_POINTS + 1)}
+    return sorted((n for n in points if n in allowed), key=lambda n: int(n[1:]))
 
 
 def required_names(zone_names):
-    """P1~P7 과 구역별 ENTRY/EXIT 를 합친, ``points`` 에 반드시 있어야 하는 이름 목록."""
+    """일반 지점(P1, P2)과 구역별 대기(W)/출구(Z_EXIT)를 합친, ``points`` 에 반드시 있어야 하는 이름 목록."""
     names = list(REQUIRED_POINTS)
     for zone in zone_names:
         names += [entry_name(zone), exit_name(zone)]
@@ -99,7 +116,7 @@ def parse_zone_names(raw):
     """
     구역 이름 목록을 검증해 튜플로 돌려준다.
 
-    이름은 ZONE_<이름>_ENTRY 지점 이름과 매니저 메시지(``<구역>:...``)에 그대로 쓰이므로
+    이름은 W<이름> / Z<이름>_EXIT 지점 이름과 매니저 메시지(``<구역>:...``)에 그대로 쓰이므로
     영문·숫자로만 짓고(``:`` 불가) 중복을 허용하지 않는다.
     """
     if isinstance(raw, (str, bytes)) or not hasattr(raw, '__len__') or len(raw) == 0:
@@ -122,7 +139,7 @@ def parse_zone_points(raw):
     for zone, names in raw.items():
         if isinstance(names, (str, bytes)) or not hasattr(names, '__len__'):
             raise PointsConfigError(
-                f'zone_points.{zone}: 지점 이름 리스트여야 합니다 (예: [P3, P4]). 받은 값: {names!r}')
+                f'zone_points.{zone}: 지점 이름 리스트여야 합니다 (예: [ZA, ZB]). 받은 값: {names!r}')
         for n in names:
             if not isinstance(n, str) or not n:
                 raise PointsConfigError(
@@ -138,7 +155,7 @@ def validate_zones(zone_points, points, home_name):
     - 모든 구역에 소속 지점이 1개 이상 있고, 그 지점이 ``points`` 에 존재한다
     - 한 지점이 두 구역에 동시에 속하지 않는다 (속하면 어느 토큰이 필요한지 정할 수 없다)
     - 홈 지점은 구역 밖이어야 한다 (goto 가 끝나면 토큰을 반납하고 홈으로 가므로)
-    - ENTRY/EXIT 는 구역 안 지점이 아니다 (경로 지점으로 직접 지정하지 못하게)
+    - 대기(W)/출구(Z_EXIT) 는 구역 안 지점이 아니다 (경로 지점으로 직접 지정하지 못하게)
 
     :raises PointsConfigError: 문제를 한꺼번에 모아 알려 준다
     """
@@ -167,3 +184,36 @@ def zone_of(zone_points, name):
         if name in members:
             return zone
     return None
+
+
+# ---------------------------------------------------------------------------
+# 명령 문자열 해석 (노드는 결과만 보고 동작을 정한다)
+# ---------------------------------------------------------------------------
+_NO_ARG_COMMANDS = ('leave', 'stop', 'emergency_stop', 'start')
+_POINT_COMMANDS = ('goto', 'zone')
+
+
+def parse_command(raw):
+    """
+    명령 문자열을 ``(kind, points)`` 로 해석한다. 예외는 던지지 않는다.
+
+    - ``goto:<P>[,<P>...]`` / ``zone:<P>`` : kind 는 ``goto`` / ``zone``, points 는 대문자 이름 튜플
+      (쉼표·공백 모두 구분자, 명령어는 대소문자 무시)
+    - ``leave`` / ``stop`` / ``emergency_stop`` / ``start`` : 해당 kind, points 는 ``()``
+    - 그 밖 (빈 문자열, 알 수 없는 명령, 문자열이 아닌 값) : ``('unknown', ())``
+
+    형식만 본다. 지점이 비었는지·존재하는지·구역 지점인지·zone 에 1개만 왔는지는
+    ``points`` 와 구역 설정을 아는 노드가 판단해 FAILED 로 응답한다.
+    """
+    if not isinstance(raw, str):
+        return 'unknown', ()
+    text = raw.strip()
+    head, sep, tail = text.partition(':')
+    head = head.strip().lower()
+    if sep:
+        if head in _POINT_COMMANDS:
+            return head, tuple(tail.replace(',', ' ').upper().split())
+        return 'unknown', ()
+    if head in _NO_ARG_COMMANDS:
+        return head, ()
+    return 'unknown', ()

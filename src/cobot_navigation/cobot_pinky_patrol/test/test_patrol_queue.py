@@ -94,7 +94,7 @@ def test_no_coordinates_left_in_node_code(n):
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_zone_entry_matches_manager_anchor(n):
-    """구역마다 로봇의 ZONE_<구역>_ENTRY 는 매니저 yaml 의 zone_<구역>.queue_anchor 와 같아야 한다."""
+    """구역마다 로봇의 W<구역> 는 매니저 yaml 의 zone_<구역>.queue_anchor 와 같아야 한다."""
     from cobot_pinky_patrol.patrol_points_utils import entry_name
     pts, _, zone_names, _ = load_cfg(n)
     mgr = manager_params()
@@ -115,18 +115,30 @@ def test_zone_settings_are_shared_by_all_robots(n):
             assert pm[entry_name(z)] == pts[entry_name(z)]
             assert pm[exit_name(z)] == pts[exit_name(z)]
     assert not [k for k in pts if k.startswith('RED')]
-    assert zone_points == {'A': ('P2', 'P3'), 'B': ('P4',)}  # 확정 소속 (2026-10-26)
-    assert pts['ZONE_A_EXIT'] == (0.4, -0.7, 0.0)            # 구역 A 출구 (사용자 지정)
+    assert zone_points == {'A': ('ZA',), 'B': ('ZB',), 'C': ('ZC',)}  # 확정 소속 (2026-10-27)
+    assert pts['ZA_EXIT'] == (0.5, 0.0, -1.5)             # 구역 A 출구 (사용자 지정)
+    assert pts['WA'] == (0.0, 0.6, 0.0)             # 구역 A 대기 위치 (사용자 지정)
+    assert pts['WB'] == (0.0, 0.6, -1.5) and pts['ZB_EXIT'] == (0.55, -0.6, -1.5)   # B 는 A 와 대기 위치 공유
+    assert pts['WC'] == (-0.7, -0.08, 1.5) and pts['ZC_EXIT'] == (-0.3, -0.4, 1.5)
+
+
+@pytest.mark.parametrize('n', [1, 2, 3])
+def test_zone_entry_is_apart_from_zone_points(n):
+    """대기 위치(ENTRY)가 그 구역 소속 지점과 같은 좌표면 대기자가 점유자 자리로 간다 -> 분리되어 있어야 한다."""
+    from cobot_pinky_patrol.patrol_points_utils import entry_name
+    pts, _, _, zone_points = load_cfg(n)
+    for zone, members in zone_points.items():
+        for m in members:
+            assert pts[entry_name(zone)][:2] != pts[m][:2], (zone, m)
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_stop_exit_point_removed_and_entry_exit_not_goto(n):
     """ZONE_STOP_EXIT 는 구역 EXIT 로 합쳤고, ENTRY/EXIT 는 직접 goto 할 수 없다."""
-    from cobot_pinky_patrol.patrol_points_utils import entry_name, exit_name
+    from cobot_pinky_patrol.patrol_points_utils import entry_name, exit_name, general_names
     pts, _, zone_names, zone_points = load_cfg(n)
     assert 'ZONE_STOP_EXIT' not in pts and 'ZONE_ENTRY' not in pts and 'ZONE_EXIT' not in pts
-    c = importlib.import_module(MODS[n]).PinkyPatrolNode
-    allowed = c.GOTO_BASE | {p for ms in zone_points.values() for p in ms}
+    allowed = set(general_names(pts)) | {p for ms in zone_points.values() for p in ms}  # goto/zone 으로 갈 수 있는 지점
     for z in zone_names:
         assert entry_name(z) not in allowed and exit_name(z) not in allowed
 
@@ -134,12 +146,12 @@ def test_stop_exit_point_removed_and_entry_exit_not_goto(n):
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_yaml_config_is_complete(n):
     """YAML 이 필수 지점·구역 ENTRY/EXIT·홈을 모두 갖고, goto 허용 지점이 전부 정의되어 있다."""
-    from cobot_pinky_patrol.patrol_points_utils import required_names, validate_points, validate_zones
-    c = importlib.import_module(MODS[n]).PinkyPatrolNode
+    from cobot_pinky_patrol.patrol_points_utils import (general_names, required_names, validate_points,
+                                                         validate_zones)
     pts, home, zone_names, zone_points = load_cfg(n)
     validate_points(pts, required_names(zone_names), home)
     validate_zones(zone_points, pts, home)
-    allowed = c.GOTO_BASE | {p for ms in zone_points.values() for p in ms}
+    allowed = set(general_names(pts)) | {p for ms in zone_points.values() for p in ms}
     assert allowed <= set(pts)
     assert load_raw(n)['robot_id'] == f'pinky{n}'
 
@@ -182,6 +194,30 @@ def test_load_points_ok(n):
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
+def test_optional_general_points_p3_to_p10(n):
+    """P3~P10 은 YAML 에 있는 것만 로드되고 goto 허용에 들어간다. P11 은 읽지 않는다."""
+    from cobot_pinky_patrol.patrol_points_utils import general_names
+    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
+    base = _params_from_yaml(n)
+    pts, *_ = _fake_node(cls, base)._load_points()
+    assert general_names(pts) == [f'P{i}' for i in range(1, 11)]  # YAML 에 P1~P10 이 모두 있다
+    assert 'P3' in pts and 'P10' in pts
+    for i in range(3, 11):                                       # 선택 지점은 빼도 시작된다
+        base = {k: v for k, v in base.items() if k != f'points.P{i}'}
+    pts, *_ = _fake_node(cls, base)._load_points()
+    assert general_names(pts) == ['P1', 'P2']
+    more = dict(base, **{'points.P3': [1.0, 2.0, 0.5], 'points.P10': [3.0, 4.0]})
+    pts, *_ = _fake_node(cls, more)._load_points()
+    assert pts['P3'] == (1.0, 2.0, 0.5) and pts['P10'] == (3.0, 4.0)
+    assert general_names(pts) == ['P1', 'P2', 'P3', 'P10']
+    over = dict(more, **{'points.P11': [9.0, 9.0]})
+    pts, *_ = _fake_node(cls, over)._load_points()
+    assert 'P11' not in pts                                      # 최대 P10
+    with pytest.raises(Exception, match='소수점'):
+        _fake_node(cls, dict(base, **{'points.P3': [0, 0]}))._load_points()
+
+
+@pytest.mark.parametrize('n', [1, 2, 3])
 def test_load_points_refuses_missing_and_bad_values(n):
     from cobot_pinky_patrol.patrol_points_utils import PointsConfigError
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
@@ -194,37 +230,37 @@ def test_load_points_refuses_missing_and_bad_values(n):
         _fake_node(cls, {k: v for k, v in base.items() if k.startswith(('zone_', 'home'))})._load_points()
     # 2) 지점 하나 누락 -> 메시지에 그 이름
     miss = dict(base)
-    del miss['points.P3']
-    with pytest.raises(PointsConfigError, match='P3'):
+    del miss['points.ZB']
+    with pytest.raises(PointsConfigError, match='ZB'):
         _fake_node(cls, miss)._load_points()
     # 3) 길이 오류 / NaN
-    bad = dict(base, **{'points.P2': [1.0]})
-    with pytest.raises(PointsConfigError, match='points.P2'):
+    bad = dict(base, **{'points.ZA': [1.0]})
+    with pytest.raises(PointsConfigError, match='points.ZA'):
         _fake_node(cls, bad)._load_points()
-    bad = dict(base, **{'points.P2': [float('nan'), 0.0]})
+    bad = dict(base, **{'points.ZA': [float('nan'), 0.0]})
     with pytest.raises(PointsConfigError, match='NaN'):
         _fake_node(cls, bad)._load_points()
     # 4) 정수 배열 (타입 불일치)
-    bad = dict(base, **{'points.P2': [0, 0]})
+    bad = dict(base, **{'points.ZA': [0, 0]})
     with pytest.raises(PointsConfigError, match='소수점'):
         _fake_node(cls, bad)._load_points()
     # 5) home_name 누락 / 없는 지점
     nohome = {k: v for k, v in base.items() if k != 'home_name'}
     with pytest.raises(PointsConfigError, match='home_name'):
         _fake_node(cls, nohome)._load_points()
-    with pytest.raises(PointsConfigError, match='home_name'):
+    with pytest.raises(PointsConfigError, match='P99'):     # 없는 홈 이름은 누락 지점으로 보고된다
         _fake_node(cls, dict(base, home_name='P99'))._load_points()
     # 6) 구역 설정 오류: 구역 ENTRY/EXIT 누락, 구역 소속 누락, 중복 소속, 홈이 구역 안, 잘못된 구역 이름
-    miss = {k: v for k, v in base.items() if k != 'points.ZONE_B_EXIT'}
-    with pytest.raises(PointsConfigError, match='ZONE_B_EXIT'):
+    miss = {k: v for k, v in base.items() if k != 'points.ZB_EXIT'}
+    with pytest.raises(PointsConfigError, match='ZB_EXIT'):
         _fake_node(cls, miss)._load_points()
     miss = {k: v for k, v in base.items() if k != 'zone_points.B'}
     with pytest.raises(PointsConfigError, match='zone_points.B'):
         _fake_node(cls, miss)._load_points()
     with pytest.raises(PointsConfigError, match='동시에 속'):
-        _fake_node(cls, dict(base, **{'zone_points.B': ['P3', 'P4']}))._load_points()
+        _fake_node(cls, dict(base, **{'zone_points.B': ['ZB', 'ZC']}))._load_points()
     with pytest.raises(PointsConfigError, match='구역 밖'):
-        _fake_node(cls, dict(base, home_name='P3'))._load_points()
+        _fake_node(cls, dict(base, home_name='ZB'))._load_points()
     with pytest.raises(PointsConfigError, match='영문'):
         _fake_node(cls, dict(base, zone_names=['A', 'B:1']))._load_points()
 
@@ -293,7 +329,7 @@ def env():
     other = Node('other_clients')                        # 점유자/다른 대기자 역할 + 상태 감시
     ex = SingleThreadedExecutor()
     ex.add_node(other)
-    status = {'A': None, 'B': None}       # 구역별 점유 상태 ("free" | "occupied_by:<id>")
+    status = {'A': None, 'B': None, 'C': None}       # 구역별 점유 상태 ("free" | "occupied_by:<id>")
 
     def on_status(m):
         zone, _, state = m.data.partition(':')     # 메시지 형식: "<구역>:free" / "<구역>:occupied_by:<id>"
@@ -336,18 +372,23 @@ def make_robot(env, n, robot_id, travel=0.3):
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
     nav = env.Nav(travel=travel)
     r = types.SimpleNamespace(navigator=nav, robot_id=robot_id, statuses=[], _stop_requested=False,
-                              _emergency_requested=False, _running=True, notified=[])
+                              _emergency_requested=False, _running=True, notified=[],
+                              _held_zone=None, _idle_deadline=None, _last_point=None,
+                              idle_return_sec=1.0, _thread=None)
     r.gate = env.Gate(nav, robot_id)
     # WAYPOINTS / ZONE_*_INDEX / _run_patrol 은 v1.1.0 순회 중단(R1)으로 주석 처리되어 없다.
-    for name in ('NAV_RETRIES', 'WAIT_EVERY_POINT', 'GOTO_BASE'):
+    for name in ('NAV_RETRIES',):
         setattr(r, name, getattr(cls, name))
     # 좌표/홈/구역은 노드가 파라미터로 받는 YAML 과 같은 값
     r.points, r.home_name, r.zone_names, r.zone_points = load_cfg(n)
-    r.goto_allowed = r.GOTO_BASE | {p for ms in r.zone_points.values() for p in ms}
-    r.GOTO_WAIT_SEC = 0.2   # goto 도착 대기를 짧게 (시험 시간 단축)
+    r.zone_allowed = {p for ms in r.zone_points.values() for p in ms}
+    from cobot_pinky_patrol.patrol_points_utils import general_names
+    r.goto_allowed = (set(general_names(r.points)) | {r.home_name}) - r.zone_allowed
     for name in ('_queue_and_enter', '_start_goal', '_cancel_goal', '_record_pose', '_abort_entry',
-                 'make_pose', 'get_current_pose', '_run_route', '_navigate', '_leave_zone',
-                 '_wait_interruptible', '_retreat_after_stop'):
+                 'make_pose', 'get_current_pose', '_run_goto', '_run_zone', '_run_leave',
+                 '_run_idle_return', '_exit_held_zone', '_arm_idle', '_idle_tick', '_finish_task',
+                 '_prepare_nav', '_start_task', '_navigate', '_leave_zone', '_wait_interruptible',
+                 '_retreat_after_stop', '_end_state'):
         setattr(r, name, types.MethodType(cls.__dict__[name], r))
     r.get_logger = nav.get_logger
     r.publish_status = lambda state, idx, detail='': r.statuses.append((state, detail))
@@ -357,6 +398,7 @@ def make_robot(env, n, robot_id, travel=0.3):
     r.set_idle_led = lambda: None
     r.save_last_pose = lambda *a: None
     r._init_pose_once = lambda: None
+    r._running = False   # _start_task / 테스트가 필요할 때 세운다
     return r
 
 
@@ -381,8 +423,8 @@ def states(r):
 
 
 _POINTS = load_cfg(1)[0]
-DOOR1 = tuple(_POINTS['ZONE_A_ENTRY'])   # 구역 A 앵커 (yaml zone_A.queue_anchor 와 같은지는 별도 테스트가 검사)
-EXIT = tuple(_POINTS['ZONE_A_EXIT'])     # 구역 A 락 반납 출구
+DOOR1 = tuple(_POINTS['WA'])   # 구역 A 앵커 (yaml zone_A.queue_anchor 와 같은지는 별도 테스트가 검사)
+EXIT = tuple(_POINTS['ZA_EXIT'])     # 구역 A 락 반납 출구
 
 
 def _slot(k):
@@ -400,7 +442,7 @@ SLOT1 = _slot(1)
 
 def test_empty_zone_grant_does_not_wait_at_anchor(env):
     r = make_robot(env, 1, 'pinky2')
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: not t.is_alive())
     assert out['r'] is True
     assert len(r.navigator.goals) <= 1                   # 슬롯 이동 없음, 앵커 도착을 기다리지도 않음
@@ -413,7 +455,7 @@ def test_empty_zone_grant_does_not_wait_at_anchor(env):
 def test_waits_in_slot_then_enters(env):
     occ = occupy(env)
     r = make_robot(env, 1, 'pinky2')
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: 'QUEUEING' in states(r))
     assert env.pump(lambda: SLOT0 in r.navigator.goals)  # 슬롯 좌표는 매니저가 준 값
     time.sleep(0.8)
@@ -435,7 +477,7 @@ def test_slot_reassign_cancels_and_moves_forward(env):
     front.send_request()
     assert env.pump(lambda: front.current_slot is not None)      # k=0
     r = make_robot(env, 1, 'pinky2')
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: SLOT1 in r.navigator.goals)          # 뒤 로봇은 k=1
     front.cancel_entry()                                         # 앞 대기자 포기 -> 한 칸 전진
     assert env.pump(lambda: r.navigator.goals[-1] == SLOT0, 8)
@@ -449,7 +491,7 @@ def test_slot_reassign_cancels_and_moves_forward(env):
 def test_stop_while_queued_cancels_entry(env):
     occ = occupy(env)
     r = make_robot(env, 1, 'pinky2')
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: SLOT0 in r.navigator.goals)
     time.sleep(0.5)
     r._stop_requested = True
@@ -477,7 +519,7 @@ def test_stop_command_callback_does_not_cancel_from_callback_thread(env, n):
 def test_grant_received_while_traveling_to_slot(env):
     occ = occupy(env)
     r = make_robot(env, 1, 'pinky2', travel=2.0)         # 느린 이동: 도착 전에 허가가 온다
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: SLOT0 in r.navigator.goals)
     occ.notify_exit()                                    # 슬롯에 도착하기 전에 점유자 이탈
     assert env.pump(lambda: not t.is_alive(), 12)
@@ -496,7 +538,7 @@ def test_queue_full_gives_up_without_holding(env):
         g.send_request()
     assert env.pump(lambda: all(g.current_slot is not None for g in fillers))
     r = make_robot(env, 1, 'pinky2')
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: not t.is_alive())
     assert out['r'] is False
     assert r.statuses[-1] == ('FAILED', 'queue_full')
@@ -515,7 +557,7 @@ def test_grant_returns_immediately_without_going_to_anchor(env):
     front.send_request()
     assert env.pump(lambda: front.current_slot is not None)      # 앞 대기자 k=0
     r = make_robot(env, 1, 'pinky2', travel=0.3)
-    t, out = run_in_thread(r._queue_and_enter, 0, 'P3', 'A')
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: SLOT1 in r.navigator.goals)          # 뒤 로봇 k=1
     occ.notify_exit()                                            # 허가는 앞 대기자(pinky4)에게
     front.notify_exit()                                          # 앞 대기자도 통과 -> pinky2 에게 허가
@@ -530,7 +572,7 @@ def test_grant_returns_immediately_without_going_to_anchor(env):
 
 @pytest.mark.skip(reason='R1: v1.1.0 순회(_run_patrol) 주석 처리 -- 되살릴 때 skip 제거')
 def test_pinky2_start_path_uses_corrected_indexes(env):
-    """pinky2 start 경로: 구역 A ENTRY 에서 진입 절차 -> P3 -> ... -> 구역 EXIT 에서 락 반납 -> P7."""
+    """pinky2 start 경로: 구역 A ENTRY 에서 진입 절차 -> ZB -> ... -> 구역 EXIT 에서 락 반납 -> I2."""
     r = make_robot(env, 2, 'pinky2')
     t, out = run_in_thread(r._run_patrol)
     assert env.pump(lambda: not t.is_alive(), 15)
@@ -564,9 +606,9 @@ def _goal(wp):
 
 def _stop_in_zone(env, emergency):
     r = make_robot(env, 2, 'pinky2', travel=1.0)
-    t, out = run_in_thread(r._run_route, ['P3'])   # start 대신 goto 경로(P3 = 구역 안)로 같은 stop 경로를 검증
-    p3 = _goal(r.points['P3'])
-    assert env.pump(lambda: p3 in r.navigator.goals)       # 허가받고 구역 안(P3)으로 가는 중
+    t, out = run_in_thread(r._run_zone, 'ZA')   # start 대신 zone 경로(ZA = 구역 A 안)로 같은 stop 경로를 검증
+    p2 = _goal(r.points['ZA'])
+    assert env.pump(lambda: p2 in r.navigator.goals)       # 허가받고 구역 안(ZA)으로 가는 중
     assert env.status['A'] == 'occupied_by:pinky2'
     r._emergency_requested = emergency
     r._stop_requested = True
@@ -576,17 +618,19 @@ def _stop_in_zone(env, emergency):
 def test_stop_in_zone_retreats_to_zone_exit_and_returns_token(env):
     r, t = _stop_in_zone(env, emergency=False)
     assert env.pump(lambda: not t.is_alive(), 12)
-    assert r.navigator.goals[-1] == _goal(r.points['ZONE_A_EXIT'])
+    assert r.navigator.goals[-1] == _goal(r.points['ZA_EXIT'])
     assert 'RETREATING' in states(r) and states(r)[-1] == 'STOPPED'
     assert env.pump(lambda: env.status['A'] == 'free', 4)    # 토큰 반납됨
+    assert r._held_zone is None
 
 
 def test_emergency_stop_in_zone_keeps_token_and_position(env):
     r, t = _stop_in_zone(env, emergency=True)
     assert env.pump(lambda: not t.is_alive(), 12)
-    assert _goal(r.points['ZONE_A_EXIT']) not in r.navigator.goals
+    assert _goal(r.points['ZA_EXIT']) not in r.navigator.goals
     assert 'RETREATING' not in states(r)
     assert not env.pump(lambda: env.status['A'] == 'free', 2.0)   # 락 유지 (max_hold_sec 뒤에만 해제)
+    assert r._held_zone is None          # 노드는 구역을 쥔 것으로 기억하지 않아 다음 zone 이 토큰을 다시 요청한다
     r.gate.notify_exit()                                   # 정리
     assert env.pump(lambda: env.status['A'] == 'free', 4)
 
@@ -621,56 +665,256 @@ def test_start_is_disabled_and_reports_failed(env, n):
 # 위험구역 2개 (구역마다 토큰·대기열이 따로)
 # ------------------------------------------------------------------------------
 def test_other_zone_occupant_does_not_block(env):
-    """구역 A 가 점유 중이어도 구역 B 지점(P4)으로는 대기 없이 갈 수 있다."""
+    """구역 A 가 점유 중이어도 구역 C 지점(ZC)으로는 대기 없이 갈 수 있다."""
     occ = occupy(env, 'pinky1', 'A')
     r = make_robot(env, 2, 'pinky2')
-    t, out = run_in_thread(r._run_route, ['P4'])
+    t, out = run_in_thread(r._run_zone, 'ZC')
     assert env.pump(lambda: not t.is_alive(), 15)
-    assert states(r)[-1] == 'DONE'
+    assert 'DONE' in states(r) and r._held_zone == 'C'
     assert 'QUEUEING' not in states(r) and 'WAITING_ZONE' not in states(r)
     assert env.status['A'] == 'occupied_by:pinky1'            # A 의 점유는 그대로
-    assert env.pump(lambda: env.status['B'] == 'free', 4)      # B 토큰은 반납됨
+    assert env.pump(lambda: env.status['C'] == 'occupied_by:pinky2', 4)   # C 토큰은 도착 후에도 유지
+    r.gate.notify_exit()                                       # 정리 (leave 대신 직접 반납)
+    assert env.pump(lambda: env.status['C'] == 'free', 4)
     occ.notify_exit()
     assert env.pump(lambda: env.status['A'] == 'free', 4)
 
 
 def test_route_across_zones_releases_first_zone_before_second(env):
-    """P3(구역 A) -> P4(구역 B): A EXIT 에서 A 토큰을 반납한 뒤에 B 를 요청한다 (동시에 두 토큰을 쥐지 않음)."""
+    """명령 zone ZA(구역 A) 다음 zone ZB(구역 B): A EXIT 에서 A 토큰을 반납한 뒤에 B 를 요청한다 (동시에 두 토큰을 쥐지 않음)."""
     r = make_robot(env, 2, 'pinky2')
-    t, out = run_in_thread(r._run_route, ['P3', 'P4'])
-    p4 = _goal(r.points['P4'])
-    assert env.pump(lambda: p4 in r.navigator.goals, 15)      # B 구역 안으로 가는 중
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_zone, 'ZA')
+    assert r._held_zone == 'A' and env.status['A'] == 'occupied_by:pinky2'
+    r._start_task(r._run_zone, 'ZB')
+    p3 = _goal(r.points['ZB'])
+    assert env.pump(lambda: p3 in r.navigator.goals, 15)      # B 구역 안으로 가는 중
     assert env.status['A'] == 'free'                          # 이때 A 는 이미 반납됨
     assert env.pump(lambda: env.status['B'] == 'occupied_by:pinky2', 4)
-    assert env.pump(lambda: not t.is_alive(), 15)
+    assert env.pump(lambda: not r._running, 15)
     g = r.navigator.goals
-    # P3 -> A 출구 -> P4 -> B 출구 순서 (자리값 좌표가 겹칠 수 있으므로 앞 목표 "이후"에서 다음 목표를 찾는다)
+    # ZA -> A 출구 -> ZB 순서 (자리값 좌표가 겹칠 수 있으므로 앞 목표 "이후"에서 다음 목표를 찾는다)
     pos = -1
-    for n in ('P3', 'ZONE_A_EXIT', 'P4', 'ZONE_B_EXIT'):
+    for n in ('ZA', 'ZA_EXIT', 'ZB'):
         assert _goal(r.points[n]) in g[pos + 1:], (n, g)
         pos = g.index(_goal(r.points[n]), pos + 1)
-    assert states(r)[-1] == 'DONE'
+    assert r._held_zone == 'B' and _goal(r.points[r.home_name]) not in g[pos + 1:]
+    r.gate.notify_exit()
     assert env.pump(lambda: env.status['B'] == 'free', 4)
 
 
 def test_stop_in_zone_b_retreats_to_zone_b_exit(env):
-    """stop 후퇴는 현재 구역의 EXIT 로 간다 (구역 B 에 있으면 ZONE_B_EXIT)."""
+    """stop 후퇴는 현재 구역의 EXIT 로 간다 (구역 B 에 있으면 ZB_EXIT)."""
     r = make_robot(env, 2, 'pinky2', travel=1.0)
-    t, out = run_in_thread(r._run_route, ['P4'])
-    p4 = _goal(r.points['P4'])
-    assert env.pump(lambda: p4 in r.navigator.goals)
+    t, out = run_in_thread(r._run_zone, 'ZB')
+    p3 = _goal(r.points['ZB'])
+    assert env.pump(lambda: p3 in r.navigator.goals)
     assert env.status['B'] == 'occupied_by:pinky2'
     r._stop_requested = True
     assert env.pump(lambda: not t.is_alive(), 12)
-    assert r.navigator.goals[-1] == _goal(r.points['ZONE_B_EXIT'])
+    assert r.navigator.goals[-1] == _goal(r.points['ZB_EXIT'])
     assert env.pump(lambda: env.status['B'] == 'free', 4)
 
 
-def test_goto_allowed_includes_all_zone_points_but_not_entry_exit(env):
-    cls = importlib.import_module(MODS[2]).PinkyPatrolNode
+def test_stop_in_zone_c_retreats_to_zone_c_exit(env):
+    """구역 C(ZC)에서 stop 하면 ZC_EXIT 로 후퇴해 C 토큰을 반납한다."""
+    r = make_robot(env, 2, 'pinky2', travel=1.0)
+    t, out = run_in_thread(r._run_zone, 'ZC')
+    p4 = _goal(r.points['ZC'])
+    assert env.pump(lambda: p4 in r.navigator.goals)
+    assert env.status['C'] == 'occupied_by:pinky2'
+    r._stop_requested = True
+    assert env.pump(lambda: not t.is_alive(), 12)
+    assert r.navigator.goals[-1] == _goal(r.points['ZC_EXIT'])
+    assert env.pump(lambda: env.status['C'] == 'free', 4)
+
+
+def test_three_zones_do_not_block_each_other(env):
+    """A, B 가 점유 중이어도 구역 C 지점(ZC)으로는 대기 없이 간다 (구역마다 토큰이 따로)."""
+    occ_a = occupy(env, 'pinky1', 'A')
+    occ_b = occupy(env, 'pinky3', 'B')
     r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_zone, 'ZC')
+    assert r._held_zone == 'C' and 'QUEUEING' not in states(r)
+    assert env.pump(lambda: env.status['C'] == 'occupied_by:pinky2', 4)
+    r.gate.notify_exit()
+    occ_a.notify_exit()
+    occ_b.notify_exit()
+    assert env.pump(lambda: all(env.status[z] == 'free' for z in 'ABC'), 6)
+
+
+def test_queue_slots_extend_toward_positive_y():
+    """구역 A·B·C 의 대기줄은 y 증가 방향(queue_back_dir [0,1])으로 늘어난다."""
+    from cobot_zone_traffic_control.zone_manager_node import normalize_dir, slot_pose
+    prm = manager_params()
+    for z, anchor in (('A', (0.0, 0.6)), ('B', (0.0, 0.6)), ('C', (-0.7, -0.08))):
+        d = normalize_dir(prm[f'zone_{z}']['queue_back_dir'])
+        x0, y0, _ = slot_pose(0, prm[f'zone_{z}']['queue_anchor'], d, prm['queue_spacing'])
+        x1, y1, _ = slot_pose(1, prm[f'zone_{z}']['queue_anchor'], d, prm['queue_spacing'])
+        assert (x0, y0) == pytest.approx(anchor)
+        assert x1 == pytest.approx(x0) and y1 == pytest.approx(y0 + prm['queue_spacing'])
+
+
+def _cmd(env, n, data, held=None):
+    """_cmd_cb 만 단독으로 시험한다 (작업 스레드를 띄우지 않는 거부 경로 전용)."""
+    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
+    r = make_robot(env, n, f'pinky{n}')
     r._cmd_cb = types.MethodType(cls.__dict__['_cmd_cb'], r)
-    r._running = False
-    r._cmd_cb(types.SimpleNamespace(data='goto:ZONE_A_ENTRY'))
-    assert r.statuses[-1][0] == 'FAILED' and 'not allowed' in r.statuses[-1][1]
+    r._held_zone = held
+    r._cmd_cb(types.SimpleNamespace(data=data))
+    return r
+
+
+@pytest.mark.parametrize('n', [1, 2, 3])
+@pytest.mark.parametrize('data, detail', [
+    ('goto:WA', 'not allowed'),  # ENTRY/EXIT 는 직접 이동 불가
+    ('goto:ZA', 'use zone'),  # 구역 지점은 zone 으로만
+    ('goto:P1,ZB', 'use zone'),
+    ('zone:P1', 'zone needs one zone point'),  # 구역 밖 지점
+    ('zone:ZA,ZB', 'zone needs one zone point'),  # 한 번에 1개
+    ('zone:', 'no point given'),
+    ('goto:', 'no point given'),
+    ('zone:P99', 'unknown point'),
+    ('goto:P11', 'unknown point'),  # P10 을 넘는 지점
+])
+def test_cmd_cb_rejects_wrong_command_without_starting(env, n, data, detail):
+    r = _cmd(env, n, data)
+    assert r.statuses[-1][0] == 'FAILED' and detail in r.statuses[-1][1], r.statuses
+    assert not r._running and r._thread is None
+
+
+@pytest.mark.parametrize('n', [1, 2, 3])
+def test_cmd_cb_leave_without_zone_fails(env, n):
+    r = _cmd(env, n, 'leave')
+    assert r.statuses == [('FAILED', 'no zone held')]
+    assert not r._running and r._thread is None
+
+
+# ------------------------------------------------------------------------------
+# 독립 이동 / zone / leave / 유휴 복귀 (PRD patrol_independent_move_prd)
+# ------------------------------------------------------------------------------
+def run_task(env, r, fn, *args, timeout=15):
+    """_start_task 로 작업을 시작해 끝날 때까지 기다린다 (명령 1개를 처리한 것과 같다)."""
+    r._start_task(fn, *args)
+    assert env.pump(lambda: not r._running, timeout), states(r)
+
+
+def test_goto_does_not_return_home_and_idle_timer_returns(env):
+    """명령 goto 는 도착 후 홈으로 가지 않고, idle_return_sec 뒤에만 홈으로 복귀한다."""
+    r = make_robot(env, 2, 'pinky2')               # 홈 I2
+    r.idle_return_sec = 0.6
+    home, p1 = _goal(r.points[r.home_name]), _goal(r.points['P1'])
+    assert home != p1
+    run_task(env, r, r._run_goto, ['P1'])
+    assert r.navigator.goals == [p1]                   # 홈으로 안 감
+    assert r.statuses[-1] == ('IDLE_WAIT', '0.6') and r._idle_deadline is not None
+    assert env.pump(lambda: (r._idle_tick(), r.statuses[-1] == ('DONE', 'returned home'))[1], 10)
+    assert r.navigator.goals[-1] == home and r._idle_deadline is None
+    assert 'RETURNING' in states(r)
+
+
+def test_new_command_cancels_idle_timer(env):
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 5
+    run_task(env, r, r._run_goto, ['P1'])
+    assert r._idle_deadline is not None
+    r._start_task(r._run_goto, ['P1'])
+    assert r._idle_deadline is None                    # 새 명령 수락 즉시 타이머 취소
+    assert env.pump(lambda: not r._running, 10)
+
+
+def test_idle_return_disabled_when_zero(env):
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_goto, ['P1'])
+    assert r._idle_deadline is None and 'IDLE_WAIT' not in states(r)
+    r._idle_tick()
     assert not r._running
+
+
+def test_no_idle_timer_when_already_home_and_no_zone(env):
+    r = make_robot(env, 2, 'pinky2')
+    run_task(env, r, r._run_goto, [r.home_name])
+    assert r._idle_deadline is None
+
+
+def test_zone_keeps_token_and_does_not_go_home(env):
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_zone, 'ZA')
+    assert r._held_zone == 'A' and ('HOLDING_ZONE', 'A') in r.statuses
+    assert env.pump(lambda: env.status['A'] == 'occupied_by:pinky2', 4)
+    assert r.navigator.goals[-1] == _goal(r.points['ZA'])         # 홈 복귀 없음
+    # 같은 구역 zone 재명령: 토큰 재요청 없이 바로 이동 (ENTRY 를 거치지 않는다)
+    n = len(r.navigator.goals)
+    run_task(env, r, r._run_zone, 'ZA')
+    assert r.navigator.goals[n:] == [_goal(r.points['ZA'])]
+    assert env.status['A'] == 'occupied_by:pinky2'
+    run_task(env, r, r._run_leave)                                # 정리
+    assert env.pump(lambda: env.status['A'] == 'free', 4)
+
+
+def test_leave_goes_to_exit_returns_token_and_stays(env):
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_zone, 'ZA')
+    run_task(env, r, r._run_leave)
+    assert r.navigator.goals[-1] == _goal(r.points['ZA_EXIT']) and r._held_zone is None
+    assert r.statuses[-1] == ('DONE', 'left zone')
+    assert env.pump(lambda: env.status['A'] == 'free', 4)
+    assert _goal(r.points[r.home_name]) not in r.navigator.goals[-1:]
+
+
+def test_goto_after_zone_exits_zone_first(env):
+    """구역 안에서 goto 를 받으면 EXIT 도착 -> 반납 -> 그다음 이동 순서."""
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_zone, 'ZA')
+    run_task(env, r, r._run_goto, ['P1'])
+    g = r.navigator.goals
+    assert g[-2:] == [_goal(r.points['ZA_EXIT']), _goal(r.points['P1'])], g
+    assert r._held_zone is None
+    assert env.pump(lambda: env.status['A'] == 'free', 4)
+
+
+def test_idle_expiry_in_zone_exits_returns_token_then_home(env):
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0.6
+    run_task(env, r, r._run_zone, 'ZA')
+    assert ('IDLE_WAIT', '0.6') in r.statuses
+    assert env.pump(lambda: (r._idle_tick(), r.statuses[-1] == ('DONE', 'returned home'))[1], 12)
+    g = r.navigator.goals
+    assert g[-2:] == [_goal(r.points['ZA_EXIT']), _goal(r.points[r.home_name])], g
+    assert r._held_zone is None
+    assert env.pump(lambda: env.status['A'] == 'free', 4)
+
+
+def test_leave_failure_keeps_token_and_can_retry(env):
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    run_task(env, r, r._run_zone, 'ZA')
+    r.navigator.fail_all = True                       # EXIT 에 도착하지 못함
+    run_task(env, r, r._run_leave, timeout=20)
+    assert r._held_zone == 'A' and r.statuses[-1][0] == 'FAILED'
+    assert not env.pump(lambda: env.status['A'] == 'free', 1.5)    # 도착 전에는 반납하지 않는다
+    r.navigator.fail_all = False
+    run_task(env, r, r._run_leave)                    # 다시 leave 하면 반납
+    assert r._held_zone is None
+    assert env.pump(lambda: env.status['A'] == 'free', 4)
+
+
+def test_zone_does_not_start_before_grant(env):
+    """구역 점유 중이면 grant 전에는 구역 지점(ZA)으로 출발하지 않고 슬롯에서 기다린다."""
+    occ = occupy(env, 'pinky1', 'A')
+    r = make_robot(env, 2, 'pinky2')
+    r.idle_return_sec = 0
+    r._start_task(r._run_zone, 'ZA')
+    p2 = _goal(r.points['ZA'])
+    assert env.pump(lambda: 'QUEUEING' in states(r), 10)
+    assert p2 not in r.navigator.goals
+    occ.notify_exit()
+    assert env.pump(lambda: not r._running, 15)
+    assert r.navigator.goals[-1] == p2 and r._held_zone == 'A'
+    r.gate.notify_exit()
+    assert env.pump(lambda: env.status['A'] == 'free', 4)

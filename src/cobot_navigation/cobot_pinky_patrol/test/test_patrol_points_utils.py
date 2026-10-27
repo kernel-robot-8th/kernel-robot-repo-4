@@ -8,14 +8,16 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cobot_pinky_patrol.patrol_points_utils import (  # noqa: E402,I100,I101
-    REQUIRED_POINTS, PointsConfigError, entry_name, exit_name, parse_point, parse_points,
+    REQUIRED_POINTS, PointsConfigError, entry_name, exit_name, general_names, optional_general_names,
+    parse_point, parse_points,
     parse_zone_names, parse_zone_points, required_names, validate_points, validate_zones, zone_of)
 
 ZONES = ('A', 'B')
 
 
 def _full():
-    return {n: (0.0, 0.0) for n in required_names(ZONES)}
+    names = list(required_names(ZONES)) + ['I1', 'ZA', 'ZB', 'ZC', 'ZD']   # 홈과 구역 지점은 YAML 이 이름을 정한다
+    return {n: (0.0, 0.0) for n in names}
 
 
 def test_parse_point_two_and_three_values():
@@ -59,16 +61,16 @@ def test_parse_points_converts_all():
 
 def test_validate_ok():
     """필수 지점과 홈이 모두 있으면 통과한다."""
-    validate_points(_full(), required_names(ZONES), 'P7')
+    validate_points(_full(), required_names(ZONES), 'I1')
 
 
 def test_validate_reports_all_missing_names_at_once():
     """누락된 지점 이름을 한 번에 모두 알려 준다."""
     pts = _full()
-    del pts['ZONE_B_ENTRY'], pts['P4']
+    del pts['WB'], pts['P2']
     with pytest.raises(PointsConfigError) as e:
         validate_points(pts, required_names(ZONES), 'P1')
-    assert 'ZONE_B_ENTRY' in str(e.value) and 'P4' in str(e.value)
+    assert 'WB' in str(e.value) and 'P2' in str(e.value)
 
 
 @pytest.mark.parametrize('home', ['', None, 'P99'])
@@ -81,10 +83,10 @@ def test_validate_home_missing_or_unknown(home):
 # ---------------- 위험구역 ----------------
 def test_entry_exit_names_and_required_names():
     """구역별 ENTRY/EXIT 이름 규칙과 필수 이름 목록."""
-    assert entry_name('A') == 'ZONE_A_ENTRY' and exit_name('B') == 'ZONE_B_EXIT'
+    assert entry_name('A') == 'WA' and exit_name('B') == 'ZB_EXIT'
     names = required_names(('A', 'B'))
     assert set(REQUIRED_POINTS) <= set(names)
-    assert {'ZONE_A_ENTRY', 'ZONE_A_EXIT', 'ZONE_B_ENTRY', 'ZONE_B_EXIT'} <= set(names)
+    assert {'WA', 'ZA_EXIT', 'WB', 'ZB_EXIT'} <= set(names)
     assert required_names(()) == list(REQUIRED_POINTS)
 
 
@@ -102,26 +104,26 @@ def test_parse_zone_names_ok():
 
 def test_parse_zone_points():
     """구역별 지점 이름을 튜플로 바꾸고 리스트가 아니거나 문자열이 아닌 값은 거부한다."""
-    assert parse_zone_points({'A': ['P3', 'P4'], 'B': ['P5']}) == {'A': ('P3', 'P4'), 'B': ('P5',)}
+    assert parse_zone_points({'A': ['ZA', 'ZB'], 'B': ['ZC']}) == {'A': ('ZA', 'ZB'), 'B': ('ZC',)}
     with pytest.raises(PointsConfigError, match='zone_points.A'):
-        parse_zone_points({'A': 'P3'})
+        parse_zone_points({'A': 'ZA'})
     with pytest.raises(PointsConfigError, match='zone_points.A'):
         parse_zone_points({'A': [3]})
 
 
 def test_validate_zones_ok_and_zone_of():
     """정상 구역 설정은 통과하고 zone_of 가 소속 구역(구역 밖은 None)을 돌려준다."""
-    zp = {'A': ('P3', 'P4'), 'B': ('P5', 'P6')}
-    validate_zones(zp, _full(), 'P7')
-    assert zone_of(zp, 'P4') == 'A' and zone_of(zp, 'P6') == 'B'
+    zp = {'A': ('ZA', 'ZB'), 'B': ('ZC', 'ZD')}
+    validate_zones(zp, _full(), 'I1')
+    assert zone_of(zp, 'ZB') == 'A' and zone_of(zp, 'ZD') == 'B'
     assert zone_of(zp, 'P1') is None
 
 
 def test_validate_zones_reports_every_problem():
     """소속 지점 없음·points 에 없는 지점·중복 소속·홈이 구역 안을 한꺼번에 알려 준다."""
-    zp = {'A': ('P3', 'P99'), 'B': ('P3',), 'C': ()}
+    zp = {'A': ('ZA', 'P99'), 'B': ('ZA',), 'C': ()}
     with pytest.raises(PointsConfigError) as e:
-        validate_zones(zp, _full(), 'P3')
+        validate_zones(zp, _full(), 'ZA')
     msg = str(e.value)
     assert 'P99' in msg and '동시에 속' in msg and 'zone_points.C' in msg and 'home_name' in msg
 
@@ -129,4 +131,11 @@ def test_validate_zones_reports_every_problem():
 def test_validate_zones_entry_exit_cannot_be_zone_members():
     """ENTRY/EXIT 지점은 구역 소속 지점으로 쓸 수 없다."""
     with pytest.raises(PointsConfigError, match='진입/출구'):
-        validate_zones({'A': ('ZONE_A_ENTRY',)}, _full(), 'P7')
+        validate_zones({'A': ('WA',)}, _full(), 'I1')
+
+
+def test_general_names():
+    """일반 지점은 P1~P10 만, 번호순으로 돌려준다 (P11·구역·홈 이름은 제외)."""
+    assert optional_general_names() == ['P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']
+    pts = {'P10': 1, 'P2': 1, 'P1': 1, 'P11': 1, 'P0': 1, 'ZA': 1, 'I1': 1, 'WA': 1}
+    assert general_names(pts) == ['P1', 'P2', 'P10']
