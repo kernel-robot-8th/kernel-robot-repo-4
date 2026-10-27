@@ -74,18 +74,20 @@ ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
 `config/zone_params.yaml` 의 `robot_ids` 는 순찰 노드의 `robot_id` 와 같아야 합니다.
 
 ### 4. 각 로봇: 순찰 노드
+좌표·홈 지점은 `config/pinkyN.yaml` 에서 읽으므로 **launch 로 실행**합니다. (YAML 없이 `ros2 run` 만 하면 필수 지점이 비어 노드가 시작을 거부합니다. `ros2 run` 을 쓰려면 `--ros-args --params-file <config/pinkyN.yaml>` 를 붙입니다.)
+
 ```bash
 # pinky1
 export ROS_DOMAIN_ID=10
-ros2 run cobot_pinky_patrol pinky_patrol_node_pinky1 --ros-args -p robot_id:=pinky1
+ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
 
 # pinky2
 export ROS_DOMAIN_ID=20
-ros2 run cobot_pinky_patrol pinky_patrol_node_pinky2 --ros-args -p robot_id:=pinky2
+ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
 
 # pinky3
 export ROS_DOMAIN_ID=30
-ros2 run cobot_pinky_patrol pinky_patrol_node_pinky3 --ros-args -p robot_id:=pinky3
+ros2 launch cobot_pinky_patrol pinky3_patrol.launch.xml
 ```
 
 ### 5. 관제 PC: 순찰 명령
@@ -93,10 +95,10 @@ ros2 run cobot_pinky_patrol pinky_patrol_node_pinky3 --ros-args -p robot_id:=pin
 ```bash
 CLIENT=src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py
 python3 $CLIENT pinky1 monitor          # 상태 출력 (별도 터미널, Ctrl+C 종료)
-python3 $CLIENT pinky1 start            # 전체 순찰
-python3 $CLIENT pinky1 goto P2 P3 P6    # 지점 이동 후 홈 복귀
+python3 $CLIENT pinky1 start            # (v1.1.0 비활성) FAILED: start disabled 응답
+python3 $CLIENT pinky1 goto P2 P3 P4    # 지점 이동 후 홈 복귀
 python3 $CLIENT pinky1 stop             # 중지
-ros2 topic echo /zone_manager/status    # free | occupied_by:<robot_id>
+ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<robot_id>  (구역 A, B 각각)
 ```
 
 ## 보조 도구
@@ -127,7 +129,8 @@ cd src/cobot_navigation/cobot_zone_traffic_control && python3 -m pytest test/
 
 ## 주의
 
-- 순찰 명령(`start`/`goto`)은 실제 로봇을 구동합니다. 실행 전에 주변 안전을 확인합니다.
+- 순찰 명령(`goto`)은 실제 로봇을 구동합니다. (`start` 순회는 v1.1.0 에서 비활성) 실행 전에 주변 안전을 확인합니다.
+- 위험구역은 2개(`A`, `B`)이며 구역마다 토큰·대기열이 따로입니다. 매니저와 로봇 3대의 메시지 형식(맨 앞에 구역 이름)이 바뀌었으므로 **관제 PC 매니저 → 로봇 3대 순서로 함께 재배포**해야 하고, 구형 노드와는 섞어 쓸 수 없습니다.  구역 소속은 A = `P2` `P3`, B = `P4` 입니다 (홈 pinky1 = `P1`). `queue_back_dir` 과 pinky2·3 의 P 좌표는 실측 확인이 남아 있습니다.
 - 같은 구역을 쓰는 로봇은 모두 같은 대기열 방식의 순찰 노드를 써야 합니다. 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.
 - 개발·시뮬레이션은 `ROS_DOMAIN_ID=100`, 격리 시험은 77을 씁니다. 로봇 도메인 10/20/30 에서는 시험용 노드를 띄우지 않습니다.
 - 브릿지 설정(토픽 추가·수정)은 `cobot_domain_bridge/config/pinky_bridge_pinky{1,2,3}.yaml` 세 파일을 같이 고칩니다.

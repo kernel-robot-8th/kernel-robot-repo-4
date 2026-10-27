@@ -51,8 +51,8 @@ start pinky_map_viewer.html         # Windows (cmd)
    P1 — map: (0.650, 0.150) m   px: (82, 14)
    ```
 
-3. 기록된 `map` 좌표(m)를 순찰 노드(`cobot_pinky_patrol`)의 지점 좌표 `POINTS`로 옮겨 적습니다.
-   - 지점 좌표는 노드 파일의 클래스 상수라 코드를 수정해야 바뀝니다.
+3. 기록된 `map` 좌표(m)를 순찰 노드(`cobot_pinky_patrol`)의 `config/pinkyN.yaml` 의 `points` 에 옮겨 적습니다.
+   - 지점 좌표는 코드가 아니라 YAML 파라미터이므로 코드 수정 없이 바뀝니다. 노드를 다시 실행하면 반영됩니다.
 4. 지도에 표시된 `P1`, `P2` 같은 번호는 뷰어에서 클릭한 순서일 뿐이고, 순찰 노드의 지점 이름(P1~P7)과는 관계없습니다.
 
 ## 프로젝트 구조
