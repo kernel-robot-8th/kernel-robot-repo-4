@@ -1,7 +1,7 @@
 {
-  "status": "paused",
-  "phase": "inference_pause",
-  "pid": 3502175,
+  "status": "running",
+  "phase": "validation",
+  "pid": 2077647,
   "started_at": "2026-10-27T01:19:57.028689+00:00",
   "deadline_epoch": null,
   "time_limit": null,
@@ -12,11 +12,9 @@
   "report_path": "lerobot044_v2_15k/report.html",
   "current_job": "v2_standard_current_b16_c32",
   "failures": [],
-  "publication": "pushed",
-  "completed_jobs": 12,
-  "completed_comparisons": 36,
-  "updated_at": "2026-10-27T10:18:20.962322+00:00",
-  "current_step": 15000,
-  "paused_at": "2026-10-27T10:18:20.960993+00:00",
-  "pause_reason": "사용자 요청: 실물 추론 점검을 위해 GPU 해제. systemctl start로 재개."
+  "publication": "pending",
+  "completed_jobs": 13,
+  "completed_comparisons": 39,
+  "updated_at": "2026-10-27T13:42:29.834950+00:00",
+  "current_step": 15000
 }
