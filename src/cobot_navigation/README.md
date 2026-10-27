@@ -103,12 +103,33 @@ python3 $CLIENT pinky1 home             # 초기 위치(I1)로 복귀 (구역 �
 python3 $CLIENT pinky1 stop             # 중지
 ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<robot_id>  (구역 A, B, C 각각)
 ```
-로봇 없이 구역을 점유 상태로 만들어 대기열을 시험하려면 가짜 `robot_id` 로 `request_entry` 를 보냅니다 (관제 PC, `ROS_DOMAIN_ID=100`).
-```bash
-ros2 topic pub --times 3 --rate 1 /zone_manager/request_entry std_msgs/msg/String "{data: 'A:manual:1'}"   # 구역 A 점유
-ros2 topic pub --once /zone_manager/notify_exit std_msgs/msg/String "{data: 'A:manual'}"                   # 해제 (240초 뒤 자동 해제)
-```
-자세한 설명은 [`cobot_zone_traffic_control/README.md`](cobot_zone_traffic_control/README.md#구역-수동-점유--해제-시험용) 를 참고하세요.
+로봇 없이 구역을 점유 상태로 만들어 대기열을 시험하는 방법은 아래 [가상 점유로 대기열 시험](#가상-점유로-대기열-시험) 을 봅니다.
+
+## 가상 점유로 대기열 시험
+
+로봇 없이 가짜 `robot_id`(`manual`)로 구역을 점유해 두고, 실제 로봇을 대기열에 세우는 시험입니다.
+관제 PC에서 `ROS_DOMAIN_ID=100` 으로 실행하며, **로봇이 실제로 움직이므로 주변을 확인**한 뒤 진행합니다.
+
+1. **매니저를 시험용으로 실행**: 기본 `max_hold_sec`(240초)이면 `manual` 이 `notify_exit` 를 보내지 않아 강제 해제되고, 줄 선 로봇이 점유를 가져갑니다. 시험 중에는 값을 올려 띄웁니다.
+   ```bash
+   export ROS_DOMAIN_ID=100
+   ros2 run cobot_zone_traffic_control zone_manager_node --ros-args \
+     --params-file src/cobot_navigation/cobot_zone_traffic_control/config/zone_params.yaml -p max_hold_sec:=1800.0
+   ```
+2. **구역 점유** (한 번만 보내면 유실될 수 있어 3회 반복) 후 확인:
+   ```bash
+   ros2 topic pub --times 3 --rate 1 /zone_manager/request_entry std_msgs/msg/String "{data: 'A:manual:1'}"
+   ros2 topic echo /zone_manager/status        # A:occupied_by:manual
+   ```
+3. **로봇을 대기열에 세우기**: `python3 $CLIENT pinky1 zone ZA` → `QUEUEING`, 앵커 `(0.1, 0.6)` 에서 정지. 두 번째 대기자는 **다른 로봇**(예: pinky2)에 보냅니다. 같은 로봇에 작업 중 보낸 명령은 무시되므로 먼저 `stop` 을 보냅니다.
+4. **점유 해제**: 대기 선두가 곧바로 허가를 받고 구역 지점으로 이동합니다.
+   ```bash
+   ros2 topic pub --once /zone_manager/notify_exit std_msgs/msg/String "{data: 'A:manual'}"
+   ```
+   이후 `python3 $CLIENT pinky1 leave`(또는 `home`) 로 토큰을 반납합니다.
+5. **구역 B**: `B:manual:1` / `zone ZB` / `notify_exit B:manual` 로 같은 순서를 반복합니다. A·B 는 대기 앵커가 같아서 두 구역에 대기자를 동시에 만들지 않습니다.
+
+주의: 매니저가 떠 있어야 합니다(없으면 로봇이 응답을 기다리며 제자리에 있음). 같은 `notify_exit` 를 반복해도 "현재 점유자는 None" 경고만 남습니다. 자세한 설명은 [`cobot_zone_traffic_control/README.md`](cobot_zone_traffic_control/README.md#구역-수동-점유--해제-시험용) 를 참고하세요.
 
 ## 보조 도구
 
