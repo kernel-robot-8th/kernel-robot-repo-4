@@ -113,6 +113,14 @@ def test_launcher_uses_record_for_044_and_never_uploads_evaluation_recordings(tm
     assert set(cameras) == {"top", "wrist"}
     assert isinstance(cameras["top"]["fps"], int)
     assert target.name.startswith("trial_s1000_")
+    config = module.read(path / "config.json")
+    config["input_features"]["observation.state"]["shape"] = [7]
+    (path / "config.json").write_text(json.dumps(config))
+    args.init_pose = False
+    current_command, _ = module.launch_command(args, path)
+    assert current_command[1].endswith("act044_record.py")
+    assert "--robot.type=omx_follower_current" in current_command
+    assert not any(a.startswith("--init-pose-file") for a in current_command)
 
 
 def test_launcher_dry_run_never_executes_or_connects_to_hardware(tmp_path, monkeypatch, capsys):

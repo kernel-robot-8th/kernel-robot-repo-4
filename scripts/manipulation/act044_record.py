@@ -19,6 +19,7 @@ from importlib.metadata import version
 import sys
 
 from act044_init import install_init_pose
+import act044_current_robot  # noqa: F401  Register the 7-input robot before upstream argument parsing.
 
 
 def main():
@@ -26,10 +27,11 @@ def main():
     if version("lerobot") != "0.4.4":
         raise ValueError("This entry point requires LeRobot 0.4.4")
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--init-pose-file", required=True)
+    parser.add_argument("--init-pose-file")
     parser.add_argument("--init-pose-duration", type=float, default=3.0)
     args, remaining = parser.parse_known_args()
-    install_init_pose(args.init_pose_file, args.init_pose_duration)
+    if args.init_pose_file:
+        install_init_pose(args.init_pose_file, args.init_pose_duration)
     sys.argv = [sys.argv[0], *remaining]
     from lerobot.scripts.lerobot_record import main as record_main
 

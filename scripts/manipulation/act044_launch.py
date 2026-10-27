@@ -61,6 +61,12 @@ def choose(run, selector, step=None, latest=False):
     plan = read(run / "plan.json")
     if read(run / "provenance.json")["lerobot_version"] != "0.4.4":
         raise ValueError("이 실행 폴더는 LeRobot 0.4.4 학습 결과가 아닙니다.")
+    if selector.isdigit() and int(selector) > len(plan["trials"]) and (run / "previous_run.json").exists():
+        previous_index = int(selector) - len(plan["trials"])
+        if not 1 <= previous_index <= 3:
+            raise ValueError("기존 40k 비교 모델 번호는 26~28입니다.")
+        previous = Path(read(run / "previous_run.json")["run"])
+        return choose(previous, str(previous_index), step, latest)
     if selector in {"standard", "light"}:
         measurements = []
         for job in plan["trials"]:
@@ -108,12 +114,21 @@ def list_models(run):
         ready = complete_checkpoints(job)
         stage = f"최신 {int(ready[-1].parent.name):,} step" if ready else "저장본 대기"
         architecture = "일반형" if cfg["architecture"] == "standard" else "경량형"
+        current = "전류 포함" if cfg.get("current", False) else "전류 없음"
         print(
-            f"{index:2d}) {architecture} | chunk {cfg['chunk']:3d} | lr {cfg['lr']:g} | "
+            f"{index:2d}) {architecture} | {current} | 배치 {cfg.get('batch_size', 8)} | "
+            f"chunk {cfg['chunk']:3d} | lr {cfg['lr']:g} | "
             f"감쇠 {cfg['weight_decay']:g} | {stage}\n    {cfg['name']}"
         )
     print("\n모델 폴더:", run / "jobs")
-    print("번호는 고정입니다. 예: run_act044.sh run 1 --step 20000 --duration 10")
+    if (run / "previous_run.json").exists():
+        previous = Path(read(run / "previous_run.json")["run"])
+        for offset, cfg in enumerate(read(previous / "plan.json")["trials"][:3], 1):
+            print(
+                f"{len(read(run / 'plan.json')['trials']) + offset:2d}) 기존 40k 일반형 · 전류 없음 · "
+                f"배치 {cfg['batch_size']} · chunk {cfg['chunk']}\n    {cfg['name']}"
+            )
+    print("번호는 고정입니다. --step 생략 시 해당 모델의 검증 최저 MAE 저장본을 선택합니다.")
 
 
 def check_model(checkpoint):
@@ -146,8 +161,10 @@ def launch_command(args, checkpoint):
     """Build 0.4.4 lerobot-record policy inference with local evaluation recording only."""
     cfg = read(checkpoint / "config.json")
     features = cfg["input_features"]
-    if cfg["type"] != "act" or features["observation.state"]["shape"] != [6]:
-        raise ValueError("이 실행기는 관절 6개를 사용하는 ACT용입니다.")
+    state_shape = features["observation.state"]["shape"]
+    if cfg["type"] != "act" or state_shape not in ([6], [7]):
+        raise ValueError("ACT의 관절 6개 또는 관절6+그리퍼전류 입력만 지원합니다.")
+    current = state_shape == [7]
     cameras = {}
     for name, device, fps, fourcc in [
         ("top", args.top, args.top_fps, os.environ.get("FRONT_CAM_FOURCC", "")),
@@ -176,7 +193,7 @@ def launch_command(args, checkpoint):
         f"--policy.n_action_steps={args.action_steps}",
         "--policy.temporal_ensemble_coeff="
         + (str(args.temporal_ensemble_coeff) if args.temporal_ensemble else "null"),
-        "--robot.type=omx_follower",
+        "--robot.type=" + ("omx_follower_current" if current else "omx_follower"),
         f"--robot.id={args.robot_id}",
         f"--robot.port={args.port}",
         "--robot.use_degrees=false",
@@ -195,11 +212,16 @@ def launch_command(args, checkpoint):
         "--play_sounds=false",
         f"--display_data={str(args.display).lower()}",
     ]
-    if args.init_pose:
+    if args.init_pose or current:
+        extra = []
+        if args.init_pose:
+            extra = [
+                f"--init-pose-file={args.init_pose_file}",
+                f"--init-pose-duration={args.init_pose_duration}",
+            ]
         command[1:3] = [
             str(Path(__file__).with_name("act044_record.py")),
-            f"--init-pose-file={args.init_pose_file}",
-            f"--init-pose-duration={args.init_pose_duration}",
+            *extra,
         ]
     return command, target
 

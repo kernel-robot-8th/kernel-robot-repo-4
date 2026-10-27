@@ -80,8 +80,17 @@ def snapshot(run):
     ]
     previous_path = run / "discord_notification.json"
     previous = read_json(previous_path) if previous_path.exists() else {}
-    stalled = previous.get("progress_marker") == marker and current is not None
-    label = "종료" if terminal else "진행 중" if supervisor_alive else "감독 프로세스 중단 확인 필요"
+    paused = state["status"] == "paused"
+    stalled = previous.get("progress_marker") == marker and current is not None and not paused
+    label = (
+        "사용자 요청으로 일시정지"
+        if paused
+        else "종료"
+        if terminal
+        else "진행 중"
+        if supervisor_alive
+        else "감독 프로세스 중단 확인 필요"
+    )
     lines = [
         f"**OMX {'ACT 0.4.4 학습·검증' if act044 else 'MuJoCo 비교' if simulation else '재학습'} · {label}**",
         f"확인 시각: {now.astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}",
