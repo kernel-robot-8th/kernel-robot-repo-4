@@ -5,7 +5,7 @@ import sys
 import time
 
 
-ACTIONS = 'start|stop|emergency_stop|monitor|goto|zone|leave'
+ACTIONS = 'start|stop|emergency_stop|monitor|goto|zone|leave|home'
 
 
 def build_command(action, points):
@@ -25,10 +25,10 @@ def build_command(action, points):
         if len(pts) != 1:
             return None, 'zone 은 구역 지점 1개가 필요합니다. 예: pinky1 zone ZA'
         return 'zone:' + pts[0], None
-    if action == 'leave':
+    if action in ('leave', 'home'):
         if pts:
-            return None, 'leave 는 포인트를 받지 않습니다. 예: pinky1 leave'
-        return 'leave', None
+            return None, f'{action} 는 포인트를 받지 않습니다. 예: pinky1 {action}'
+        return action, None
     return None, '알 수 없는 명령: ' + action
 
 
@@ -84,6 +84,7 @@ def main():
         print('예시  : python3 pinky_control_client.py pinky1 goto P1 P2     (구역 밖 지점으로 이동, 홈으로 가지 않음)')
         print('        python3 pinky_control_client.py pinky1 zone ZA        (구역 지점으로 이동, 토큰 유지)')
         print('        python3 pinky_control_client.py pinky1 leave          (구역 EXIT 로 나가 토큰 반납)')
+        print('        python3 pinky_control_client.py pinky1 home           (초기 위치 I<n> 으로 복귀)')
         print('        python3 pinky_control_client.py pinky1 emergency_stop')
         return
 

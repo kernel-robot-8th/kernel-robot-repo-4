@@ -7,6 +7,7 @@
 > | `goto P1 P2` | `goto:P1,P2` | 구역 밖 지점으로 이동. 도착 후 홈으로 가지 않는다 |
 > | `zone ZA` | `zone:ZA` | 구역 지점 1개로 이동. 토큰을 받은 뒤 출발하고 도착 후 유지한다 |
 > | `leave` | `leave` | 구역 EXIT 로 나가 도착한 뒤 토큰 반납 |
+> | `home` | `home` | 초기 위치(I1/I2/I3)로 복귀. 구역 안이면 EXIT 로 나와 토큰 반납한 뒤 이동한다 |
 > | `stop` / `emergency_stop` | 그대로 | 중지 (stop = EXIT 로 나와 반납, emergency_stop = 토큰 유지) |
 > | `monitor` | - | 상태 출력 |
 >
