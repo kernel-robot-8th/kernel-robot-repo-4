@@ -34,14 +34,17 @@ def plan():
                             "dim_feedforward": feedforward,
                             "n_encoder_layers": layers,
                             "n_vae_encoder_layers": layers,
-                            "steps": 40000,
-                            "comparison_steps": [10000, 20000, 40000],
+                            "steps": 15000,
+                            "comparison_steps": [5000, 10000, 15000],
                             "seed": 17,
                             "lr": 1e-5,
                             "backbone_lr": 1e-5,
                             "weight_decay": 1e-4,
                             "dropout": 0.1,
                             "save_freq": 1000,
+                            "gpu_acceleration": "bf16_tf32_cudnn",
+                            "use_amp": True,
+                            "num_workers": 4,
                             "split_plan": SPLIT,
                         }
                     )
@@ -57,8 +60,10 @@ def plan():
     return {
         "trials": trials,
         "split_plan": SPLIT,
-        "expected_jobs": 25,
-        "expected_comparison_cells": 75,
+        "new_jobs": 25,
+        "inherited_jobs": 3,
+        "expected_jobs": 28,
+        "expected_comparison_cells": 84,
         "lerobot_version": "0.4.4",
         "time_limit": None,
     }

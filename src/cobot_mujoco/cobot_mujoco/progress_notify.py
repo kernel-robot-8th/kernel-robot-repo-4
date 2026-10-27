@@ -65,6 +65,9 @@ def snapshot(run):
             "completed": sum(r["status"] == "completed" for r in results),
         }
     now = datetime.now(timezone.utc)
+    inherited = state.get("inherited_jobs", 0)
+    counts["jobs"]["completed"] += inherited
+    counts["jobs"]["finished"] += inherited
     elapsed = (now - datetime.fromisoformat(state["started_at"])).total_seconds()
     supervisor_alive = alive(state.get("pid"))
     terminal = state["status"] in TERMINAL and not supervisor_alive

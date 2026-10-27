@@ -1,0 +1,19 @@
+{
+  "status": "running",
+  "phase": "training",
+  "pid": 1851985,
+  "started_at": "2026-10-27T01:19:57.028689+00:00",
+  "deadline_epoch": null,
+  "time_limit": null,
+  "lerobot_version": "0.4.4",
+  "expected_jobs": 28,
+  "inherited_jobs": 3,
+  "expected_comparison_cells": 84,
+  "report_path": "lerobot044_v2_15k/report.html",
+  "current_job": "v2_standard_position_b8_c32",
+  "failures": [],
+  "publication": "pending",
+  "completed_jobs": 3,
+  "completed_comparisons": 9,
+  "updated_at": "2026-10-27T01:21:12.152724+00:00"
+}

@@ -41,7 +41,7 @@ def prune(upstream):
     ready = checkpoints(upstream)
     if not ready:
         return
-    keep = {10000, 20000, 40000, int(ready[-1].parent.name)}
+    keep = {5000, 10000, 15000, int(ready[-1].parent.name)}
     for path in ready:
         if int(path.parent.name) not in keep:
             shutil.rmtree(path.parent)
@@ -50,12 +50,17 @@ def prune(upstream):
 def render(run, state):
     """Publish a live, explicit comparison table without claiming robot success."""
     run = Path(run)
-    root = REPOSITORY / "docs/mujoco_validation/lerobot044_v2"
+    root = REPOSITORY / "docs/mujoco_validation/lerobot044_v2_15k"
     root.mkdir(parents=True, exist_ok=True)
     measurements, results = [], []
-    for job in (run / "jobs").glob("*"):
+    for job in [*(run / "jobs").glob("*"), *(run / "legacy_jobs").glob("*")]:
         if (job / "measurements.json").exists():
-            measurements.extend(read_json(job / "measurements.json"))
+            measurements.extend(
+                [
+                    {**row, "cohort": "기존 AMP OFF" if job.parent.name == "legacy_jobs" else "신규 BF16"}
+                    for row in read_json(job / "measurements.json")
+                ]
+            )
         if (job / "result.json").exists():
             results.append(read_json(job / "result.json"))
     state.update(
@@ -83,7 +88,7 @@ def render(run, state):
         grip = sum(v["gripper_mae"] for v in metrics) / len(metrics)
         missed = sum(v["missed_open"] for v in metrics)
         rows.append(
-            f"<tr><td>{html.escape(cfg['name'])}</td><td>{row['step']:,}</td>"
+            f"<tr><td>{row['cohort']} · {html.escape(cfg['name'])}</td><td>{row['step']:,}</td>"
             f"<td>{val['control_mae']:.4f}</td><td>{grip:.4f}</td><td>{missed}</td>"
             f"<td>{row['gap']:.4f}</td></tr>"
         )
@@ -91,11 +96,14 @@ def render(run, state):
 <style>body{{font:16px/1.7 system-ui;margin:40px;color:#182236}}
 table{{border-collapse:collapse}}td,th{{padding:10px;border:1px solid #ccd3df}}
 th{{background:#edf2fa}}</style>
-<h1>1026 JiHyeok v2 · ACT 0.4.4 재학습</h1>
+<h1>1026 JiHyeok v2 · ACT 0.4.4 · 5k/10k/15k 비교</h1>
+<p>이전 40k 실행 결과는 <a href="../lerobot044_v2/report.html">별도 보고서</a>에 보존했다.
+이전 보관 정책상 5k/15k 파일이 없어 같은 데이터·설정으로 새 학습을 실행한다.</p>
 <p>갱신 {state["updated_at"]} · 상태 {state["status"]} · 현재 {state.get("current_job") or "없음"}</p>
-<p>학습 완료 {state["completed_jobs"]}/25 · 비교 {len(measurements)}/75 · 시간 제한 없음</p>
+<p>학습 완료 {state["completed_jobs"]}/28 · 비교 {len(measurements)}/84 · 시간 제한 없음</p>
+<p>기존 완료 3개(10k/20k/40k 9개 저장본) + 신규 25개(5k/10k/15k 75개 저장본).</p>
 <p>구조 일반형·경량형 × 전류 미포함·그리퍼 전류 포함 × 배치 8·16 × chunk 32·64·100.
-각 실행 10,000·20,000·40,000 step 비교. 같은 step에서 배치 16은 배치 8보다 샘플 노출이 2배다.</p>
+각 실행 5,000·10,000·15,000 step 비교. 같은 step에서 배치 16은 배치 8보다 샘플 노출이 2배다.</p>
 <p>추가 마지막 실험: 일반형·전류 포함·chunk32·배치32. 메모리 부족 시 배치를 바꿔 실행하지 않고 실패를 기록한다.</p>
 <p>원본 성공 9회 / 5,671프레임. 학습 [0,1,3,4,5,7] 3,820프레임,
 검증 [2,6] 1,235프레임, 평가용 보류 [8] 616프레임. 전류는 raw signed 그리퍼 Present_Current 1개를 상태 뒤에 추가.</p>
@@ -104,7 +112,10 @@ th{{background:#edf2fa}}</style>
 기록 영상 기반 평가이며 실물 성공률이 아니다. 보류 에피소드는 선택 확정 후 한 번 평가한다.</p>
 <p>주 학습률/백본 학습률 1e-5, 감쇠 1e-4, dropout 0.1, seed 17, 원본 영상 640×480 두 개.
 일반형 512/3200/4층, 경량형 128/512/2층. 증강 OFF. Init 이동·로봇 구동 없음.</p>
-<p>매 1,000 step 저장하되 디스크를 위해 비교 10k/20k/40k와 최신 복구 저장본만 보존한다.
+<p>신규 학습 가속: Accelerate BF16 AMP, TF32 matmul/cuDNN, cuDNN benchmark,
+GPU pinned memory, 데이터 로더 worker 4개·기본 prefetch 2. TF32/benchmark는 이전에도 원본에서 켜져 있었다.
+기존 3개는 AMP OFF이므로 step 외 정밀도·worker 조건 차이도 있다. 평가는 양쪽 모두 FP32.</p>
+<p>매 1,000 step 저장하되 디스크를 위해 비교 5k/10k/15k와 최신 복구 저장본만 보존한다.
 12시간 및 작업별 시간 종료 없음. STOP 파일은 사용자의 수동 중지에만 사용한다.</p>
 <table><tr><th>학습</th><th>step</th><th>검증 앞10 MAE</th><th>앙상블 그리퍼 MAE</th>
 <th>열림 누락</th><th>검증−학습 MAE</th></tr>{"".join(rows)}</table>
@@ -116,7 +127,13 @@ th{{background:#edf2fa}}</style>
 def training_command(root, output, cfg):
     """Use the original 0.4.4 trainer with an explicit local data identity."""
     args = command(root, output, cfg)
-    return ["--dataset.repo_id=local/omx1026_v2" if a.startswith("--dataset.repo_id=") else a for a in args]
+    args = ["--dataset.repo_id=local/omx1026_v2" if a.startswith("--dataset.repo_id=") else a for a in args]
+    args = [
+        f"--num_workers={cfg.get('num_workers', 4)}" if a.startswith("--num_workers=") else a for a in args
+    ]
+    args += ["--policy.use_amp=true"]
+    args[2] = "cobot_mujoco.actv2_fast_train"
+    return args
 
 
 def job(run, cfg, state):
@@ -179,7 +196,7 @@ def job(run, cfg, state):
         render(run, state)
     write_json(
         output / "result.json",
-        {"status": "completed", "config": cfg, "actual_steps": 40000, "finished_at": utc_now()},
+        {"status": "completed", "config": cfg, "actual_steps": cfg["steps"], "finished_at": utc_now()},
     )
 
 
@@ -211,9 +228,10 @@ def main():
         "deadline_epoch": None,
         "time_limit": None,
         "lerobot_version": "0.4.4",
-        "expected_jobs": 25,
-        "expected_comparison_cells": 75,
-        "report_path": "lerobot044_v2/report.html",
+        "expected_jobs": 28,
+        "inherited_jobs": 3,
+        "expected_comparison_cells": 84,
+        "report_path": "lerobot044_v2_15k/report.html",
         "current_job": None,
         "failures": [],
         "publication": "pending",
@@ -251,6 +269,13 @@ def main():
                     for cfg in frozen_plan["trials"]:
                         if cfg["architecture"] == architecture and cfg["current"] == current:
                             rows.extend(read_json(run / "jobs" / cfg["name"] / "measurements.json"))
+                    for file in (run / "legacy_jobs").glob("*/measurements.json"):
+                        rows.extend(
+                            row
+                            for row in read_json(file)
+                            if row["config"]["architecture"] == architecture
+                            and row["config"]["current"] == current
+                        )
                     selected[f"{architecture}_{'current' if current else 'position'}"] = min(
                         rows, key=lambda r: r["validation"]["control_mae"]
                     )

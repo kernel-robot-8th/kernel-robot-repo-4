@@ -1,6 +1,6 @@
 {
-  "status": "running",
-  "phase": "validation",
+  "status": "stopped",
+  "phase": "finished",
   "pid": 2774573,
   "started_at": "2026-10-26T14:40:35.637857+00:00",
   "deadline_epoch": null,
@@ -9,11 +9,14 @@
   "expected_jobs": 25,
   "expected_comparison_cells": 75,
   "report_path": "lerobot044_v2/report.html",
-  "current_job": "v2_standard_position_b8_c100",
+  "current_job": null,
   "failures": [],
   "publication": "pushed",
   "completed_jobs": 3,
   "completed_comparisons": 9,
-  "updated_at": "2026-10-26T21:32:31.510635+00:00",
-  "current_step": 40000
+  "updated_at": "2026-10-27T01:13:36.584950+00:00",
+  "current_step": 40000,
+  "finished_at": "2026-10-27T01:13:36.584499+00:00",
+  "reason": "사용자 요청으로 5k/10k/15k 비교로 변경. 기존 저장본 보존.",
+  "successor_run": "/home/team11/omx_sim_runs/retraining_044_v2_15k_20261027"
 }

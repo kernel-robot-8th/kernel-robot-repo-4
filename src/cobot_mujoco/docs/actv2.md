@@ -1,7 +1,7 @@
 # 1026 JiHyeok v2 · 전류/배치/ACT 구조 비교
 
 LeRobot 0.4.4 원본 train을 사용한다. 학습 및 기록 영상 검증 작업이며 로봇을 구동하지 않는다.
-실행 루트는 `/home/team11/omx_sim_runs/retraining_044_v2_20261026`이다.
+실행 루트는 `/home/team11/omx_sim_runs/retraining_044_v2_15k_20261027`이다.
 
 ## 데이터와 분리
 
@@ -23,8 +23,9 @@ LeRobot 0.4.4 원본 train을 사용한다. 학습 및 기록 영상 검증 작�
 ## 학습 비교
 
 일반형/경량형 × 전류 미포함/포함 × 배치 8/16 × chunk 32/64/100 = 24개.
-마지막에 일반형·전류 포함·배치32·chunk32 하나를 추가한다. 총 25개 실행, 75개 저장본 비교다.
-각 실행을 40,000 step까지 연속 학습하고 10,000/20,000/40,000 저장본을 비교한다.
+마지막에 일반형·전류 포함·배치32·chunk32 하나를 추가한다. 신규 25개 실행, 75개 저장본을 비교한다.
+기존 완료 3개(10k/20k/40k 저장본 9개)도 포함하므로 총 28개 실험·84개 저장본이다.
+각 실행을 15,000 step까지 연속 학습하고 5,000/10,000/15,000 저장본을 비교한다.
 학습 중단 후 공식 optimizer/RNG 저장본에서 재개할 수 있다.
 시간에 의한 학습 종료는 없다. 12시간/작업별 2시간 제한을 사용하지 않는다.
 사용자 수동 STOP, 학습 오류, 자원 부족은 별도 종료 원인이다.
@@ -38,17 +39,26 @@ LeRobot 0.4.4 원본 train을 사용한다. 학습 및 기록 영상 검증 작�
 
 공통: ResNet18 ImageNet 초기값, 원본 영상 크기, dropout 0.1, seed 17,
 주 학습률/백본 학습률 1e-5, weight decay 1e-4, 이미지 증강 OFF.
+신규 GPU 가속: `ACCELERATE_MIXED_PRECISION=bf16`, `policy.use_amp=true`,
+CUDA matmul/cuDNN TF32, cuDNN benchmark ON, float32 matmul precision high.
+원본 train의 GPU pin_memory·prefetch_factor=2를 사용하고 num_workers를 4로 늘린다.
+TF32/benchmark/pinned memory는 이전에도 켜져 있었다. 실제로 새로 바뀐 핵심은 BF16 AMP다.
+원본 0.4.4 trainer가 Accelerate.autocast를 사용하므로 use_amp 플래그만 켜서는 충분하지 않다.
+`actv2_fast_train.py`는 실제 mixed_precision=bf16인지 확인한 뒤 원본 main을 호출한다.
+원본에 공식 compile 옵션은 없어 torch.compile을 임의로 끼워 넣지 않는다.
+기존 3개는 AMP OFF·worker2이고 신규는 BF16·worker4이므로 정밀도와 로더 조건 차이를 표기한다.
+양쪽 모두 저장 모델 검증은 FP32로 수행한다.
 배치 8/16/32는 같은 step에서 샘플 노출량이 1/2/4배다. 따라서 같은 step뿐 아니라
 `step × batch / 3820`으로 계산한 데이터 반복량도 함께 비교해야 한다.
-40,000 step에서 각각 약 83.8/167.5/335.1회다.
+15,000 step에서 각각 약 31.4/62.8/125.7회다.
 
-매 1,000 step 저장하되 비교 저장본 10k/20k/40k와 최신 복구 저장본만 남긴다.
+매 1,000 step 저장하되 비교 저장본 5k/10k/15k와 최신 복구 저장본만 남긴다.
 이는 수십 GB의 결과를 장기간 보존하기 위한 정책이다. 최종 저장본이라고 무조건 선택하지 않는다.
 배치32 메모리 부족 시 다른 배치로 대체하지 않고 오류 기록을 남긴다.
 
 ## 검증·평가
 
-각 40,000 step 학습이 끝난 뒤 지정한 세 저장본을 별도 검증한다. 학습 loss와 검증 MAE를 구분한다.
+각 15,000 step 학습이 끝난 뒤 지정한 세 저장본을 별도 검증한다. 학습 loss와 검증 MAE를 구분한다.
 검증 전체 프레임에서 미래 앞 10스텝 MAE를 계산하고 에피소드별 동일 가중 평균을 사용한다.
 각 구조·전류 조건의 최저 검증 MAE를 고른 뒤 보류 에피소드 8을 평가한다.
 
@@ -75,6 +85,16 @@ systemctl --user status omx-actv2-training.service --no-pager
 systemctl --user list-timers omx-actv2-discord.timer
 ```
 
-보고서: `docs/mujoco_validation/lerobot044_v2/report.html`.
+보고서: `docs/mujoco_validation/lerobot044_v2_15k/report.html`.
 각 학습의 검증이 끝날 때와 전체 종료 때 결과를 한국어 커밋으로 같은 feature 브랜치에 게시한다.
 추론에는 상태 6/7개를 구분하는 별도 설정이 필요하므로, 전류 포함 모델을 기존 6개 입력 로봇으로 실행하면 안 된다.
+
+## 10월 27일 비교 step 변경
+
+사용자 요청으로 최대 학습량을 15,000으로 줄이고 5k/10k/15k를 비교한다.
+기존 `/home/team11/omx_sim_runs/retraining_044_v2_20261026`의 완료 3개(40k) 및
+4번째의 30k 저장본을 보존했다. 기존 5k/15k 파일은 당시의 보관 정책에 따라 정리돼
+복구할 수 없으므로 같은 frozen 데이터와 분할로 새 실행을 구성했다.
+이전 결과를 새 5k/15k 점수인 것처럼 표시하지 않는다.
+신규 데이터 폴더는 이전의 읽기 전용 취급 snapshot·datasets를 공유한다.
+매 1,000 step 저장은 유지하되, 영구 비교 보관은 5k/10k/15k 및 최신 복구본이다.
