@@ -1,9 +1,9 @@
 # cobot_zone_traffic_control
 
 여러 대의 Pinky 로봇이 위험구역(zone)에 **한 번에 한 대만** 들어가도록 허가·대기열 슬롯을 관리하는 ROS 2 패키지.
-위험구역이 여러 개(현재 `A`, `B`)이면 **구역마다 락·대기열·앵커가 따로**이며, 한 구역의 점유는 다른 구역을 막지 않습니다. 모든 메시지 맨 앞에 구역 이름이 붙습니다.
+위험구역이 여러 개(현재 `A`, `B`, `C`)이면 **구역마다 락·대기열·앵커가 따로**이며, 한 구역의 점유는 다른 구역을 막지 않습니다. 모든 메시지 맨 앞에 구역 이름이 붙습니다.
 
-> **v4(구역 2개)에서 메시지 형식이 바뀌었습니다.** 구역 접두가 없는 구형 노드와는 호환되지 않으므로 매니저(관제 PC)와 로봇 3대를 함께 재배포하세요 (순서: 매니저 → 로봇).
+> **v4(구역 여러 개)에서 메시지 형식이 바뀌었습니다.** 구역 접두가 없는 구형 노드와는 호환되지 않으므로 매니저(관제 PC)와 로봇 3대를 함께 재배포하세요 (순서: 매니저 → 로봇).
 
 > 이전 세대(v1: 문 방식, v2: self-report 방식)의 구현은 git 태그 `v2-final` 에 보존되어 있으며 현재 코드에는 없습니다.
 
@@ -34,7 +34,7 @@
 - **전진 지연**: 앞 로봇이 앵커를 떠날 시간을 준 뒤(`queue_advance_delay_sec`) 뒤 로봇을 한 칸씩 전진 — 충돌 방지
 - **대기열 상한**: `queue_max` 초과 시 `k=-1` 로 거부 (로봇은 진입 포기)
 - **안전장치**
-  - `max_hold_sec`: 점유자가 `notify_exit` 를 못 보내도 강제 해제
+  - `max_hold_sec`: 점유자가 `notify_exit` 를 못 보내도 강제 해제 (현재 240초: 로봇의 유휴 복귀 120초 + `EXIT` 이동 시간 동안 토큰을 먼저 회수하지 않도록)
   - `queue_stale_sec`: `request_entry` 재전송(1초 주기)이 끊긴 대기자를 큐에서 제거
   - 점유자가 아닌 로봇의 `notify_exit` 는 무시
 - **유실 대비**: 1초마다 `status` 와 이미 알려준 슬롯을 재발행
@@ -104,7 +104,7 @@ ros2 topic echo /zone_manager/queue_slot
 
 # 순찰 시작 / 정지 / 상태 모니터 
 python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 start
-python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky2 goto P2 P3 P6
+python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky2 zone ZA     # goto 는 구역 밖 지점만, 구역 지점은 zone
 python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 monitor
 python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 stop
 ```
@@ -121,6 +121,27 @@ python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd
 | `status` | 매니저 → 모니터링 | `<zone>:free` / `<zone>:occupied_by:<robot_id>` |
 
 `<zone>` 은 `zone_names` 중 하나이고 `:` 를 쓸 수 없습니다. 모르는 구역 이름이나 접두 없는 메시지는 경고 로그만 남기고 무시합니다.
+
+### 구역 수동 점유 / 해제 (시험용)
+
+로봇 없이 구역을 "점유된 상태"로 만들어 대기열·간섭 시험을 할 수 있습니다. 가짜 `robot_id`(예: `manual`)로 `request_entry` 를 보내면 됩니다. 매니저가 도는 **관제 PC(`ROS_DOMAIN_ID=100`)** 에서 실행합니다.
+
+```bash
+# 1) 잡기 (구역 A). 형식: <구역>:<robot_id>:<토큰>
+ros2 topic pub --times 3 --rate 1 /zone_manager/request_entry std_msgs/msg/String "{data: 'A:manual:1'}"
+
+# 2) 확인: A:occupied_by:manual (매니저 로그에는 "[A][manual] 진입 허가")
+ros2 topic echo /zone_manager/status
+
+# 3) 풀기. 형식: <구역>:<robot_id>
+ros2 topic pub --once /zone_manager/notify_exit std_msgs/msg/String "{data: 'A:manual'}"
+```
+
+- 잡기는 연결(discovery) 전에 메시지가 유실될 수 있어 3번 반복해 보냅니다. 이미 점유자인 `robot_id` 의 재요청은 허가만 다시 나가므로 문제없습니다.
+- 구역이 비어 있으면 바로 점유되고, 다른 로봇이 쥐고 있으면 `manual` 은 대기열에 들어갑니다. `<구역>` 은 `zone_names`(`A`, `B`, `C`) 중 하나입니다.
+- 풀기는 점유자(`manual`)가 보낸 통보일 때만 해제되고, 대기열 선두가 바로 점유자가 됩니다. 풀기를 `--times 3` 으로 보내면 첫 메시지가 풀고 나머지는 `notify_exit 수신했지만 현재 점유자는 None 입니다 (무시)` 경고만 남깁니다(정상).
+- 풀지 않아도 `max_hold_sec`(현재 240초) 뒤에 매니저가 강제 해제합니다.
+- 활용: `manual` 이 A 를 잡은 상태에서 로봇에 `zone ZA` 를 보내면 로봇이 `QUEUEING` 으로 대기 슬롯까지 가서 기다리고, 풀면 진입합니다. 이때 로봇은 실제로 움직이므로 주변을 확인하세요.
 
 로봇 코드에서 사용하는 예 (`zone_gate_client.ZoneGateClient`):
 
@@ -147,10 +168,10 @@ gate.notify_exit()                # 구역을 나오면 그 구역(reset 으로 
 | 파라미터 | yaml 값 | 코드 기본값 | 설명 |
 |---|---|---|---|
 | `robot_ids` | `["pinky1", "pinky2", "pinky3"]` | 동일 | patrol 노드의 `robot_id` 와 일치해야 함 |
-| `max_hold_sec` | `120.0` | `120.0` | 점유 강제 해제 시간(초, 구역별로 각각 적용) |
-| `zone_names` | `["A", "B"]` | `["A", "B"]` | 위험구역 이름 (영문·숫자, 로봇 YAML 의 `zone_names` 와 같아야 함) |
-| `zone_<구역>.queue_anchor` | A: `[0.0, 0.6, 0.0]`, B: `[-0.8, -0.2, -0.7]` (로봇 YAML 의 ENTRY 와 동일) | `[0.0, 0.0, 0.0]` | 구역별 슬롯 0 위치 `[x, y, yaw]` (map). patrol 노드의 `ZONE_<구역>_ENTRY` 와 같아야 함 |
-| `zone_<구역>.queue_back_dir` | `[-1.0, 0.0]` | `[-1.0, 0.0]` | 구역별 줄이 늘어나는 방향 (자동 정규화) |
+| `max_hold_sec` | `240.0` | `120.0` | 점유 강제 해제 시간(초, 구역별로 각각 적용). 로봇 `idle_return_sec`(120초)+EXIT 이동보다 길게 |
+| `zone_names` | `["A", "B", "C"]` | `["A", "B"]` | 위험구역 이름 (영문·숫자, 로봇 YAML 의 `zone_names` 와 같아야 함) |
+| `zone_<구역>.queue_anchor` | A: `[0.0, 0.6, 0.0]`, B: `[0.0, 0.6, -1.5]`(A 와 같은 위치·yaw 만 다름), C: `[-0.7, -0.08, 1.5]` (로봇 YAML 의 `W<구역>` 와 동일) | `[0.0, 0.0, 0.0]` | 구역별 슬롯 0 위치 `[x, y, yaw]` (map). patrol 노드의 `W<구역>` 와 같아야 함 |
+| `zone_<구역>.queue_back_dir` | A·B·C: `[0.0, 1.0]` | `[-1.0, 0.0]` | 구역별 줄이 늘어나는 방향 (자동 정규화) |
 | (제거) `queue_anchor` | - | - | 1구역 시절의 단일 키. YAML 에 남아 있으면 매니저가 시작을 거부함 |
 | `queue_spacing` | `0.30` | `0.30` | 슬롯 간격(m, 모든 구역 공통) |
 | `queue_max` | `3` | `3` | 최대 대기자 수 |

@@ -1,3 +1,5 @@
+> 이력 문서입니다. 구역 3개·독립 이동·유휴 복귀의 최신 내용은 [`patrol_independent_move_prd.md`](patrol_independent_move_prd.md) 를 따릅니다.
+
 # PRD: 순회주행 주석 처리 및 좌표 파라미터화
 
 | 항목 | 내용 |

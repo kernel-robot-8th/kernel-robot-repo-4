@@ -1,3 +1,5 @@
+> 이력 문서입니다. 구역 3개·독립 이동·유휴 복귀의 최신 내용은 [`patrol_independent_move_prd.md`](patrol_independent_move_prd.md) 를 따릅니다.
+
 # Pinky 위험구역 대기열 — 단계별 PRD
 
 Oct 12, 2026 · 초안 v4 (**기존 코드는 수정하지 않고 전부 `_v3` 신규 파일로 만든다** — 이상 시 복구 목적. 예외는 `setup.py` entry point와 브릿지 yaml의 v3 토픽 블록 추가뿐. **Step Q1~Q3 완료**, 문 좌표는 A안 확정, 대기 앵커는 두 로봇이 공유. **GUI 연동은 실로봇 코드 검증(Q4~Q5) 뒤로 미룬다(Q6).** 복구 절차는 6절, 실측이 필요한 값은 7절)
