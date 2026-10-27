@@ -10,11 +10,11 @@
   "inherited_jobs": 3,
   "expected_comparison_cells": 84,
   "report_path": "lerobot044_v2_15k/report.html",
-  "current_job": "v2_light_position_b16_c64",
+  "current_job": "v2_light_position_b16_c100",
   "failures": [],
   "publication": "pushed",
-  "completed_jobs": 20,
-  "completed_comparisons": 60,
-  "updated_at": "2026-10-27T19:31:51.530137+00:00",
+  "completed_jobs": 21,
+  "completed_comparisons": 63,
+  "updated_at": "2026-10-27T20:28:15.165204+00:00",
   "current_step": 15000
 }
