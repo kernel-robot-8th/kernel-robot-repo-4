@@ -46,8 +46,8 @@ def test_gripper_missing_release_is_not_hidden_by_small_body_joint_errors():
     assert result["open_err_s"] is None
 
 
-def test_revised_retention_keeps_5k_10k_15k_and_latest(tmp_path):
-    """Do not discard the user's newly requested early comparison saves."""
+def test_retention_keeps_every_saved_checkpoint(tmp_path):
+    """Do not delete any intermediate save after the user requested 1k retention."""
     for step in [5000, 6000, 10000, 15000, 16000]:
         path = tmp_path / "checkpoints" / f"{step:06d}/pretrained_model"
         path.mkdir(parents=True)
@@ -58,4 +58,4 @@ def test_revised_retention_keeps_5k_10k_15k_and_latest(tmp_path):
     assert (tmp_path / "checkpoints/010000").exists()
     assert (tmp_path / "checkpoints/015000").exists()
     assert (tmp_path / "checkpoints/016000").exists()
-    assert not (tmp_path / "checkpoints/006000").exists()
+    assert (tmp_path / "checkpoints/006000").exists()

@@ -1,7 +1,7 @@
 {
   "status": "running",
-  "phase": "validation",
-  "pid": 1851985,
+  "phase": "training",
+  "pid": 3502175,
   "started_at": "2026-10-27T01:19:57.028689+00:00",
   "deadline_epoch": null,
   "time_limit": null,
@@ -10,11 +10,10 @@
   "inherited_jobs": 3,
   "expected_comparison_cells": 84,
   "report_path": "lerobot044_v2_15k/report.html",
-  "current_job": "v2_standard_position_b8_c100",
+  "current_job": "v2_standard_position_b16_c32",
   "failures": [],
-  "publication": "pushed",
+  "publication": "pending",
   "completed_jobs": 6,
   "completed_comparisons": 18,
-  "updated_at": "2026-10-27T03:19:26.958407+00:00",
-  "current_step": 15000
+  "updated_at": "2026-10-27T03:49:48.526443+00:00"
 }

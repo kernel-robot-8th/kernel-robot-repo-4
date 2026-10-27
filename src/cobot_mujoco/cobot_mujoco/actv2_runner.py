@@ -37,14 +37,7 @@ def checkpoints(upstream):
 
 
 def prune(upstream):
-    """Keep comparison saves and latest recovery save to bound checkpoint disk use."""
-    ready = checkpoints(upstream)
-    if not ready:
-        return
-    keep = {5000, 10000, 15000, int(ready[-1].parent.name)}
-    for path in ready:
-        if int(path.parent.name) not in keep:
-            shutil.rmtree(path.parent)
+    """Retain every 1,000-step save as requested; never delete intermediate checkpoints."""
 
 
 def render(run, state):
@@ -73,6 +66,7 @@ def render(run, state):
         "plan.json",
         "provenance.json",
         "source_manifest.json",
+        "retention_policy.json",
         "status.json",
         "selected.json",
         "heldout.json",
@@ -115,7 +109,8 @@ th{{background:#edf2fa}}</style>
 <p>신규 학습 가속: Accelerate BF16 AMP, TF32 matmul/cuDNN, cuDNN benchmark,
 GPU pinned memory, 데이터 로더 worker 4개·기본 prefetch 2. TF32/benchmark는 이전에도 원본에서 켜져 있었다.
 기존 3개는 AMP OFF이므로 step 외 정밀도·worker 조건 차이도 있다. 평가는 양쪽 모두 FP32.</p>
-<p>매 1,000 step 저장하되 디스크를 위해 비교 5k/10k/15k와 최신 복구 저장본만 보존한다.
+<p>매 1,000 step 저장하고 변경 시점 이후 모든 저장본을 보존한다. 중간 저장본 자동 삭제는 해제했다.
+이전에 이미 정리된 저장본은 복구되지 않으며, 정기 비교는 5k/10k/15k를 유지한다.
 12시간 및 작업별 시간 종료 없음. STOP 파일은 사용자의 수동 중지에만 사용한다.</p>
 <table><tr><th>학습</th><th>step</th><th>검증 앞10 MAE</th><th>앙상블 그리퍼 MAE</th>
 <th>열림 누락</th><th>검증−학습 MAE</th></tr>{"".join(rows)}</table>

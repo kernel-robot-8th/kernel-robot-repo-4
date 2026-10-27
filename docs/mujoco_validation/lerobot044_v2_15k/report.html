@@ -5,7 +5,7 @@ th{background:#edf2fa}</style>
 <h1>1026 JiHyeok v2 · ACT 0.4.4 · 5k/10k/15k 비교</h1>
 <p>이전 40k 실행 결과는 <a href="../lerobot044_v2/report.html">별도 보고서</a>에 보존했다.
 이전 보관 정책상 5k/15k 파일이 없어 같은 데이터·설정으로 새 학습을 실행한다.</p>
-<p>갱신 2026-10-27T03:19:26.958407+00:00 · 상태 running · 현재 v2_standard_position_b8_c100</p>
+<p>갱신 2026-10-27T03:49:48.526443+00:00 · 상태 running · 현재 v2_standard_position_b16_c32</p>
 <p>학습 완료 6/28 · 비교 18/84 · 시간 제한 없음</p>
 <p>기존 완료 3개(10k/20k/40k 9개 저장본) + 신규 25개(5k/10k/15k 75개 저장본).</p>
 <p>구조 일반형·경량형 × 전류 미포함·그리퍼 전류 포함 × 배치 8·16 × chunk 32·64·100.
@@ -21,7 +21,8 @@ th{background:#edf2fa}</style>
 <p>신규 학습 가속: Accelerate BF16 AMP, TF32 matmul/cuDNN, cuDNN benchmark,
 GPU pinned memory, 데이터 로더 worker 4개·기본 prefetch 2. TF32/benchmark는 이전에도 원본에서 켜져 있었다.
 기존 3개는 AMP OFF이므로 step 외 정밀도·worker 조건 차이도 있다. 평가는 양쪽 모두 FP32.</p>
-<p>매 1,000 step 저장하되 디스크를 위해 비교 5k/10k/15k와 최신 복구 저장본만 보존한다.
+<p>매 1,000 step 저장하고 변경 시점 이후 모든 저장본을 보존한다. 중간 저장본 자동 삭제는 해제했다.
+이전에 이미 정리된 저장본은 복구되지 않으며, 정기 비교는 5k/10k/15k를 유지한다.
 12시간 및 작업별 시간 종료 없음. STOP 파일은 사용자의 수동 중지에만 사용한다.</p>
 <table><tr><th>학습</th><th>step</th><th>검증 앞10 MAE</th><th>앙상블 그리퍼 MAE</th>
 <th>열림 누락</th><th>검증−학습 MAE</th></tr><tr><td>신규 BF16 · v2_standard_position_b8_c100</td><td>5,000</td><td>2.7437</td><td>1.1726</td><td>0</td><td>1.4428</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c100</td><td>10,000</td><td>2.7388</td><td>1.4520</td><td>0</td><td>1.5616</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c100</td><td>15,000</td><td>2.6507</td><td>1.3466</td><td>0</td><td>1.6182</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c32</td><td>5,000</td><td>2.6224</td><td>1.3529</td><td>0</td><td>1.1567</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c32</td><td>10,000</td><td>2.4783</td><td>1.3931</td><td>0</td><td>1.2731</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c32</td><td>15,000</td><td>2.3677</td><td>1.3871</td><td>0</td><td>1.2457</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c64</td><td>5,000</td><td>2.4817</td><td>1.5602</td><td>0</td><td>1.2832</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c64</td><td>10,000</td><td>2.4477</td><td>1.5083</td><td>0</td><td>1.3558</td></tr><tr><td>신규 BF16 · v2_standard_position_b8_c64</td><td>15,000</td><td>2.3310</td><td>1.5665</td><td>0</td><td>1.3335</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c100</td><td>10,000</td><td>2.7195</td><td>1.3836</td><td>0</td><td>1.5715</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c100</td><td>20,000</td><td>2.6652</td><td>1.3017</td><td>0</td><td>1.7622</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c100</td><td>40,000</td><td>2.5488</td><td>1.2826</td><td>0</td><td>1.9569</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c32</td><td>10,000</td><td>2.4130</td><td>1.3021</td><td>0</td><td>1.2185</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c32</td><td>20,000</td><td>2.2063</td><td>1.2859</td><td>0</td><td>1.2395</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c32</td><td>40,000</td><td>1.8907</td><td>1.3318</td><td>0</td><td>1.3367</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c64</td><td>10,000</td><td>2.4647</td><td>1.5773</td><td>0</td><td>1.3723</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c64</td><td>20,000</td><td>2.3992</td><td>1.4909</td><td>0</td><td>1.4375</td></tr><tr><td>기존 AMP OFF · v2_standard_position_b8_c64</td><td>40,000</td><td>2.2375</td><td>1.4138</td><td>0</td><td>1.6613</td></tr></table>

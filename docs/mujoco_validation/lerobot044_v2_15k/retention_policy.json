@@ -1,0 +1,33 @@
+{
+  "changed_at": "2026-10-27T03:49:28.692940+00:00",
+  "save_every_steps": 1000,
+  "keep_all_future_checkpoints": true,
+  "automatic_pruning": false,
+  "existing_at_change": {
+    "v2_standard_position_b8_c100": [
+      "005000",
+      "010000",
+      "015000"
+    ],
+    "v2_standard_position_b8_c32": [
+      "005000",
+      "010000",
+      "015000"
+    ],
+    "v2_standard_position_b16_c32": [
+      "005000",
+      "006000"
+    ],
+    "v2_standard_position_b8_c64": [
+      "005000",
+      "010000",
+      "015000"
+    ]
+  },
+  "evaluation_steps": [
+    5000,
+    10000,
+    15000
+  ],
+  "note": "Previously pruned saves cannot be recovered; all currently existing and future saves are retained."
+}
