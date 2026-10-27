@@ -30,7 +30,7 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 | `cobot_zone_traffic_control/.../zone_manager_node.py` | 관제 PC (1대) | 점유자 1명 + FIFO 대기열, 허가·슬롯 좌표 발행 |
 | `cobot_pinky_patrol_cmd/pinky_control_client.py` | 관제 PC | 터미널에서 명령 전송 |
 
-- 로봇 코드에는 슬롯 좌표가 없습니다. 구역마다 진입 앵커 `W<구역>`와 출구 `Z<구역>_EXIT`만 있고(좌표는 `config/pinkyN.yaml`), 슬롯은 매니저가 구역별 `queue_anchor` 로 계산해 `queue_slot`으로 줍니다. 앵커(대기 위치) / 출구는 구역 A `(0.0, 0.6, 0.7)` / `(0.5, 0.0, 0.7)`, 구역 B `(0.0, 0.6, 0.7)`(A 와 같은 대기 위치) / `(0.55, -0.6, 0.7)`, 구역 C `(-0.7, -0.08, 0.7)` / `(-0.3, -0.4, 0.7)` 입니다 (2026-10-27 확정). 앵커는 구역 소속 지점과 좌표가 달라야 합니다(같으면 대기자가 점유자 자리로 갑니다). 대기줄은 세 구역 모두 +y 방향입니다.
+- 로봇 코드와 YAML 에는 대기 좌표(앵커·슬롯)가 없습니다. 로봇에는 출구 `Z<구역>_EXIT` 만 있고(`config/pinkyN.yaml`), 대기 앵커는 매니저 `zone_params.yaml` 의 구역별 `queue_anchor` 한 곳에만 둡니다. 매니저가 슬롯 좌표를 계산해 `queue_slot` 으로 주며, 로봇은 응답이 오기 전에는 제자리에서 기다립니다. 앵커 / 출구는 구역 A `(0.1, 0.6, 0.0)` / `(0.5, 0.0, -1.5)`, 구역 B `(0.1, 0.6, 0.0)`(A 와 같은 대기 위치) / `(0.55, -0.6, -1.5)`, 구역 C `(-0.7, -0.08, 1.5)` / `(-0.3, -0.4, 1.5)` 입니다 (2026-10-27 확정). 앵커는 구역 소속 지점과 좌표가 달라야 합니다(같으면 대기자가 점유자 자리로 갑니다). 대기줄은 세 구역 모두 -y 방향입니다.
 - **같은 구역의 로봇은 모두 같은 대기열 방식으로 맞추세요.** 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.
 - `robot_id`는 `zone_params.yaml`의 `robot_ids`와 같아야 합니다.
 
@@ -43,15 +43,16 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 | pinky3 | (구역 2개 이전 순회 경로, 주석 보관) | `I3` (0, -0.4) |
 
 - 위험구역은 **3개(`A`, `B`, `C`)** 이고 구역마다 토큰(락)·대기열이 따로입니다. 구역 소속 지점은 `config/pinkyN.yaml` 의 `zone_points` 로 정하며 현재 A = `ZA`, B = `ZB`, C = `ZC` 입니다 (`P1` `P5` `P6` `P7` 은 구역 밖).
-- 구역 대기 위치(W*) 뒤쪽 대기 슬롯(`queue_back_dir`: 세 구역 모두 +y)과 pinky1~3 의 구역 지점·일반 지점 좌표는 같은 값이며 실측 확인이 남아 있습니다. 확인 전에는 구역 지점으로 이동하지 마세요. A·B 가 같은 대기 위치를 쓰므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있고, 구역 C 슬롯 1 이 ZC 와 약 0.2 m 인 점도 현장에서 확인해야 합니다.
+- 구역 대기 앵커(`queue_anchor`) 뒤쪽 대기 슬롯(`queue_back_dir`: 세 구역 모두 -y, 슬롯이 맵 안에 있어야 Nav2 가 받아들입니다)과 pinky1~3 의 구역 지점·일반 지점 좌표는 같은 값이며 실측 확인이 남아 있습니다. 확인 전에는 구역 지점으로 이동하지 마세요. A·B 가 같은 대기 위치를 쓰므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있고, A·B 슬롯 2 가 홈 I1 과 같은 자리이고 C 슬롯 1 이 ZC_EXIT 와 0.4 m 인 점도 현장에서 확인해야 합니다.
 
 ### 명령과 동작 (지점 단위 독립 이동)
 
 | 명령 | 동작 |
 |---|---|
 | `goto:<P>[,<P>...]` | **구역 밖** 일반 지점(`P1`~`P10` 중 YAML 에 있는 것. `P1`·`P2` 필수, `P3`~`P10` 선택. **현재 P1~P10 은 모두 (0,0,0) 자리표시자라 goto 하면 원점으로 갑니다**)과 자기 홈(`I<n>`)만 순서대로 이동. 도착 후 홈으로 가지 않고 대기. 구역 지점을 주면 `FAILED: use zone`, W*/Z*_EXIT 는 `not allowed` |
-| `zone:<P>` | 구역 지점 **1개**로 이동. 구역 대기 위치(`W*`)에서 토큰(`request_entry` → `grant_entry`)을 받은 **뒤에만** 출발하고, 도착 후 토큰을 **유지**(`HOLDING_ZONE`) |
+| `zone:<P>` | 구역 지점 **1개**로 이동. 매니저 응답(허가/대기 슬롯)을 받은 뒤 토큰(`request_entry` → `grant_entry`)을 받은 **뒤에만** 출발하고, 도착 후 토큰을 **유지**(`HOLDING_ZONE`) |
 | `leave` | 보유 중인 구역의 `EXIT` 로 이동해 **도착한 뒤에** 토큰 반납. 보유 구역이 없으면 `FAILED: no zone held` |
+| `home` | 초기 위치(`I<n>`)로 복귀. 구역 안이면 `EXIT` 에서 토큰을 반납한 뒤 이동합니다. 이미 홈이면 이동 없이 `DONE` (유휴 복귀와 같은 절차를 즉시 실행) |
 | `stop` | 현재 작업 중단. 구역 안이면 `EXIT` 로 나와 락 반납 |
 | `emergency_stop` | 그 자리 정지 + 락 유지(`max_hold_sec` 후 매니저가 강제 해제). 노드는 구역을 쥔 것으로 기억하지 않아 다음 `zone` 이 토큰을 다시 요청 |
 | `start` | 비활성 (`FAILED: start disabled`) |
@@ -118,6 +119,7 @@ python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pink
 python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 goto P1 P2        # 구역 밖 지점 이동 (홈으로 가지 않음, idle_return_sec 후 복귀)
 python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 zone ZA          # 구역 A 지점: 토큰 받고 이동, 토큰 유지
 python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 leave            # 구역 EXIT 로 나가 토큰 반납
+python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 home             # 초기 위치로 복귀
 python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 stop             # 중지
 
 # 대기열 확인: 두 로봇에 같은 구역 zone 을 거의 동시에 보내면 늦은 쪽이 QUEUEING으로 대기

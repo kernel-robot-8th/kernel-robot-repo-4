@@ -7,7 +7,7 @@
 
 ## 1. 배경 · 문제
 
-실기 시험에서 `goto ZA ZB` 를 연속으로 보냈더니 `WA` 까지만 이동한 뒤 홈으로 복귀했다. (당시 구역 A = ZA, ZB)
+실기 시험에서 `goto ZA ZB` 를 연속으로 보냈더니 대기 앵커까지만 이동한 뒤 홈으로 복귀했다. (당시 구역 A = ZA, ZB)
 같은 구역이면 토큰을 유지한 채 ZB 로 가야 하는데 그렇게 되지 않았다. **원인은 아직 확정하지 못했다 (R0).**
 
 원인과 별개로 구조에 문제가 있다.
@@ -34,7 +34,7 @@
 | F2 | 이동 후 `idle_return_sec` 동안 다음 이동 명령이 없으면 홈으로 복귀한다. 파라미터로 수정할 수 있다 (기본 **120.0** 초, 0 이하는 자동 복귀 끔). 새 명령이 오면 타이머를 취소한다. 이 타이머 외에는 임의로 홈으로 복귀하지 않는다 (stop 이후에도 복귀하지 않는다). |
 | F3 | 위험구역 지점 경유 이동은 **별도 명령** `zone:<P>` 로 지정한다. `goto:<P>` 는 구역 밖 지점 전용이며, 구역 지점이면 `FAILED` (`use zone`) 로 응답한다. |
 | F4 | 구역 지점 이동 후 토큰을 **유지**한다. 이후 이동 명령(`goto`, 다른 구역 `zone`) 또는 `leave` 가 오면 먼저 해당 구역 EXIT 까지 이동하고, 도착한 뒤 `notify_exit` 로 토큰을 반납한 다음 그 명령을 실행한다. 같은 구역 `zone:` 연속 명령은 토큰을 다시 요청하지 않고 이동한다. |
-| F5 | 위험구역은 **3개**다. `A` = [ZA], `B` = [ZB], `C` = [ZC]. 구역마다 `W<Z>` / `Z<Z>_EXIT` 한 쌍을 둔다. 매니저에 `zone_C` 와 `queue_anchor` (= `WC`) 를 추가한다. 홈 P1 은 구역 밖이다. |
+| F5 | 위험구역은 **3개**다. `A` = [ZA], `B` = [ZB], `C` = [ZC]. 구역마다 출구 `Z<Z>_EXIT` 를 로봇 YAML 에 두고, 대기 앵커는 매니저 `queue_anchor` 에만 둔다(로봇 YAML 의 `W*` 는 2026-10-27 삭제). 매니저에 `zone_C` 와 `queue_anchor` 를 추가한다. 홈 P1 은 구역 밖이다. |
 | F6 | 토큰은 구역 진입 **전** zone_manager 에게서 발급받는다. `request_entry` 를 보내고 `grant_entry` 를 받기 전에는 구역 지점으로 출발하지 않는다 (ENTRY 또는 대기열 슬롯까지만 간다). 한 번에 1개 구역 토큰만 보유한다. |
 | F7 | 토큰 반납은 EXIT 에 **SUCCEEDED 로 도착한 뒤에만** 한다. 이동이 실패하면 `NAV_RETRIES` 만큼 재시도하고, 끝내 실패하면 토큰을 유지하고 (매니저 `max_hold_sec` 뒤 자동 해제) `FAILED` 로 알린다. 명령·타이머 어느 경로로 나가든 같은 `_leave_zone` 을 쓴다. `emergency_stop` 은 현재처럼 토큰을 유지한다. |
 | F8 | 구역 안(토큰 보유)에서 유휴 타이머가 만료되면 EXIT → 반납 → 홈 순서로 복귀한다. |
@@ -46,6 +46,7 @@
 | `goto:<P>[,<P>...]` | 구역 밖 지점 이동 (여러 개면 순서대로) | 안 함 (F2 타이머만) |
 | `zone:<P>` | 구역 지점 이동. 대기 위치(W) → 토큰 → 지점. 토큰 유지 | 안 함 |
 | `leave` | 현재 구역의 EXIT 로 이동 → 토큰 반납 | 안 함 |
+| `home` | 초기 위치 I<n> 으로 복귀 (구역 안이면 EXIT 반납 후). 유휴 복귀와 같은 절차를 즉시 실행 | 이동 후 DONE |
 | `stop` / `emergency_stop` | 기존과 같음 (stop = EXIT 후퇴 후 반납, emergency = 토큰 유지) | 안 함 |
 | `start` | 비활성 유지 (`FAILED: start disabled`) | - |
 
@@ -55,7 +56,7 @@
 - **노드 상태**: 멤버 `self._held_zone` (None = 구역 밖), `self._idle_deadline`, 현재 지점 이름을 둔다. `_run_route` 를 `_run_goto(names)`, `_run_zone(name)`, `_run_leave()` 로 나누고 홈 복귀 단계를 제거한다. `_leave_zone`, `_queue_and_enter`, `_navigate` 는 그대로 재사용한다.
 - **유휴 타이머**: `create_timer(1.0)` 콜백이 `_running` 이 아니고 deadline 이 지났을 때 작업 스레드 `_run_idle_return` 을 시작한다. 콜백에서 Nav2 를 직접 부르지 않는다 (작업 스레드가 같은 executor 를 spin 하므로 `Executor is already spinning` 이 난다. stop 처리와 같은 이유).
 - **상태 발행**: 신규 `IDLE_WAIT` (detail = 남은 초), `HOLDING_ZONE` (detail = 구역명). 기존 `LEAVING_ZONE`, `ARRIVED`, `DONE` 은 재사용하고, `DONE` 은 "명령 완료"를 뜻한다 (홈 도착이 아님).
-- **파라미터 (YAML + `declare_parameter`)**: `idle_return_sec: 120.0`, `zone_names: [A, B, C]`, `zone_points: {A: [ZA], B: [ZB], C: [ZC]}`, `points.WC` / `ZC_EXIT`.
+- **파라미터 (YAML + `declare_parameter`)**: `idle_return_sec: 120.0`, `zone_names: [A, B, C]`, `zone_points: {A: [ZA], B: [ZB], C: [ZC]}`, `points.ZC_EXIT`.
 - **zone_manager** (`cobot_zone_traffic_control/config/zone_params.yaml`): `zone_names` 에 C, `zone_C.queue_anchor`, `queue_back_dir` 추가. **`max_hold_sec` 120 → 240 상향 제안**: 유휴 타이머(120초)와 EXIT 이동 시간 동안 매니저가 토큰을 먼저 강제 회수하지 않게 한다.
 - **관제 클라이언트** (`cobot_pinky_patrol_cmd/pinky_control_client.py`): `zone`, `leave` 서브커맨드 추가, `goto` 안내 문구 수정.
 - 3개 로봇 노드 파일은 구조가 같으므로 같은 수정을 3벌 적용한다 (좌표·홈만 YAML 이 다르다).
@@ -73,7 +74,7 @@
 | 2 | 대기 중 새 명령 | 타이머 취소 |
 | 3 | `zone ZA` | request → grant → ZA. 토큰 유지 (`A:occupied_by:pinky1`), 홈 복귀 안 함 |
 | 4 | `zone ZA` 후 `goto P1` | ZA_EXIT 도착 → `A:free` → P1 |
-| 5 | `zone ZA` 후 `zone ZB` | ZA_EXIT 반납 → WB 요청 → ZB (동시 보유 없음) |
+| 5 | `zone ZA` 후 `zone ZB` | ZA_EXIT 반납 → B 요청 → ZB (동시 보유 없음) |
 | 6 | `zone ZA` 후 `leave` | ZA_EXIT → 반납, 홈 복귀 안 함 |
 | 7 | 구역 안에서 유휴 만료 | EXIT → 반납 → 홈 |
 | 8 | EXIT 이동 실패 / `emergency_stop` | 토큰 유지, `FAILED` / 현재 위치 유지 |
@@ -96,18 +97,18 @@ colcon test --packages-select cobot_zone_traffic_control cobot_pinky_patrol && c
 
 확정(사용자 지정, YAML 반영 완료):
 
-| 구역 | 소속 | 대기 위치 W (= queue_anchor) | 출구 Z_EXIT | queue_back_dir |
+| 구역 | 소속 | 대기 앵커 (매니저 queue_anchor) | 출구 Z_EXIT | queue_back_dir |
 |---|---|---|---|---|
-| A | ZA | [0.0, 0.6, 0.0] | [0.5, 0.0, -1.5] | [0, 1] |
-| B | ZB | [0.0, 0.6, -1.5] (A 와 위치 공유·yaw 만 다름, 토큰은 따로) | [0.55, -0.6, -1.5] | [0, 1] |
-| C | ZC | [-0.7, -0.08, 1.5] | [-0.3, -0.4, 1.5] | [0, 1] |
+| A | ZA | [0.1, 0.6, 0.0] | [0.5, 0.0, -1.5] | [0, -1] |
+| B | ZB | [0.1, 0.6, 0.0] (A 와 대기 위치 공유, 토큰은 따로) | [0.55, -0.6, -1.5] | [0, -1] |
+| C | ZC | [-0.7, -0.08, 1.5] | [-0.3, -0.4, 1.5] | [0, -1] |
 
-※ 대기 위치(W*)를 구역 지점(ZB/ZC)과 같은 좌표로 두면 `zone` 을 동시에 받은 두 번째 로봇이 점유자 자리로 가므로 분리했다 (2026-10-27).
+※ 대기 앵커를 구역 지점(ZB/ZC)과 같은 좌표로 두면 `zone` 을 동시에 받은 두 번째 로봇이 점유자 자리로 가므로 분리했다 (2026-10-27).
 
 - `max_hold_sec` 120 → 240 상향 승인됨. `idle_return_sec` ≤ 0 은 자동 복귀 끔.
 
 남은 확인:
-- A·B 가 같은 대기 위치를 공유하므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌한다 (해결하려면 매니저의 대기열 공유 구현 또는 A+B 토큰 통합 필요). C 슬롯 1 (-0.7,0.22) 은 ZC 와 약 0.2 m. A·B 줄(+y)은 (0,0.6)~(0,1.2) 이 맵 안인지 확인.
+- A·B 가 같은 대기 위치를 공유하므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌한다 (해결하려면 매니저의 대기열 공유 구현 또는 A+B 토큰 통합 필요). 대기줄을 -y 로 변경(2026-10-27): +y 슬롯 (0,0.9) 은 맵 v9 밖이라 Nav2 가 즉시 거부했다. 새 슬롯 A·B (0.1,0.6)/(0.1,0.3)/(0.1,0.0), C (-0.7,-0.08)/(-0.7,-0.38)/(-0.7,-0.68) 는 맵 free 영역. A·B 슬롯 2 는 홈 I1 과 0.1 m, C 슬롯 1 은 ZC_EXIT 와 0.4 m 라 현장 확인.
 - 구역 지점·일반 지점 좌표는 pinky1~3 이 같은 값(실측 확인 남음). 홈은 I1 (0,0) / I2 (0,-0.2) / I3 (0,-0.4) 로 확정(2026-10-27).
 - R0: `goto ZA ZB` 가 대기 위치 후 홈으로 간 원인은 코드상 재현되지 않는다(최신 코드는 같은 구역이면 토큰을 유지). 로봇이 옛 코드/YAML 로 돌았는지 확인하고, 재현되면 `patrol_status`·노드 로그를 확보한다.
 
@@ -150,7 +151,7 @@ ZONE_C 좌표처럼 모르는 값은 추측하지 말고 물어봐. 커밋은 �
      ```
    - **구역 A**
      1. `ros2 topic pub --times 3 --rate 1 /zone_manager/request_entry std_msgs/msg/String "{data: 'A:manual:1'}"` → `status` 에 `A:occupied_by:manual`.
-     2. `pinky_control_client.py pinky1 zone ZA` → 기대: `QUEUEING`(slot0), 대기 위치 WA (0.0, 0.6) 에서 정지, 점유는 `manual` 유지.
+     2. `pinky_control_client.py pinky1 zone ZA` → 기대: `QUEUEING`(slot0), 대기 앵커 (0.1, 0.6) 에서 정지, 점유는 `manual` 유지.
      3. `ros2 topic pub --once /zone_manager/notify_exit std_msgs/msg/String "{data: 'A:manual'}"` → pinky1 이 허가를 받고 ZA 로 이동, `HOLDING_ZONE`.
      4. `pinky_control_client.py pinky1 leave` → ZA_EXIT 도착 후 `A:free`.
    - **구역 B**: 같은 순서를 `B:manual:1` / `zone ZB` / `notify_exit B:manual` / `leave` 로 반복한다. WA 와 WB 는 같은 좌표이므로 A·B 대기자를 동시에 만들지 않는다.

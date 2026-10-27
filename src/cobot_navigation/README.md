@@ -99,6 +99,7 @@ python3 $CLIENT pinky1 start            # (v1.1.0 비활성) FAILED: start disab
 python3 $CLIENT pinky1 goto P1 P2        # 구역 밖 지점 이동 (홈으로 가지 않음, 120초 유휴 뒤 복귀)
 python3 $CLIENT pinky1 zone ZA          # 구역 지점: 토큰 받고 이동, 토큰 유지
 python3 $CLIENT pinky1 leave            # 구역 EXIT 로 나가 토큰 반납
+python3 $CLIENT pinky1 home             # 초기 위치(I1)로 복귀 (구역 안이면 토큰 반납 후)
 python3 $CLIENT pinky1 stop             # 중지
 ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<robot_id>  (구역 A, B, C 각각)
 ```
