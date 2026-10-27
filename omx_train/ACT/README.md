@@ -8,6 +8,8 @@ LeRobot 0.4.4의 ACT 정책을 Docker에서 학습·평가하고, 설치된 lero
 |---|---|
 | `Dockerfile` | 학습 이미지 (python 3.12, lerobot 0.4.4) |
 | `train.sh` | 학습. **lerobot-train 옵션 전체**가 들어 있고, 주석 없는 줄 = 마지막 학습에 쓴 값 |
+| `train_gradient_accumulation.sh` | `train.sh`와 같은 옵션으로 gradient accumulation 학습 (GPU 메모리가 부족할 때) |
+| `train_gradient_accumulation.py` | lerobot-train 실행기 + gradient accumulation. `train_gradient_accumulation.sh`가 사용 |
 | `inference.sh` | 로봇 추론. **lerobot-record 옵션 전체**가 들어 있고, 주석 없는 줄 = 기본 실행 값 (0.4.4에는 lerobot-rollout이 없음) |
 | `omx_record.py` | lerobot-record 실행기 (+ 그리퍼 전류 로봇 타입, k스텝 앙상블). `inference.sh`가 사용 |
 | `omx_rollout.py` | lerobot 0.6.1용 lerobot-rollout 실행기 (0.4.4에서는 사용 안 함) |
@@ -74,6 +76,20 @@ DATA_DIR=/mnt/ssd/lerobot_data OUT_DIR=/mnt/ssd/omx_outputs ./train.sh 0
 입력으로 쓸 값을 고르는 옵션(`--state` 같은)은 없습니다. 모델 입력은 데이터셋의 `observation.state`와 카메라 영상으로 정해지므로, 그리퍼 전류 등을 추가하려면 데이터셋 state를 늘린 사본이 필요합니다 (`prepare_box_datasets.py`의 grip 단계).
 
 **결과**: `outputs/train/<JOB_NAME>/checkpoints/<step>/pretrained_model/`
+
+### (선택) GPU 메모리가 부족할 때: gradient accumulation
+
+batch를 여러 조각으로 나눠 계산한 gradient를 모았다가 한 번에 업데이트합니다. lerobot에는 이 옵션이 없어서 `train_gradient_accumulation.py`가 학습 한 step만 바꿔 끼우고 나머지는 lerobot-train 그대로 실행합니다.
+
+```bash
+# GPU 메모리는 batch 16만큼 쓰고, 업데이트는 batch 32와 같음
+GRAD_ACCUM=2 ./train_gradient_accumulation.sh 0 --batch_size=32
+```
+
+- `--batch_size` = 업데이트 1번에 쓰는 전체 batch, GPU에는 `batch_size / GRAD_ACCUM`씩 올라갑니다
+- `--steps`, `--save_freq`, lr 스케줄은 업데이트 횟수 기준이라 `train.sh`와 같은 값을 쓰면 됩니다
+- 옵션 목록은 `train.sh`의 `ARGS`를 그대로 읽어 오므로 기본값은 `train.sh`에서 바꿉니다
+- 메모리가 충분하면 `--batch_size`를 직접 올리는 편이 빠릅니다 (조각 수만큼 forward/backward를 더 함)
 
 ## 2. 평가 (처음 보는 에피소드, 녹화 영상 기반)
 
