@@ -15,6 +15,9 @@ zone_gate_client.py  (주석 정리본 - 로직은 원본과 동일)
   5) "그만 기다릴게요" 취소        -> cancel_entry()
   6) "구역에서 나왔어요" 통보       -> notify_exit()
 
+위험구역이 여러 개이면 reset(zone) 으로 "지금 어느 구역과 대화하는지"를 정한다.
+모든 메시지 맨 앞에 구역 이름이 붙고, 다른 구역의 허가/슬롯은 무시한다.
+
 ==================== 이 파일의 3개 구성 ====================
   A. 순수 함수들 (parse_*, choose_entry_target) : ROS 없이도 테스트 가능한 "판단/해석" 담당
   B. RetryTimer                                : "1초 지났나?"만 알려주는 작은 타이머
@@ -41,21 +44,21 @@ QUEUE_FULL_K = -1
 def parse_slot_msg(data):
     """
     [기능] 매니저가 보낸 문자열을 숫자로 풀어서 해석한다.
-    [입력 예] 'robot1:2:1.5,3.0,0.0'
-    [출력 예] ('robot1', 2, 1.5, 3.0, 0.0)  = (로봇ID, 슬롯번호k, x, y, yaw)
+    [입력 예] 'A:robot1:2:1.5,3.0,0.0'
+    [출력 예] ('A', 'robot1', 2, 1.5, 3.0, 0.0)  = (구역, 로봇ID, 슬롯번호k, x, y, yaw)
     [실패 시] 형식이 틀리면 None
     """
     try:
-        # split(':', 2) -> ':' 기준으로 "최대 2번만" 자름 -> 3조각
-        #   'robot1:2:1.5,3.0,0.0' -> ['robot1', '2', '1.5,3.0,0.0']
-        robot_id, k_str, pose_str = data.split(':', 2)
+        # split(':', 3) -> ':' 기준으로 "최대 3번만" 자름 -> 4조각
+        #   'A:robot1:2:1.5,3.0,0.0' -> ['A', 'robot1', '2', '1.5,3.0,0.0']
+        zone, robot_id, k_str, pose_str = data.split(':', 3)
 
         # pose_str.split(',') -> ['1.5', '3.0', '0.0']
         # (float(v) for v in ...) -> 각각 실수로 변환
         # 앞의 x, y, yaw = ... 는 "언패킹": 3개 값을 3개 변수에 한 번에 담기
         x, y, yaw = (float(v) for v in pose_str.split(','))
 
-        return robot_id, int(k_str), x, y, yaw
+        return zone, robot_id, int(k_str), x, y, yaw
     except (ValueError, AttributeError):
         # ValueError    : 조각 개수가 안 맞거나 숫자 변환 실패
         # AttributeError: data가 문자열이 아니라 .split()이 없을 때
@@ -64,15 +67,15 @@ def parse_slot_msg(data):
 
 def parse_grant_msg(data):
     """
-    [기능] 허가 메시지 'robot_id:token' 을 (robot_id, token) 으로 쪼갠다.
-    [출력 예] 'robot1:ab12cd34' -> ('robot1', 'ab12cd34'),  형식 오류 -> None
+    [기능] 허가 메시지 'zone:robot_id:token' 을 (zone, robot_id, token) 으로 쪼갠다.
+    [출력 예] 'A:robot1:ab12cd34' -> ('A', 'robot1', 'ab12cd34'),  형식 오류 -> None
     """
     try:
-        # split(':', 1) -> 첫 번째 ':' 에서만 1번 자름 (토큰에 ':'가 섞여도 안전)
-        robot_id, token = data.split(':', 1)
+        # split(':', 2) -> 앞의 ':' 두 곳에서만 자름 (토큰에 ':'가 섞여도 안전)
+        zone, robot_id, token = data.split(':', 2)
     except (ValueError, AttributeError):
         return None
-    return robot_id, token
+    return zone, robot_id, token
 
 
 def choose_entry_target(granted, slot, door):
@@ -140,6 +143,7 @@ class ZoneGateClient:
         """
         node : rclpy Node (BasicNavigator 같은 Node 상속 객체도 가능)
         robot_id : 매니저의 robot_ids 파라미터와 똑같은 문자열 (예: 'robot1')
+        구역은 생성자가 아니라 reset(zone) 으로 정한다 (한 로봇이 구역 A, B 를 번갈아 쓰기 때문).
         clock : 현재 시각(초)을 돌려주는 함수. 기본은 time.time (테스트 땐 가짜 시계 주입)
         """
         self.node = node
@@ -148,6 +152,7 @@ class ZoneGateClient:
         self._clock = clock
 
         # ---- 내부 상태 변수들 (앞에 _ 는 "클래스 안에서만 쓰는 값"이라는 관례) ----
+        self._zone = None           # 지금 대화 중인 위험구역 이름 (reset(zone) 으로 지정)
         self._granted_token = None  # 매니저가 허가해 준 토큰 (내 robot_id 것만 저장)
         self._token = None          # 이번 시도에서 내가 만든 토큰 (재전송 때 재사용)
         self._retry = RetryTimer(retry_period_sec)  # 재전송 주기 판단용
@@ -174,11 +179,11 @@ class ZoneGateClient:
     # 수신 콜백 (메시지가 오면 ROS가 자동으로 호출)
     # ------------------------------------------------------------------
     def _on_grant(self, msg: String):
-        """허가 메시지 수신: 다른 로봇 앞으로 온 건 무시, 내 것만 저장."""
+        """허가 메시지 수신: 다른 로봇·다른 구역 앞으로 온 건 무시, 내 것만 저장."""
         parsed = parse_grant_msg(msg.data)
-        # parsed가 None이 아니고(and), 첫 값(robot_id)이 내 ID와 같을 때만 저장
-        if parsed and parsed[0] == self.robot_id:
-            self._granted_token = parsed[1]
+        # parsed가 None이 아니고(and), 구역과 robot_id 가 내 것과 같을 때만 저장
+        if parsed and parsed[0] == self._zone and parsed[1] == self.robot_id:
+            self._granted_token = parsed[2]
 
     def _on_slot(self, msg: String):
         """슬롯 메시지 수신: 내 robot_id 의 최신 슬롯만 보관."""
@@ -187,8 +192,8 @@ class ZoneGateClient:
             self.node.get_logger().warn(
                 f'[{self.robot_id}] queue_slot 형식 오류 (무시): {msg.data!r}')
             return
-        robot_id, k, x, y, yaw = parsed
-        if robot_id != self.robot_id:            # 남의 슬롯이면 버림
+        zone, robot_id, k, x, y, yaw = parsed
+        if zone != self._zone or robot_id != self.robot_id:   # 남의 슬롯 / 다른 구역 슬롯이면 버림
             return
         self._slot = (k, x, y, yaw)              # 내 것이면 최신값으로 덮어씀
 
@@ -217,8 +222,17 @@ class ZoneGateClient:
     #   reset() -> send_request() -> [이동 루프: resend_if_due() / granted() / current_slot]
     #                              -> 중단하면 cancel_entry()
     # ------------------------------------------------------------------
-    def reset(self):
-        """새 진입 시도 전에 이전 허가/슬롯/토큰 상태를 전부 지운다 (깨끗한 출발)."""
+    @property
+    def zone(self):
+        """지금 대화 중인 구역 이름 (reset 전에는 None)."""
+        return self._zone
+
+    def reset(self, zone):
+        """
+        새 진입 시도 전에 구역을 지정하고 이전 허가/슬롯/토큰 상태를 전부 지운다 (깨끗한 출발).
+        zone : 들어가려는 구역 이름 (매니저의 zone_names 중 하나, ':' 불가)
+        """
+        self._zone = zone
         self._granted_token = None
         self._token = None
         self._slot = None
@@ -227,9 +241,12 @@ class ZoneGateClient:
     def send_request(self):
         """
         진입 요청을 1회 발행하고, 이번 시도의 토큰(번호표)을 돌려준다.
+        reset(zone) 을 먼저 호출해야 한다 (구역을 모르면 보낼 수 없음).
         흐름: 토큰 생성 -> 요청 발행 -> 토큰 반환(나중에 granted(token)으로 확인)
         uuid.uuid4().hex[:8] = 무작위 고유 문자열의 앞 8글자 (예: 'a3f9c21b')
         """
+        if self._zone is None:
+            raise RuntimeError('send_request 전에 reset(zone) 으로 구역을 지정해야 합니다')
         self._token = uuid.uuid4().hex[:8]
         self._publish_request()
         return self._token
@@ -257,16 +274,16 @@ class ZoneGateClient:
 
     def cancel_entry(self):
         """대기 포기 (stop/실패/queue_full 시). 매니저가 큐에서 나를 제거한다."""
-        self.cancel_pub.publish(String(data=self.robot_id))
+        self.cancel_pub.publish(String(data=f'{self._zone}:{self.robot_id}'))
         # 내 쪽 상태도 정리
         self._token = None
         self._slot = None
         self._retry.reset()
-        self.node.get_logger().info(f'[{self.robot_id}] zone 대기 취소 통보 전송')
+        self.node.get_logger().info(f'[{self.robot_id}] zone {self._zone} 대기 취소 통보 전송')
 
     def _publish_request(self):
         """요청 실제 발행 + 재전송 타이머 갱신 (send/resend가 공통으로 사용)."""
-        self.request_pub.publish(String(data=f'{self.robot_id}:{self._token}'))
+        self.request_pub.publish(String(data=f'{self._zone}:{self.robot_id}:{self._token}'))
         self._retry.mark(self._clock())   # '방금 보냈음' 기록
 
     # ------------------------------------------------------------------
@@ -280,10 +297,14 @@ class ZoneGateClient:
                      True면 즉시 대기 중단 (예: patrol 노드의 stop 명령 처리)
         반환값     : 허가받았으면 True, timeout 또는 stop_check로 중단되면 False
 
+        reset(zone) 으로 구역을 먼저 지정해야 한다.
+
         구조: 바깥 루프(요청 발행) 안에 안쪽 루프(1초간 응답 확인)가 있는 이중 루프
           바깥: 요청 발행 -> 안쪽 진입
           안쪽: 0.1초씩 spin_once 로 메시지 처리 -> 허가/중단/타임아웃 검사 -> 1초 지나면 바깥으로
         """
+        if self._zone is None:
+            raise RuntimeError('wait_for_entry 전에 reset(zone) 으로 구역을 지정해야 합니다')
         token = uuid.uuid4().hex[:8]
         self._granted_token = None
         start = time.time()
@@ -293,7 +314,7 @@ class ZoneGateClient:
                 return False
 
             msg = String()
-            msg.data = f'{self.robot_id}:{token}'
+            msg.data = f'{self._zone}:{self.robot_id}:{token}'
             self.request_pub.publish(msg)       # 요청 발행
 
             end_wait = time.time() + self.retry_period   # 이번 라운드 종료 시각
@@ -302,7 +323,7 @@ class ZoneGateClient:
                 rclpy.spin_once(self.node, timeout_sec=0.1)
                 if self._granted_token == token:         # 허가 도착
                     self.node.get_logger().info(
-                        f'[{self.robot_id}] zone 진입 허가 받음')
+                        f'[{self.robot_id}] zone {self._zone} 진입 허가 받음')
                     return True
                 if stop_check is not None and stop_check():   # 외부 중단 요청
                     return False
@@ -312,8 +333,8 @@ class ZoneGateClient:
         return False
 
     def notify_exit(self):
-        """zone을 완전히 벗어났음을 매니저에 통보 (락 즉시 해제)."""
+        """현재 구역(reset 으로 지정한 구역)을 완전히 벗어났음을 매니저에 통보 (락 즉시 해제)."""
         msg = String()
-        msg.data = self.robot_id
+        msg.data = f'{self._zone}:{self.robot_id}'
         self.exit_pub.publish(msg)
-        self.node.get_logger().info(f'[{self.robot_id}] zone 이탈 통보 전송')
+        self.node.get_logger().info(f'[{self.robot_id}] zone {self._zone} 이탈 통보 전송')

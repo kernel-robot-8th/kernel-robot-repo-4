@@ -10,23 +10,28 @@ zone_manager_node.py(v1)를 복사해 만든 독립 파일입니다. 기존 파�
 - v3 : 대기열 순번 k 에 맞춰 "대기 슬롯 좌표"를 로봇에게 알려 준다.
        슬롯 k = 앵커 + k * 간격 * 후방벡터  (k=0 이 앵커, 줄의 맨 앞)
 
+[위험구역]
+  구역이 여러 개(zone_names, 예: A, B)이면 구역마다 락·대기열·앵커를 따로 가진다.
+  A 구역 점유자는 B 구역 진입을 막지 않고, 같은 구역에서만 1대씩 들어간다.
+  모든 메시지 맨 앞에 구역 이름이 붙는다 (토픽 이름은 그대로).
+
 [토픽] (모두 std_msgs/String)
-  구독  /zone_manager/request_entry   "<robot_id>:<token>"
-  구독  /zone_manager/notify_exit     "<robot_id>"
-  구독  /zone_manager/cancel_entry    "<robot_id>"            (대기 포기)
-  발행  /zone_manager/grant_entry     "<robot_id>:<token>"
-  발행  /zone_manager/status          "free" | "occupied_by:<robot_id>"
-  발행  /zone_manager/queue_slot      "<robot_id>:<k>:<x>,<y>,<yaw>"   (k=-1 이면 대기열 가득 참)
+  구독  /zone_manager/request_entry   "<zone>:<robot_id>:<token>"
+  구독  /zone_manager/notify_exit     "<zone>:<robot_id>"
+  구독  /zone_manager/cancel_entry    "<zone>:<robot_id>"     (대기 포기)
+  발행  /zone_manager/grant_entry     "<zone>:<robot_id>:<token>"
+  발행  /zone_manager/status          "<zone>:free" | "<zone>:occupied_by:<robot_id>"
+  발행  /zone_manager/queue_slot      "<zone>:<robot_id>:<k>:<x>,<y>,<yaw>"   (k=-1 이면 대기열 가득 참)
 
 [전체 동작 요약]
   1) 로봇이 위험구역 앞에서 request_entry 를 보낸다 (1초마다 재전송 = "나 아직 기다리는 중").
-  2) 구역이 비어 있으면 즉시 grant_entry (슬롯 이동 없이 바로 진입).
-  3) 점유 중이면 FIFO 대기열에 넣고, 순번 k 에 해당하는 슬롯 좌표를 queue_slot 으로 알려 준다.
+  2) 그 구역이 비어 있으면 즉시 grant_entry (슬롯 이동 없이 바로 진입).
+  3) 점유 중이면 그 구역의 FIFO 대기열에 넣고, 순번 k 에 해당하는 슬롯 좌표를 queue_slot 으로 알려 준다.
   4) 점유자가 notify_exit 하면 선두 대기자에게 grant_entry, 나머지는 한 칸 앞 슬롯으로 전진시킨다.
 
 [구성]
   - 순수 로직 : normalize_dir / slot_pose / ZoneQueue  (ROS·락 없음, 단위 테스트 대상)
-  - ROS 노드  : ZoneManagerNode  (토픽 입출력, 락, 타이머, 슬롯 발행 타이밍 제어)
+  - ROS 노드  : ZoneManagerNode  (토픽 입출력, 락, 타이머, 슬롯 발행 타이밍 제어), ZoneState (구역 1개의 상태)
 
 [안전장치]
 - max_hold_sec        : 점유자가 notify_exit 를 못 보내도 강제 해제 (v1과 동일)
@@ -40,7 +45,9 @@ import threading
 import time
 
 import rclpy
+from rclpy.exceptions import ParameterUninitializedException
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
@@ -204,18 +211,37 @@ class ZoneQueue:
 # ==============================================================================
 # 노드
 # ==============================================================================
+class ZoneState:
+    """
+    위험구역 1개의 상태 묶음. 구역마다 따로 가지므로 구역 A 의 점유/대기열이 구역 B 를 막지 않는다.
+    ZoneQueue 는 로직만, 이 클래스는 "그 구역의 앵커와 슬롯 발행 기록"까지 함께 들고 있다.
+    """
+
+    def __init__(self, name, zq, anchor, back_dir):
+        self.name = name
+        self.zq = zq
+        self.anchor = anchor            # 슬롯 0 위치 (x, y, yaw)
+        self.back_dir = back_dir        # 줄이 늘어나는 단위 벡터
+        # robot_id -> 마지막으로 발행한 슬롯 번호. 현재 큐 순번과 비교해 "바뀐 것만" 발행하고,
+        # 1초 재발행 타이머가 유실 대비로 이 값을 그대로 다시 보낸다.
+        self.sent_k = {}
+        # 이 시각 전에는 슬롯을 "앞으로 당기지" 않는다 (선두가 앵커를 떠날 시간 확보)
+        self.advance_after = 0.0
+
+
 class ZoneManagerNode(Node):
     """
-    ZoneQueue 를 ROS 토픽/타이머에 연결하는 노드.
+    구역별 ZoneQueue 를 ROS 토픽/타이머에 연결하는 노드.
     ZoneQueue 의 판단 결과를 grant_entry / queue_slot / status 토픽으로 바꿔 내보내고,
     "슬롯을 언제 발행할지"(즉시 vs 지연 전진)를 책임진다.
+    모든 메시지 맨 앞에 구역 이름이 붙어 있어 같은 토픽으로 여러 구역을 구분한다.
     모든 상태 접근은 self._lock 아래에서 한다 (콜백/타이머가 서로 다른 스레드에서 돌 수 있음).
     """
 
     # ---노드 초기화 (파라미터·통신·타이머 등록)---
     # [기능] 노드 초기화.
-    #        (1) 파라미터 선언/로드 (앵커·후방벡터는 잘못되면 로그 후 기본값 대체)
-    #        (2) ZoneQueue·락·슬롯 발행 기록 생성
+    #        (1) 파라미터 선언/로드 (구역별 앵커·후방벡터는 잘못되면 로그 후 기본값 대체)
+    #        (2) 구역별 ZoneState(ZoneQueue 포함)·락 생성
     #        (3) 구독자 3개(request/exit/cancel), 발행자 3개(grant/status/slot) 생성
     #        (4) 주기 타이머 3개(감시 1초 / 전진 반영 0.2초 / 재발행 1초) 등록
     def __init__(self):
@@ -224,44 +250,62 @@ class ZoneManagerNode(Node):
         # ---------------- 파라미터 ----------------
         self.declare_parameter('robot_ids', ['pinky1', 'pinky2', 'pinky3'])
         self.declare_parameter('max_hold_sec', 120.0)
-        # 대기열 (map 좌표계, m / rad)
-        self.declare_parameter('queue_anchor', [0.0, 0.0, 0.0])
-        self.declare_parameter('queue_back_dir', [-1.0, 0.0])
+        # 위험구역 이름 목록. 이름은 메시지 맨 앞에 붙으므로 ':' 를 넣을 수 없다.
+        self.declare_parameter('zone_names', ['A', 'B'])
+        # 대기열 (map 좌표계, m / rad). 간격·최대 인원·stale·전진 지연은 모든 구역 공통
         self.declare_parameter('queue_spacing', 0.30)
         self.declare_parameter('queue_max', 3)
         self.declare_parameter('queue_stale_sec', 5.0)
         self.declare_parameter('queue_advance_delay_sec', 3.0)
+        # 1구역 시절의 단일 키가 남아 있으면 앵커가 조용히 무시되므로 시작을 거부한다.
+        self.declare_parameter('queue_anchor', Parameter.Type.DOUBLE_ARRAY)
+        try:
+            self.get_parameter('queue_anchor')      # 값이 있으면 옛 설정이 남은 것
+            legacy_anchor = True
+        except ParameterUninitializedException:     # 값이 없는 것이 정상
+            legacy_anchor = False
+        if legacy_anchor:
+            msg = ('queue_anchor 단일 키는 더 이상 쓰지 않습니다. '
+                   'zone_<구역>.queue_anchor 로 구역마다 지정하세요 (config/zone_params.yaml 참고)')
+            self.get_logger().error(msg)
+            raise ValueError(msg)
 
         self.robot_ids = list(self.get_parameter('robot_ids').value)
         self.max_hold_sec = float(self.get_parameter('max_hold_sec').value)
+        self.spacing = float(self.get_parameter('queue_spacing').value)
+        self.advance_delay = float(self.get_parameter('queue_advance_delay_sec').value)
+        queue_max = int(self.get_parameter('queue_max').value)
+        stale_sec = float(self.get_parameter('queue_stale_sec').value)
 
-        # 앵커(slot 0)와 후방 벡터는 잘못 설정돼도 노드가 죽지 않도록 로그 후 기본값으로 대체
-        anchor = list(self.get_parameter('queue_anchor').value)      # queue_anchor 설정된 값을 읽음
-        if len(anchor) != 3:
-            self.get_logger().error(f'queue_anchor 는 [x, y, yaw] 여야 합니다: {anchor}')
-            anchor = [0.0, 0.0, 0.0]
-        self.anchor = tuple(float(v) for v in anchor)
+        zone_names = [str(z) for z in self.get_parameter('zone_names').value]
+        if not zone_names or len(set(zone_names)) != len(zone_names) or any(
+                not z or ':' in z for z in zone_names):
+            msg = f'zone_names 는 중복 없는 비어 있지 않은 이름이어야 하고 ":" 를 쓸 수 없습니다: {zone_names}'
+            self.get_logger().error(msg)
+            raise ValueError(msg)
 
-        raw_dir = list(self.get_parameter('queue_back_dir').value)   # queue_back_dir 설정된 값을 읽음
-        self.back_dir = normalize_dir(raw_dir)
-        if normalize_dir(raw_dir, default=None) is None:
-            self.get_logger().error(
-                f'queue_back_dir 가 올바르지 않아 기본값 {self.back_dir} 사용: {raw_dir}')
-
-        self.spacing = float(self.get_parameter('queue_spacing').value)   # spacing = queue_spacing 파라미터 값
-        self.advance_delay = float(self.get_parameter('queue_advance_delay_sec').value)   # advance_delay = queue_advance_delay_sec 파라미터 값
+        # 구역별 앵커(slot 0)와 후방 벡터. 잘못 설정돼도 노드가 죽지 않도록 로그 후 기본값으로 대체
+        self.zones = {}
+        for zone in zone_names:
+            self.declare_parameter(f'zone_{zone}.queue_anchor', [0.0, 0.0, 0.0])
+            self.declare_parameter(f'zone_{zone}.queue_back_dir', [-1.0, 0.0])
+            anchor = list(self.get_parameter(f'zone_{zone}.queue_anchor').value)
+            if len(anchor) != 3:
+                self.get_logger().error(
+                    f'zone_{zone}.queue_anchor 는 [x, y, yaw] 여야 합니다: {anchor}')
+                anchor = [0.0, 0.0, 0.0]
+            raw_dir = list(self.get_parameter(f'zone_{zone}.queue_back_dir').value)
+            back_dir = normalize_dir(raw_dir)
+            if normalize_dir(raw_dir, default=None) is None:
+                self.get_logger().error(
+                    f'zone_{zone}.queue_back_dir 가 올바르지 않아 기본값 {back_dir} 사용: {raw_dir}')
+            self.zones[zone] = ZoneState(
+                zone, ZoneQueue(queue_max=queue_max, stale_sec=stale_sec),
+                tuple(float(v) for v in anchor), back_dir)
 
         # ---------------- 상태 ----------------
-        # 큐/점유 상태와 아래 발행 기록은 콜백·타이머가 함께 만지므로 하나의 락으로 보호
+        # 큐/점유 상태와 구역별 발행 기록은 콜백·타이머가 함께 만지므로 하나의 락으로 보호
         self._lock = threading.Lock()
-        self.zq = ZoneQueue(
-            queue_max=int(self.get_parameter('queue_max').value),
-            stale_sec=float(self.get_parameter('queue_stale_sec').value))
-        # robot_id -> 마지막으로 발행한 슬롯 번호. 현재 큐 순번과 비교해 "바뀐 것만" 발행하고,
-        # 1초 재발행 타이머가 유실 대비로 이 값을 그대로 다시 보낸다.
-        self._sent_k = {}
-        # 이 시각 전에는 슬롯을 "앞으로 당기지" 않는다 (선두가 앵커를 떠날 시간 확보)
-        self._advance_after = 0.0
 
         qos = QoSProfile(depth=10,
                          reliability=ReliabilityPolicy.RELIABLE,
@@ -280,125 +324,153 @@ class ZoneManagerNode(Node):
         self.create_timer(0.2, self._sync_slots)         # 지연된 슬롯 전진 반영
         self.create_timer(1.0, self._republish_slots)    # 유실 대비 재발행
 
+        anchors = {z: s.anchor for z, s in self.zones.items()}
         self.get_logger().info(
-            f'Zone manager v3 시작 (robots={self.robot_ids}, max_hold_sec={self.max_hold_sec}, '
-            f'anchor={self.anchor}, back_dir={self.back_dir}, spacing={self.spacing}, '
-            f'queue_max={self.zq.queue_max}, stale={self.zq.stale_sec}s, '
-            f'advance_delay={self.advance_delay}s)')
+            f'Zone manager v4 시작 (robots={self.robot_ids}, zones={zone_names}, '
+            f'max_hold_sec={self.max_hold_sec}, anchors={anchors}, spacing={self.spacing}, '
+            f'queue_max={queue_max}, stale={stale_sec}s, advance_delay={self.advance_delay}s)')
+
+    # ---------------- 구역 조회 ----------------
+
+    # ---메시지 맨 앞 구역 이름 분리---
+    # [기능] "<구역>:<나머지>" 에서 구역 상태와 나머지 문자열을 꺼낸다.
+    #        형식이 틀리거나 모르는 구역이면 경고만 남기고 (None, None) — 한 구역의 오류가 다른 구역을 막지 않게 한다.
+    def _split_zone(self, data, what):
+        zone_name, sep, rest = data.partition(':')
+        if not sep:
+            self.get_logger().warn(f'잘못된 {what} 형식(구역 접두 없음): {data!r}')
+            return None, None
+        zone = self.zones.get(zone_name)
+        if zone is None:
+            self.get_logger().warn(f'알 수 없는 구역 {zone_name!r} ({what}, 무시): {data!r}')
+            return None, None
+        return zone, rest
 
     # ---------------- 콜백 ----------------
 
     # ---진입 요청 수신 (허가/대기/거부 발행)---
-    # [기능] /request_entry ("<robot_id>:<token>") 수신 콜백.
-    #        메시지를 파싱해 ZoneQueue.request() 로 판단하고 결과에 따라 동작한다.
+    # [기능] /request_entry ("<zone>:<robot_id>:<token>") 수신 콜백.
+    #        메시지를 파싱해 해당 구역의 ZoneQueue.request() 로 판단하고 결과에 따라 동작한다.
     #        grant  -> status 방송 + grant_entry 발행
     #        queued -> (신규면 로그) 슬롯 번호 동기화
     #        full   -> 경고 로그 + k=-1 슬롯 발행으로 거부 통보
     def _on_request(self, msg: String):
-        """request_entry 수신: ZoneQueue 판단 결과(grant/queued/full)에 따라 알맞은 토픽 발행."""
+        """request_entry 수신: 구역의 ZoneQueue 판단 결과(grant/queued/full)에 따라 알맞은 토픽 발행."""
+        z, rest = self._split_zone(msg.data, '요청')
+        if z is None:
+            return
         try:
-            robot_id, token = msg.data.split(':', 1)
+            robot_id, token = rest.split(':', 1)
         except ValueError:
             self.get_logger().warn(f'잘못된 요청 형식: {msg.data}')
             return
 
         with self._lock:
-            was_queued = robot_id in self.zq.order()
-            result = self.zq.request(robot_id, token, time.time())
+            was_queued = robot_id in z.zq.order()
+            result = z.zq.request(robot_id, token, time.time())
 
             if result[0] == 'grant':
-                self._publish_status()
-                self._grant(robot_id, token)
+                self._publish_status(z)
+                self._grant(z, robot_id, token)
             elif result[0] == 'queued':
                 if not was_queued:
                     self.get_logger().info(
-                        f'[{robot_id}] 대기열 등록 (현재 점유: {self.zq.occupant}, '
-                        f'대기중: {self.zq.order()})')
-                self._sync_slots_locked()
+                        f'[{z.name}][{robot_id}] 대기열 등록 (현재 점유: {z.zq.occupant}, '
+                        f'대기중: {z.zq.order()})')
+                self._sync_slots_locked(z)
             else:  # 'full'
                 self.get_logger().warn(
-                    f'[{robot_id}] 대기열 가득 참 (queue_max={self.zq.queue_max}) -> 거부')
-                self.slot_pub.publish(String(data=f'{robot_id}:-1:0.0,0.0,0.0'))
+                    f'[{z.name}][{robot_id}] 대기열 가득 참 (queue_max={z.zq.queue_max}) -> 거부')
+                self.slot_pub.publish(String(data=f'{z.name}:{robot_id}:-1:0.0,0.0,0.0'))
 
     # ---이탈 통보 수신 (락 해제 + 다음 허가)---
-    # [기능] /notify_exit ("<robot_id>") 수신 콜백.
-    #        현재 점유자가 보낸 통보일 때만 락을 해제하고(_after_release) 다음 선두 허가 + 나머지 전진을 처리한다.
+    # [기능] /notify_exit ("<zone>:<robot_id>") 수신 콜백.
+    #        해당 구역의 점유자가 보낸 통보일 때만 락을 해제하고(_after_release) 다음 선두 허가 + 나머지 전진을 처리한다.
     #        점유자가 아닌 로봇의 통보는 경고 로그만 남기고 무시한다.
     def _on_exit(self, msg: String):
         """notify_exit 수신: 점유자일 때만 락 해제 -> 다음 선두 허가 + 나머지 전진."""
-        robot_id = msg.data.strip()
+        z, rest = self._split_zone(msg.data, '이탈 통보')
+        if z is None:
+            return
+        robot_id = rest.strip()
         with self._lock:
-            ok, nxt = self.zq.exit(robot_id, time.time())
+            ok, nxt = z.zq.exit(robot_id, time.time())
             if not ok:
                 self.get_logger().warn(
-                    f'[{robot_id}] notify_exit 수신했지만 현재 점유자는 '
-                    f'{self.zq.occupant} 입니다 (무시)')
+                    f'[{z.name}][{robot_id}] notify_exit 수신했지만 현재 점유자는 '
+                    f'{z.zq.occupant} 입니다 (무시)')
                 return
-            self.get_logger().info(f'[{robot_id}] zone 이탈 통보 -> 락 해제')
-            self._after_release(nxt)
+            self.get_logger().info(f'[{z.name}][{robot_id}] zone 이탈 통보 -> 락 해제')
+            self._after_release(z, nxt)
 
     # ---대기 취소 수신 (큐 제거 + 뒤 로봇 전진)---
-    # [기능] /cancel_entry ("<robot_id>") 수신 콜백.
+    # [기능] /cancel_entry ("<zone>:<robot_id>") 수신 콜백.
     #        대기자를 큐에서 빼고 슬롯 기록을 지운 뒤, 뒤 로봇들이 앞으로 당겨지도록
     #        지연 타이머를 걸고 슬롯을 다시 맞춘다. 점유자의 락은 유지된다.
     def _on_cancel(self, msg: String):
         """cancel_entry 수신: 대기자를 큐에서 빼고 뒤 로봇을 전진시킨다 (점유자 락은 유지)."""
-        robot_id = msg.data.strip()
+        z, rest = self._split_zone(msg.data, '대기 취소')
+        if z is None:
+            return
+        robot_id = rest.strip()
         with self._lock:
-            if self.zq.cancel(robot_id):
+            if z.zq.cancel(robot_id):
                 self.get_logger().info(
-                    f'[{robot_id}] 대기 취소 -> 대기열: {self.zq.order()}')
-                self._sent_k.pop(robot_id, None)
-                self._advance_after = time.time() + self.advance_delay
-                self._sync_slots_locked()
+                    f'[{z.name}][{robot_id}] 대기 취소 -> 대기열: {z.zq.order()}')
+                z.sent_k.pop(robot_id, None)
+                z.advance_after = time.time() + self.advance_delay
+                self._sync_slots_locked(z)
             else:
-                self.get_logger().warn(f'[{robot_id}] cancel_entry 수신했지만 대기열에 없음 (무시)')
+                self.get_logger().warn(
+                    f'[{z.name}][{robot_id}] cancel_entry 수신했지만 대기열에 없음 (무시)')
 
     # ---------------- 주기 로직 ----------------
 
     # ---주기 감시 (1초: 유령 대기자 + 점유 초과)---
-    # [기능] 1초 주기 감시 타이머.
+    # [기능] 1초 주기 감시 타이머. 구역마다
     #        (1) request_entry 재전송이 끊긴 stale 대기자를 제거하고 뒤 로봇을 전진시킨다.
     #        (2) 점유 시간이 max_hold_sec 를 넘으면 notify_exit 유실로 보고 강제 해제한다.
     def _check_timeout(self):
         """1초 주기 감시: (1) stale 대기자 제거 (2) 점유 시간 초과 시 강제 해제."""
         with self._lock:
             now = time.time()
+            for z in self.zones.values():
+                gone = z.zq.expire_stale(now)
+                if gone:
+                    self.get_logger().warn(
+                        f'[{z.name}] {gone} request_entry 재전송 끊김 '
+                        f'(> {z.zq.stale_sec}s) -> 대기열에서 제거')
+                    for rid in gone:
+                        z.sent_k.pop(rid, None)
+                    z.advance_after = now + self.advance_delay
+                    self._sync_slots_locked(z)
 
-            gone = self.zq.expire_stale(now)
-            if gone:
-                self.get_logger().warn(
-                    f'{gone} request_entry 재전송 끊김 '
-                    f'(> {self.zq.stale_sec}s) -> 대기열에서 제거')
-                for rid in gone:
-                    self._sent_k.pop(rid, None)
-                self._advance_after = now + self.advance_delay
-                self._sync_slots_locked()
-
-            held = self.zq.hold_exceeded(now, self.max_hold_sec)
-            if held is not None:
-                self.get_logger().warn(
-                    f'[{self.zq.occupant}] {held:.0f}초 동안 notify_exit 없음 '
-                    f'-> 강제 해제 (max_hold_sec={self.max_hold_sec})')
-                self._after_release(self.zq.release_and_advance(now))
+                held = z.zq.hold_exceeded(now, self.max_hold_sec)
+                if held is not None:
+                    self.get_logger().warn(
+                        f'[{z.name}][{z.zq.occupant}] {held:.0f}초 동안 notify_exit 없음 '
+                        f'-> 강제 해제 (max_hold_sec={self.max_hold_sec})')
+                    self._after_release(z, z.zq.release_and_advance(now))
 
     # ---보류된 전진 반영 (0.2초)---
     # [기능] 0.2초 주기 타이머. advance_delay 때문에 보류해 둔 "전진" 슬롯을
-    #        지연 시간이 지난 뒤 실제로 발행하도록 락을 잡고 동기화를 호출한다.
+    #        지연 시간이 지난 뒤 실제로 발행하도록 락을 잡고 구역별로 동기화를 호출한다.
     def _sync_slots(self):
         """0.2초 주기: 지연(advance_delay) 때문에 보류해 둔 "전진" 슬롯을 시간이 되면 발행."""
         with self._lock:
-            self._sync_slots_locked()
+            for z in self.zones.values():
+                self._sync_slots_locked(z)
 
     # ---유실 대비 재발행 (1초)---
-    # [기능] 1초 주기 타이머. 메시지 유실에 대비해 현재 점유 상태(status)와
+    # [기능] 1초 주기 타이머. 메시지 유실에 대비해 구역별 점유 상태(status)와
     #        이미 알려 준 모든 대기자의 슬롯 좌표를 그대로 다시 발행한다.
     def _republish_slots(self):
         """유실 대비: 이미 알려 준 슬롯을 그대로 다시 발행."""
         with self._lock:
-            self._publish_status()
-            for rid, k in self._sent_k.items():
-                self._publish_slot(rid, k)
+            for z in self.zones.values():
+                self._publish_status(z)
+                for rid, k in z.sent_k.items():
+                    self._publish_slot(z, rid, k)
 
     # ---------------- 상태 전이 (lock 보유 상태에서 호출) ----------------
 
@@ -406,59 +478,59 @@ class ZoneManagerNode(Node):
     # [기능] 점유 해제 직후의 공통 후처리 (락 보유 상태에서 호출).
     #        status 방송 -> 승격된 선두에게 grant_entry 발행(슬롯 기록 삭제) ->
     #        나머지 대기자는 advance_delay 후에 앞 슬롯으로 전진하도록 예약.
-    def _after_release(self, nxt):
+    def _after_release(self, z, nxt):
         """해제 직후 처리: 상태 방송, 다음 선두 허가, 나머지는 지연 후 전진."""
-        self._publish_status()
+        self._publish_status(z)
         if nxt is not None:
             _, next_id, next_token = nxt
-            self._sent_k.pop(next_id, None)       # 선두는 더 이상 대기자가 아님
-            self._grant(next_id, next_token)
-        self._advance_after = time.time() + self.advance_delay
-        self._sync_slots_locked()
+            z.sent_k.pop(next_id, None)       # 선두는 더 이상 대기자가 아님
+            self._grant(z, next_id, next_token)
+        z.advance_after = time.time() + self.advance_delay
+        self._sync_slots_locked(z)
 
     # ---슬롯 번호 동기화 (바뀐 것만 발행)---
-    # [기능] 현재 대기열 순번(k)과 마지막으로 발행한 슬롯 번호를 비교해 "바뀐 것만" 발행한다. (락 보유 상태에서 호출)
+    # [기능] 구역의 현재 대기열 순번(k)과 마지막으로 발행한 슬롯 번호를 비교해 "바뀐 것만" 발행한다. (락 보유 상태에서 호출)
     #        - 새 대기자 / 뒤로 밀리는 경우(k 증가) : 즉시 발행
-    #        - 앞으로 당겨지는 경우(k 감소)         : _advance_after 이후에 발행
+    #        - 앞으로 당겨지는 경우(k 감소)         : advance_after 이후에 발행
     #          (앞 로봇이 앵커를 떠날 시간을 줘서 충돌 방지)
-    def _sync_slots_locked(self):
+    def _sync_slots_locked(self, z):
         """
-        대기열 순번과 마지막 발행 슬롯을 맞춘다.
+        구역의 대기열 순번과 마지막 발행 슬롯을 맞춘다.
         - 새로 들어온 대기자 / 뒤로 밀리는 경우: 즉시 발행
-        - 앞으로 당겨지는 경우(k 감소): _advance_after 이후에 발행 (앞 로봇이 떠날 시간)
+        - 앞으로 당겨지는 경우(k 감소): advance_after 이후에 발행 (앞 로봇이 떠날 시간)
         """
         now = time.time()
-        for k, rid in enumerate(self.zq.order()):
-            sent = self._sent_k.get(rid)
+        for k, rid in enumerate(z.zq.order()):
+            sent = z.sent_k.get(rid)
             if sent == k:
                 continue
-            if sent is not None and k < sent and now < self._advance_after:
+            if sent is not None and k < sent and now < z.advance_after:
                 continue
-            self._sent_k[rid] = k
-            self._publish_slot(rid, k)
+            z.sent_k[rid] = k
+            self._publish_slot(z, rid, k)
 
     # ---------------- 발행 ----------------
 
     # ---슬롯 좌표 발행---
-    # [기능] 슬롯 번호 k 를 map 좌표 (x, y, yaw) 로 변환해
-    #        "<robot_id>:<k>:<x>,<y>,<yaw>" 형식으로 /queue_slot 에 발행한다.
-    def _publish_slot(self, robot_id, k):
-        x, y, yaw = slot_pose(k, self.anchor, self.back_dir, self.spacing)
-        self.slot_pub.publish(String(data=f'{robot_id}:{k}:{x:.3f},{y:.3f},{yaw:.3f}'))
+    # [기능] 슬롯 번호 k 를 구역 앵커 기준 map 좌표 (x, y, yaw) 로 변환해
+    #        "<zone>:<robot_id>:<k>:<x>,<y>,<yaw>" 형식으로 /queue_slot 에 발행한다.
+    def _publish_slot(self, z, robot_id, k):
+        x, y, yaw = slot_pose(k, z.anchor, z.back_dir, self.spacing)
+        self.slot_pub.publish(String(data=f'{z.name}:{robot_id}:{k}:{x:.3f},{y:.3f},{yaw:.3f}'))
 
     # ---진입 허가 발행---
     # [기능] 해당 로봇에게 진입 허가를 내린다.
-    #        "<robot_id>:<token>" 을 /grant_entry 로 발행하고 로그를 남긴다.
-    def _grant(self, robot_id, token):
-        self.grant_pub.publish(String(data=f'{robot_id}:{token}'))
-        self.get_logger().info(f'[{robot_id}] 진입 허가 (token={token})')
+    #        "<zone>:<robot_id>:<token>" 을 /grant_entry 로 발행하고 로그를 남긴다.
+    def _grant(self, z, robot_id, token):
+        self.grant_pub.publish(String(data=f'{z.name}:{robot_id}:{token}'))
+        self.get_logger().info(f'[{z.name}][{robot_id}] 진입 허가 (token={token})')
 
     # ---점유 상태 발행---
     # [기능] 구역 점유 상태를 /status 로 방송한다.
-    #        점유자가 있으면 "occupied_by:<robot_id>", 없으면 "free".
-    def _publish_status(self):
-        data = f'occupied_by:{self.zq.occupant}' if self.zq.occupant else 'free'
-        self.status_pub.publish(String(data=data))
+    #        점유자가 있으면 "<zone>:occupied_by:<robot_id>", 없으면 "<zone>:free".
+    def _publish_status(self, z):
+        state = f'occupied_by:{z.zq.occupant}' if z.zq.occupant else 'free'
+        self.status_pub.publish(String(data=f'{z.name}:{state}'))
 
 
 # ---프로그램 시작점---

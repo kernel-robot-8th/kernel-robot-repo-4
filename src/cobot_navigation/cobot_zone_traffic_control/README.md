@@ -1,6 +1,9 @@
 # cobot_zone_traffic_control
 
 여러 대의 Pinky 로봇이 위험구역(zone)에 **한 번에 한 대만** 들어가도록 허가·대기열 슬롯을 관리하는 ROS 2 패키지.
+위험구역이 여러 개(현재 `A`, `B`)이면 **구역마다 락·대기열·앵커가 따로**이며, 한 구역의 점유는 다른 구역을 막지 않습니다. 모든 메시지 맨 앞에 구역 이름이 붙습니다.
+
+> **v4(구역 2개)에서 메시지 형식이 바뀌었습니다.** 구역 접두가 없는 구형 노드와는 호환되지 않으므로 매니저(관제 PC)와 로봇 3대를 함께 재배포하세요 (순서: 매니저 → 로봇).
 
 > 이전 세대(v1: 문 방식, v2: self-report 방식)의 구현은 git 태그 `v2-final` 에 보존되어 있으며 현재 코드에는 없습니다.
 
@@ -76,9 +79,9 @@ zone 토픽 6개를 로봇 도메인 ↔ 관제 도메인 사이에서 브릿지
 
 ```bash
 export ROS_DOMAIN_ID=10   # pinky1 (pinky2 는 20, pinky3 은 30)
-ros2 run cobot_pinky_patrol pinky_patrol_node_pinky1 --ros-args -p robot_id:=pinky1
-# pinky2: ros2 run cobot_pinky_patrol pinky_patrol_node_pinky2 --ros-args -p robot_id:=pinky2
-# pinky3: ros2 run cobot_pinky_patrol pinky_patrol_node_pinky3 --ros-args -p robot_id:=pinky3
+ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
+# pinky2: ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
+# pinky3: ros2 launch cobot_pinky_patrol pinky3_patrol.launch.xml
 ```
 
 로봇 네임스페이스는 쓰지 않고, 도메인 번호만 장비별로 다릅니다.
@@ -92,7 +95,7 @@ python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd
 ## 사용 예시
 
 ```bash
-# 구역 점유 상태 확인 ("free" 또는 "occupied_by:<robot_id>")
+# 구역 점유 상태 확인 ("<구역>:free" 또는 "<구역>:occupied_by:<robot_id>")
 ros2 topic echo /zone_manager/status
 
 # 허가 / 슬롯 흐름 보기
@@ -110,23 +113,25 @@ python3 ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd
 
 | 토픽 | 방향 | 형식 |
 |---|---|---|
-| `request_entry` | 로봇 → 매니저 | `<robot_id>:<token>` (1초마다 재전송) |
-| `notify_exit` | 로봇 → 매니저 | `<robot_id>` |
-| `cancel_entry` | 로봇 → 매니저 | `<robot_id>` |
-| `grant_entry` | 매니저 → 로봇 | `<robot_id>:<token>` |
-| `queue_slot` | 매니저 → 로봇 | `<robot_id>:<k>:<x>,<y>,<yaw>` (`k=-1` 이면 대기열 가득) |
-| `status` | 매니저 → 모니터링 | `free` / `occupied_by:<robot_id>` |
+| `request_entry` | 로봇 → 매니저 | `<zone>:<robot_id>:<token>` (1초마다 재전송) |
+| `notify_exit` | 로봇 → 매니저 | `<zone>:<robot_id>` |
+| `cancel_entry` | 로봇 → 매니저 | `<zone>:<robot_id>` |
+| `grant_entry` | 매니저 → 로봇 | `<zone>:<robot_id>:<token>` |
+| `queue_slot` | 매니저 → 로봇 | `<zone>:<robot_id>:<k>:<x>,<y>,<yaw>` (`k=-1` 이면 대기열 가득) |
+| `status` | 매니저 → 모니터링 | `<zone>:free` / `<zone>:occupied_by:<robot_id>` |
+
+`<zone>` 은 `zone_names` 중 하나이고 `:` 를 쓸 수 없습니다. 모르는 구역 이름이나 접두 없는 메시지는 경고 로그만 남기고 무시합니다.
 
 로봇 코드에서 사용하는 예 (`zone_gate_client.ZoneGateClient`):
 
 ```python
 gate = ZoneGateClient(node, robot_id='pinky1')
-gate.reset()
+gate.reset('A')                   # 어느 구역과 대화할지 지정 (다른 구역의 허가/슬롯은 무시)
 token = gate.send_request()
 while not gate.granted(token):
     gate.resend_if_due()          # 1초마다 재전송 (끊기면 stale 로 제거됨)
     # gate.current_slot -> (k, x, y, yaw), gate.queue_full -> 대기열 가득 여부
-gate.notify_exit()                # 구역을 나오면 락 반납
+gate.notify_exit()                # 구역을 나오면 그 구역(reset 으로 지정한)의 락 반납
 ```
 
 ## 환경변수 표
@@ -142,10 +147,12 @@ gate.notify_exit()                # 구역을 나오면 락 반납
 | 파라미터 | yaml 값 | 코드 기본값 | 설명 |
 |---|---|---|---|
 | `robot_ids` | `["pinky1", "pinky2", "pinky3"]` | 동일 | patrol 노드의 `robot_id` 와 일치해야 함 |
-| `max_hold_sec` | `120.0` | `120.0` | 점유 강제 해제 시간(초) |
-| `queue_anchor` | `[1.0, -0.7, 0.0]` | `[0.0, 0.0, 0.0]` | 슬롯 0 위치 `[x, y, yaw]` (map). patrol 노드의 `ZONE_ENTRY` 와 같아야 함 |
-| `queue_back_dir` | `[-1.0, 0.0]` | `[-1.0, 0.0]` | 줄이 늘어나는 방향 (자동 정규화) |
-| `queue_spacing` | `0.30` | `0.30` | 슬롯 간격(m) |
+| `max_hold_sec` | `120.0` | `120.0` | 점유 강제 해제 시간(초, 구역별로 각각 적용) |
+| `zone_names` | `["A", "B"]` | `["A", "B"]` | 위험구역 이름 (영문·숫자, 로봇 YAML 의 `zone_names` 와 같아야 함) |
+| `zone_<구역>.queue_anchor` | A: `[0.0, 0.6, 0.0]`, B: `[-0.8, -0.2, -0.7]` (로봇 YAML 의 ENTRY 와 동일) | `[0.0, 0.0, 0.0]` | 구역별 슬롯 0 위치 `[x, y, yaw]` (map). patrol 노드의 `ZONE_<구역>_ENTRY` 와 같아야 함 |
+| `zone_<구역>.queue_back_dir` | `[-1.0, 0.0]` | `[-1.0, 0.0]` | 구역별 줄이 늘어나는 방향 (자동 정규화) |
+| (제거) `queue_anchor` | - | - | 1구역 시절의 단일 키. YAML 에 남아 있으면 매니저가 시작을 거부함 |
+| `queue_spacing` | `0.30` | `0.30` | 슬롯 간격(m, 모든 구역 공통) |
 | `queue_max` | `3` | `3` | 최대 대기자 수 |
 | `queue_stale_sec` | `5.0` | `5.0` | 재전송 끊김 판정 시간(초) |
 | `queue_advance_delay_sec` | `3.0` | `3.0` | 뒤 로봇 전진 지연(초) |

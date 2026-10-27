@@ -30,36 +30,40 @@ def _params():
 ADVANCE_WAIT = 2 * _params()['queue_advance_delay_sec'] + 3.0
 
 
-def expected_slot(k):
-    """zone_params.yaml 의 앵커/후방 벡터/간격으로 슬롯 k 의 (x, y) 를 계산 (앵커가 바뀌어도 테스트 유지)."""
+def expected_slot(k, zone='A'):
+    """zone_params.yaml 의 구역별 앵커/후방 벡터/간격으로 슬롯 k 의 (x, y) 를 계산 (앵커가 바뀌어도 테스트 유지)."""
     import yaml
     from cobot_zone_traffic_control.zone_manager_node import normalize_dir, slot_pose
     prm = yaml.safe_load((PKG_ROOT / 'config/zone_params.yaml').read_text(encoding='utf-8'))
     prm = prm['zone_manager_node']['ros__parameters']
-    x, y, _ = slot_pose(k, prm['queue_anchor'], normalize_dir(prm['queue_back_dir']),
+    z = prm[f'zone_{zone}']
+    x, y, _ = slot_pose(k, z['queue_anchor'], normalize_dir(z['queue_back_dir']),
                         prm['queue_spacing'])
     return x, y
 
 
 # ---------------- 순수 로직 ----------------
 def test_parse_slot_ok():
-    assert parse_slot_msg('pinky2:1:-0.050,-0.450,0.000') == ('pinky2', 1, -0.05, -0.45, 0.0)
+    assert parse_slot_msg('A:pinky2:1:-0.050,-0.450,0.000') == ('A', 'pinky2', 1, -0.05, -0.45, 0.0)
 
 
 def test_parse_slot_queue_full():
-    assert parse_slot_msg('pinky3:-1:0.0,0.0,0.0')[1] == -1
+    assert parse_slot_msg('B:pinky3:-1:0.0,0.0,0.0')[2] == -1
 
 
-@pytest.mark.parametrize('bad', ['', 'pinky1', 'pinky1:1', 'pinky1:x:1,2,3',
-                                 'pinky1:1:1,2', 'pinky1:1:a,b,c', None])
+@pytest.mark.parametrize('bad', ['', 'pinky1', 'A:pinky1:1', 'A:pinky1:x:1,2,3',
+                                 'A:pinky1:1:1,2', 'A:pinky1:1:a,b,c',
+                                 'pinky1:1:1.0,2.0,3.0',     # 구역 접두가 없는 1구역 시절 형식
+                                 None])
 def test_parse_slot_bad(bad):
     assert parse_slot_msg(bad) is None
 
 
 def test_parse_grant():
-    assert parse_grant_msg('pinky1:abc123') == ('pinky1', 'abc123')
-    assert parse_grant_msg('pinky1:a:b') == ('pinky1', 'a:b')
+    assert parse_grant_msg('A:pinky1:abc123') == ('A', 'pinky1', 'abc123')
+    assert parse_grant_msg('B:pinky1:a:b') == ('B', 'pinky1', 'a:b')
     assert parse_grant_msg('noseparator') is None
+    assert parse_grant_msg('pinky1:abc123') is None      # 구역 접두가 없는 1구역 시절 형식
 
 
 def test_retry_timer_due_boundaries():
@@ -131,7 +135,7 @@ def ros_env():
 
     # 매니저 discovery 대기: 점유자가 없으면 request 에 곧 grant 가 온다 (워밍업 후 해제)
     warm = clients['pinky4']
-    warm.reset()
+    warm.reset('A')
     tok = warm.send_request()
     ok = False
     end = time.time() + 10.0
@@ -153,7 +157,7 @@ def test_integration_grant_slots_full_and_cancel(ros_env):
     node, c, spin_until = ros_env
     p1, p2, p3, p4 = c['pinky1'], c['pinky2'], c['pinky3'], c['pinky4']
     for x in (p1, p2, p3, p4):
-        x.reset()
+        x.reset('A')
 
     # 1) 빈 구역: 즉시 허가, 슬롯 없음
     t1 = p1.send_request()
@@ -200,7 +204,7 @@ def test_integration_queue_full_rejection(ros_env):
     extra = {rid: ZoneGateClient(node, rid) for rid in ('pinky5', 'pinky6')}
     p1, p2, p3, p4 = (c[r] for r in ('pinky1', 'pinky2', 'pinky3', 'pinky4'))
     for x in (p1, p2, p3, p4, *extra.values()):
-        x.reset()
+        x.reset('A')
 
     t1 = p1.send_request()
     assert spin_until(lambda: p1.granted(t1))
@@ -221,5 +225,44 @@ def test_integration_queue_full_rejection(ros_env):
     # 정리
     for p in (p2, p3, p4):
         p.cancel_entry()
+    spin_until(lambda: False, 0.5)   # 토픽이 달라 순서가 뒤바뀔 수 있으므로 취소가 먼저 반영되게 기다린다
     p1.notify_exit()
     spin_until(lambda: False, 1.0)
+
+
+def test_integration_two_zones_are_independent(ros_env):
+    """구역 A 점유자가 있어도 구역 B 는 바로 허가, 같은 구역은 여전히 1대만, 슬롯은 구역별 앵커."""
+    node, c, spin_until = ros_env
+    p1, p2, p3 = c['pinky1'], c['pinky2'], c['pinky3']
+    p1.reset('A')
+    p2.reset('B')
+    p3.reset('A')
+
+    ta = p1.send_request()
+    assert spin_until(lambda: p1.granted(ta))                       # A 점유
+    tb = p2.send_request()
+    assert spin_until(lambda: p2.granted(tb))                       # B 는 A 와 무관하게 허가
+    assert p2.current_slot is None
+
+    p3.send_request()                                               # A 는 이미 점유 중 -> 대기
+    assert spin_until(lambda: p3.current_slot is not None)
+    k, x, y, _ = p3.current_slot
+    assert k == 0 and (x, y) == pytest.approx(expected_slot(0, 'A'))
+
+    # B 점유자의 이탈 통보는 A 의 락에 영향이 없다
+    p2.notify_exit()
+    spin_until(lambda: False, 0.5)
+    assert not p3.granted()
+
+    p1.notify_exit()                                                # A 해제 -> 대기자 p3 허가
+    assert spin_until(lambda: p3.granted())
+    p3.notify_exit()
+    spin_until(lambda: False, 0.5)
+
+
+def test_client_requires_zone_before_request(ros_env):
+    node, c, spin_until = ros_env
+    from cobot_zone_traffic_control.zone_gate_client import ZoneGateClient
+    fresh = ZoneGateClient(node, 'pinky9')
+    with pytest.raises(RuntimeError):
+        fresh.send_request()
