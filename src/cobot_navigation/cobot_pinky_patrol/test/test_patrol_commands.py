@@ -34,6 +34,8 @@ def test_zone_with_many_points_is_returned_as_is():
 
 @pytest.mark.parametrize('raw, kind', [
     ('leave', 'leave'),
+    ('home', 'home'),
+    ('  HOME ', 'home'),
     ('stop', 'stop'),
     ('emergency_stop', 'emergency_stop'),
     ('start', 'start'),
@@ -52,7 +54,7 @@ def test_empty_arguments_are_kept_for_node_to_reject():
 
 
 @pytest.mark.parametrize('raw', [
-    '', '   ', 'dance', 'go:P1', 'leave:P1', 'stop:now', 'gotoP1', 'goto P1', None, 123,
+    '', '   ', 'dance', 'go:P1', 'leave:P1', 'home:I1', 'stop:now', 'gotoP1', 'goto P1', None, 123,
 ])
 def test_unknown_commands(raw):
     """알 수 없는 명령·형식 오류·문자열이 아닌 값은 unknown."""

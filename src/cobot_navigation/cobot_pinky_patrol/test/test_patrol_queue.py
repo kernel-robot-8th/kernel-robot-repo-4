@@ -93,54 +93,54 @@ def test_no_coordinates_left_in_node_code(n):
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
-def test_zone_entry_matches_manager_anchor(n):
-    """구역마다 로봇의 W<구역> 는 매니저 yaml 의 zone_<구역>.queue_anchor 와 같아야 한다."""
-    from cobot_pinky_patrol.patrol_points_utils import entry_name
+def test_zone_names_match_manager_and_no_wait_points(n):
+    """구역 이름은 매니저 yaml 과 같고, 대기 앵커는 매니저에만 있다 (로봇 YAML 에 W<구역> 가 없다)."""
     pts, _, zone_names, _ = load_cfg(n)
     mgr = manager_params()
-    assert sorted(mgr['zone_names']) == sorted(zone_names)     # 구역 이름도 두 YAML 이 같아야 한다
+    assert sorted(mgr['zone_names']) == sorted(zone_names)
     for z in zone_names:
-        assert pts[entry_name(z)] == pytest.approx(tuple(mgr[f'zone_{z}']['queue_anchor']))
+        assert f'W{z}' not in pts and f'ZONE_{z}_ENTRY' not in pts
+        assert len(mgr[f'zone_{z}']['queue_anchor']) == 3
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_zone_settings_are_shared_by_all_robots(n):
-    """구역 소속·ENTRY/EXIT 는 3대가 같다 (구역은 맵의 속성이지 로봇의 속성이 아니다)."""
-    from cobot_pinky_patrol.patrol_points_utils import entry_name, exit_name
+    """구역 소속·EXIT 는 3대가 같다 (구역은 맵의 속성이지 로봇의 속성이 아니다)."""
+    from cobot_pinky_patrol.patrol_points_utils import exit_name
     pts, _, zone_names, zone_points = load_cfg(n)
     for m in (1, 2, 3):
         pm, _, zm, zpm = load_cfg(m)
         assert zm == zone_names and zpm == zone_points
         for z in zone_names:
-            assert pm[entry_name(z)] == pts[entry_name(z)]
             assert pm[exit_name(z)] == pts[exit_name(z)]
     assert not [k for k in pts if k.startswith('RED')]
     assert zone_points == {'A': ('ZA',), 'B': ('ZB',), 'C': ('ZC',)}  # 확정 소속 (2026-10-27)
     assert pts['ZA_EXIT'] == (0.5, 0.0, -1.5)             # 구역 A 출구 (사용자 지정)
-    assert pts['WA'] == (0.0, 0.6, 0.0)             # 구역 A 대기 위치 (사용자 지정)
-    assert pts['WB'] == (0.0, 0.6, -1.5) and pts['ZB_EXIT'] == (0.55, -0.6, -1.5)   # B 는 A 와 대기 위치 공유
-    assert pts['WC'] == (-0.7, -0.08, 1.5) and pts['ZC_EXIT'] == (-0.3, -0.4, 1.5)
+    assert pts['ZB_EXIT'] == (0.55, -0.6, -1.5) and pts['ZC_EXIT'] == (-0.3, -0.4, 1.5)
 
 
-@pytest.mark.parametrize('n', [1, 2, 3])
-def test_zone_entry_is_apart_from_zone_points(n):
-    """대기 위치(ENTRY)가 그 구역 소속 지점과 같은 좌표면 대기자가 점유자 자리로 간다 -> 분리되어 있어야 한다."""
-    from cobot_pinky_patrol.patrol_points_utils import entry_name
-    pts, _, _, zone_points = load_cfg(n)
+def test_manager_anchors_are_apart_from_zone_points():
+    """대기 앵커가 그 구역 소속 지점과 같은 좌표면 대기자가 점유자 자리로 간다 -> 분리되어 있어야 한다.
+    A·B 앵커는 (0.1, 0.6, 0.0) 으로 같고 C 는 (-0.7, -0.08, 1.5) 이다 (사용자 지정 2026-10-27)."""
+    pts, _, _, zone_points = load_cfg(1)
+    mgr = manager_params()
+    assert mgr['zone_A']['queue_anchor'] == pytest.approx([0.1, 0.6, 0.0])
+    assert mgr['zone_B']['queue_anchor'] == pytest.approx([0.1, 0.6, 0.0])
+    assert mgr['zone_C']['queue_anchor'] == pytest.approx([-0.7, -0.08, 1.5])
     for zone, members in zone_points.items():
         for m in members:
-            assert pts[entry_name(zone)][:2] != pts[m][:2], (zone, m)
+            assert tuple(mgr[f'zone_{zone}']['queue_anchor'][:2]) != tuple(pts[m][:2]), (zone, m)
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_stop_exit_point_removed_and_entry_exit_not_goto(n):
     """ZONE_STOP_EXIT 는 구역 EXIT 로 합쳤고, ENTRY/EXIT 는 직접 goto 할 수 없다."""
-    from cobot_pinky_patrol.patrol_points_utils import entry_name, exit_name, general_names
+    from cobot_pinky_patrol.patrol_points_utils import exit_name, general_names
     pts, _, zone_names, zone_points = load_cfg(n)
     assert 'ZONE_STOP_EXIT' not in pts and 'ZONE_ENTRY' not in pts and 'ZONE_EXIT' not in pts
     allowed = set(general_names(pts)) | {p for ms in zone_points.values() for p in ms}  # goto/zone 으로 갈 수 있는 지점
     for z in zone_names:
-        assert entry_name(z) not in allowed and exit_name(z) not in allowed
+        assert exit_name(z) not in allowed
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
@@ -423,7 +423,6 @@ def states(r):
 
 
 _POINTS = load_cfg(1)[0]
-DOOR1 = tuple(_POINTS['WA'])   # 구역 A 앵커 (yaml zone_A.queue_anchor 와 같은지는 별도 테스트가 검사)
 EXIT = tuple(_POINTS['ZA_EXIT'])     # 구역 A 락 반납 출구
 
 
@@ -445,8 +444,7 @@ def test_empty_zone_grant_does_not_wait_at_anchor(env):
     t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
     assert env.pump(lambda: not t.is_alive())
     assert out['r'] is True
-    assert len(r.navigator.goals) <= 1                   # 슬롯 이동 없음, 앵커 도착을 기다리지도 않음
-    assert r.navigator.goals in ([], [DOOR1])
+    assert not r.navigator.goals                          # 빈 구역: 슬롯·앵커로 가지 않고 응답(허가)을 기다렸다 곧바로 반환
     assert 'QUEUEING' not in states(r)
     r.gate.notify_exit()
     assert env.pump(lambda: env.status['A'] == 'free')
@@ -524,7 +522,7 @@ def test_grant_received_while_traveling_to_slot(env):
     occ.notify_exit()                                    # 슬롯에 도착하기 전에 점유자 이탈
     assert env.pump(lambda: not t.is_alive(), 12)
     assert out['r'] is True
-    assert r.navigator.goals[0] == DOOR1 and SLOT0 in r.navigator.goals
+    assert r.navigator.goals[0] == SLOT0                 # 응답 전에는 제자리 대기, 첫 이동은 슬롯
     assert r.navigator.goals[-1] == SLOT0                # 허가 후 슬롯 goal 만 취소, 앵커로 가지 않음
     r.gate.notify_exit()
     assert env.pump(lambda: env.status['A'] == 'free')
@@ -578,7 +576,7 @@ def test_pinky2_start_path_uses_corrected_indexes(env):
     assert env.pump(lambda: not t.is_alive(), 15)
     g = r.navigator.goals
     assert len(g) == 5, g
-    assert g[0] == DOOR1 and g[3] == EXIT and g[3][2] == pytest.approx(3.14, abs=0.01)
+    assert g[3] == EXIT and g[3][2] == pytest.approx(3.14, abs=0.01)
     assert states(r)[-1] == 'DONE'
     assert env.pump(lambda: env.status['A'] == 'free', 4)   # ZONE_EXIT(3번) 도착 때 notify_exit
 
@@ -744,16 +742,16 @@ def test_three_zones_do_not_block_each_other(env):
     assert env.pump(lambda: all(env.status[z] == 'free' for z in 'ABC'), 6)
 
 
-def test_queue_slots_extend_toward_positive_y():
-    """구역 A·B·C 의 대기줄은 y 증가 방향(queue_back_dir [0,1])으로 늘어난다."""
+def test_queue_slots_extend_toward_negative_y():
+    """구역 A·B·C 의 대기줄은 y 감소 방향(queue_back_dir [0,-1])으로 늘어난다 (+y 는 맵 밖이라 Nav2 가 거부)."""
     from cobot_zone_traffic_control.zone_manager_node import normalize_dir, slot_pose
     prm = manager_params()
-    for z, anchor in (('A', (0.0, 0.6)), ('B', (0.0, 0.6)), ('C', (-0.7, -0.08))):
+    for z, anchor in (('A', (0.1, 0.6)), ('B', (0.1, 0.6)), ('C', (-0.7, -0.08))):
         d = normalize_dir(prm[f'zone_{z}']['queue_back_dir'])
         x0, y0, _ = slot_pose(0, prm[f'zone_{z}']['queue_anchor'], d, prm['queue_spacing'])
         x1, y1, _ = slot_pose(1, prm[f'zone_{z}']['queue_anchor'], d, prm['queue_spacing'])
         assert (x0, y0) == pytest.approx(anchor)
-        assert x1 == pytest.approx(x0) and y1 == pytest.approx(y0 + prm['queue_spacing'])
+        assert x1 == pytest.approx(x0) and y1 == pytest.approx(y0 - prm['queue_spacing'])
 
 
 def _cmd(env, n, data, held=None):
@@ -768,7 +766,7 @@ def _cmd(env, n, data, held=None):
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 @pytest.mark.parametrize('data, detail', [
-    ('goto:WA', 'not allowed'),  # ENTRY/EXIT 는 직접 이동 불가
+    ('goto:ZA_EXIT', 'not allowed'),  # EXIT 는 직접 이동 불가
     ('goto:ZA', 'use zone'),  # 구역 지점은 zone 으로만
     ('goto:P1,ZB', 'use zone'),
     ('zone:P1', 'zone needs one zone point'),  # 구역 밖 지점
@@ -890,6 +888,43 @@ def test_idle_expiry_in_zone_exits_returns_token_then_home(env):
     assert env.pump(lambda: env.status['A'] == 'free', 4)
 
 
+def test_home_command_exits_zone_then_goes_home(env):
+    """home 명령: 구역 안이면 EXIT 반납 후 홈으로 간다 (유휴 복귀와 같은 절차를 즉시 실행)."""
+    r = make_robot(env, 2, 'pinky2')
+    run_task(env, r, r._run_zone, 'ZA')
+    assert r._held_zone == 'A'
+    r._cmd_cb = types.MethodType(importlib.import_module(MODS[2]).PinkyPatrolNode.__dict__['_cmd_cb'], r)
+    r._cmd_cb(types.SimpleNamespace(data='home'))
+    assert env.pump(lambda: not r._running, 15), states(r)
+    assert r.statuses[-1] == ('DONE', 'returned home')
+    assert r.navigator.goals[-2:] == [_goal(r.points['ZA_EXIT']), _goal(r.points[r.home_name])]
+    assert r._held_zone is None
+    assert env.pump(lambda: env.status['A'] == 'free', 4)
+
+
+def test_home_command_at_home_does_not_move_and_busy_is_ignored(env):
+    """이미 홈이면 이동 없이 DONE, 작업 중이면 home 을 무시한다."""
+    r = make_robot(env, 2, 'pinky2')
+    r._cmd_cb = types.MethodType(importlib.import_module(MODS[2]).PinkyPatrolNode.__dict__['_cmd_cb'], r)
+    r._last_point = r.home_name
+    r._cmd_cb(types.SimpleNamespace(data='home'))
+    assert env.pump(lambda: not r._running, 10), states(r)
+    assert r.statuses[-1] == ('DONE', 'returned home') and not r.navigator.goals
+    r._running = True                                   # 작업 중
+    n = len(r.statuses)
+    r._cmd_cb(types.SimpleNamespace(data='home'))
+    assert len(r.statuses) == n and r._thread is not None
+
+
+def test_client_build_command_home():
+    """클라이언트: home 은 포인트 없이 'home' 으로 전송하고 포인트를 주면 거부한다."""
+    sys.path.insert(0, str(PKG.parent / 'cobot_pinky_patrol_cmd'))
+    from pinky_control_client import build_command
+    assert build_command('home', []) == ('home', None)
+    assert build_command('home', ['P1'])[0] is None
+    assert build_command('leave', []) == ('leave', None)
+
+
 def test_leave_failure_keeps_token_and_can_retry(env):
     r = make_robot(env, 2, 'pinky2')
     r.idle_return_sec = 0
@@ -918,3 +953,16 @@ def test_zone_does_not_start_before_grant(env):
     assert r.navigator.goals[-1] == p2 and r._held_zone == 'A'
     r.gate.notify_exit()
     assert env.pump(lambda: env.status['A'] == 'free', 4)
+
+
+def test_waits_in_place_until_manager_responds(env):
+    """매니저 응답(허가/슬롯)이 오기 전에는 앵커 쪽으로 먼저 출발하지 않고 제자리에서 기다린다."""
+    r = make_robot(env, 1, 'pinky2')
+    r.gate.send_request = lambda: None                   # 요청이 나가지 않아 매니저 응답이 없는 상황
+    r.gate.resend_if_due = lambda: None
+    t, out = run_in_thread(r._queue_and_enter, 0, 'ZB', 'A')
+    env.pump(lambda: False, 1.0)
+    assert not r.navigator.goals and t.is_alive()        # 이동 명령 없이 대기 중
+    r._stop_requested = True                             # stop 으로 빠져나온다
+    assert env.pump(lambda: not t.is_alive(), 5)
+    assert out['r'] is False

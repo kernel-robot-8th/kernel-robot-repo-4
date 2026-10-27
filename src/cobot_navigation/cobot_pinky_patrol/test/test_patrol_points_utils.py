@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cobot_pinky_patrol.patrol_points_utils import (  # noqa: E402,I100,I101
-    REQUIRED_POINTS, PointsConfigError, entry_name, exit_name, general_names, optional_general_names,
+    REQUIRED_POINTS, PointsConfigError, exit_name, general_names, optional_general_names,
     parse_point, parse_points,
     parse_zone_names, parse_zone_points, required_names, validate_points, validate_zones, zone_of)
 
@@ -67,10 +67,10 @@ def test_validate_ok():
 def test_validate_reports_all_missing_names_at_once():
     """누락된 지점 이름을 한 번에 모두 알려 준다."""
     pts = _full()
-    del pts['WB'], pts['P2']
+    del pts['ZB_EXIT'], pts['P2']
     with pytest.raises(PointsConfigError) as e:
         validate_points(pts, required_names(ZONES), 'P1')
-    assert 'WB' in str(e.value) and 'P2' in str(e.value)
+    assert 'ZB_EXIT' in str(e.value) and 'P2' in str(e.value)
 
 
 @pytest.mark.parametrize('home', ['', None, 'P99'])
@@ -83,10 +83,10 @@ def test_validate_home_missing_or_unknown(home):
 # ---------------- 위험구역 ----------------
 def test_entry_exit_names_and_required_names():
     """구역별 ENTRY/EXIT 이름 규칙과 필수 이름 목록."""
-    assert entry_name('A') == 'WA' and exit_name('B') == 'ZB_EXIT'
+    assert exit_name('A') == 'ZA_EXIT' and exit_name('B') == 'ZB_EXIT'
     names = required_names(('A', 'B'))
     assert set(REQUIRED_POINTS) <= set(names)
-    assert {'WA', 'ZA_EXIT', 'WB', 'ZB_EXIT'} <= set(names)
+    assert {'ZA_EXIT', 'ZB_EXIT'} <= set(names)
     assert required_names(()) == list(REQUIRED_POINTS)
 
 
@@ -128,14 +128,14 @@ def test_validate_zones_reports_every_problem():
     assert 'P99' in msg and '동시에 속' in msg and 'zone_points.C' in msg and 'home_name' in msg
 
 
-def test_validate_zones_entry_exit_cannot_be_zone_members():
-    """ENTRY/EXIT 지점은 구역 소속 지점으로 쓸 수 없다."""
-    with pytest.raises(PointsConfigError, match='진입/출구'):
-        validate_zones({'A': ('WA',)}, _full(), 'I1')
+def test_validate_zones_exit_cannot_be_zone_members():
+    """출구(Z_EXIT) 지점은 구역 소속 지점으로 쓸 수 없다."""
+    with pytest.raises(PointsConfigError, match='출구'):
+        validate_zones({'A': ('ZA_EXIT',)}, _full(), 'I1')
 
 
 def test_general_names():
     """일반 지점은 P1~P10 만, 번호순으로 돌려준다 (P11·구역·홈 이름은 제외)."""
     assert optional_general_names() == ['P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']
-    pts = {'P10': 1, 'P2': 1, 'P1': 1, 'P11': 1, 'P0': 1, 'ZA': 1, 'I1': 1, 'WA': 1}
+    pts = {'P10': 1, 'P2': 1, 'P1': 1, 'P11': 1, 'P0': 1, 'ZA': 1, 'I1': 1, 'ZA_EXIT': 1}
     assert general_names(pts) == ['P1', 'P2', 'P10']

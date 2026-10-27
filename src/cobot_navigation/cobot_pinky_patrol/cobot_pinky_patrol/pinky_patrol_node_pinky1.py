@@ -4,7 +4,7 @@ Pinky 순찰 노드
 [v3 변경점] 위험구역 진입을 "대기열 슬롯" 방식으로 처리 (zone_manager_node / zone_gate_client)
   - 진입 요청을 먼저 보내고, 점유 중이면 매니저가 알려 준 슬롯에서 줄 서서 대기 (상태 QUEUEING)
   - goto 경로와 start 경로가 같은 _queue_and_enter 를 사용
-  - 로봇 코드에는 대기 좌표가 없고 구역별 진입 앵커(W<구역>)와 반납 출구(Z<구역>_EXIT)만 유지
+  - 로봇 코드에는 대기 좌표(앵커·슬롯)가 없고 반납 출구(Z<구역>_EXIT)만 유지. 대기 좌표는 매니저가 정한다
 
 [v1.2 변경점] 위험구역 2개 지원 (구역마다 토큰·대기열이 따로, zone_names / zone_points 파라미터)
   - 구역 A 에 있는 동안 구역 B 는 막히지 않고, 같은 구역에서만 한 대씩 진입
@@ -18,6 +18,7 @@ Pinky 순찰 노드
                          구역 토큰을 쥐고 있으면 먼저 그 구역 EXIT 에서 반납한 뒤 출발
   zone:<P>             : 구역 지점 1개로 이동 (토큰 발급 -> 이동 -> 도착 후 토큰 유지). 예) zone:ZA
   leave                : 보유 중인 구역의 EXIT 로 이동해 도착한 뒤 토큰 반납
+  home                 : 초기 위치(I<n>)로 복귀 (구역 안이면 EXIT 반납 후 이동). 이미 홈이면 이동 없이 DONE
   stop                 : 현재 작업 즉시 중단 (구역 안이면 EXIT 로 나와 반납)
   emergency_stop       : 그 자리 정지 + 토큰 유지 (max_hold_sec 뒤 매니저가 해제)
   [유휴 복귀] 마지막 명령을 마친 뒤 idle_return_sec(기본 120초, 파라미터) 동안 새 명령이 없으면
@@ -61,7 +62,7 @@ from pinky_interfaces.srv import SetLed
 import json, math, os, time, threading, subprocess
 
 # 같은 패키지의 좌표 파싱·검증 (ROS 비의존)
-from cobot_pinky_patrol.patrol_points_utils import (PointsConfigError, entry_name, exit_name,
+from cobot_pinky_patrol.patrol_points_utils import (PointsConfigError, exit_name,
                                                     general_names, optional_general_names, parse_command, parse_points, parse_zone_names,
                                                     parse_zone_points, required_names,
                                                     validate_points, validate_zones, zone_of)
@@ -91,8 +92,8 @@ class PinkyPatrolNode(Node):
     #   - 형식: (x, y) 또는 (x, y, yaw[rad]), map 좌표계 [m]. 읽기/검증은 _load_points() 와 patrol_points_utils.py.
     #   - 코드에는 좌표가 아닌 "이름"만 남긴다. 좌표는 self.points[이름] 으로 쓴다.
     #   - 위험구역은 여러 개(zone_names, 예: A, B)이고 구역마다 ENTRY/EXIT 한 쌍을 가진다.
-    #     이름 규칙은 patrol_points_utils.entry_name / exit_name (W<구역> / Z<구역>_EXIT).
-    #   - W<구역> 는 zone_params.yaml 의 zone_<구역>.queue_anchor 와 같아야 한다 (테스트가 두 YAML 을 비교).
+    #     이름 규칙은 patrol_points_utils.exit_name (Z<구역>_EXIT). 대기 앵커·슬롯 좌표는 매니저(zone_params.yaml)만 가진다.
+    #   - 대기 앵커는 zone_params.yaml 의 zone_<구역>.queue_anchor 한 곳에만 둔다 (로봇은 응답 전 제자리 대기).
     #   - 옛 위험 구역 문(RED LINE) 좌표는 이미 미사용이라 이전하지 않았다 (git 이력 참고).
 
     # [비활성: v1.1.0 순회 중단]
@@ -124,7 +125,7 @@ class PinkyPatrolNode(Node):
     # [goto용] 위험구역의 이름과 소속 지점은 코드가 아니라 파라미터(zone_names, zone_points)로 받는다.
     #   self.zone_names : 구역 이름들 (예: ('A', 'B'))
     #   self.zone_points: {구역: 소속 지점 이름들}. 지점이 어느 구역인지는 zone_of(self.zone_points, 이름)
-    #   구역별 진입(토큰 요청)/출구(토큰 반납) 지점은 entry_name(구역) / exit_name(구역). stop 후퇴도 그 구역의 출구로 간다.
+    #   구역별 출구(토큰 반납) 지점은 exit_name(구역). stop 후퇴도 그 구역의 출구로 간다.
 
     # ==========================================================================
     # 4. goto 상수
@@ -208,7 +209,7 @@ class PinkyPatrolNode(Node):
         이를 "누락"으로 모아 한 번에 알려 주려고 선언·읽기·검증을 한 메서드에 둔다.
         (YAML 없이 ros2 run 만 하면 전부 누락 -> 시작 거부. 조용히 기본 좌표로 움직이지 않는다.)
         구역이 몇 개이고 이름이 무엇인지는 YAML(zone_names)이 정하므로, 필요한 지점 이름
-        (W<구역> / Z<구역>_EXIT)은 zone_names 를 읽은 뒤에 결정해 선언한다.
+        (Z<구역>_EXIT)은 zone_names 를 읽은 뒤에 결정해 선언한다.
 
         :return: (points, home_name, zone_names, zone_points)
                  points 는 {이름: (x, y) 또는 (x, y, yaw)} (m, rad), zone_points 는 {구역: (지점 이름, ...)}
@@ -389,6 +390,12 @@ class PinkyPatrolNode(Node):
         #   goto : 구역 밖 지점만. 구역 지점은 zone 으로 보내야 한다 (토큰 절차가 다르기 때문)
         #   zone : 구역 지점 1개. 토큰 발급 -> 이동 -> 도착 후 토큰 유지
         #   leave: 보유 중인 구역 EXIT 로 이동 -> 토큰 반납
+        elif kind == 'home':
+            if self._running:
+                self.get_logger().warn('작업 중입니다. 명령 무시.')
+                return
+            self._start_task(self._run_idle_return)     # 유휴 복귀와 같은 절차 (EXIT 반납 -> 홈)
+
         elif kind in ('goto', 'zone', 'leave'):
             if kind == 'leave':
                 if self._running:
@@ -613,19 +620,17 @@ class PinkyPatrolNode(Node):
           3) 슬롯이 바뀌면(앞 로봇 이탈/취소) -> 현재 goal 취소 후 새 슬롯으로 재이동
           4) 허가(grant)가 오면 -> 진행 중인 goal 만 취소하고 즉시 반환 (슬롯/앵커를 거치지 않고 호출자가 목적지로 직행)
           5) 대기 중 재전송(1초)으로 매니저에게 "아직 기다린다"고 알린다 (끊기면 5초 뒤 큐에서 제거됨)
-        로봇 코드에는 대기 좌표가 없다. 구역별 앵커 좌표(W<구역>)만 self.points 에 있고 슬롯은 항상 매니저가 준다.
+        로봇 코드에는 대기 좌표가 없다. 앵커·슬롯 좌표는 항상 매니저가 준다 (응답 전에는 제자리 대기).
 
         True  : 허가를 받음 (락 보유). 앵커에 도착하지 않았어도 반환
         False : stop / 이동 최종 실패 / 대기열 가득 (락 없음. 허가를 이미 받았다면 반납함)
         """
-        door = self.points[entry_name(zone)]
         gate = self.gate
         gate.reset(zone)                        # 이후 요청/취소/이탈 통보는 이 구역 기준
         gate.send_request()                     # 슬롯 이동 "전에" 먼저 요청 (순번 확보)
 
-        target = None       # 현재 목표 (kind, pose). kind: 'door' | 'slot'
+        target = None       # 현재 목표 (kind, pose). kind: 'slot' (응답 전에는 목표 없음)
         moving = False      # Nav2 goal 이 진행 중인가
-        arrived = False     # 현재 목표에 도착했는가
         fails = 0           # 현재 목표의 연속 이동 실패 횟수
         phase = None        # 마지막으로 발행한 상태 (같은 상태를 반복 발행하지 않기 위함)
 
@@ -650,7 +655,7 @@ class PinkyPatrolNode(Node):
                 self.set_drive_led()
                 return True
 
-            kind, pose = choose_entry_target(gate.granted(), gate.current_slot, door)
+            kind, pose = choose_entry_target(gate.granted(), gate.current_slot, None)   # door=None: 앵커 좌표는 매니저만 안다
             if kind == 'full':
                 self.get_logger().warn(f'[{self.robot_id}] 대기열이 가득 차서 진입을 포기합니다')
                 if moving:
@@ -658,11 +663,16 @@ class PinkyPatrolNode(Node):
                 self._abort_entry(idx, name, 'FAILED', 'queue_full')
                 return False
 
+            # --- 매니저 응답(허가/슬롯) 전: 앵커 좌표는 매니저만 알므로 제자리에서 기다린다 (보통 수십 ms) ---
+            if pose is None:
+                rclpy.spin_once(self.navigator, timeout_sec=0.1)   # 상태는 발행하지 않는다 (빈 구역이면 곧 허가가 와서 깜박임만 생김)
+                continue
+
             # --- 목표가 바뀌었으면 현재 goal 을 취소하고 새 목표로 출발 ---
             if (kind, pose) != target:
                 if moving:
                     self._cancel_goal()
-                target, arrived, fails = (kind, pose), False, 0
+                target, fails = (kind, pose), 0
                 self._start_goal(pose)
                 moving = True
             # --- 이동 중: goal 완료 여부 확인 (isTaskComplete 가 navigator 를 spin 해서 콜백도 처리됨) ---
@@ -673,9 +683,7 @@ class PinkyPatrolNode(Node):
                         continue
                     result = self.navigator.getResult()
                     self._record_pose(pose, result)
-                    if result == TaskResult.SUCCEEDED:
-                        arrived = True
-                    else:
+                    if result != TaskResult.SUCCEEDED:
                         fails += 1
                         self.get_logger().warn(
                             f'이동 실패({result}), 재시도 {fails}/{self.NAV_RETRIES}')
@@ -691,15 +699,13 @@ class PinkyPatrolNode(Node):
             # --- 상태 / LED (바뀔 때만) ---
             if kind == 'slot':
                 new_phase = 'QUEUEING'
-            elif arrived:
-                new_phase = 'WAITING_ZONE'          # 문 앞인데 아직 허가가 없음
             else:
                 new_phase = 'MOVING'
             if new_phase != phase:
                 phase = new_phase
                 if phase == 'MOVING':
                     self.set_drive_led()
-                    self.publish_status('MOVING', idx, entry_name(zone))
+                    self.publish_status('MOVING', idx, 'slot')
                 else:
                     self.start_blink(255, 0, 0)     # 대기: 빨강 깜박임
                     detail = f'slot{gate.current_slot[0]}' if kind == 'slot' else name

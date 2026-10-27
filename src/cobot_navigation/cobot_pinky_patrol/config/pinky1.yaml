@@ -1,5 +1,5 @@
 # pinky1 순찰 노드 파라미터 (노드 이름 pinky_patrol_node)
-# 위험구역 3개(A, B, C): zone_names / zone_points 와 points 의 W<구역>/Z<구역>_EXIT 로 구역마다 좌표 한 쌍을 둔다.
+# 위험구역 3개(A, B, C): zone_names / zone_points 와 points 의 Z<구역>_EXIT 로 구역마다 출구 좌표를 둔다.
 # 실행: ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
 #   또는 ros2 run cobot_pinky_patrol pinky_patrol_node_pinky1 --ros-args --params-file <이 파일>
 # 이 파일 없이 노드만 띄우면 필수 지점이 비어 시작이 거부된다 (조용히 기본 좌표로 움직이지 않음).
@@ -17,7 +17,7 @@ pinky_patrol_node:
 
     # ---- 위험구역 (구역마다 토큰·대기열이 따로: cobot_zone_traffic_control 의 zone_names 와 같아야 한다) ----
     zone_names: [A, B, C]
-    # 구역별 소속 지점. 이 지점으로 가려면 그 구역의 토큰이 필요하고, 구역 밖 <-> 안 이동 시 W/Z_EXIT 를 거친다.
+    # 구역별 소속 지점. 이 지점으로 가려면 그 구역의 토큰이 필요하고, 구역 안 -> 밖 이동 시 Z<구역>_EXIT 를 거친다.
     # 한 지점은 한 구역에만 속할 수 있고, 홈(home_name)은 구역 밖이어야 한다.
     # 확정(2026-10-27): 구역 A = ZA / 구역 B = ZB / 구역 C = ZC. 홈(I<n>)·일반 지점(P1, P2)은 구역 밖.
     zone_points:
@@ -45,21 +45,10 @@ pinky_patrol_node:
       # 일반 지점은 P1~P10 까지 쓴다. 좌표를 모르는 P3~P10 은 (0,0,0) 자리표시자라 goto 하면 원점으로 간다 (실측 후 갱신).
       # 지점을 지우면(P11 이상 포함) goto 가 'unknown point' 로 거부한다.
       
-      # ---- 구역 A (ZA) ----
-      # W: 구역 A 토큰 요청·획득 지점 (대기열 슬롯 0).
-      # 주의: cobot_zone_traffic_control/config/zone_params.yaml 의 zone_A.queue_anchor 와 같아야 한다.
-      #       다르면 대기열 슬롯 좌표가 어긋난다 (테스트 test_zone_entry_matches_manager_anchor 가 검사).
-      # Z_EXIT: 구역을 나온 뒤 토큰을 반납하는 지점 (stop 후퇴 지점도 겸한다).
-      # 2026-10-27 사용자 지정 (구역 3개로 재편). A EXIT 는 이전 [0.4, -0.7, 0.0] 에서 변경.
-      WA: [0.0, 0.6, 0.0]   # 2026-10-27: 대기 위치 (A·B 공유). yaw: 0.0 = 정면, -1.5 = 우측 90°, 1.5 = 좌측 90°
+      # ---- 구역 출구 ----
+      # Z<구역>_EXIT: 구역을 나온 뒤 토큰을 반납하는 지점 (stop 후퇴 지점도 겸한다).
+      # 대기 위치(앵커)·대기 슬롯 좌표는 로봇 YAML 에 두지 않는다 -> cobot_zone_traffic_control/config/zone_params.yaml 의
+      # zone_<구역>.queue_anchor 가 유일한 출처이고, 매니저가 슬롯 좌표를 로봇에게 보내 준다 (2026-10-27).
       ZA_EXIT: [0.5, 0.0, -1.5]
-
-      # ---- 구역 B (ZB) ---- W(대기 위치)는 구역 A 와 같은 곳을 공유한다 (토큰·대기열은 구역별로 따로).
-      # W 를 ZB 좌표와 같게 두면 대기자가 점유자 자리로 가므로 반드시 구역 지점과 분리한다.
-      # W 는 zone_B.queue_anchor 와 같아야 한다.
-      WB: [0.0, 0.6, -1.5]
       ZB_EXIT: [0.55, -0.6, -1.5]
-
-      # ---- 구역 C (ZC) ---- W(대기 위치)는 ZC 와 분리 (2026-10-27 사용자 지정). W 는 zone_C.queue_anchor 와 같아야 한다.
-      WC: [-0.7, -0.08, 1.5]
       ZC_EXIT: [-0.3, -0.4, 1.5]
