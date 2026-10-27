@@ -4,10 +4,14 @@ Pinky3 순찰 노드
 [v3 변경점] 위험구역 진입을 "대기열 슬롯" 방식으로 처리 (zone_manager_node / zone_gate_client)
   - 진입 요청을 먼저 보내고, 점유 중이면 매니저가 알려 준 슬롯에서 줄 서서 대기 (상태 QUEUEING)
   - goto 경로와 start 경로가 같은 _queue_and_enter 를 사용
-  - 로봇 코드에는 대기 좌표가 없고 진입 앵커(ZONE_ENTRY)와 반납 출구(ZONE_EXIT)만 유지
+  - 로봇 코드에는 대기 좌표가 없고 구역별 진입 앵커(ZONE_<구역>_ENTRY)와 반납 출구(ZONE_<구역>_EXIT)만 유지
+
+[v1.2 변경점] 위험구역 2개 지원 (구역마다 토큰·대기열이 따로, zone_names / zone_points 파라미터)
+  - 구역 A 에 있는 동안 구역 B 는 막히지 않고, 같은 구역에서만 한 대씩 진입
+  - 구역이 바뀌는 경로는 이전 구역 EXIT 에서 토큰을 반납한 뒤 다음 구역 ENTRY 에서 요청
 
 [지원 명령]  (토픽: patrol_cmd)
-  start                : WAYPOINTS 전체 순회
+  start                : (v1.1.0 비활성) 받으면 FAILED(detail=start disabled) 응답. 순회 코드는 주석으로 보관
   goto:<P>[,<P>,...]   : 지정한 지점들을 순서대로 방문 -> 홈(P1) 복귀
                          예) goto:P2          (1개 지점)
                              goto:P2,P3,P6    (여러 지점 경로)
@@ -21,7 +25,7 @@ Pinky3 순찰 노드
 
 [파일 구성]
   1. IMPORT
-  2. 좌표 / 경로 상수
+  2. 경로 상수 (좌표는 config/pinky3.yaml 파라미터, WAYPOINTS 는 v1.1.0 비활성·주석 보관)
   3. 위험 구역(ZONE) 상수
   4. goto 상수
   5. LED 상수
@@ -32,7 +36,7 @@ Pinky3 순찰 노드
   10. 주행 (Nav2 이동 헬퍼)
   11. 위험 구역 (zone mutex + 대기열 헬퍼)
   12. 작업: goto 경로 순회 후 복귀
-  13. 작업: 전체 순찰
+  13. 작업: 전체 순찰 (v1.1.0 비활성, 주석 보관)
   14. main
 """
 
@@ -42,11 +46,19 @@ Pinky3 순찰 노드
 import rclpy
 from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.exceptions import InvalidParameterTypeException, ParameterUninitializedException
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from std_msgs.msg import String
 from pinky_interfaces.srv import SetLed
 import json, math, os, time, threading, subprocess
+
+# 같은 패키지의 좌표 파싱·검증 (ROS 비의존)
+from cobot_pinky_patrol.patrol_points_utils import (PointsConfigError, entry_name, exit_name,
+                                                    parse_points, parse_zone_names,
+                                                    parse_zone_points, required_names,
+                                                    validate_points, validate_zones, zone_of)
 
 # cobot_zone_traffic_control 패키지가 설치되어 있어야 합니다.
 from cobot_zone_traffic_control.zone_gate_client import (ZoneGateClient,
@@ -69,64 +81,52 @@ class PinkyPatrolNode(Node):
     # 재시작해도 마지막 위치를 기억하기 위한 저장 파일 경로
     POSE_FILE = os.path.expanduser('~/.pinky_last_pose.json')
 
-    # 좌표: (x, y) 또는 (x, y, yaw[rad])
-    POINTS = {
-        "P1": (0.0,  0.0),   # 원점 부근 (시작점 / 홈)
-        "P2": (0.65,  0.15),   # 원점과 우측 구간 사이 중간 지점
-        "P3": (1.55, -0.40),   # 우측 아래 끝
-        "P4": (1.00, -0.40),   # 중앙-우측 아래
-        "P5": (1.00,  0.10),   # 중앙-우측 위
-        "P6": (1.55,  0.06),   # 우측 위 끝
-        "P7": (0.00, -0.60),   # 원점 아래쪽
+    # [v1.1.0 R3] 지점 좌표(POINTS)는 코드에서 제거하고 config/pinky3.yaml 의 points 파라미터로 옮겼다.
+    #   - 형식: (x, y) 또는 (x, y, yaw[rad]), map 좌표계 [m]. 읽기/검증은 _load_points() 와 patrol_points_utils.py.
+    #   - 코드에는 좌표가 아닌 "이름"만 남긴다. 좌표는 self.points[이름] 으로 쓴다.
+    #   - 위험구역은 여러 개(zone_names, 예: A, B)이고 구역마다 ENTRY/EXIT 한 쌍을 가진다.
+    #     이름 규칙은 patrol_points_utils.entry_name / exit_name (ZONE_<구역>_ENTRY / ZONE_<구역>_EXIT).
+    #   - ZONE_<구역>_ENTRY 는 zone_params.yaml 의 zone_<구역>.queue_anchor 와 같아야 한다 (테스트가 두 YAML 을 비교).
+    #   - 옛 위험 구역 문(RED LINE) 좌표는 이미 미사용이라 이전하지 않았다 (git 이력 참고).
 
-        # [미사용] 기존 위험 구역 문(RED LINE) 좌표. 대기열(v3)은 앵커 진입/출구 반납을 쓰므로 주석 처리
-        # "ZONE_ENTRY":  (0.60, -0.50, 0),
-        # "ZONE_EXIT": (0.60, -0.50, 3.14),
-        # "ZONE_ENTRY":  (0.55, -0.60, 0),
-        # "ZONE_EXIT": (0.55, -0.60, 3.14),
-
-        # 위험 구역 진입/반납 좌표 (두 로봇 공통)
-        #   ZONE_ENTRY: 대기열 앵커(슬롯 0). zone_params.yaml 의 queue_anchor 와 같아야 함 (테스트가 검사)
-        #   ZONE_EXIT : 구역을 나온 뒤 락(토큰)을 반납하는 출구. yaw 3.14 = 뒤 방향(180도)
-        "ZONE_ENTRY": (1.0, -0.7, 0.0),
-        "ZONE_EXIT":  (0.5, -0.4, 3.14),
-        # stop 으로 구역 밖에 나와 락을 반납하고 서는 위치. 두 로봇 모두 ZONE_EXIT 와 같은 점 (2026-10-14 사용자 지정,
-        # 입구 줄(y=-0.7)과 거리를 벌려 충돌을 줄임). 로봇별 줄 세우기(오프셋)는 하지 않음
-        "ZONE_STOP_EXIT": (0.5, -0.4, 3.14),
-    }
-
-    # start 명령의 순찰 경로: P2 -> ZONE_ENTRY -> P3 -> P6 -> ZONE_EXIT -> P1
-    WAYPOINTS = [
-        POINTS["ZONE_ENTRY"],   # 0: 앵커 (요청 -> 슬롯 대기 -> 허가 -> 진입. _queue_and_enter)
-        POINTS["P3"],       # 1: 우측 아래 끝 (위험 구역 안)
-        POINTS["P6"],       # 2: 우측 위 끝   (위험 구역 안)
-        POINTS["ZONE_EXIT"],  # 3: 출구 (도착 시 락 반납)
-        POINTS["P7"],       # 4: 시작점으로 복귀
-    ]
+    # [비활성: v1.1.0 순회 중단]
+    # 순회(start) 경로. v1.1.0 은 goto/stop 만 쓰므로 껐다.
+    # 좌표가 클래스 상수가 아니라 인스턴스 속성(self.points)이 되었으므로 WAYPOINTS 는 좌표가 아닌
+    # "지점 이름" 리스트로 둔다. 되살릴 때 아래 "# " 를 풀고, _run_patrol 에서 self.points[이름] 으로 변환한다.
+    # # start 명령의 순찰 경로: P2 -> ZONE_ENTRY -> P3 -> P6 -> ZONE_EXIT -> P1
+    # WAYPOINTS = [
+        # "ZONE_ENTRY",   # 0: 앵커 (요청 -> 슬롯 대기 -> 허가 -> 진입. _queue_and_enter)
+        # "P3",       # 1: 우측 아래 끝 (위험 구역 안)
+        # "P6",       # 2: 우측 위 끝   (위험 구역 안)
+        # "ZONE_EXIT",  # 3: 출구 (도착 시 락 반납)
+        # "P7",       # 4: 시작점으로 복귀
+    # ]
 
     # ==========================================================================
     # 3. 위험 구역(ZONE) 상수
     # ==========================================================================
-    # [순찰(start)용] WAYPOINTS 리스트의 "순번(index)"이며 좌표 값이 아닙니다.
-    #   ZONE_ENTRY_INDEX: 이 waypoint 도착 직후, 다음으로 출발하기 전에 진입 허가 요청
-    #   ZONE_EXIT_INDEX : 이 waypoint 도착 시 구역을 벗어난 것으로 보고 락 반납
-    ZONE_ENTRY_INDEX = 0   # WAYPOINTS[0] = ZONE_ENTRY  (v2 는 1 로 어긋나 있었음 -> v3 에서 정정)
-    ZONE_EXIT_INDEX = 3    # WAYPOINTS[3] = ZONE_EXIT (v2 는 4 로 어긋나 있었음 -> v3 에서 정정)
+    # [비활성: v1.1.0 순회 중단]
+    # 순회(start) 전용 순번 상수. goto 경로는 이름(ZONE_ENTRY_NAME/ZONE_EXIT_NAME)을 쓰므로 영향 없음.
+    # 되살릴 때: 아래 "# " 를 풀고 WAYPOINTS 와 순번이 맞는지 test_waypoint_indexes_match_door_names 로 확인.
+    # # [순찰(start)용] WAYPOINTS 리스트의 "순번(index)"이며 좌표 값이 아닙니다.
+    # #   ZONE_ENTRY_INDEX: 이 waypoint 도착 직후, 다음으로 출발하기 전에 진입 허가 요청
+    # #   ZONE_EXIT_INDEX : 이 waypoint 도착 시 구역을 벗어난 것으로 보고 락 반납
+    # ZONE_ENTRY_INDEX = 0   # WAYPOINTS[0] = ZONE_ENTRY  (v2 는 1 로 어긋나 있었음 -> v3 에서 정정)
+    # ZONE_EXIT_INDEX = 3    # WAYPOINTS[3] = ZONE_EXIT (v2 는 4 로 어긋나 있었음 -> v3 에서 정정)
 
-    # [goto용] POINTS의 키 이름 기준
-    ZONE_ENTRY_NAME = 'ZONE_ENTRY'                       # 허가 요청 지점
-    STOP_EXIT_NAME = 'ZONE_STOP_EXIT'                   # stop 퇴장 후 락 반납 지점
-    ZONE_EXIT_NAME = 'ZONE_EXIT'                       # 락 반납 지점
-    ZONE_POINTS = {'P3', 'P4', 'P5', 'P6'}           # 위험 구역 안 포인트
+    # [goto용] 위험구역의 이름과 소속 지점은 코드가 아니라 파라미터(zone_names, zone_points)로 받는다.
+    #   self.zone_names : 구역 이름들 (예: ('A', 'B'))
+    #   self.zone_points: {구역: 소속 지점 이름들}. 지점이 어느 구역인지는 zone_of(self.zone_points, 이름)
+    #   구역별 진입(토큰 요청)/출구(토큰 반납) 지점은 entry_name(구역) / exit_name(구역). stop 후퇴도 그 구역의 출구로 간다.
 
     # ==========================================================================
     # 4. goto 상수
     # ==========================================================================
-    HOME_NAME = 'P7'                                  # TODO(pinky3): 임시로 pinky2 와 같은 홈. 실측 후 pinky3 전용 지점으로 수정 (홈이 겹치면 충돌)
+    # 복귀 지점 이름은 파라미터 home_name (config/pinky3.yaml, self.home_name)
     GOTO_WAIT_SEC = 10.0                              # 지점 도착 후 대기 시간(초)
     WAIT_EVERY_POINT = True                           # True: 모든 지점에서 대기 / False: 마지막 지점에서만
     NAV_RETRIES = 3                                   # 진입 절차 중 한 목표에 대한 이동 최대 시도 횟수
-    GOTO_ALLOWED = {'P1', 'P2', 'P7'} | ZONE_POINTS   # ZONE_*는 직접 goto 금지
+    GOTO_BASE = {'P1', 'P2', 'P7'}                    # 구역 밖 goto 허용 지점. 구역 안 지점은 self.goto_allowed 에 더해진다 (ENTRY/EXIT 는 직접 goto 금지)
 
     # ==========================================================================
     # 5. LED 상수
@@ -144,6 +144,18 @@ class PinkyPatrolNode(Node):
         # zone_manager_node의 robot_ids 파라미터 값과 정확히 같아야 함
         self.declare_parameter('robot_id', 'pinky3')
         self.robot_id = self.get_parameter('robot_id').value
+
+        # --- 지점 좌표 / 홈 이름 (config/pinkyN.yaml, launch 또는 --params-file 로 전달) ---
+        # 좌표를 코드에 두지 않는 이유: 맵이 바뀌면 코드 수정·재배포 없이 YAML 만 고치기 위해서이고,
+        # 로봇 3대 코드의 유일한 차이(좌표·홈)를 설정으로 옮기기 위해서이다.
+        # 잘못되면 로그를 남기고 예외를 올려 노드를 시작하지 않는다 (잘못된 좌표로 주행하는 것보다 안전).
+        try:
+            self.points, self.home_name, self.zone_names, self.zone_points = self._load_points()
+        except PointsConfigError as e:
+            self.get_logger().error(f'좌표 설정 오류 -- 노드를 시작하지 않습니다: {e}')
+            raise
+        # goto 로 직접 갈 수 있는 지점: 구역 밖 지점 + 모든 구역의 소속 지점
+        self.goto_allowed = self.GOTO_BASE | {p for ms in self.zone_points.values() for p in ms}
 
         # Nav2 액션 클라이언트 + 퍼블리셔 생성 헬퍼 역할 겸용
         self.navigator = BasicNavigator()
@@ -170,6 +182,69 @@ class PinkyPatrolNode(Node):
         self.set_idle_led()           # 시작 시 대기 LED
 
         self.publish_status('IDLE', -1)
+
+    def _load_points(self):
+        """
+        config/pinkyN.yaml 의 구역·좌표 설정을 읽어 검증한다.
+        (zone_names, zone_points.<구역>, points.*, home_name)
+
+        왜 declare 를 여기서 하나: rclpy 는 선언한 이름만 읽을 수 있고, 기본값 없는 선언
+        (Type 만 지정)은 YAML 에 값이 없을 때 ParameterUninitializedException 을 낸다.
+        이를 "누락"으로 모아 한 번에 알려 주려고 선언·읽기·검증을 한 메서드에 둔다.
+        (YAML 없이 ros2 run 만 하면 전부 누락 -> 시작 거부. 조용히 기본 좌표로 움직이지 않는다.)
+        구역이 몇 개이고 이름이 무엇인지는 YAML(zone_names)이 정하므로, 필요한 지점 이름
+        (ZONE_<구역>_ENTRY / ZONE_<구역>_EXIT)은 zone_names 를 읽은 뒤에 결정해 선언한다.
+
+        :return: (points, home_name, zone_names, zone_points)
+                 points 는 {이름: (x, y) 또는 (x, y, yaw)} (m, rad), zone_points 는 {구역: (지점 이름, ...)}
+        :raises PointsConfigError: 누락 / 길이·숫자 오류 / NaN·inf / 타입 불일치(정수 배열 등) / 구역 소속 모순
+        """
+        try:
+            self.declare_parameter('zone_names', Parameter.Type.STRING_ARRAY)
+            self.declare_parameter('home_name', Parameter.Type.STRING)
+            zone_names_raw = self.get_parameter('zone_names').value
+        except InvalidParameterTypeException as e:
+            raise PointsConfigError(f'zone_names 타입 오류: {e}. 문자열 리스트(예: [A, B])로 쓰세요.') from e
+        except ParameterUninitializedException:
+            raise PointsConfigError(
+                'zone_names 가 없습니다. config/pinkyN.yaml 에 zone_names: [A, B] 처럼 구역 이름을 쓰세요 '
+                '(YAML 을 지정했는지도 확인: launch 또는 --params-file).') from None
+        zone_names = parse_zone_names(zone_names_raw)
+        required = required_names(zone_names)
+
+        try:
+            for zone in zone_names:
+                self.declare_parameter(f'zone_points.{zone}', Parameter.Type.STRING_ARRAY)
+            for name in required:
+                self.declare_parameter(f'points.{name}', Parameter.Type.DOUBLE_ARRAY)
+        except InvalidParameterTypeException as e:
+            # 대표 사례: YAML 에 [0, 0] 처럼 정수로 쓴 경우 (소수점 [0.0, 0.0] 으로 써야 함)
+            raise PointsConfigError(f'좌표 파라미터 타입 오류: {e}. 값을 소수점(0.0)으로 쓰세요.') from e
+
+        raw_zone_points = {}
+        for zone in zone_names:
+            try:
+                raw_zone_points[zone] = list(self.get_parameter(f'zone_points.{zone}').value)
+            except ParameterUninitializedException:
+                raise PointsConfigError(
+                    f'zone_points.{zone} 가 없습니다. 구역 {zone} 에 속한 지점 이름을 '
+                    f'zone_points: {zone}: [P3, P4] 처럼 쓰세요.') from None
+        raw = {}
+        for name in required:
+            try:
+                raw[name] = self.get_parameter(f'points.{name}').value
+            except ParameterUninitializedException:
+                pass   # 누락은 validate_points 가 이름을 모아 한꺼번에 보고한다
+        try:
+            home_name = self.get_parameter('home_name').value
+        except ParameterUninitializedException:
+            home_name = ''
+
+        points = parse_points(raw)
+        validate_points(points, required, home_name)
+        zone_points = parse_zone_points(raw_zone_points)
+        validate_zones(zone_points, points, home_name)
+        return points, home_name, zone_names, zone_points
 
     # ==========================================================================
     # 7. LED 제어
@@ -264,16 +339,23 @@ class PinkyPatrolNode(Node):
         raw = msg.data.strip()   # 원본: goto 포인트 이름 추출용
         cmd = raw.lower()        # 소문자: 명령 판별용
 
-        # --- start: 전체 순찰 ---
+        # --- start: 비활성 (v1.1.0) ---
+        # 순회를 껐으므로 '알 수 없는 명령' 경고로 떨어뜨리지 않고, 관제 쪽이 왜 안 움직이는지
+        # 알 수 있게 FAILED 상태로 응답한다. 작업 스레드는 시작하지 않아 노드는 IDLE 을 유지한다.
         if cmd == 'start':
-            if self._running:
-                self.get_logger().warn('이미 순찰 중입니다. 명령 무시.')
-                return
-            self._stop_requested = False
-            self._emergency_requested = False
-            self._running = True   # 스레드 시작 전에 세팅 (연타 시 중복 실행 방지)
-            self._thread = threading.Thread(target=self._run_patrol, daemon=True)
-            self._thread.start()
+            self.get_logger().warn('순회 비활성화(v1.1.0): start 명령을 무시합니다.')
+            self.publish_status('FAILED', -1, 'start disabled')
+
+        # [비활성: v1.1.0 순회 중단] 원래 start 분기 (되살릴 때 위 if 블록을 지우고 아래 주석을 푼다)
+        # if cmd == 'start':
+            # if self._running:
+                # self.get_logger().warn('이미 순찰 중입니다. 명령 무시.')
+                # return
+            # self._stop_requested = False
+            # self._emergency_requested = False
+            # self._running = True   # 스레드 시작 전에 세팅 (연타 시 중복 실행 방지)
+            # self._thread = threading.Thread(target=self._run_patrol, daemon=True)
+            # self._thread.start()
 
         # --- goto:<P>[,<P>,...]: 지점들을 순서대로 방문 -> 홈 복귀 ---
         elif cmd.startswith('goto:'):
@@ -284,12 +366,12 @@ class PinkyPatrolNode(Node):
                 self.get_logger().warn('goto 포인트가 비어 있습니다.')
                 self.publish_status('FAILED', -1, 'no point given')
                 return
-            unknown = [n for n in names if n not in self.POINTS]
+            unknown = [n for n in names if n not in self.points]
             if unknown:
                 self.get_logger().warn(f'알 수 없는 포인트: {unknown}')
                 self.publish_status('FAILED', -1, f'unknown point: {unknown}')
                 return
-            denied = [n for n in names if n not in self.GOTO_ALLOWED]
+            denied = [n for n in names if n not in self.goto_allowed]
             if denied:
                 self.get_logger().warn(f'goto 불가 포인트: {denied}')
                 self.publish_status('FAILED', -1, f'not allowed: {denied}')
@@ -306,7 +388,7 @@ class PinkyPatrolNode(Node):
             self._thread.start()
 
         # --- stop / emergency_stop: 현재 작업 중단 ---
-        #   stop           : 멈춘 뒤, 구역 안에서 락을 들고 있으면 ZONE_STOP_EXIT 로 나와 락을 반납한다
+        #   stop           : 멈춘 뒤, 구역 안에서 락을 들고 있으면 그 구역의 EXIT 로 나와 락을 반납한다
         #   emergency_stop : 그 자리 정지 + 락 유지 (락은 zone_manager 의 max_hold_sec 뒤에 자동 해제)
         elif cmd in ('stop', 'emergency_stop'):
             if not self._running:
@@ -474,24 +556,24 @@ class PinkyPatrolNode(Node):
         """이동이 끝난 이유: stop 요청이면 STOPPED, 아니면 FAILED."""
         return 'STOPPED' if self._stop_requested else 'FAILED'
 
-    def _queue_and_enter(self, idx, name):
+    def _queue_and_enter(self, idx, name, zone):
         """
-        위험 구역 진입 절차 전체 (goto 경로와 start 경로가 함께 쓴다).
+        위험 구역 ``zone`` 진입 절차 전체 (goto 경로와 start 경로가 함께 쓴다).
         요청을 "먼저" 보내고, 매니저 응답(허가 / 대기 슬롯)에 따라 목표를 계속 바꿔 가며 이동한다.
 
-          1) request_entry 발송 후 일단 문(ZONE_ENTRY_NAME)으로 출발 (빈 구역이면 v2처럼 곧바로 진행)
+          1) request_entry(구역 ``zone`` 의 토큰) 발송 후 일단 그 구역 문(ENTRY)으로 출발 (빈 구역이면 v2처럼 곧바로 진행)
           2) 점유 중이라 슬롯(queue_slot)이 오면 -> 문 대신 그 슬롯 좌표로 이동하고 정지 (QUEUEING)
           3) 슬롯이 바뀌면(앞 로봇 이탈/취소) -> 현재 goal 취소 후 새 슬롯으로 재이동
           4) 허가(grant)가 오면 -> 진행 중인 goal 만 취소하고 즉시 반환 (슬롯/앵커를 거치지 않고 호출자가 목적지로 직행)
           5) 대기 중 재전송(1초)으로 매니저에게 "아직 기다린다"고 알린다 (끊기면 5초 뒤 큐에서 제거됨)
-        로봇 코드에는 대기 좌표가 없다. 앵커 좌표(ZONE_ENTRY)만 POINTS 에 있고 슬롯은 항상 매니저가 준다.
+        로봇 코드에는 대기 좌표가 없다. 구역별 앵커 좌표(ZONE_<구역>_ENTRY)만 self.points 에 있고 슬롯은 항상 매니저가 준다.
 
         True  : 허가를 받음 (락 보유). 앵커에 도착하지 않았어도 반환
         False : stop / 이동 최종 실패 / 대기열 가득 (락 없음. 허가를 이미 받았다면 반납함)
         """
-        door = self.POINTS[self.ZONE_ENTRY_NAME]
+        door = self.points[entry_name(zone)]
         gate = self.gate
-        gate.reset()
+        gate.reset(zone)                        # 이후 요청/취소/이탈 통보는 이 구역 기준
         gate.send_request()                     # 슬롯 이동 "전에" 먼저 요청 (순번 확보)
 
         target = None       # 현재 목표 (kind, pose). kind: 'door' | 'slot'
@@ -570,7 +652,7 @@ class PinkyPatrolNode(Node):
                 phase = new_phase
                 if phase == 'MOVING':
                     self.set_drive_led()
-                    self.publish_status('MOVING', idx, self.ZONE_ENTRY_NAME)
+                    self.publish_status('MOVING', idx, entry_name(zone))
                 else:
                     self.start_blink(255, 0, 0)     # 대기: 빨강 깜박임
                     detail = f'slot{gate.current_slot[0]}' if kind == 'slot' else name
@@ -609,9 +691,9 @@ class PinkyPatrolNode(Node):
         self.stop_blink()
         self.publish_status(state, idx, detail or name)
 
-    def _retreat_after_stop(self):
+    def _retreat_after_stop(self, zone):
         """
-        stop 으로 멈췄을 때 구역 안에서 락을 들고 있다면: ZONE_STOP_EXIT 로 나가 락을 반납한다.
+        stop 으로 멈췄을 때 구역 ``zone`` 안에서 락을 들고 있다면: 그 구역의 EXIT 로 나가 락을 반납한다.
         _navigate 는 _stop_requested 면 곧바로 취소하므로 여기서는 별도 이동 루프를 쓴다.
         emergency_stop 이면(이동 중에 들어와도) 즉시 멈추고 락을 유지한다 (max_hold_sec 뒤 자동 해제).
         True : 도착해서 락을 반납함 / False : emergency 이거나 도달 실패 (락 유지)
@@ -619,8 +701,8 @@ class PinkyPatrolNode(Node):
         if self._emergency_requested:
             self.get_logger().warn('emergency_stop: 후퇴/락 반납 없이 현재 위치 유지 (max_hold_sec 뒤 락 자동 해제)')
             return False
-        wp = self.POINTS[self.STOP_EXIT_NAME]
-        self.publish_status('RETREATING', -1, self.STOP_EXIT_NAME)
+        wp = self.points[exit_name(zone)]
+        self.publish_status('RETREATING', -1, exit_name(zone))
         self.set_drive_led()
         for attempt in range(self.NAV_RETRIES):
             self.navigator.goToPose(self.make_pose(*wp))
@@ -634,24 +716,24 @@ class PinkyPatrolNode(Node):
                 return False
             if self.navigator.getResult() == TaskResult.SUCCEEDED:
                 self.gate.notify_exit()
-                self.get_logger().info(f'stop: {self.STOP_EXIT_NAME} 도착, 락 반납 완료')
+                self.get_logger().info(f'stop: {exit_name(zone)} 도착, 락 반납 완료')
                 return True
             self.get_logger().warn(f'후퇴 이동 실패, 재시도 {attempt+1}/{self.NAV_RETRIES}')
         self.get_logger().warn('후퇴 실패 - 락 유지 (max_hold_sec 타임아웃 대기)')
         return False
 
-    def _leave_zone(self):
+    def _leave_zone(self, zone):
         """
-        이탈 문(ZONE_EXIT_NAME)으로 이동 -> 락 반납.
+        구역 ``zone`` 의 이탈 문(ZONE_<구역>_EXIT)으로 이동 -> 락 반납.
         True  : 도착해서 락을 반납함
         False : 도달 실패 (락 유지, max_hold_sec 타임아웃 대기)
         """
-        door = self.POINTS[self.ZONE_EXIT_NAME]
+        door = self.points[exit_name(zone)]
 
         arrived = self._navigate(door)                              # 실제 이동 명령
         if not arrived:
             self.get_logger().warn(
-                f'{self.ZONE_EXIT_NAME} 도달 실패 - 락 유지 (max_hold_sec 타임아웃 대기)')
+                f'{exit_name(zone)} 도달 실패 - 락 유지 (max_hold_sec 타임아웃 대기)')
             return False
 
         self.gate.notify_exit()                                     # 도착했을 때만 락 반납
@@ -665,17 +747,20 @@ class PinkyPatrolNode(Node):
         """
         [별도 스레드] names 리스트의 지점을 순서대로 방문한 뒤 홈으로 복귀.
 
-        구역 처리 규칙 (인접한 두 지점의 구역 여부로 판단):
-          구역 밖 -> 구역 안 : ZONE_ENTRY 경유 + 진입 허가 대기 (락 획득)
-          구역 안 -> 구역 안 : 락 유지한 채 바로 이동 (ZONE_ENTRY/EXIT 경유 없음)
-          구역 안 -> 구역 밖 : ZONE_EXIT 경유 + 락 반납
+        구역 처리 규칙 (인접한 두 지점이 속한 구역으로 판단. 구역은 zone_points 파라미터가 정한다):
+          구역 밖 -> 구역 Z 안 : ZONE_Z_ENTRY 경유 + 진입 허가 대기 (구역 Z 토큰 획득)
+          구역 Z 안 -> 구역 Z 안 : 토큰 유지한 채 바로 이동
+          구역 Z 안 -> 구역 밖 : ZONE_Z_EXIT 경유 + 토큰 반납
+          구역 Z 안 -> 구역 W 안 : Z 토큰 반납(ZONE_Z_EXIT) 후 W 토큰 요청(ZONE_W_ENTRY)
           구역 밖 -> 구역 밖 : 바로 이동
-        마지막 지점이 구역 안이면 홈 복귀 전에 ZONE_EXIT에서 락을 반납.
+        한 번에 한 구역의 토큰만 쥔다. 다른 구역 줄에서 기다리는 동안 토큰을 들고 있으면
+        서로 기다리는 교착이 생길 수 있어서, 반드시 반납한 뒤에 다음 구역을 요청한다.
+        마지막 지점이 구역 안이면 홈 복귀 전에 그 구역의 EXIT 에서 토큰을 반납.
 
-        예) P2,P3,P6,P7
-          P2 -> (ZONE_ENTRY, 허가) -> P3 -> P6 -> (ZONE_EXIT, 반납) -> P7 -> 홈(P1)
+        예) P2,P3,P5,P7 (P3=구역 A, P5=구역 B)
+          P2 -> (A_ENTRY, 허가) -> P3 -> (A_EXIT, 반납) -> (B_ENTRY, 허가) -> P5 -> (B_EXIT, 반납) -> P7 -> 홈
         """
-        in_zone = False   # True = 허가(락) 보유 중
+        held = None   # 토큰(락)을 보유 중인 구역 이름. None = 구역 밖
         last = len(names) - 1
         try:
             self.publish_status('STARTING', -1, ','.join(names))
@@ -687,29 +772,30 @@ class PinkyPatrolNode(Node):
                     self.publish_status('STOPPED', idx, name)
                     return
 
-                to_zone = name in self.ZONE_POINTS
+                target_zone = zone_of(self.zone_points, name)   # 다음 지점이 속한 구역 (None = 구역 밖)
 
-                # --- A) 구역 밖 -> 안: 요청 -> (필요 시 슬롯 대기) -> 허가 -> ZONE_ENTRY 진입 ---
-                if to_zone and not in_zone:                 # 다음 지점이 구역 안이고, 아직 락이 없으면
-                    if not self._queue_and_enter(idx, name):  # 허가를 못 받았으면 (이동 실패 / stop / 대기열 가득)
-                        return                              #   -> 작업 종료
-                    in_zone = True                          # 허가받음 -> "락 보유 중" 표시
-
-                # --- B) 구역 안 -> 밖: ZONE_EXIT 도착 후 락 반납 ---
-                elif not to_zone and in_zone:               # 다음 지점이 구역 밖이고, 락을 가지고 있으면
-                    self.publish_status('LEAVING_ZONE', idx, self.ZONE_EXIT_NAME)
-                    if not self._leave_zone():              # ZONE_EXIT 도착/락 반납에 실패했으면
+                # --- A) 보유 중인 구역과 다음 지점의 구역이 다르면: 그 구역 EXIT 도착 후 토큰 반납 ---
+                if held is not None and target_zone != held:
+                    self.publish_status('LEAVING_ZONE', idx, exit_name(held))
+                    if not self._leave_zone(held):          # EXIT 도착/토큰 반납에 실패했으면
                         self.publish_status('STOPPED' if self._stop_requested else 'FAILED',
-                                            idx, self.ZONE_EXIT_NAME)
-                        return                              #   -> 작업 종료 (락은 유지됨)
-                    in_zone = False                         # 반납 완료 -> "락 없음" 표시
+                                            idx, exit_name(held))
+                        return                              #   -> 작업 종료 (토큰은 유지됨)
+                    held = None                             # 반납 완료 -> "토큰 없음" 표시
+
+                # --- B) 다음 지점이 구역 안이고 그 구역 토큰이 없으면: 요청 -> (슬롯 대기) -> 허가 ---
+                if target_zone is not None and held is None:
+                    if not self._queue_and_enter(idx, name, target_zone):  # 허가를 못 받았으면 (이동 실패 / stop / 대기열 가득)
+                        return                              #   -> 작업 종료
+                    held = target_zone                      # 허가받음 -> "그 구역 토큰 보유 중" 표시
 
                 # --- C) 목표 지점으로 이동 ---
                 self.publish_status('MOVING', idx, name)
-                if not self._navigate(self.POINTS[name]):   # 목표 지점 이동에 실패했으면 (stop 포함)
-                    if in_zone and not self._stop_requested:  # 구역 안에 있고, stop이 아닌 "실패"라면
-                        # 이동 실패(stop 아님): ZONE_EXIT 후퇴 시도, 성공 시 락 반납
-                        in_zone = not self._leave_zone()    # 반납 성공(True)이면 in_zone=False, 실패면 True 유지
+                if not self._navigate(self.points[name]):   # 목표 지점 이동에 실패했으면 (stop 포함)
+                    if held is not None and not self._stop_requested:  # 구역 안에 있고, stop이 아닌 "실패"라면
+                        # 이동 실패(stop 아님): 그 구역 EXIT 후퇴 시도, 성공 시 토큰 반납
+                        if self._leave_zone(held):          # 반납 성공이면 "토큰 없음", 실패면 유지
+                            held = None
                     self.publish_status('STOPPED' if self._stop_requested else 'FAILED',
                                         idx, name)
                     return                                  #   -> 작업 종료
@@ -721,29 +807,29 @@ class PinkyPatrolNode(Node):
                     completed = self._wait_interruptible(self.GOTO_WAIT_SEC)
                     self.stop_blink()
                     if not completed:                       # 대기를 끝까지 못 했으면 (중간에 stop)
-                        self.publish_status('STOPPED', idx, name)  # 구역 안이면 락 유지
+                        self.publish_status('STOPPED', idx, name)  # 구역 안이면 토큰 유지
                         return
 
-            # --- E) 마지막 지점이 구역 안이면: ZONE_EXIT 도착 후 락 반납 ---
-            if in_zone:                                     # 락을 아직 가지고 있으면 (마지막 지점이 구역 안)
-                self.publish_status('LEAVING_ZONE', last, self.ZONE_EXIT_NAME)
-                if not self._leave_zone():                  # ZONE_EXIT 도착/락 반납에 실패했으면
+            # --- E) 마지막 지점이 구역 안이면: 그 구역 EXIT 도착 후 토큰 반납 ---
+            if held is not None:                            # 토큰을 아직 가지고 있으면 (마지막 지점이 구역 안)
+                self.publish_status('LEAVING_ZONE', last, exit_name(held))
+                if not self._leave_zone(held):              # EXIT 도착/토큰 반납에 실패했으면
                     self.publish_status('STOPPED' if self._stop_requested else 'FAILED',
-                                        last, self.ZONE_EXIT_NAME)
+                                        last, exit_name(held))
                     return
-                in_zone = False                             # 반납 완료
+                held = None                                 # 반납 완료
 
             # --- F) 홈으로 복귀 ---
-            self.publish_status('RETURNING', -1, self.HOME_NAME)
-            if self._navigate(self.POINTS[self.HOME_NAME]): # 홈에 도착했으면 (여기만 not 없음)
+            self.publish_status('RETURNING', -1, self.home_name)
+            if self._navigate(self.points[self.home_name]): # 홈에 도착했으면 (여기만 not 없음)
                 self.publish_status('DONE', -1, 'returned home')
             else:                                           # 홈 이동 실패 또는 stop
                 self.publish_status('STOPPED' if self._stop_requested else 'FAILED', -1, 'return')
         finally:
-            # stop 으로 끝났고 구역 안에서 락을 들고 있으면 구역 밖(ZONE_STOP_EXIT)으로 나와 락을 반납
-            # (emergency_stop 이면 현재 위치/락 유지)
-            if in_zone and self._stop_requested:
-                if self._retreat_after_stop():
+            # stop 으로 끝났고 구역 안에서 토큰을 들고 있으면 그 구역 EXIT(구역 밖)로 나와 토큰을 반납
+            # (emergency_stop 이면 현재 위치/토큰 유지)
+            if held is not None and self._stop_requested:
+                if self._retreat_after_stop(held):
                     self.publish_status('STOPPED', -1, 'retreated')
             self.set_idle_led()     # 어떤 경우든 종료 시 대기 LED로 복귀
             self._running = False
@@ -751,91 +837,104 @@ class PinkyPatrolNode(Node):
     # ==========================================================================
     # 13. 작업: 전체 순찰
     # ==========================================================================
-    def _run_patrol(self):
-        """[별도 스레드] WAYPOINTS 전체 순회. rclpy.spin()을 막지 않아 stop을 받을 수 있음."""
-        self._running = True
-        holding = False   # True = 허가(락) 보유 중 (stop 시 후퇴/반납 판단용)
-        self.publish_status('STARTING', -1)
-        try:
-            # 1) 최초 1회만 초기 위치 보정 (이후 start/goto에서는 생략)
-            self._init_pose_once()
+    # [비활성: v1.1.0 순회 중단]
+    # 이유: v1.1.0 은 순회(start) 없이 goto/stop 만 운용한다. 삭제하지 않고 보관해
+    #       나중에 순회를 되살릴 때 주석만 풀면 되게 한다.
+    # 되살리는 절차:
+    #   1) 아래 메서드의 "# " 를 모두 푼다 (들여쓰기는 그대로 유지).
+    #   2) 2번 섹션의 WAYPOINTS(이름 리스트), 3번 섹션의 ZONE_ENTRY_INDEX / ZONE_EXIT_INDEX 주석을 푼다.
+    #   3) _cmd_cb 의 'start' 분기를 "start disabled" 응답 대신 원래 스레드 시작 코드로 되돌린다.
+    #   4) test/test_patrol_queue.py 에서 skip 처리한 start 경로 테스트를 되살린다.
+    #   5) 아래 주석 코드는 위험구역이 1개이던 시절 기준이다 (ZONE_ENTRY_NAME / ZONE_EXIT_NAME / ZONE_STOP_EXIT).
+    #      되살릴 때는 구역을 지정해 entry_name(zone) / exit_name(zone) 을 쓰고, _queue_and_enter / _leave_zone /
+    #      _retreat_after_stop 에 zone 인자를 넘기도록 고친다 (goto 경로 _run_route 가 같은 방식의 본보기).
+    # 의존: _init_pose_once, _queue_and_enter, make_pose, _retreat_after_stop, self.gate
+    #       (모두 goto 경로가 계속 사용하므로 그대로 남아 있다).
+    # def _run_patrol(self):
+        # """[별도 스레드] WAYPOINTS 전체 순회. rclpy.spin()을 막지 않아 stop을 받을 수 있음."""
+        # self._running = True
+        # holding = False   # True = 허가(락) 보유 중 (stop 시 후퇴/반납 판단용)
+        # self.publish_status('STARTING', -1)
+        # try:
+            # # 1) 최초 1회만 초기 위치 보정 (이후 start/goto에서는 생략)
+            # self._init_pose_once()
 
-            # 2) Nav2 활성화 대기
-            self.navigator.waitUntilNav2Active()
+            # # 2) Nav2 활성화 대기
+            # self.navigator.waitUntilNav2Active()
 
-            # 3) 웨이포인트 순회
-            for i, wp in enumerate(self.WAYPOINTS):
-                if self._stop_requested:
-                    self.publish_status('STOPPED', i)
-                    break
+            # # 3) 웨이포인트 순회
+            # for i, wp in enumerate(self.WAYPOINTS):
+                # if self._stop_requested:
+                    # self.publish_status('STOPPED', i)
+                    # break
 
-                # 구역 진입 waypoint: 일반 이동 대신 goto 경로와 같은 _queue_and_enter 사용
-                # (요청 -> 슬롯 대기 -> 허가 -> 문 이동 까지 한 곳에서 처리)
-                if i == self.ZONE_ENTRY_INDEX:
-                    if not self._queue_and_enter(i, self.ZONE_ENTRY_NAME):
-                        break   # 중단/실패 상태는 _queue_and_enter 가 이미 발행함 (DONE 건너뜀)
-                    holding = True
-                    self.publish_status('MOVING', i + 1)
-                    continue
+                # # 구역 진입 waypoint: 일반 이동 대신 goto 경로와 같은 _queue_and_enter 사용
+                # # (요청 -> 슬롯 대기 -> 허가 -> 문 이동 까지 한 곳에서 처리)
+                # if i == self.ZONE_ENTRY_INDEX:
+                    # if not self._queue_and_enter(i, self.ZONE_ENTRY_NAME):
+                        # break   # 중단/실패 상태는 _queue_and_enter 가 이미 발행함 (DONE 건너뜀)
+                    # holding = True
+                    # self.publish_status('MOVING', i + 1)
+                    # continue
 
-                pose = self.make_pose(*wp)
-                self.set_drive_led()   # 주행 중: 초록 고정 점등
+                # pose = self.make_pose(*wp)
+                # self.set_drive_led()   # 주행 중: 초록 고정 점등
 
-                # 최대 3회 재시도 (일시적 장애물 / 로컬라이제이션 튐 대응)
-                for attempt in range(3):
-                    self.navigator.goToPose(pose)
+                # # 최대 3회 재시도 (일시적 장애물 / 로컬라이제이션 튐 대응)
+                # for attempt in range(3):
+                    # self.navigator.goToPose(pose)
 
-                    while not self.navigator.isTaskComplete():
-                        if self._stop_requested:
-                            self.navigator.cancelTask()
-                            break
-                        time.sleep(0.1)
+                    # while not self.navigator.isTaskComplete():
+                        # if self._stop_requested:
+                            # self.navigator.cancelTask()
+                            # break
+                        # time.sleep(0.1)
 
-                    if self._stop_requested:
-                        break
+                    # if self._stop_requested:
+                        # break
 
-                    result = self.navigator.getResult()
+                    # result = self.navigator.getResult()
 
-                    # 도착 여부와 무관하게 현재 위치 저장 (다음 재시작 대비)
-                    current = self.get_current_pose()
-                    if current is None:
-                        current = (pose.pose.position.x, pose.pose.position.y, 0.0)
-                    self.save_last_pose(*current)
+                    # # 도착 여부와 무관하게 현재 위치 저장 (다음 재시작 대비)
+                    # current = self.get_current_pose()
+                    # if current is None:
+                        # current = (pose.pose.position.x, pose.pose.position.y, 0.0)
+                    # self.save_last_pose(*current)
 
-                    if result == TaskResult.SUCCEEDED:
-                        self.get_logger().info(f'{i+1}번째 목표 도착 성공 ({attempt+1}번째 시도)')
-                        self.publish_status('MOVING', i + 1)
+                    # if result == TaskResult.SUCCEEDED:
+                        # self.get_logger().info(f'{i+1}번째 목표 도착 성공 ({attempt+1}번째 시도)')
+                        # self.publish_status('MOVING', i + 1)
 
-                        # 구역 이탈 waypoint 도착 -> 락 반납
-                        if i == self.ZONE_EXIT_INDEX:
-                            self.gate.notify_exit()
-                            holding = False
+                        # # 구역 이탈 waypoint 도착 -> 락 반납
+                        # if i == self.ZONE_EXIT_INDEX:
+                            # self.gate.notify_exit()
+                            # holding = False
 
-                        break  # 성공 -> 재시도 루프 탈출 (else 스킵)
-                    else:
-                        self.get_logger().warn(
-                            f'{i+1}번째 목표 {attempt+1}번째 시도 실패: {result}, 재시도합니다')
-                        self.publish_status('RETRY', i + 1, str(result))
-                else:
-                    # for-else: 3회 모두 실패
-                    self.get_logger().error(f'{i+1}번째 목표 최종 실패 (3회 모두 실패)')
-                    self.publish_status('FAILED', i + 1)
+                        # break  # 성공 -> 재시도 루프 탈출 (else 스킵)
+                    # else:
+                        # self.get_logger().warn(
+                            # f'{i+1}번째 목표 {attempt+1}번째 시도 실패: {result}, 재시도합니다')
+                        # self.publish_status('RETRY', i + 1, str(result))
+                # else:
+                    # # for-else: 3회 모두 실패
+                    # self.get_logger().error(f'{i+1}번째 목표 최종 실패 (3회 모두 실패)')
+                    # self.publish_status('FAILED', i + 1)
 
-                if self._stop_requested:
-                    # 구역 안에서 멈춘 경우: 여기서는 notify_exit 를 보내지 않고 finally 에서
-                    # stop 이면 ZONE_STOP_EXIT 로 후퇴 후 반납, emergency_stop 이면 락 유지(max_hold_sec 뒤 해제)
-                    self.publish_status('STOPPED', i)
-                    break
-            else:
-                # for-else: 바깥 루프가 끝까지 돌았을 때 = 전체 완주
-                self.publish_status('DONE', len(self.WAYPOINTS))
-        finally:
-            # stop 으로 끝났고 구역 안에서 락을 들고 있으면 ZONE_STOP_EXIT 로 나와 락을 반납 (emergency_stop 이면 유지)
-            if holding and self._stop_requested:
-                if self._retreat_after_stop():
-                    self.publish_status('STOPPED', -1, 'retreated')
-            self.set_idle_led()     # 순찰 종료(DONE/STOPPED/FAILED/예외) -> 대기 LED
-            self._running = False
+                # if self._stop_requested:
+                    # # 구역 안에서 멈춘 경우: 여기서는 notify_exit 를 보내지 않고 finally 에서
+                    # # stop 이면 ZONE_STOP_EXIT 로 후퇴 후 반납, emergency_stop 이면 락 유지(max_hold_sec 뒤 해제)
+                    # self.publish_status('STOPPED', i)
+                    # break
+            # else:
+                # # for-else: 바깥 루프가 끝까지 돌았을 때 = 전체 완주
+                # self.publish_status('DONE', len(self.WAYPOINTS))
+        # finally:
+            # # stop 으로 끝났고 구역 안에서 락을 들고 있으면 ZONE_STOP_EXIT 로 나와 락을 반납 (emergency_stop 이면 유지)
+            # if holding and self._stop_requested:
+                # if self._retreat_after_stop():
+                    # self.publish_status('STOPPED', -1, 'retreated')
+            # self.set_idle_led()     # 순찰 종료(DONE/STOPPED/FAILED/예외) -> 대기 LED
+            # self._running = False
 
 
 # ==============================================================================

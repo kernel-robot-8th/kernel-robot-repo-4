@@ -1,0 +1,46 @@
+# pinky3 순찰 노드 파라미터 (노드 이름 pinky_patrol_node)
+# 위험구역 2개(A, B): zone_names / zone_points 와 points 의 ZONE_<구역>_ENTRY/EXIT 로 구역마다 좌표 한 쌍을 둔다.
+# 실행: ros2 launch cobot_pinky_patrol pinky3_patrol.launch.xml
+#   또는 ros2 run cobot_pinky_patrol pinky_patrol_node_pinky3 --ros-args --params-file <이 파일>
+# 이 파일 없이 노드만 띄우면 필수 지점이 비어 시작이 거부된다 (조용히 기본 좌표로 움직이지 않음).
+#
+# 좌표는 map 좌표계, [x, y] 또는 [x, y, yaw]. x, y 는 m, yaw 는 rad.
+# 값은 반드시 소수점 형태(0.0)로 쓴다. 정수(0)로 쓰면 파라미터 타입이 달라 시작이 거부된다.
+pinky_patrol_node:
+  ros__parameters:
+    # zone_manager_node 의 robot_ids (cobot_zone_traffic_control/config/zone_params.yaml) 와 같아야 한다
+    robot_id: pinky3
+    # goto 경로를 마치고 복귀할 지점 이름 (아래 points 안에 있어야 한다)  # TODO(pinky3): 임시로 pinky2 와 같은 홈. 실측 후 pinky3 전용 지점으로 수정 (홈이 겹치면 충돌)
+    home_name: P7
+
+    # ---- 위험구역 (구역마다 토큰·대기열이 따로: cobot_zone_traffic_control 의 zone_names 와 같아야 한다) ----
+    zone_names: [A, B]
+    # 구역별 소속 지점. 이 지점으로 가려면 그 구역의 토큰이 필요하고, 구역 밖 <-> 안 이동 시 ENTRY/EXIT 를 거친다.
+    # 한 지점은 한 구역에만 속할 수 있고, 홈(home_name)은 구역 밖이어야 한다.
+    # 확정(2026-10-26): 구역 A = P2, P3 / 구역 B = P4. 홈·P5~P7 은 구역 밖.
+    zone_points:
+      A: [P2, P3]
+      B: [P4]
+    points:
+      P1: [0.00, 0.00]   # 원점 부근 (시작점)
+      P2: [0.65, 0.15]   # 구역 A 지점 (좌표는 옛 값, 실측 갱신 필요)
+      P3: [1.55, -0.40]   # 구역 A 지점 (좌표는 옛 값, 실측 갱신 필요)
+      P4: [1.00, -0.40]   # 구역 B 지점 (좌표는 옛 값, 실측 갱신 필요)
+      P5: [1.00, 0.10]   # 구역 밖 예비 지점
+      P6: [1.55, 0.06]   # 구역 밖 예비 지점
+      P7: [0.00, -0.60]   # 원점 아래쪽
+
+      # ---- 구역 A ----
+      # ENTRY: 구역 A 토큰 요청·획득 지점 (대기열 슬롯 0).
+      # 주의: cobot_zone_traffic_control/config/zone_params.yaml 의 zone_A.queue_anchor 와 같아야 한다.
+      #       다르면 대기열 슬롯 좌표가 어긋난다 (테스트 test_zone_entry_matches_manager_anchor 가 검사).
+      # EXIT: 구역 A 를 나온 뒤 토큰을 반납하는 지점 (stop 후퇴 지점도 겸한다). yaw 3.14 = 뒤 방향(180도)
+      # (2026-10-14 사용자 지정, 입구 줄(y=-0.7)과 거리를 벌려 충돌을 줄임)
+      ZONE_A_ENTRY: [0.0, 0.6, 0.0]
+      ZONE_A_EXIT: [0.4, -0.7, 0.0]
+
+      # ---- 구역 B ----
+      # 구역 B 지점: P4 (점유 중이면 아래 ENTRY 에서 대기열 대기).
+      # ENTRY 는 zone_params.yaml 의 zone_B.queue_anchor 와 같아야 한다.
+      ZONE_B_ENTRY: [-0.8, -0.2, -0.7]
+      ZONE_B_EXIT: [-0.4, -0.4, 0.7]

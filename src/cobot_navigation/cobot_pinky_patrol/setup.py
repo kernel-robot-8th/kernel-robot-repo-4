@@ -1,3 +1,5 @@
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = 'cobot_pinky_patrol'
@@ -10,6 +12,9 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        # 좌표 파라미터 YAML 과 로봇별 launch (없으면 install 에 복사되지 않아 노드가 시작을 거부함)
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
+        ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

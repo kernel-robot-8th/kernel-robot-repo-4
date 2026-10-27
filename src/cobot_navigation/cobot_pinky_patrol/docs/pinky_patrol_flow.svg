@@ -50,7 +50,7 @@
   <text class="meta" x="200" y="134" text-anchor="middle">ROS_DOMAIN_ID = 50</text>
   <rect class="pcn" x="65" y="160" width="270" height="90" rx="10"/>
   <text class="node" x="200" y="198" text-anchor="middle">pinky_control_client.py</text>
-  <text class="meta" x="200" y="224" text-anchor="middle">start / stop / goto / monitor</text>
+  <text class="meta" x="200" y="224" text-anchor="middle">stop / goto / monitor (start 비활성)</text>
   <rect class="pcn" x="65" y="390" width="270" height="140" rx="10"/>
   <text class="node" x="200" y="440" text-anchor="middle">zone_manager_node</text>
   <text class="meta" x="200" y="466" text-anchor="middle">점유자 1명 + FIFO 대기열</text>
