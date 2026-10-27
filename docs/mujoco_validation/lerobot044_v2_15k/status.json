@@ -1,6 +1,6 @@
 {
   "status": "running",
-  "phase": "training",
+  "phase": "validation",
   "pid": 1851985,
   "started_at": "2026-10-27T01:19:57.028689+00:00",
   "deadline_epoch": null,
@@ -13,7 +13,8 @@
   "current_job": "v2_standard_position_b8_c32",
   "failures": [],
   "publication": "pending",
-  "completed_jobs": 3,
-  "completed_comparisons": 9,
-  "updated_at": "2026-10-27T01:21:12.152724+00:00"
+  "completed_jobs": 4,
+  "completed_comparisons": 12,
+  "updated_at": "2026-10-27T01:59:07.108202+00:00",
+  "current_step": 15000
 }
