@@ -47,6 +47,7 @@
 총 28개 실험·84개 저장본을 비교하며 시간 제한은 없습니다. 신규 학습은 BF16 AMP를 적용합니다.
 [신규 학습 기준·실행 방법](src/cobot_mujoco/docs/actv2.md) ·
 [신규 진행·비교 보고서](docs/mujoco_validation/lerobot044_v2_15k/report.html).
+[기존 40k 모델 과적합 점검](docs/mujoco_validation/lerobot044_v2_15k/overfit_40k_review.html).
 
 아래는 이전 1024 데이터의 0.4.4 학습입니다. 로컬 `il_ws/src/lerobot` 원본 train으로
 ACT 일반형·경량형(모두 ResNet18+Transformer)의 chunk·step·학습률·감쇠를 비교합니다.

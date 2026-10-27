@@ -1,0 +1,45 @@
+{
+  "scope": "Completed original 40k runs only; standard ACT, no current, batch8, AMP OFF",
+  "training_probe_stride": 24,
+  "validation_episodes": [
+    2,
+    6
+  ],
+  "heldout_used": false,
+  "summary": [
+    {
+      "model": "v2_standard_position_b8_c100",
+      "chunk": 100,
+      "train_mae_10k": 1.148002995966092,
+      "train_mae_40k": 0.5918997105844307,
+      "validation_mae_10k": 2.7195482459299,
+      "validation_mae_40k": 2.5487838339122475,
+      "gap_10k": 1.571545249963808,
+      "gap_40k": 1.956884123327817,
+      "validation_improvement_percent": 6.279146261634449
+    },
+    {
+      "model": "v2_standard_position_b8_c32",
+      "chunk": 32,
+      "train_mae_10k": 1.1944857072858153,
+      "train_mae_40k": 0.5539971619798578,
+      "validation_mae_10k": 2.4130030272110528,
+      "validation_mae_40k": 1.890656132571356,
+      "gap_10k": 1.2185173199252375,
+      "gap_40k": 1.3366589705914982,
+      "validation_improvement_percent": 21.64717112864234
+    },
+    {
+      "model": "v2_standard_position_b8_c64",
+      "chunk": 64,
+      "train_mae_10k": 1.0923507629380331,
+      "train_mae_40k": 0.5761289997325746,
+      "validation_mae_10k": 2.464693105826524,
+      "validation_mae_40k": 2.2374748422512414,
+      "gap_10k": 1.3723423428884909,
+      "gap_40k": 1.6613458425186667,
+      "validation_improvement_percent": 9.218927218084055
+    }
+  ],
+  "conclusion": "All pooled validation MAEs improve at recorded 10k/20k/40k checkpoints. Generalization gaps widen. No pooled-MAE turning point proving harmful overtraining; per-episode and gripper metrics show local regressions. Two validation episodes cannot establish absence of overfitting."
+}
