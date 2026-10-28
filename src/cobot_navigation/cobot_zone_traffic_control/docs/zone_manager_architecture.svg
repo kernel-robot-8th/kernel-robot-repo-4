@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1360" height="760" viewBox="0 0 680 380" role="img">
-<title>zone_manager_node(v1), zone_manager_node, zone_gate_client, pinky_patrol_node_pinky1 관계도</title>
+<title>pinky_control_client, zone_manager_node, ZoneGateClient, patrol_node 관계도</title>
 <defs>
 <marker id="arrow-coral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m-coral" d="M2 1L8 5L2 9" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
 <marker id="arrow-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m-gray" d="M2 1L8 5L2 9" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
@@ -44,47 +44,45 @@ text { font-family: "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic", "Apple 
 
 <rect class="outline" x="20" y="45" width="220" height="260" rx="12"/>
 <rect class="outline" x="440" y="45" width="220" height="260" rx="12"/>
-<text class="th" x="130" y="60" text-anchor="middle" dominant-baseline="central">관제 PC (50)</text>
-<text class="th" x="550" y="60" text-anchor="middle" dominant-baseline="central">로봇 pinky1 (20)</text>
+<text class="th" x="130" y="60" text-anchor="middle" dominant-baseline="central">관제 PC (100)</text>
+<text class="th" x="550" y="60" text-anchor="middle" dominant-baseline="central">로봇 pinky1~3 (10 / 20 / 30)</text>
 
 <line class="outline" x1="340" y1="42" x2="340" y2="305"/>
 <text class="th" x="340" y="28" text-anchor="middle" dominant-baseline="central">domain_bridge</text>
 
 <rect class="box-gray" x="35" y="75" width="190" height="56" rx="8"/>
-<text class="th gray-t" x="130" y="93" text-anchor="middle" dominant-baseline="central">zone_manager_node</text>
-<text class="ts gray-s" x="130" y="111" text-anchor="middle" dominant-baseline="central">v1 · /zone_manager/*</text>
+<text class="th gray-t" x="130" y="93" text-anchor="middle" dominant-baseline="central">pinky_control_client</text>
+<text class="ts gray-s" x="130" y="111" text-anchor="middle" dominant-baseline="central">goto · zone · leave · home · stop</text>
 
 <rect class="box-coral" x="35" y="225" width="190" height="56" rx="8"/>
 <text class="th coral-t" x="130" y="243" text-anchor="middle" dominant-baseline="central">zone_manager_node</text>
-<text class="ts coral-s" x="130" y="261" text-anchor="middle" dominant-baseline="central">/zone_manager/*</text>
+<text class="ts coral-s" x="130" y="261" text-anchor="middle" dominant-baseline="central">구역별 토큰 + FIFO 대기열 (1대만)</text>
 
 <rect class="box-teal" x="455" y="75" width="190" height="56" rx="8"/>
-<text class="th teal-t" x="550" y="93" text-anchor="middle" dominant-baseline="central">patrol_node_pinky1_v3</text>
-<text class="ts teal-s" x="550" y="111" text-anchor="middle" dominant-baseline="central">Nav2 순찰</text>
+<text class="th teal-t" x="550" y="93" text-anchor="middle" dominant-baseline="central">patrol_node</text>
+<text class="ts teal-s" x="550" y="111" text-anchor="middle" dominant-baseline="central">Nav2 순찰 (로봇마다 1개)</text>
 
 <rect class="box-coral" x="455" y="225" width="190" height="56" rx="8"/>
 <text class="th coral-t" x="550" y="243" text-anchor="middle" dominant-baseline="central">ZoneGateClient</text>
 <text class="ts coral-s" x="550" y="261" text-anchor="middle" dominant-baseline="central">zone_gate_client</text>
 
-<line class="ln-red" x1="227" y1="103" x2="453" y2="103"/>
-<text class="ts red-s" x="290" y="90" text-anchor="middle" dominant-baseline="central">통신 안 됨</text>
-<text class="ts red-s" x="392" y="117" text-anchor="middle" dominant-baseline="central">토픽 이름 다름</text>
-
-<line class="ln-gray" x1="130" y1="133" x2="130" y2="223" marker-end="url(#arrow-gray)"/>
-<text class="ts" x="142" y="178" dominant-baseline="central">복사해서 확장</text>
+<line class="ln-gray" x1="227" y1="103" x2="453" y2="103" marker-end="url(#arrow-gray)"/>
+<text class="ts" x="340" y="90" text-anchor="middle" dominant-baseline="central">/pinkyN/patrol_cmd</text>
 
 <line class="ln-gray" x1="550" y1="133" x2="550" y2="223" marker-end="url(#arrow-gray)"/>
 <text class="ts" x="562" y="178" dominant-baseline="central">import</text>
 
 <line class="ln-coral" x1="453" y1="240" x2="227" y2="240" marker-end="url(#arrow-coral)"/>
-<text class="ts" x="290" y="228" text-anchor="middle" dominant-baseline="central">요청·취소·이탈</text>
+<text class="ts" x="340" y="228" text-anchor="middle" dominant-baseline="central">요청·취소·이탈</text>
 <line class="ln-coral" x1="227" y1="268" x2="453" y2="268" marker-end="url(#arrow-coral)"/>
-<text class="ts" x="392" y="284" text-anchor="middle" dominant-baseline="central">허가·슬롯·상태</text>
+<text class="ts" x="340" y="284" text-anchor="middle" dominant-baseline="central">허가·슬롯</text>
 
-<rect class="box-teal" x="30" y="335" width="14" height="14" rx="3"/>
-<text class="ts" x="52" y="342" dominant-baseline="central">로봇 순찰 노드</text>
-<rect class="box-coral" x="180" y="335" width="14" height="14" rx="3"/>
-<text class="ts" x="202" y="342" dominant-baseline="central">v3 구역 허가 (이번에 쓰는 구조)</text>
-<rect class="box-gray" x="410" y="335" width="14" height="14" rx="3"/>
-<text class="ts" x="432" y="342" dominant-baseline="central">v1 (이전 방식 · 별개로 동작)</text>
+<text class="ts" x="340" y="318" text-anchor="middle" dominant-baseline="central">status 는 관제 PC 안에서만 발행하고 브릿지를 건너지 않음</text>
+
+<rect class="box-teal" x="30" y="345" width="14" height="14" rx="3"/>
+<text class="ts" x="52" y="352" dominant-baseline="central">로봇 순찰 노드</text>
+<rect class="box-coral" x="180" y="345" width="14" height="14" rx="3"/>
+<text class="ts" x="202" y="352" dominant-baseline="central">구역 허가 (zone_manager ↔ ZoneGateClient)</text>
+<rect class="box-gray" x="460" y="345" width="14" height="14" rx="3"/>
+<text class="ts" x="482" y="352" dominant-baseline="central">관제 명령</text>
 </svg>
