@@ -47,7 +47,10 @@ def load_cfg(n):
     """config/pinkyN.yaml 의 (points, home_name, zone_names, zone_points). 노드가 읽는 값과 같은 파서를 쓴다."""
     from cobot_pinky_patrol.patrol_points_utils import parse_points, parse_zone_names, parse_zone_points
     prm = load_raw(n)
-    return (parse_points(prm['points']), prm['home_name'],
+    pts = parse_points(prm['points'])
+    # 다른 로봇의 홈(I<k>)은 참고용으로 YAML 에 같이 있어도 노드는 읽지 않는다
+    pts = {k: v for k, v in pts.items() if not (k.startswith('I') and k != prm['home_name'])}
+    return (pts, prm['home_name'],
             parse_zone_names(prm['zone_names']), parse_zone_points(prm['zone_points']))
 
 
@@ -115,18 +118,18 @@ def test_zone_settings_are_shared_by_all_robots(n):
             assert pm[exit_name(z)] == pts[exit_name(z)]
     assert not [k for k in pts if k.startswith('RED')]
     assert zone_points == {'A': ('ZA',), 'B': ('ZB',), 'C': ('ZC',)}  # 확정 소속 (2026-10-27)
-    assert pts['ZA_EXIT'] == (0.5, 0.0, -1.5)             # 구역 A 출구 (사용자 지정)
-    assert pts['ZB_EXIT'] == (0.55, -0.6, -1.5) and pts['ZC_EXIT'] == (-0.3, -0.4, 1.5)
+    assert pts['ZA_EXIT'] == (0.45, 0.2, -1.5)           # 구역 A 출구 (사용자 지정)
+    assert pts['ZB_EXIT'] == (0.45, 0.45, -1.5) and pts['ZC_EXIT'] == (-0.2, -0.4, 1.5)
 
 
 def test_manager_anchors_are_apart_from_zone_points():
     """대기 앵커가 그 구역 소속 지점과 같은 좌표면 대기자가 점유자 자리로 간다 -> 분리되어 있어야 한다.
-    A·B 앵커는 (0.1, 0.6, 0.0) 으로 같고 C 는 (-0.7, -0.08, 1.5) 이다 (사용자 지정 2026-10-27)."""
+    A·B 앵커는 (0.15, 0.5, 0.0) 으로 같고 C 는 (-0.2, 0.45, 1.5) 이다 (사용자 지정 2026-10-28)."""
     pts, _, _, zone_points = load_cfg(1)
     mgr = manager_params()
-    assert mgr['zone_A']['queue_anchor'] == pytest.approx([0.1, 0.6, 0.0])
-    assert mgr['zone_B']['queue_anchor'] == pytest.approx([0.1, 0.6, 0.0])
-    assert mgr['zone_C']['queue_anchor'] == pytest.approx([-0.7, -0.08, 1.5])
+    assert mgr['zone_A']['queue_anchor'] == pytest.approx([0.15, 0.5, 0.0])
+    assert mgr['zone_B']['queue_anchor'] == pytest.approx([0.15, 0.5, 0.0])
+    assert mgr['zone_C']['queue_anchor'] == pytest.approx([-0.2, 0.45, 1.5])
     for zone, members in zone_points.items():
         for m in members:
             assert tuple(mgr[f'zone_{zone}']['queue_anchor'][:2]) != tuple(pts[m][:2]), (zone, m)
@@ -746,7 +749,7 @@ def test_queue_slots_extend_toward_negative_y():
     """구역 A·B·C 의 대기줄은 y 감소 방향(queue_back_dir [0,-1])으로 늘어난다 (+y 는 맵 밖이라 Nav2 가 거부)."""
     from cobot_zone_traffic_control.zone_manager_node import normalize_dir, slot_pose
     prm = manager_params()
-    for z, anchor in (('A', (0.1, 0.6)), ('B', (0.1, 0.6)), ('C', (-0.7, -0.08))):
+    for z, anchor in (('A', (0.15, 0.5)), ('B', (0.15, 0.5)), ('C', (-0.2, 0.45))):
         d = normalize_dir(prm[f'zone_{z}']['queue_back_dir'])
         x0, y0, _ = slot_pose(0, prm[f'zone_{z}']['queue_anchor'], d, prm['queue_spacing'])
         x1, y1, _ = slot_pose(1, prm[f'zone_{z}']['queue_anchor'], d, prm['queue_spacing'])
