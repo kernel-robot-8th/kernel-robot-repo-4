@@ -1,0 +1,214 @@
+{
+  "standard_position": {
+    "control_mae": 1.8242826173444846,
+    "per_episode": {
+      "8": {
+        "first10_mae": 1.8242826173444846,
+        "frames": 616,
+        "horizon1": {
+          "joint_mae": 1.6533730030059814,
+          "gripper_mae": 1.1834605932235718,
+          "per_joint_mae": [
+            0.9996143579483032,
+            2.438648223876953,
+            1.338855504989624,
+            2.6044082641601562,
+            0.8853388428688049,
+            1.1834609508514404
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.13333333333333333,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 305,
+          "open_err_s": 0.23333333333333334,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 514
+        },
+        "ensemble001": {
+          "joint_mae": 2.3828330039978027,
+          "gripper_mae": 1.3198497295379639,
+          "per_joint_mae": [
+            1.5492438077926636,
+            3.612126350402832,
+            2.190162181854248,
+            3.5816385746002197,
+            0.9809942841529846,
+            1.3198493719100952
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.36666666666666664,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 320,
+          "open_err_s": 0.06666666666666667,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 509
+        }
+      }
+    },
+    "stride": 1,
+    "scope": "Recorded observations, not real-world task success"
+  },
+  "standard_current": {
+    "control_mae": 1.9138677545956202,
+    "per_episode": {
+      "8": {
+        "first10_mae": 1.9138677545956202,
+        "frames": 616,
+        "horizon1": {
+          "joint_mae": 1.7899281978607178,
+          "gripper_mae": 1.3376883268356323,
+          "per_joint_mae": [
+            1.1557074785232544,
+            2.549241542816162,
+            1.4541949033737183,
+            2.7915279865264893,
+            0.9989737272262573,
+            1.3376883268356323
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.13333333333333333,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 313,
+          "open_err_s": 0.26666666666666666,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 515
+        },
+        "ensemble001": {
+          "joint_mae": 2.303168535232544,
+          "gripper_mae": 1.5876520872116089,
+          "per_joint_mae": [
+            1.6182183027267456,
+            3.2340171337127686,
+            1.9679226875305176,
+            3.686079978942871,
+            1.0096043348312378,
+            1.587652564048767
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.4666666666666667,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 323,
+          "open_err_s": 0.2,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 513
+        }
+      }
+    },
+    "stride": 1,
+    "scope": "Recorded observations, not real-world task success"
+  },
+  "light_position": {
+    "control_mae": 2.0671002241214373,
+    "per_episode": {
+      "8": {
+        "first10_mae": 2.0671002241214373,
+        "frames": 616,
+        "horizon1": {
+          "joint_mae": 1.938358187675476,
+          "gripper_mae": 1.2639521360397339,
+          "per_joint_mae": [
+            1.4671070575714111,
+            2.8606510162353516,
+            1.339296579360962,
+            2.9916481971740723,
+            1.033088207244873,
+            1.2639521360397339
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.4666666666666667,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 323,
+          "open_err_s": 0.2,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 513
+        },
+        "ensemble001": {
+          "joint_mae": 2.526360511779785,
+          "gripper_mae": 1.5545802116394043,
+          "per_joint_mae": [
+            2.2722461223602295,
+            3.752403736114502,
+            2.1833150386810303,
+            3.3654115200042725,
+            1.0584264993667603,
+            1.554579257965088
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.6333333333333333,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 328,
+          "open_err_s": 0.3333333333333333,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 517
+        }
+      }
+    },
+    "stride": 1,
+    "scope": "Recorded observations, not real-world task success"
+  },
+  "light_current": {
+    "control_mae": 1.9873935304969161,
+    "per_episode": {
+      "8": {
+        "first10_mae": 1.9873935304969161,
+        "frames": 616,
+        "horizon1": {
+          "joint_mae": 1.8337551355361938,
+          "gripper_mae": 1.7143217325210571,
+          "per_joint_mae": [
+            1.6749650239944458,
+            2.3281021118164062,
+            1.3100429773330688,
+            2.8566782474517822,
+            0.9989879727363586,
+            1.7143229246139526
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.03333333333333333,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 310,
+          "open_err_s": 0.2,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 513
+        },
+        "ensemble001": {
+          "joint_mae": 2.3678994178771973,
+          "gripper_mae": 1.8656011819839478,
+          "per_joint_mae": [
+            2.1216471195220947,
+            3.3487207889556885,
+            2.1553685665130615,
+            3.2769763469696045,
+            0.9367850422859192,
+            1.8656002283096313
+          ],
+          "threshold": 53.015872955322266,
+          "close_err_s": 0.5333333333333333,
+          "missed_close": 0,
+          "gt_close_frame": 309,
+          "pred_close_frame": 325,
+          "open_err_s": 0.7666666666666667,
+          "missed_open": 0,
+          "gt_open_frame": 507,
+          "pred_open_frame": 484
+        }
+      }
+    },
+    "stride": 1,
+    "scope": "Recorded observations, not real-world task success"
+  }
+}
