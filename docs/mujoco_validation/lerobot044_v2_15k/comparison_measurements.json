@@ -3223,6 +3223,543 @@
   },
   {
     "step": 5000,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_15k_20261027/jobs/v2_light_current_b16_c100/upstream/checkpoints/005000/pretrained_model",
+    "config": {
+      "name": "v2_light_current_b16_c100",
+      "architecture": "light",
+      "current": true,
+      "batch_size": 16,
+      "chunk": 100,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "steps": 15000,
+      "comparison_steps": [
+        5000,
+        10000,
+        15000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "gpu_acceleration": "bf16_tf32_cudnn",
+      "use_amp": true,
+      "num_workers": 4,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "validation": {
+      "control_mae": 2.764677396648315,
+      "per_episode": {
+        "2": {
+          "first10_mae": 3.134556541370379,
+          "frames": 592,
+          "horizon1": {
+            "joint_mae": 3.2252447605133057,
+            "gripper_mae": 2.0575594902038574,
+            "per_joint_mae": [
+              3.312474489212036,
+              3.9903857707977295,
+              1.4330979585647583,
+              6.2846879959106445,
+              1.1055779457092285,
+              2.0575592517852783
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.36666666666666664,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 254,
+            "open_err_s": 0.6,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 456
+          },
+          "ensemble001": {
+            "joint_mae": 5.516458511352539,
+            "gripper_mae": 1.3852514028549194,
+            "per_joint_mae": [
+              4.259326934814453,
+              6.598727226257324,
+              2.5326504707336426,
+              13.20528793334961,
+              0.9863039255142212,
+              1.3852512836456299
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.3,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 256,
+            "open_err_s": 0.03333333333333333,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 437
+          }
+        },
+        "6": {
+          "first10_mae": 2.3947982519262503,
+          "frames": 643,
+          "horizon1": {
+            "joint_mae": 2.591477394104004,
+            "gripper_mae": 1.8730592727661133,
+            "per_joint_mae": [
+              1.7852907180786133,
+              3.6365649700164795,
+              1.628580093383789,
+              4.8641581535339355,
+              1.042793869972229,
+              1.8730597496032715
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.23333333333333334,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 322,
+            "open_err_s": 0.36666666666666664,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 535
+          },
+          "ensemble001": {
+            "joint_mae": 3.072162389755249,
+            "gripper_mae": 1.8641834259033203,
+            "per_joint_mae": [
+              1.917856216430664,
+              3.463675022125244,
+              3.220082998275757,
+              5.919490337371826,
+              0.8397079110145569,
+              1.8641835451126099
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.5333333333333333,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 313,
+            "open_err_s": 0.06666666666666667,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 522
+          }
+        }
+      },
+      "stride": 1,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "training_probe": {
+      "control_mae": 1.3687888413442566,
+      "per_episode": {
+        "0": {
+          "first10_mae": 1.2689527282209108,
+          "frames": 33
+        },
+        "1": {
+          "first10_mae": 1.3285695786277454,
+          "frames": 24
+        },
+        "3": {
+          "first10_mae": 1.3843381901582081,
+          "frames": 24
+        },
+        "4": {
+          "first10_mae": 1.1417303589674144,
+          "frames": 26
+        },
+        "5": {
+          "first10_mae": 1.4795575780527932,
+          "frames": 28
+        },
+        "7": {
+          "first10_mae": 1.6095846140384673,
+          "frames": 25
+        }
+      },
+      "stride": 24,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "gap": 1.3958885553040583,
+    "cohort": "신규 BF16"
+  },
+  {
+    "step": 10000,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_15k_20261027/jobs/v2_light_current_b16_c100/upstream/checkpoints/010000/pretrained_model",
+    "config": {
+      "name": "v2_light_current_b16_c100",
+      "architecture": "light",
+      "current": true,
+      "batch_size": 16,
+      "chunk": 100,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "steps": 15000,
+      "comparison_steps": [
+        5000,
+        10000,
+        15000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "gpu_acceleration": "bf16_tf32_cudnn",
+      "use_amp": true,
+      "num_workers": 4,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "validation": {
+      "control_mae": 2.5358522210474037,
+      "per_episode": {
+        "2": {
+          "first10_mae": 2.795750698829825,
+          "frames": 592,
+          "horizon1": {
+            "joint_mae": 2.781741142272949,
+            "gripper_mae": 1.8580551147460938,
+            "per_joint_mae": [
+              3.2663161754608154,
+              2.7501020431518555,
+              1.4658033847808838,
+              5.1789984703063965,
+              1.247488021850586,
+              1.8580561876296997
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.23333333333333334,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 258,
+            "open_err_s": 0.3,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 447
+          },
+          "ensemble001": {
+            "joint_mae": 5.5449748039245605,
+            "gripper_mae": 1.291141152381897,
+            "per_joint_mae": [
+              4.507414817810059,
+              6.470332145690918,
+              2.535588264465332,
+              13.182257652282715,
+              1.029273271560669,
+              1.2911410331726074
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.3333333333333333,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 255,
+            "open_err_s": 0.06666666666666667,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 436
+          }
+        },
+        "6": {
+          "first10_mae": 2.275953743264983,
+          "frames": 643,
+          "horizon1": {
+            "joint_mae": 2.377424716949463,
+            "gripper_mae": 1.5858114957809448,
+            "per_joint_mae": [
+              1.7993868589401245,
+              3.3109424114227295,
+              1.0976685285568237,
+              4.585566997528076,
+              1.093563437461853,
+              1.5858120918273926
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.36666666666666664,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 340,
+            "open_err_s": 0.2,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 530
+          },
+          "ensemble001": {
+            "joint_mae": 2.94213604927063,
+            "gripper_mae": 1.8081928491592407,
+            "per_joint_mae": [
+              1.7351677417755127,
+              3.1145517826080322,
+              3.248572826385498,
+              5.751988887786865,
+              0.8603981733322144,
+              1.8081928491592407
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.6,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 311,
+            "open_err_s": 0.16666666666666666,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 519
+          }
+        }
+      },
+      "stride": 1,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "training_probe": {
+      "control_mae": 0.9805067643542817,
+      "per_episode": {
+        "0": {
+          "first10_mae": 0.8935504068027843,
+          "frames": 33
+        },
+        "1": {
+          "first10_mae": 1.0212640414635341,
+          "frames": 24
+        },
+        "3": {
+          "first10_mae": 0.962073111285766,
+          "frames": 24
+        },
+        "4": {
+          "first10_mae": 0.8733514810983951,
+          "frames": 26
+        },
+        "5": {
+          "first10_mae": 1.0745700033647674,
+          "frames": 28
+        },
+        "7": {
+          "first10_mae": 1.0582315421104431,
+          "frames": 25
+        }
+      },
+      "stride": 24,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "gap": 1.555345456693122,
+    "cohort": "신규 BF16"
+  },
+  {
+    "step": 15000,
+    "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_15k_20261027/jobs/v2_light_current_b16_c100/upstream/checkpoints/015000/pretrained_model",
+    "config": {
+      "name": "v2_light_current_b16_c100",
+      "architecture": "light",
+      "current": true,
+      "batch_size": 16,
+      "chunk": 100,
+      "dim_model": 128,
+      "dim_feedforward": 512,
+      "n_encoder_layers": 2,
+      "n_vae_encoder_layers": 2,
+      "steps": 15000,
+      "comparison_steps": [
+        5000,
+        10000,
+        15000
+      ],
+      "seed": 17,
+      "lr": 1e-05,
+      "backbone_lr": 1e-05,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "save_freq": 1000,
+      "gpu_acceleration": "bf16_tf32_cudnn",
+      "use_amp": true,
+      "num_workers": 4,
+      "split_plan": {
+        "train": [
+          0,
+          1,
+          3,
+          4,
+          5,
+          7
+        ],
+        "validation": [
+          2,
+          6
+        ],
+        "test": [
+          8
+        ]
+      }
+    },
+    "validation": {
+      "control_mae": 2.389559596410712,
+      "per_episode": {
+        "2": {
+          "first10_mae": 2.521678159164416,
+          "frames": 592,
+          "horizon1": {
+            "joint_mae": 2.449535846710205,
+            "gripper_mae": 1.8084131479263306,
+            "per_joint_mae": [
+              2.6912457942962646,
+              2.488459348678589,
+              1.3608969449996948,
+              4.49013090133667,
+              1.2169482707977295,
+              1.8084120750427246
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.23333333333333334,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 258,
+            "open_err_s": 0.3,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 447
+          },
+          "ensemble001": {
+            "joint_mae": 4.904870986938477,
+            "gripper_mae": 1.3338414430618286,
+            "per_joint_mae": [
+              3.8062949180603027,
+              5.860013008117676,
+              2.5412838459014893,
+              11.28240966796875,
+              1.0343471765518188,
+              1.333841323852539
+            ],
+            "threshold": 53.382171630859375,
+            "close_err_s": 0.4,
+            "missed_close": 0,
+            "gt_close_frame": 265,
+            "pred_close_frame": 253,
+            "open_err_s": 0.03333333333333333,
+            "missed_open": 0,
+            "gt_open_frame": 438,
+            "pred_open_frame": 437
+          }
+        },
+        "6": {
+          "first10_mae": 2.2574410336570088,
+          "frames": 643,
+          "horizon1": {
+            "joint_mae": 2.306406021118164,
+            "gripper_mae": 1.5341898202896118,
+            "per_joint_mae": [
+              1.6167254447937012,
+              3.2042651176452637,
+              0.9183112382888794,
+              4.673007011413574,
+              1.1197210550308228,
+              1.5341897010803223
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.13333333333333333,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 325,
+            "open_err_s": 0.2,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 530
+          },
+          "ensemble001": {
+            "joint_mae": 2.9367406368255615,
+            "gripper_mae": 1.8282221555709839,
+            "per_joint_mae": [
+              1.8674559593200684,
+              2.9434103965759277,
+              3.117583751678467,
+              5.877124786376953,
+              0.8781343698501587,
+              1.8282212018966675
+            ],
+            "threshold": 53.96825408935547,
+            "close_err_s": 0.7,
+            "missed_close": 0,
+            "gt_close_frame": 329,
+            "pred_close_frame": 308,
+            "open_err_s": 0.13333333333333333,
+            "missed_open": 0,
+            "gt_open_frame": 524,
+            "pred_open_frame": 520
+          }
+        }
+      },
+      "stride": 1,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "training_probe": {
+      "control_mae": 0.8569309041857595,
+      "per_episode": {
+        "0": {
+          "first10_mae": 0.7433933155103163,
+          "frames": 33
+        },
+        "1": {
+          "first10_mae": 0.9240015571316084,
+          "frames": 24
+        },
+        "3": {
+          "first10_mae": 0.8446155389149984,
+          "frames": 24
+        },
+        "4": {
+          "first10_mae": 0.8090858768958312,
+          "frames": 26
+        },
+        "5": {
+          "first10_mae": 0.8925314290182931,
+          "frames": 28
+        },
+        "7": {
+          "first10_mae": 0.9279577076435089,
+          "frames": 25
+        }
+      },
+      "stride": 24,
+      "scope": "Recorded observations, not real-world task success"
+    },
+    "gap": 1.5326286922249528,
+    "cohort": "신규 BF16"
+  },
+  {
+    "step": 5000,
     "checkpoint": "/home/team11/omx_sim_runs/retraining_044_v2_15k_20261027/jobs/v2_light_position_b8_c100/upstream/checkpoints/005000/pretrained_model",
     "config": {
       "name": "v2_light_position_b8_c100",
