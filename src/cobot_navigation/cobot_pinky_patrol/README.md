@@ -1,12 +1,12 @@
 # cobot_pinky_patrol
 
-Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_node_pinky1`, `pinky_patrol_node_pinky2`, `pinky_patrol_node_pinky3`)는 위험 구역에 **한 대만** 들어가도록 `cobot_zone_traffic_control`의 대기열 슬롯 방식과 연동합니다.
+Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지입니다. 로봇마다 노드(`pinky_patrol_node_pinky1`, `pinky_patrol_node_pinky2`, `pinky_patrol_node_pinky3`)가 하나씩 있으며, 위험 구역에 **한 대만** 들어가도록 `cobot_zone_traffic_control`의 대기열 슬롯 방식과 연동합니다.
 
 ## 주요 기능
 
-- **명령 수신**: `patrol_cmd`(String)로 `stop` / `goto:<P>[,<P>,...]`. `start`(전체 순회)는 v1.1.0 에서 **비활성**이며 받으면 `FAILED`(detail `start disabled`)로 응답합니다 (순회 코드는 노드 파일에 주석으로 보관)
+- **명령 수신**: `patrol_cmd`(String)로 `goto:<P>[,<P>,...]` / `zone:<P>` / `leave` / `home` / `stop` / `emergency_stop` (아래 "명령과 동작" 표 참고). `start`(전체 순회)는 v1.1.0 에서 **비활성**이며 받으면 `FAILED`(detail `start disabled`)로 응답합니다 (순회 코드는 노드 파일에 주석으로 보관)
 - **상태 발행**: `patrol_status`에 JSON 발행 — `{"state": "MOVING", "waypoint": 2, "detail": "ZB", "time": ...}`
-  `IDLE` `STARTING` `MOVING` `QUEUEING` `WAITING_ZONE` `ARRIVED` `LEAVING_ZONE` `RETURNING` `DONE` `STOPPED` `FAILED` `RETRY`
+  `IDLE` `STARTING` `MOVING` `QUEUEING` `ARRIVED` `HOLDING_ZONE` `LEAVING_ZONE` `RETREATING` `RETURNING` `IDLE_WAIT` `DONE` `STOPPED` `FAILED` `RETRY`
 - **대기열 진입**: 구역 진입 전에 먼저 요청을 보냅니다.
   - 구역이 비어 있으면 바로 허가를 받아 목적지로 직행
   - 점유 중이면 매니저가 준 슬롯으로 이동해 `QUEUEING` 대기, 슬롯이 바뀌면 새 슬롯으로 재이동
@@ -42,26 +42,27 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 | pinky2 | (구역 2개 이전 순회 경로, 주석 보관) | `I2` (0, -0.2) |
 | pinky3 | (구역 2개 이전 순회 경로, 주석 보관) | `I3` (0, -0.4) |
 
-- 위험구역은 **3개(`A`, `B`, `C`)** 이고 구역마다 토큰(락)·대기열이 따로입니다. 구역 소속 지점은 `config/pinkyN.yaml` 의 `zone_points` 로 정하며 현재 A = `ZA`, B = `ZB`, C = `ZC` 입니다 (`P1` `P5` `P6` `P7` 은 구역 밖).
+- 위험구역은 **3개(`A`, `B`, `C`)** 이고 구역마다 토큰(락)·대기열이 따로입니다. 구역 소속 지점은 `config/pinkyN.yaml` 의 `zone_points` 로 정하며 현재 A = `ZA`, B = `ZB`, C = `ZC` 입니다 (`P1`~`P10` 은 모두 구역 밖 일반 지점).
 - 구역 대기 앵커(`queue_anchor`) 뒤쪽 대기 슬롯(`queue_back_dir`: 세 구역 모두 -y, 슬롯이 맵 안에 있어야 Nav2 가 받아들입니다)과 pinky1~3 의 구역 지점·일반 지점 좌표는 같은 값이며 실측 확인이 남아 있습니다. 확인 전에는 구역 지점으로 이동하지 마세요. A·B 가 같은 대기 위치를 쓰므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있고, A·B 슬롯 2 가 홈 I1 과 같은 자리이고 C 슬롯 1 이 ZC_EXIT 와 0.4 m 인 점도 현장에서 확인해야 합니다.
 
 ### 명령과 동작 (지점 단위 독립 이동)
 
 | 명령 | 동작 |
 |---|---|
-| `goto:<P>[,<P>...]` | **구역 밖** 일반 지점(`P1`~`P10` 중 YAML 에 있는 것. `P1`·`P2` 필수, `P3`~`P10` 선택. **현재 P1~P10 은 사용자 실측 waypoint 값입니다**)과 자기 홈(`I<n>`)만 순서대로 이동. 도착 후 홈으로 가지 않고 대기. 구역 지점을 주면 `FAILED: use zone`, W*/Z*_EXIT 는 `not allowed` |
+| `goto:<P>[,<P>...]` | **구역 밖** 일반 지점(`P1`~`P10` 중 YAML 에 있는 것. `P1`·`P2` 필수, `P3`~`P10` 선택. **현재 P1~P10 은 모두 (0,0,0) 자리표시자라 goto 하면 원점으로 갑니다**)과 자기 홈(`I<n>`)만 순서대로 이동. 도착 후 홈으로 가지 않고 대기. 구역 지점을 주면 `FAILED: use zone`, W*/Z*_EXIT 는 `not allowed` |
 | `zone:<P>` | 구역 지점 **1개**로 이동. 매니저 응답(허가/대기 슬롯)을 받은 뒤 토큰(`request_entry` → `grant_entry`)을 받은 **뒤에만** 출발하고, 도착 후 토큰을 **유지**(`HOLDING_ZONE`) |
 | `leave` | 보유 중인 구역의 `EXIT` 로 이동해 **도착한 뒤에** 토큰 반납. 보유 구역이 없으면 `FAILED: no zone held` |
 | `home` | 초기 위치(`I<n>`)로 복귀. 구역 안이면 `EXIT` 에서 토큰을 반납한 뒤 이동합니다. 이미 홈이면 이동 없이 `DONE` (유휴 복귀와 같은 절차를 즉시 실행) |
-| `stop` | 현재 작업 중단. 구역 안이면 `EXIT` 로 나와 락 반납 |
-| `emergency_stop` | 그 자리 정지 + 락 유지(`max_hold_sec` 후 매니저가 강제 해제). 노드는 구역을 쥔 것으로 기억하지 않아 다음 `zone` 이 토큰을 다시 요청 |
+| `stop` | 현재 작업 중단. 구역 안이면 `EXIT` 로 나와 락 반납. 작업 중이 아니면 상태 발행 없이 경고 로그만 남기고 무시 |
+| `emergency_stop` | 그 자리 정지 + 락 유지(`max_hold_sec` 후 매니저가 강제 해제). 작업 중이 아니면 `stop` 과 같이 무시. 노드는 구역을 쥔 것으로 기억하지 않아 다음 `zone` 이 토큰을 다시 요청 |
 | `start` | 비활성 (`FAILED: start disabled`) |
 
 - 같은 구역 `zone` 재명령은 토큰을 다시 요청하지 않고 바로 이동합니다. 다른 구역 `zone` 이나 `goto` 는 먼저 **현재 구역 `EXIT` 에 도착해 토큰을 반납한 뒤** 출발합니다 (한 번에 한 구역 토큰만 쥐므로 교착이 없습니다).
 - `EXIT` 에 도달하지 못하면 토큰을 반납하지 않고 `FAILED` 로 응답합니다(`max_hold_sec` 뒤 매니저가 해제). 다시 `leave` 로 재시도할 수 있습니다.
 - **자동 홈 복귀는 없습니다.** 마지막 명령을 마친 뒤 `idle_return_sec`(`config/pinkyN.yaml`, 기본 `120.0`초, 0 이하이면 끔) 동안 새 명령이 없을 때만 홈으로 복귀합니다. 구역 안이면 `EXIT` 반납 후 홈으로 갑니다. 새 명령이 오면 타이머가 취소되고, `stop`/실패 뒤에는 타이머를 걸지 않습니다.
-- 상태 토픽(`patrol_status`): `HOLDING_ZONE`(detail = 구역), `IDLE_WAIT`(detail = 복귀까지 초)가 추가되었습니다. 작업 중 온 명령은 무시됩니다.
+- 상태 토픽(`patrol_status`): `HOLDING_ZONE`(detail = 구역), `IDLE_WAIT`(detail = 복귀까지 초)가 추가되었습니다. 작업 중에 온 `goto` / `zone` / `leave` / `home` 은 상태 발행 없이 경고 로그만 남기고 무시됩니다 (`stop` / `emergency_stop` 만 작업 중에 받아들여집니다).
 - `max_hold_sec`(`zone_params.yaml`, 240초)는 유휴 복귀 120초와 `EXIT` 이동 시간보다 길어야 합니다.
+- `package.xml` 에는 아직 의존성(`cobot_zone_traffic_control`, `nav2_simple_commander`, `pinky_interfaces`)과 description / license 가 선언되어 있지 않습니다. 자세한 내용은 [cobot_navigation README 의 "알려진 제약"](../README.md#알려진-제약)을 봅니다.
 
 ## 설치 방법
 
@@ -69,8 +70,9 @@ Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지. (`pinky_patrol_nod
 
 ```bash
 # 로봇 (저장소 루트에서)
-git clone https://github.com/cdwlsgh1-source/pinky_slam_nav.git
-cd pinky_slam_nav
+git clone https://github.com/kernel-robot-8th/kernel-robot-repo-4.git
+cd kernel-robot-repo-4
+git checkout feature/navigation   # 주행 담당 작업 브랜치
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
 source install/setup.bash
@@ -129,7 +131,7 @@ ros2 topic echo /zone_manager/status      # <구역>:free | <구역>:occupied_by
 # 로봇 한 대로 대기열을 시험하려면 가짜 robot_id 로 구역을 먼저 잡는다: ../cobot_zone_traffic_control/README.md 의 "구역 수동 점유 / 해제"
 ```
 
-테스트(가짜 navigator + 실제 매니저, 격리 도메인에서만 통합 테스트 실행). 이 문서 작성 환경에는 ROS가 없어 실행해 보지 못했습니다.
+테스트(가짜 navigator + 실제 매니저, 격리 도메인에서만 통합 테스트 실행). `src/cobot_navigation` 폴더에서 실행합니다.
 
 ```bash
 ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest cobot_pinky_patrol/test/test_patrol_queue.py -q
@@ -143,7 +145,7 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest cobot_pinky_patrol/test/
 | `ROS_DOMAIN_ID=77` + `ROS_LOCALHOST_ONLY=1` | 시험용 | 통합 테스트 전용 격리 값 (아니면 통합 테스트 skip) |
 | `RMW_IMPLEMENTATION`, `CYCLONEDDS_URI`, `ROS_AUTOMATIC_DISCOVERY_RANGE` | `rmw_cyclonedds_cpp`, `file:///home/pinky/.ros/cyclonedds_robot.xml`, `SUBNET` | 로봇 DDS 설정. 웹 GUI가 SSH로 켤 때 주입 (직접 실행 시 로봇 터미널 값 사용) |
 
-노드 파라미터 `robot_id`(기본: pinky1 노드 `pinky1`, pinky2 노드 `pinky2`)는 환경변수가 아닙니다. 재시도 횟수는 노드 파일의 클래스 상수(`NAV_RETRIES`)라 코드를 수정해야 바뀝니다. 유휴 복귀 시간 `idle_return_sec` 은 YAML 파라미터입니다. **지점 좌표와 홈 지점(`home_name`)은 `config/pinkyN.yaml` 의 파라미터**이며, 맵이 바뀌면 이 YAML 만 고치면 됩니다(좌표는 `[x, y]` 또는 `[x, y, yaw]`, m·rad, 소수점으로 작성). 값이 빠지거나 형식이 틀리면 노드가 오류 로그를 남기고 시작하지 않습니다. `W<구역>` 는 `cobot_zone_traffic_control/config/zone_params.yaml` 의 `zone_<구역>.queue_anchor` 와 같아야 합니다(테스트가 검사). 구역 이름(`zone_names`)과 소속 지점(`zone_points`)도 이 YAML 의 파라미터이며, 값이 빠지거나 소속이 모순(중복 소속·홈이 구역 안 등)이면 노드가 시작을 거부합니다.
+노드 파라미터 `robot_id`(기본: pinky1 노드 `pinky1`, pinky2 노드 `pinky2`, pinky3 노드 `pinky3`)는 환경변수가 아닙니다. 재시도 횟수는 노드 파일의 클래스 상수(`NAV_RETRIES`)라 코드를 수정해야 바뀝니다. 유휴 복귀 시간 `idle_return_sec` 은 YAML 파라미터입니다. **지점 좌표와 홈 지점(`home_name`)은 `config/pinkyN.yaml` 의 파라미터**이며, 맵이 바뀌면 이 YAML 만 고치면 됩니다(좌표는 `[x, y]` 또는 `[x, y, yaw]`, m·rad, 소수점으로 작성). 값이 빠지거나 형식이 틀리면 노드가 오류 로그를 남기고 시작하지 않습니다. `W<구역>` 는 `cobot_zone_traffic_control/config/zone_params.yaml` 의 `zone_<구역>.queue_anchor` 와 같아야 합니다(테스트가 검사). 구역 이름(`zone_names`)과 소속 지점(`zone_points`)도 이 YAML 의 파라미터이며, 값이 빠지거나 소속이 모순(중복 소속·홈이 구역 안 등)이면 노드가 시작을 거부합니다.
 
 ## 프로젝트 구조
 
@@ -153,8 +155,10 @@ cobot_pinky_patrol/
 ├── config/pinky{1,2,3}.yaml                # 로봇별 지점 좌표·home_name 파라미터
 ├── launch/pinky{1,2,3}_patrol.launch.xml  # 노드 + 좌표 YAML 실행
 ├── PinkyPatrolNode.html                    # 순찰 노드 흐름도
+├── docs/pinky_patrol_flow.svg              # 시스템 구성도
 ├── docs/prd/                               # 위험구역 대기열 단계별 PRD
 ├── test/test_patrol_queue.py            # 대기열 진입 테스트
+├── test/test_patrol_commands.py         # 명령 처리 테스트
 ├── test/test_patrol_points_utils.py     # 좌표 파싱·검증 단위 테스트
 └── cobot_pinky_patrol/
     ├── patrol_points_utils.py              # 좌표 파싱·검증 (ROS 비의존)
