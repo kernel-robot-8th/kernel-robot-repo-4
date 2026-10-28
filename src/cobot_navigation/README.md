@@ -23,18 +23,6 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 ## 구성도
 
 ![cobot_navigation 구성도](docs/cobot_navigation_architecture.svg)
-```text
-CONTROL PC (domain 100)             BRIDGE (control PC)         ROBOT x3 (domain 10/20/30)
-+----------------------------+      +--------------------+      +----------------------------+
-| pinky_control_client       |--1-->|                    |--1-->| pinky_patrol_node          |
-| (goto/zone/leave/home/stop)|<--2--|                    |<--2--|   (Nav2 patrol)            |
-|                            |      |                    |      |        |                   |
-|                            |      | cobot_domain_bridge|      |        | import            |
-|                            |      |  (runs on this PC) |      |        v                   |
-| zone_manager_node          |<--3--|                    |<--3--| ZoneGateClient             |
-|   (only 1 instance)        |--4-->|                    |--4-->|                            |
-+----------------------------+      +--------------------+      +----------------------------+
-```
 
 | 화살표 | 방향 | 토픽 (관제 PC 쪽 이름) |
 |---|---|---|
@@ -63,32 +51,6 @@ CONTROL PC (domain 100)             BRIDGE (control PC)         ROBOT x3 (domain
 `pinky_control_client.py pinky1 zone ZA` 를 보낸 경우입니다. 모든 메시지는 브릿지를 지나므로 그림에서는 브릿지를 생략했습니다.
 
 ![구역 이동 동작 흐름](docs/cobot_navigation_zone_flow.svg)
-
-```text
- CLIENT (control PC)       PATROL (robot)               MANAGER (control PC)
-     |                         |                                |
-     | 1. zone ZA              |                                |
-     |------------------------>|                                |
-     |                         | 2. request_entry (1/sec)       |
-     |                         |------------------------------->|
-     |                         |                                | 3a. grant_entry (free)
-     |                         |<-------------------------------|
-     |                         | 4a. go to ZA, HOLDING_ZONE     |
-     |                         |                                |
-     |                         |                                | 3b. queue_slot (busy)
-     |                         |<-------------------------------|
-     |                         | 4b. go to slot, QUEUEING       |
-     |                         | 5. front robot leaves ...      |
-     |                         |                                | 6. grant_entry
-     |                         |<-------------------------------|
-     |                         | 7. go to ZA, HOLDING_ZONE      |
-     | 8. leave                |                                |
-     |------------------------>|                                |
-     |                         | 9. go to ZA_EXIT               |
-     |                         |    then notify_exit            |
-     |                         |------------------------------->|
-     |                         |                                | 10. lock freed, next gets grant
-```
 
 - **3a / 4a (구역이 비어 있음)**: 매니저가 바로 허가하고, 로봇은 구역 지점으로 직행해 도착 후에도 토큰을 쥐고 있습니다(`HOLDING_ZONE`).
 - **3b / 4b (다른 로봇이 점유 중)**: 매니저가 대기 순번 `k` 의 슬롯 좌표를 줍니다. 슬롯은 `앵커 + k × 간격 × 후방벡터` 이고, 로봇은 그 자리에서 `QUEUEING` 으로 기다립니다. 대기자가 `queue_max`(3명)를 넘으면 `queue_full` 로 `FAILED` 입니다.
