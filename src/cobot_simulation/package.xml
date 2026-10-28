@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_simulation</name>
+  <version>0.1.0</version>
+  <description>Lightweight multi-robot fleet and arena simulation package for the Pinky Shoe Store arena (PRD_3). Simulates 3 Pinky mobile robots, 3 OpenManipulator-X arms, 67cm central gate, and publishes standard ROS 2 topics (TF, odom, scan, joint_states, status) with zero heavy deep-learning dependencies.</description>
+  <maintainer email="rkd1rjs2@gmail.com">rkd1rjs2</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>cobot_interfaces</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,0 +1,13 @@
+<launch>
+  <arg name="rate_hz" default="50.0" description="Simulation loop frequency (Hz)"/>
+  <arg name="publish_tf" default="true" description="Publish map->odom->base TF tree"/>
+  <arg name="enable_lidar" default="true" description="Enable 2D planar LiDAR simulation"/>
+  <arg name="num_pinky" default="3" description="Number of Pinky robots (1-3)"/>
+
+  <node pkg="cobot_simulation" exec="arena_sim_node" name="arena_sim_node" output="screen">
+    <param name="rate_hz" value="$(var rate_hz)"/>
+    <param name="publish_tf" value="$(var publish_tf)"/>
+    <param name="enable_lidar" value="$(var enable_lidar)"/>
+    <param name="num_pinky" value="$(var num_pinky)"/>
+  </node>
+</launch>

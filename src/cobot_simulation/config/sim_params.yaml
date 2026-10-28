@@ -1,0 +1,12 @@
+# Configuration parameters for Pinky Shoe Store Arena Simulation
+arena_sim_node:
+  ros__parameters:
+    rate_hz: 50.0
+    publish_tf: true
+    enable_lidar: true
+    num_pinky: 3
+    use_sim_time: false
+    gate_clearance_m: 0.67
+    max_linear_velocity: 0.25
+    max_angular_velocity: 1.2
+    arm_smoothing_alpha: 0.05
