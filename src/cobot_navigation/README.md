@@ -121,7 +121,7 @@ ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<
    ros2 topic pub --times 3 --rate 1 /zone_manager/request_entry std_msgs/msg/String "{data: 'A:manual:1'}"
    ros2 topic echo /zone_manager/status        # A:occupied_by:manual
    ```
-3. **로봇을 대기열에 세우기**: `python3 $CLIENT pinky1 zone ZA` → `QUEUEING`, 앵커 `(0.1, 0.6)` 에서 정지. 두 번째 대기자는 **다른 로봇**(예: pinky2)에 보냅니다. 같은 로봇에 작업 중 보낸 명령은 무시되므로 먼저 `stop` 을 보냅니다.
+3. **로봇을 대기열에 세우기**: `python3 $CLIENT pinky1 zone ZA` → `QUEUEING`, 앵커 `(0.15, 0.5)` 에서 정지. 두 번째 대기자는 **다른 로봇**(예: pinky2)에 보냅니다. 같은 로봇에 작업 중 보낸 명령은 무시되므로 먼저 `stop` 을 보냅니다.
 4. **점유 해제**: 대기 선두가 곧바로 허가를 받고 구역 지점으로 이동합니다.
    ```bash
    ros2 topic pub --once /zone_manager/notify_exit std_msgs/msg/String "{data: 'A:manual'}"

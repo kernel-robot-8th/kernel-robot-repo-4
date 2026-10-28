@@ -99,16 +99,16 @@ colcon test --packages-select cobot_zone_traffic_control cobot_pinky_patrol && c
 
 | 구역 | 소속 | 대기 앵커 (매니저 queue_anchor) | 출구 Z_EXIT | queue_back_dir |
 |---|---|---|---|---|
-| A | ZA | [0.1, 0.6, 0.0] | [0.5, 0.0, -1.5] | [0, -1] |
-| B | ZB | [0.1, 0.6, 0.0] (A 와 대기 위치 공유, 토큰은 따로) | [0.55, -0.6, -1.5] | [0, -1] |
-| C | ZC | [-0.7, -0.08, 1.5] | [-0.3, -0.4, 1.5] | [0, -1] |
+| A | ZA | [0.15, 0.5, 0.0] | [0.45, 0.2, -1.5] | [0, -1] |
+| B | ZB | [0.15, 0.5, 0.0] (A 와 대기 위치 공유, 토큰은 따로) | [0.45, 0.45, -1.5] | [0, -1] |
+| C | ZC | [-0.2, 0.45, 1.5] | [-0.2, -0.4, 1.5] | [0, -1] |
 
 ※ 대기 앵커를 구역 지점(ZB/ZC)과 같은 좌표로 두면 `zone` 을 동시에 받은 두 번째 로봇이 점유자 자리로 가므로 분리했다 (2026-10-27).
 
 - `max_hold_sec` 120 → 240 상향 승인됨. `idle_return_sec` ≤ 0 은 자동 복귀 끔.
 
 남은 확인:
-- A·B 가 같은 대기 위치를 공유하므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌한다 (해결하려면 매니저의 대기열 공유 구현 또는 A+B 토큰 통합 필요). 대기줄을 -y 로 변경(2026-10-27): +y 슬롯 (0,0.9) 은 맵 v9 밖이라 Nav2 가 즉시 거부했다. 새 슬롯 A·B (0.1,0.6)/(0.1,0.3)/(0.1,0.0), C (-0.7,-0.08)/(-0.7,-0.38)/(-0.7,-0.68) 는 맵 free 영역. A·B 슬롯 2 는 홈 I1 과 0.1 m, C 슬롯 1 은 ZC_EXIT 와 0.4 m 라 현장 확인.
+- A·B 가 같은 대기 위치를 공유하므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌한다 (해결하려면 매니저의 대기열 공유 구현 또는 A+B 토큰 통합 필요). 대기줄을 -y 로 변경(2026-10-27): +y 슬롯 (0,0.9) 은 맵 v9 밖이라 Nav2 가 즉시 거부했다. 슬롯 A·B (0.15,0.5)/(0.15,0.2)/(0.15,-0.1), C (-0.2,0.45)/(-0.2,0.15)/(-0.2,-0.15) (2026-10-28 사용자 실측 반영). A·B 슬롯 2 는 홈 I1 과 약 0.18 m, C 슬롯 2 는 ZC_EXIT 와 0.25 m 라 현장 확인.
 - 구역 지점·일반 지점 좌표는 pinky1~3 이 같은 값(실측 확인 남음). 홈은 I1 (0,0) / I2 (0,-0.2) / I3 (0,-0.4) 로 확정(2026-10-27).
 - R0: `goto ZA ZB` 가 대기 위치 후 홈으로 간 원인은 코드상 재현되지 않는다(최신 코드는 같은 구역이면 토큰을 유지). 로봇이 옛 코드/YAML 로 돌았는지 확인하고, 재현되면 `patrol_status`·노드 로그를 확보한다.
 
@@ -151,7 +151,7 @@ ZONE_C 좌표처럼 모르는 값은 추측하지 말고 물어봐. 커밋은 �
      ```
    - **구역 A**
      1. `ros2 topic pub --times 3 --rate 1 /zone_manager/request_entry std_msgs/msg/String "{data: 'A:manual:1'}"` → `status` 에 `A:occupied_by:manual`.
-     2. `pinky_control_client.py pinky1 zone ZA` → 기대: `QUEUEING`(slot0), 대기 앵커 (0.1, 0.6) 에서 정지, 점유는 `manual` 유지.
+     2. `pinky_control_client.py pinky1 zone ZA` → 기대: `QUEUEING`(slot0), 대기 앵커 (0.15, 0.5) 에서 정지, 점유는 `manual` 유지.
      3. `ros2 topic pub --once /zone_manager/notify_exit std_msgs/msg/String "{data: 'A:manual'}"` → pinky1 이 허가를 받고 ZA 로 이동, `HOLDING_ZONE`.
      4. `pinky_control_client.py pinky1 leave` → ZA_EXIT 도착 후 `A:free`.
    - **구역 B**: 같은 순서를 `B:manual:1` / `zone ZB` / `notify_exit B:manual` / `leave` 로 반복한다. WA 와 WB 는 같은 좌표이므로 A·B 대기자를 동시에 만들지 않는다.
