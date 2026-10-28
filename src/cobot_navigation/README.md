@@ -22,7 +22,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 
 ## 구성도
 
-![cobot_navigation 구성도](/cobot_navigation_architecture.svg)
+![cobot_navigation 구성도](/docs/cobot_navigation_architecture.svg)
 ```text
 CONTROL PC (domain 100)             BRIDGE (control PC)         ROBOT x3 (domain 10/20/30)
 +----------------------------+      +--------------------+      +----------------------------+
