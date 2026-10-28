@@ -9,4 +9,4 @@ arena_sim_node:
     gate_clearance_m: 0.67
     max_linear_velocity: 0.25
     max_angular_velocity: 1.2
-    arm_smoothing_alpha: 0.05
+    arm_max_joint_vel: 1.2

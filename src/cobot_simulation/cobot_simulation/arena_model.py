@@ -73,10 +73,13 @@ class ObstacleBox:
 class ShoeStoreArena:
     """Represents the complete 2.5m x 2.4m PRD_3 shoe store arena."""
 
-    def __init__(self):
-        """Initialize waypoints and arena bounding obstacles."""
+    def __init__(self, gate_clearance_m: float = 0.67):
+        """Initialize waypoints and arena bounding obstacles with configurable gate width."""
+        self.gate_clearance_m = gate_clearance_m
+
         # Named Waypoints per map_shoe_store_1021_gate67.yaml [X, Y, Theta_deg]
         self.waypoints: Dict[str, Tuple[float, float, float]] = {
+            # Legacy 1021 map waypoints (origin/main)
             'WP_HOME_1': (1.41, 2.05375, 270.0),
             'WP_HOME_2': (1.41, 1.8575, 270.0),
             'WP_HOME_3': (1.41, 1.66125, 270.0),
@@ -85,6 +88,23 @@ class ShoeStoreArena:
             'WP_GATE_TRANSIT': (1.25, 0.335, 180.0),
             'WP_UNLOAD': (0.415, 1.85, 180.0),
             'WP_BENCH_DELIVERY': (0.29, 1.31, 90.0),
+
+            # Synchronized navigation_v9 waypoints (X_sim = X_v9 + 1.372, Y_sim = Y_v9 + 1.579)
+            'I1': (1.372, 1.579, 0.0),
+            'I2': (1.372, 1.379, 0.0),
+            'I3': (1.372, 1.179, 0.0),
+            'ZA': (1.972, 2.079, 274.1),
+            'ZB': (1.972, 1.429, 274.1),
+            'ZC': (0.872, 1.879, 85.9),
+            'ZA_EXIT': (1.872, 1.579, 274.1),
+            'ZB_EXIT': (1.922, 0.979, 274.1),
+            'ZC_EXIT': (1.072, 1.179, 85.9),
+            'WA_slot0': (1.472, 2.179, 0.0),
+            'WA_slot1': (1.472, 1.879, 0.0),
+            'WA_slot2': (1.472, 1.579, 0.0),
+            'WC_slot0': (0.672, 1.499, 85.9),
+            'WC_slot1': (0.672, 1.199, 85.9),
+            'WC_slot2': (0.672, 0.899, 85.9),
         }
 
         # Fixed Obstacles (Border walls + Interior furniture)
@@ -95,8 +115,8 @@ class ShoeStoreArena:
             ObstacleBox('border_west', -0.05, 0.00, -0.05, 2.45),
             ObstacleBox('border_east', 2.50, 2.55, -0.05, 2.45),
 
-            # Central Dividing Wall (X: 1.20~1.30, Y: 0.67~2.40) - 67cm Gate below Y 0.67
-            ObstacleBox('central_partition_wall', 1.20, 1.30, 0.67, 2.40),
+            # Central Dividing Wall (X: 1.20~1.30, Y: gate_clearance_m~2.40)
+            ObstacleBox('central_partition_wall', 1.20, 1.30, self.gate_clearance_m, 2.40),
 
             # Warehouse Right Rack (X: 2.16~2.40, Y: 0.67~2.40)
             ObstacleBox('wh_right_rack', 2.16, 2.40, 0.67, 2.40),

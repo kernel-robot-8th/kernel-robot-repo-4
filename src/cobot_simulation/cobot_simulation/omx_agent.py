@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Simulated OpenManipulator-X (5-DOF + Gripper) agent with temporal ensembling smoothing."""
+"""Simulated OpenManipulator-X (5-DOF + Gripper) with velocity-clamped interpolation."""
 
 import math
 from typing import Dict, List, Tuple
@@ -61,8 +61,7 @@ class OmxSimAgent:
         self.q = self.PRESET_POSES['HOME'].copy()
         self.target_q = self.q.copy()
 
-        # Motion smoothing parameters (Temporal Ensembling weight)
-        self.smoothing_alpha = 0.05
+        # Kinematic motion limits (velocity-clamped linear interpolation)
         self.max_joint_vel = 1.2  # rad/s
 
         # Trajectory execution sequence
@@ -97,7 +96,7 @@ class OmxSimAgent:
         self.state_str = 'EXECUTING'
 
     def step(self, dt: float):
-        """Integrate arm joints toward target using temporal exponential smoothing."""
+        """Integrate arm joints toward target using velocity-clamped linear interpolation."""
         # Check trajectory queue
         if self.trajectory_queue:
             target, dur = self.trajectory_queue[0]

@@ -60,15 +60,17 @@ class ArenaSimNode(Node):
         self.declare_parameter('publish_tf', True)
         self.declare_parameter('enable_lidar', True)
         self.declare_parameter('num_pinky', 3)
+        self.declare_parameter('gate_clearance_m', 0.67)
 
         self.rate_hz = self.get_parameter('rate_hz').value
         self.dt = 1.0 / self.rate_hz
         self.publish_tf = self.get_parameter('publish_tf').value
         self.enable_lidar = self.get_parameter('enable_lidar').value
         self.num_pinky = self.get_parameter('num_pinky').value
+        self.gate_clearance_m = float(self.get_parameter('gate_clearance_m').value)
 
-        # Initialize Arena
-        self.arena = ShoeStoreArena()
+        # Initialize Arena (supports dynamic gate width)
+        self.arena = ShoeStoreArena(gate_clearance_m=self.gate_clearance_m)
         self.tf_broadcaster = TransformBroadcaster(self)
 
         # QoS profiles

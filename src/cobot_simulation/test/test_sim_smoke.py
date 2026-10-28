@@ -28,6 +28,14 @@ def test_arena_geometry():
     assert 'WP_GATE_TRANSIT' in arena.waypoints
     assert 'WP_LOAD_1' in arena.waypoints
     assert 'WP_UNLOAD' in arena.waypoints
+    # Verify v9 synchronized waypoints are also registered
+    assert 'ZA' in arena.waypoints
+    assert 'ZC' in arena.waypoints
+    assert 'I1' in arena.waypoints
+
+    # Test variable gate clearance (e.g. 0.31m for v9 narrow passage)
+    narrow_arena = ShoeStoreArena(gate_clearance_m=0.31)
+    assert narrow_arena.is_in_collision(1.25, 0.50) is True
 
     # Central wall should block X=1.25, Y=1.5
     assert arena.is_in_collision(1.25, 1.50) is True
@@ -69,8 +77,8 @@ def test_pinky_kinematics_and_waypoint_tracking():
     assert math.hypot(agent.x - 1.25, agent.y - 0.335) < 0.15
 
 
-def test_omx_arm_kinematics_and_smoothing():
-    """Verify arm temporal ensembling and trajectory execution."""
+def test_omx_arm_kinematics_and_interpolation():
+    """Verify arm kinematic velocity-clamped interpolation and trajectory execution."""
     arm = OmxSimAgent('omx_1', base_pos=(2.015, 2.105, 0.085))
 
     initial_joints = arm.get_joint_states()
@@ -87,5 +95,5 @@ def test_omx_arm_kinematics_and_smoothing():
         arm.step(0.02)
 
     new_joints = arm.get_joint_states()
-    # Verify joints smoothed and did not jump instantly
+    # Verify joints moved smoothly under velocity clamp without instant jump
     assert any(abs(new_joints[k] - initial_joints[k]) > 0.001 for k in initial_joints)
