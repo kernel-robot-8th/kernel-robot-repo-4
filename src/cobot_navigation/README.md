@@ -22,7 +22,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 
 ## 구성도
 
-![cobot_navigation 구성도](/docs/cobot_navigation_architecture.svg)
+![cobot_navigation 구성도](docs/cobot_navigation_architecture.svg)
 ```text
 CONTROL PC (domain 100)             BRIDGE (control PC)         ROBOT x3 (domain 10/20/30)
 +----------------------------+      +--------------------+      +----------------------------+
@@ -62,7 +62,7 @@ CONTROL PC (domain 100)             BRIDGE (control PC)         ROBOT x3 (domain
 
 `pinky_control_client.py pinky1 zone ZA` 를 보낸 경우입니다. 모든 메시지는 브릿지를 지나므로 그림에서는 브릿지를 생략했습니다.
 
-![구역 이동 동작 흐름](docs/diagrams/cobot_navigation_zone_flow.svg)
+![구역 이동 동작 흐름](docs/cobot_navigation_zone_flow.svg)
 
 ```text
  CLIENT (control PC)       PATROL (robot)               MANAGER (control PC)
