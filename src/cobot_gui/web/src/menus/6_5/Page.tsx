@@ -35,6 +35,16 @@ const WAYPOINTS: WaypointDef[] = [
   { id: "WP_BENCH_DELIVERY", name: "고객 벤치", x: 0.29, y: 1.31, yaw: 90, desc: "고객 전달 벤치" },
 ];
 
+// 자동 순회 데모 주행 코스
+const DEMO_ROUTE = [
+  "WP_LOAD_1",
+  "WP_GATE_TRANSIT",
+  "WP_UNLOAD",
+  "WP_BENCH_DELIVERY",
+  "WP_GATE_TRANSIT",
+  "WP_HOME_1",
+];
+
 interface RobotState {
   id: string;
   name: string;
@@ -57,6 +67,19 @@ interface ArmState {
   state: "STANDBY" | "EXECUTING";
   step: string;
   q: number[]; // [joint1..5, gripper]
+}
+
+// SVG 부채꼴(LiDAR 스캔 빔) 경로 생성 헬퍼
+function getSectorPath(cx: number, cy: number, r: number, startAngle: number, endAngle: number): string {
+  const points: string[] = [`${cx.toFixed(1)},${cy.toFixed(1)}`];
+  const step = 8;
+  for (let a = startAngle; a <= endAngle; a += step) {
+    const rad = (a * Math.PI) / 180;
+    points.push(`${(cx + r * Math.cos(rad)).toFixed(1)},${(cy - r * Math.sin(rad)).toFixed(1)}`);
+  }
+  const endRad = (endAngle * Math.PI) / 180;
+  points.push(`${(cx + r * Math.cos(endRad)).toFixed(1)},${(cy - r * Math.sin(endRad)).toFixed(1)}`);
+  return `M ${points.join(" L ")} Z`;
 }
 
 export default function Page({ menu }: MenuPageProps) {
@@ -131,96 +154,22 @@ export default function Page({ menu }: MenuPageProps) {
     },
   });
 
-  // 조작 대상 선택
+  // 조작 대상 선택 및 컨트롤 상태
   const [selectedRobot, setSelectedRobot] = useState<string>("pinky1");
   const [selectedArm, setSelectedArm] = useState<string>("omx_1");
   const [gateWidth, setGateWidth] = useState<number>(0.67);
   const [simRunning, setSimRunning] = useState<boolean>(true);
 
-  // 주기적 애니메이션 틱 (부드러운 시뮬레이션 이동 처리)
-  useEffect(() => {
-    if (!simRunning) return;
-    const interval = setInterval(() => {
-      setRobots((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        for (const rid of Object.keys(next)) {
-          const r = next[rid];
-          if (r.state === "NAVIGATING" && r.targetWp) {
-            const target = WAYPOINTS.find((wp) => wp.id === r.targetWp);
-            if (target) {
-              const dx = target.x - r.x;
-              const dy = target.y - r.y;
-              const dist = Math.hypot(dx, dy);
-              if (dist > 0.03) {
-                const targetAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
-                const speed = 0.04;
-                next[rid] = {
-                  ...r,
-                  x: r.x + Math.cos((targetAngle * Math.PI) / 180) * speed,
-                  y: r.y + Math.sin((targetAngle * Math.PI) / 180) * speed,
-                  yaw: targetAngle,
-                  v: 0.2,
-                  w: 0.1,
-                };
-                changed = true;
-              } else {
-                next[rid] = {
-                  ...r,
-                  x: target.x,
-                  y: target.y,
-                  yaw: target.yaw,
-                  v: 0.0,
-                  w: 0.0,
-                  state: "DOCKED",
-                  targetWp: undefined,
-                };
-                changed = true;
-              }
-            }
-          }
-        }
-        return changed ? next : prev;
-      });
-    }, 100);
-    return () => clearInterval(interval);
-  }, [simRunning]);
-
-  // 웨이포인트 이동 명령 트리거
-  const handleDispatchWaypoint = (rid: string, wpId: string) => {
-    setRobots((prev) => ({
-      ...prev,
-      [rid]: {
-        ...prev[rid],
-        state: "NAVIGATING",
-        targetWp: wpId,
-      },
-    }));
-  };
-
-  // 수동 속도 명령 트리거
-  const handleManualDrive = (vx: number, wz: number) => {
-    setRobots((prev) => {
-      const cur = prev[selectedRobot];
-      const rad = (cur.yaw * Math.PI) / 180;
-      const nextX = Math.max(0.1, Math.min(ARENA_WIDTH - 0.1, cur.x + vx * Math.cos(rad) * 0.15));
-      const nextY = Math.max(0.1, Math.min(ARENA_HEIGHT - 0.1, cur.y + vx * Math.sin(rad) * 0.15));
-      const nextYaw = (cur.yaw + wz * 15 + 360) % 360;
-      return {
-        ...prev,
-        [selectedRobot]: {
-          ...cur,
-          x: nextX,
-          y: nextY,
-          yaw: nextYaw,
-          v: vx,
-          w: (wz * Math.PI) / 180,
-          state: vx !== 0 || wz !== 0 ? "NAVIGATING" : "IDLE",
-          targetWp: undefined,
-        },
-      };
-    });
-  };
+  // 실시간 티커, 라이다 회전, 자동 순회 데모 및 궤적 기록
+  const [tick, setTick] = useState<number>(0);
+  const [autoDemo, setAutoDemo] = useState<boolean>(true);
+  const [, setDemoRouteIdx] = useState<number>(0);
+  const [, setDockWaitTicks] = useState<number>(0);
+  const [trails, setTrails] = useState<Record<string, Array<{ x: number; y: number }>>>({
+    pinky1: [],
+    pinky2: [],
+    pinky3: [],
+  });
 
   // 로봇팔 픽앤플레이스 시퀀스 시연 트리거
   const handleTriggerPick = (armId: string) => {
@@ -269,14 +218,154 @@ export default function Page({ menu }: MenuPageProps) {
     }, 3600);
   };
 
+  // 50ms (20Hz) 실시간 시뮬레이션 애니메이션 틱
+  useEffect(() => {
+    if (!simRunning) return;
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+
+      setRobots((prev) => {
+        let changed = false;
+        const next = { ...prev };
+
+        // 1. 자동 순회 데모 모드 (Pinky 1)
+        if (autoDemo) {
+          const p1 = next.pinky1;
+          if (p1.state === "DOCKED" || p1.state === "IDLE") {
+            setDockWaitTicks((w) => {
+              if (w < 25) {
+                return w + 1;
+              }
+              setDemoRouteIdx((idx) => {
+                const nextIdx = (idx + 1) % DEMO_ROUTE.length;
+                const nextWp = DEMO_ROUTE[nextIdx];
+                next.pinky1 = {
+                  ...p1,
+                  state: "NAVIGATING",
+                  targetWp: nextWp,
+                };
+                changed = true;
+                if (nextWp === "WP_LOAD_1") handleTriggerPick("omx_1");
+                if (nextWp === "WP_UNLOAD") handleTriggerPick("omx_3");
+                return nextIdx;
+              });
+              return 0;
+            });
+          }
+        }
+
+        // 2. 이동 로봇 기구학 갱신
+        for (const rid of Object.keys(next)) {
+          const r = next[rid];
+          if (r.state === "NAVIGATING" && r.targetWp) {
+            const target = WAYPOINTS.find((wp) => wp.id === r.targetWp);
+            if (target) {
+              const dx = target.x - r.x;
+              const dy = target.y - r.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist > 0.04) {
+                const targetAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
+                const speed = 0.035;
+                next[rid] = {
+                  ...r,
+                  x: r.x + Math.cos((targetAngle * Math.PI) / 180) * speed,
+                  y: r.y + Math.sin((targetAngle * Math.PI) / 180) * speed,
+                  yaw: targetAngle,
+                  v: 0.2,
+                  w: 0.1,
+                };
+                changed = true;
+              } else {
+                next[rid] = {
+                  ...r,
+                  x: target.x,
+                  y: target.y,
+                  yaw: target.yaw,
+                  v: 0.0,
+                  w: 0.0,
+                  state: "DOCKED",
+                  targetWp: undefined,
+                };
+                changed = true;
+              }
+            }
+          }
+        }
+
+        // 3. 이동 궤적(Ghost Trail) 기록
+        if (changed) {
+          setTrails((tr) => {
+            const nextTr = { ...tr };
+            for (const rid of ["pinky1", "pinky2", "pinky3"]) {
+              const bot = next[rid];
+              if (bot.state === "NAVIGATING") {
+                const curList = nextTr[rid] || [];
+                const last = curList[curList.length - 1];
+                if (!last || Math.hypot(last.x - bot.x, last.y - bot.y) > 0.04) {
+                  nextTr[rid] = [...curList.slice(-25), { x: bot.x, y: bot.y }];
+                }
+              }
+            }
+            return nextTr;
+          });
+        }
+
+        return changed ? next : prev;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [simRunning, autoDemo]);
+
+  // 웨이포인트 이동 명령 트리거 (수동 디스패치 시 데모 일시중지)
+  const handleDispatchWaypoint = (rid: string, wpId: string) => {
+    setAutoDemo(false);
+    setRobots((prev) => ({
+      ...prev,
+      [rid]: {
+        ...prev[rid],
+        state: "NAVIGATING",
+        targetWp: wpId,
+      },
+    }));
+  };
+
+  // 수동 속도 명령 트리거 (조종 시 데모 일시중지)
+  const handleManualDrive = (vx: number, wz: number) => {
+    setAutoDemo(false);
+    setRobots((prev) => {
+      const cur = prev[selectedRobot];
+      const rad = (cur.yaw * Math.PI) / 180;
+      const nextX = Math.max(0.1, Math.min(ARENA_WIDTH - 0.1, cur.x + vx * Math.cos(rad) * 0.15));
+      const nextY = Math.max(0.1, Math.min(ARENA_HEIGHT - 0.1, cur.y + vx * Math.sin(rad) * 0.15));
+      const nextYaw = (cur.yaw + wz * 15 + 360) % 360;
+      return {
+        ...prev,
+        [selectedRobot]: {
+          ...cur,
+          x: nextX,
+          y: nextY,
+          yaw: nextYaw,
+          v: vx,
+          w: (wz * Math.PI) / 180,
+          state: vx !== 0 || wz !== 0 ? "NAVIGATING" : "IDLE",
+          targetWp: undefined,
+        },
+      };
+    });
+  };
+
   // SVG 좌표 변환 (0~2.5m, 0~2.4m -> SVG 픽셀)
-  // X: 0 -> 40, 2.5 -> 540 (width 500)
-  // Y: 0 -> 500, 2.4 -> 20 (height 480, Y축 반전)
   const svgScale = 200;
   const svgPadX = 30;
   const svgPadY = 30;
   const toSvgX = (x: number) => svgPadX + x * svgScale;
   const toSvgY = (y: number) => svgPadY + (ARENA_HEIGHT - y) * svgScale;
+
+  // 시뮬레이션 시간 포맷 (MM:SS.s)
+  const simSec = tick * 0.05;
+  const simMinStr = Math.floor(simSec / 60).toString().padStart(2, "0");
+  const simSecStr = (simSec % 60).toFixed(1).padStart(4, "0");
 
   return (
     <div className="max-w-6xl space-y-6 font-sans">
@@ -303,6 +392,57 @@ export default function Page({ menu }: MenuPageProps) {
           GPU가 없는 일반 노트북(LG 그램)에서도 1초 만에 빌드되며, 중앙 67cm 통과 게이트 및 최신 v9 웨이포인트를 지원합니다.
         </AlertDescription>
       </Alert>
+
+      {/* 50Hz 실시간 텔레메트리 티커 및 네이티브 3D 뷰어 안내 바 */}
+      <div className="bg-[#121214] border border-border p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex items-center gap-1.5 text-emerald-400 font-bold px-2 py-0.5 bg-emerald-950/40 border border-emerald-500/40">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              LIVE SIM 50Hz
+            </span>
+            <span className="text-[#888888]">
+              SIM TIME: <b className="text-cyan-400">{simMinStr}:{simSecStr}</b>
+            </span>
+            <span className="text-[#888888]">
+              TICK: <b className="text-white">{tick}</b>
+            </span>
+            <span className="text-[#888888]">
+              LIDAR: <b className="text-purple-400">360° ACTIVE</b>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAutoDemo((prev) => !prev)}
+              className={`rounded-none h-7 px-3 text-xs font-bold font-mono ${
+                autoDemo
+                  ? "bg-amber-950/50 border-amber-500 text-amber-300 hover:bg-amber-900/60"
+                  : "bg-emerald-950/50 border-emerald-500 text-emerald-300 hover:bg-emerald-900/60"
+              }`}
+            >
+              {autoDemo ? "⏹ 자동 순회 데모 일시정지" : "▶ 자동 순회 데모 시작"}
+            </Button>
+          </div>
+        </div>
+
+        {/* 3D MuJoCo Native 안내 배너 */}
+        <div className="px-3 py-1.5 bg-[#18181b] border border-border/80 text-[11px] text-[#a1a1aa] flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-400 font-bold">ℹ️ 화면 안내:</span>
+            <span>
+              본 화면은 경량 <b>웹 2D 디지털 트윈</b>(SVG)입니다. 고화질 3D 물리 시뮬레이션(MuJoCo)은 OS 터미널에서
+              <code className="text-green-400 mx-1">ros2 launch cobot_simulation bringup_sim.launch.py</code>
+              실행 시 네이티브 OpenGL 창으로 함께 연동 가동됩니다.
+            </span>
+          </div>
+          <Badge variant="outline" className="border-blue-500/50 text-blue-300 font-mono text-[10px]">
+            Dual-View: 2D Web + 3D Native
+          </Badge>
+        </div>
+      </div>
 
       {/* 메인 2열 그리드: 좌측 2D 아레나 캔버스, 우측 제어 및 모니터링 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -450,53 +590,41 @@ export default function Page({ menu }: MenuPageProps) {
               />
               <text
                 x={toSvgX(2.28)}
-                y={toSvgY(1.53)}
+                y={toSvgY(1.5)}
                 textAnchor="middle"
                 fill="#fbbf24"
                 fontSize="10"
-                transform={`rotate(90 ${toSvgX(2.28)} ${toSvgY(1.53)})`}
+                transform={`rotate(-90 ${toSvgX(2.28)} ${toSvgY(1.5)})`}
               >
-                창고 우측 선반 랙
+                창고 우측 랙 (Right Rack)
               </text>
 
-              {/* 매장 카운터 및 벤치 */}
+              {/* 매장 하차 카운터 (Counter: 0.1~0.7, Y: 1.7~2.0) */}
               <rect
-                x={toSvgX(0.14)}
-                y={toSvgY(2.34)}
-                width={0.9 * svgScale}
-                height={0.2 * svgScale}
-                fill="#0369a130"
-                stroke="#0284c7"
+                x={toSvgX(0.1)}
+                y={toSvgY(2.0)}
+                width={0.6 * svgScale}
+                height={0.3 * svgScale}
+                fill="#2563eb30"
+                stroke="#3b82f6"
                 strokeWidth="1.5"
               />
-              <text x={toSvgX(0.59)} y={toSvgY(2.24)} textAnchor="middle" fill="#38bdf8" fontSize="10">
-                매장 카운터
+              <text x={toSvgX(0.4)} y={toSvgY(1.85)} textAnchor="middle" fill="#60a5fa" fontSize="10">
+                수령 카운터 (OMX 3)
               </text>
 
+              {/* 매장 고객 벤치 (Bench: 0.1~0.4, Y: 1.1~1.5) */}
               <rect
-                x={toSvgX(0.44)}
-                y={toSvgY(1.45)}
-                width={0.38 * svgScale}
-                height={0.16 * svgScale}
-                fill="#0369a120"
-                stroke="#0284c7"
-                strokeWidth="1"
+                x={toSvgX(0.1)}
+                y={toSvgY(1.5)}
+                width={0.3 * svgScale}
+                height={0.4 * svgScale}
+                fill="#05966930"
+                stroke="#10b981"
+                strokeWidth="1.5"
               />
-              <text x={toSvgX(0.63)} y={toSvgY(1.37)} textAnchor="middle" fill="#38bdf8" fontSize="9">
-                진열대 A
-              </text>
-
-              <rect
-                x={toSvgX(0.34)}
-                y={toSvgY(0.92)}
-                width={0.45 * svgScale}
-                height={0.18 * svgScale}
-                fill="#0369a120"
-                stroke="#0284c7"
-                strokeWidth="1"
-              />
-              <text x={toSvgX(0.565)} y={toSvgY(0.83)} textAnchor="middle" fill="#38bdf8" fontSize="9">
-                고객 벤치 B
+              <text x={toSvgX(0.25)} y={toSvgY(1.3)} textAnchor="middle" fill="#34d399" fontSize="10">
+                고객 벤치
               </text>
 
               {/* 정본 웨이포인트 8개 렌더링 */}
@@ -518,22 +646,31 @@ export default function Page({ menu }: MenuPageProps) {
               {Object.values(arms).map((arm) => {
                 const ax = toSvgX(arm.baseX);
                 const ay = toSvgY(arm.baseY);
+                const isExec = arm.state === "EXECUTING";
                 return (
                   <g key={arm.id}>
                     {/* 팔 베이스 박스 */}
-                    <rect x={ax - 12} y={ay - 12} width="24" height="24" fill="#3f3f46" stroke="#e4e4e7" strokeWidth="1.5" />
-                    <circle cx={ax} cy={ay} r="8" fill="#eab308" />
+                    <rect
+                      x={ax - 12}
+                      y={ay - 12}
+                      width="24"
+                      height="24"
+                      fill={isExec ? "#713f12" : "#3f3f46"}
+                      stroke={isExec ? "#facc15" : "#e4e4e7"}
+                      strokeWidth="1.5"
+                    />
+                    <circle cx={ax} cy={ay} r="8" fill={isExec ? "#f59e0b" : "#eab308"} />
                     <text x={ax} y={ay + 3} textAnchor="middle" fill="#000" fontSize="8" fontWeight="bold">
                       {arm.id.replace("omx_", "A")}
                     </text>
-                    <text x={ax} y={ay - 15} textAnchor="middle" fill="#eab308" fontSize="8">
+                    <text x={ax} y={ay - 15} textAnchor="middle" fill={isExec ? "#facc15" : "#eab308"} fontSize="8" fontWeight="bold">
                       {arm.name} ({arm.step})
                     </text>
                   </g>
                 );
               })}
 
-              {/* 핑키 이동 로봇 3대 렌더링 (실시간 위치 & 헤딩 화살표) */}
+              {/* 핑키 이동 로봇 3대 렌더링 (이동 궤적 잔상 + 라이다 스캔 빔 + 펄스 링) */}
               {Object.values(robots).map((bot) => {
                 const bx = toSvgX(bot.x);
                 const by = toSvgY(bot.y);
@@ -541,7 +678,19 @@ export default function Page({ menu }: MenuPageProps) {
                 const rad = (bot.yaw * Math.PI) / 180;
                 const arrowLen = 14;
                 const ax = bx + Math.cos(rad) * arrowLen;
-                const ay = by - Math.sin(rad) * arrowLen; // SVG y 반전
+                const ay = by - Math.sin(rad) * arrowLen;
+
+                // 회전 라이다 빔 각도 계산 (로봇별 위상차 부여)
+                const phaseOffset = bot.id === "pinky2" ? 120 : bot.id === "pinky3" ? 240 : 0;
+                const sweepDeg = ((tick * 10) + phaseOffset) % 360;
+                const sweepRad = (sweepDeg * Math.PI) / 180;
+                const beamLen = 32;
+                const tipX = bx + Math.cos(sweepRad) * beamLen;
+                const tipY = by - Math.sin(sweepRad) * beamLen;
+
+                // 펄스 링 반경 및 불투명도
+                const pulseR = 12 + ((tick + (phaseOffset / 10)) % 18) * 1.1;
+                const pulseOp = Math.max(0, 0.7 - (((tick + (phaseOffset / 10)) % 18) * 0.04));
 
                 return (
                   <g
@@ -549,19 +698,65 @@ export default function Page({ menu }: MenuPageProps) {
                     className="cursor-pointer"
                     onClick={() => setSelectedRobot(bot.id)}
                   >
-                    {/* 선택 강조 링 */}
+                    {/* 1. 이동 궤적 (Ghost Trail) */}
+                    {trails[bot.id] && trails[bot.id].length > 1 && (
+                      <polyline
+                        points={trails[bot.id].map((pt) => `${toSvgX(pt.x)},${toSvgY(pt.y)}`).join(" ")}
+                        fill="none"
+                        stroke={bot.color}
+                        strokeWidth="2.5"
+                        strokeDasharray="4 3"
+                        opacity="0.45"
+                      />
+                    )}
+
+                    {/* 2. 맥박 펄스 링 (Ping Ring) */}
+                    <circle
+                      cx={bx}
+                      cy={by}
+                      r={pulseR}
+                      fill="none"
+                      stroke={bot.color}
+                      strokeWidth="1.5"
+                      opacity={pulseOp}
+                    />
+
+                    {/* 3. 360도 회전 라이다 스캔 부채꼴 빔 */}
+                    <path
+                      d={getSectorPath(bx, by, beamLen, sweepDeg - 18, sweepDeg + 18)}
+                      fill={bot.color + "25"}
+                      stroke={bot.color + "50"}
+                      strokeWidth="0.8"
+                    />
+                    <line
+                      x1={bx}
+                      y1={by}
+                      x2={tipX}
+                      y2={tipY}
+                      stroke={bot.color}
+                      strokeWidth="1.2"
+                      strokeDasharray="2 2"
+                      opacity="0.8"
+                    />
+                    <circle cx={tipX} cy={tipY} r="2" fill={bot.color} opacity="0.9" />
+
+                    {/* 4. 선택 강조 링 */}
                     {isSelected && (
                       <circle cx={bx} cy={by} r="18" fill="none" stroke="#ffffff" strokeWidth="2" strokeDasharray="3 3" />
                     )}
-                    {/* 로봇 외형 (핑크 원) */}
+
+                    {/* 5. 로봇 본체 원형 */}
                     <circle cx={bx} cy={by} r="12" fill={bot.color} stroke="#ffffff" strokeWidth="1.5" />
-                    {/* 헤딩 방향 지시선 */}
+
+                    {/* 6. 헤딩 방향 지시선 */}
                     <line x1={bx} y1={by} x2={ax} y2={ay} stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-                    {/* 로봇 번호 레이블 */}
+
+                    {/* 7. 로봇 번호 레이블 */}
                     <text x={bx} y={by + 3.5} textAnchor="middle" fill="#000000" fontSize="9" fontWeight="bold">
                       {bot.id.replace("pinky", "P")}
                     </text>
-                    {/* 상태 텍스트 */}
+
+                    {/* 8. 상태 텍스트 */}
                     <text x={bx} y={by + 22} textAnchor="middle" fill={bot.color} fontSize="8" fontWeight="bold">
                       {bot.state}
                     </text>
