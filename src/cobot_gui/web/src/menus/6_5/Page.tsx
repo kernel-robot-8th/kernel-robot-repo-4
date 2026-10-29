@@ -38,12 +38,16 @@ const WAYPOINTS: WaypointDef[] = [
 // 자동 순회 데모 주행 코스
 const DEMO_ROUTE = [
   "WP_LOAD_1",
-  "WP_GATE_TRANSIT",
   "WP_UNLOAD",
   "WP_BENCH_DELIVERY",
-  "WP_GATE_TRANSIT",
   "WP_HOME_1",
 ];
+
+interface PathNode {
+  x: number;
+  y: number;
+  yaw?: number;
+}
 
 interface RobotState {
   id: string;
@@ -57,6 +61,7 @@ interface RobotState {
   battery: number;
   state: "IDLE" | "NAVIGATING" | "DOCKED";
   targetWp?: string;
+  pathQueue: PathNode[];
 }
 
 interface ArmState {
@@ -67,6 +72,44 @@ interface ArmState {
   state: "STANDBY" | "EXECUTING";
   step: string;
   q: number[]; // [joint1..5, gripper]
+}
+
+// 67cm 중앙 게이트 통과 코리더 전역 플래너 (벽 충돌 회피)
+function generateCorridorPlan(
+  sx: number,
+  _sy: number,
+  tx: number,
+  ty: number,
+  tyaw?: number,
+  gateWidth: number = 0.67
+): PathNode[] {
+  const wallX = 1.25;
+  const isStartRight = sx > wallX;
+  const isTargetRight = tx > wallX;
+  const gateY = gateWidth / 2;
+
+  // 동일 구역 내 이동 (벽을 가로지르지 않음)
+  if (isStartRight === isTargetRight) {
+    return [{ x: tx, y: ty, yaw: tyaw }];
+  }
+
+  // 창고(우측) -> 매장(좌측): 게이트 우측 접근 -> 게이트 중심 -> 게이트 좌측 출구 -> 목적지
+  if (isStartRight && !isTargetRight) {
+    return [
+      { x: 1.45, y: gateY, yaw: 180 },
+      { x: 1.25, y: gateY, yaw: 180 },
+      { x: 1.05, y: gateY, yaw: 180 },
+      { x: tx, y: ty, yaw: tyaw },
+    ];
+  }
+
+  // 매장(좌측) -> 창고(우측): 게이트 좌측 접근 -> 게이트 중심 -> 게이트 우측 출구 -> 목적지
+  return [
+    { x: 1.05, y: gateY, yaw: 0 },
+    { x: 1.25, y: gateY, yaw: 0 },
+    { x: 1.45, y: gateY, yaw: 0 },
+    { x: tx, y: ty, yaw: tyaw },
+  ];
 }
 
 // SVG 부채꼴(LiDAR 스캔 빔) 경로 생성 헬퍼
@@ -96,6 +139,7 @@ export default function Page({ menu }: MenuPageProps) {
       w: 0.0,
       battery: 98.5,
       state: "IDLE",
+      pathQueue: [],
     },
     pinky2: {
       id: "pinky2",
@@ -108,6 +152,7 @@ export default function Page({ menu }: MenuPageProps) {
       w: 0.0,
       battery: 95.0,
       state: "IDLE",
+      pathQueue: [],
     },
     pinky3: {
       id: "pinky3",
@@ -120,6 +165,7 @@ export default function Page({ menu }: MenuPageProps) {
       w: 0.0,
       battery: 92.0,
       state: "IDLE",
+      pathQueue: [],
     },
   });
 
@@ -239,10 +285,15 @@ export default function Page({ menu }: MenuPageProps) {
               setDemoRouteIdx((idx) => {
                 const nextIdx = (idx + 1) % DEMO_ROUTE.length;
                 const nextWp = DEMO_ROUTE[nextIdx];
+                const targetDef = WAYPOINTS.find((item) => item.id === nextWp);
+                const plan = targetDef
+                  ? generateCorridorPlan(p1.x, p1.y, targetDef.x, targetDef.y, targetDef.yaw, gateWidth)
+                  : [];
                 next.pinky1 = {
                   ...p1,
                   state: "NAVIGATING",
                   targetWp: nextWp,
+                  pathQueue: plan,
                 };
                 changed = true;
                 if (nextWp === "WP_LOAD_1") handleTriggerPick("omx_1");
@@ -254,37 +305,48 @@ export default function Page({ menu }: MenuPageProps) {
           }
         }
 
-        // 2. 이동 로봇 기구학 갱신
+        // 2. 이동 로봇 기구학 및 코리더 서브웨이포인트 큐 갱신
         for (const rid of Object.keys(next)) {
           const r = next[rid];
-          if (r.state === "NAVIGATING" && r.targetWp) {
-            const target = WAYPOINTS.find((wp) => wp.id === r.targetWp);
-            if (target) {
-              const dx = target.x - r.x;
-              const dy = target.y - r.y;
-              const dist = Math.hypot(dx, dy);
-              if (dist > 0.04) {
-                const targetAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
-                const speed = 0.035;
+          if (r.state === "NAVIGATING" && r.pathQueue && r.pathQueue.length > 0) {
+            const currentSubTarget = r.pathQueue[0];
+            const dx = currentSubTarget.x - r.x;
+            const dy = currentSubTarget.y - r.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 0.035) {
+              const targetAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
+              const speed = 0.035;
+              next[rid] = {
+                ...r,
+                x: r.x + Math.cos((targetAngle * Math.PI) / 180) * speed,
+                y: r.y + Math.sin((targetAngle * Math.PI) / 180) * speed,
+                yaw: targetAngle,
+                v: 0.2,
+                w: 0.1,
+              };
+              changed = true;
+            } else {
+              const remainingQueue = r.pathQueue.slice(1);
+              if (remainingQueue.length > 0) {
                 next[rid] = {
                   ...r,
-                  x: r.x + Math.cos((targetAngle * Math.PI) / 180) * speed,
-                  y: r.y + Math.sin((targetAngle * Math.PI) / 180) * speed,
-                  yaw: targetAngle,
-                  v: 0.2,
-                  w: 0.1,
+                  x: currentSubTarget.x,
+                  y: currentSubTarget.y,
+                  pathQueue: remainingQueue,
                 };
                 changed = true;
               } else {
                 next[rid] = {
                   ...r,
-                  x: target.x,
-                  y: target.y,
-                  yaw: target.yaw,
+                  x: currentSubTarget.x,
+                  y: currentSubTarget.y,
+                  yaw: currentSubTarget.yaw !== undefined ? currentSubTarget.yaw : r.yaw,
                   v: 0.0,
                   w: 0.0,
                   state: "DOCKED",
                   targetWp: undefined,
+                  pathQueue: [],
                 };
                 changed = true;
               }
@@ -315,22 +377,30 @@ export default function Page({ menu }: MenuPageProps) {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [simRunning, autoDemo]);
+  }, [simRunning, autoDemo, gateWidth]);
 
-  // 웨이포인트 이동 명령 트리거 (수동 디스패치 시 데모 일시중지)
+  // 웨이포인트 이동 명령 트리거 (게이트 코리더 경로 생성)
   const handleDispatchWaypoint = (rid: string, wpId: string) => {
     setAutoDemo(false);
-    setRobots((prev) => ({
-      ...prev,
-      [rid]: {
-        ...prev[rid],
-        state: "NAVIGATING",
-        targetWp: wpId,
-      },
-    }));
+    const target = WAYPOINTS.find((wp) => wp.id === wpId);
+    if (!target) return;
+
+    setRobots((prev) => {
+      const cur = prev[rid];
+      const plan = generateCorridorPlan(cur.x, cur.y, target.x, target.y, target.yaw, gateWidth);
+      return {
+        ...prev,
+        [rid]: {
+          ...cur,
+          state: "NAVIGATING",
+          targetWp: wpId,
+          pathQueue: plan,
+        },
+      };
+    });
   };
 
-  // 수동 속도 명령 트리거 (조종 시 데모 일시중지)
+  // 수동 속도 명령 트리거 (조종 시 데모 일시중지 및 큐 리셋)
   const handleManualDrive = (vx: number, wz: number) => {
     setAutoDemo(false);
     setRobots((prev) => {
@@ -350,6 +420,7 @@ export default function Page({ menu }: MenuPageProps) {
           w: (wz * Math.PI) / 180,
           state: vx !== 0 || wz !== 0 ? "NAVIGATING" : "IDLE",
           targetWp: undefined,
+          pathQueue: [],
         },
       };
     });
@@ -670,7 +741,7 @@ export default function Page({ menu }: MenuPageProps) {
                 );
               })}
 
-              {/* 핑키 이동 로봇 3대 렌더링 (이동 궤적 잔상 + 라이다 스캔 빔 + 펄스 링) */}
+              {/* 핑키 이동 로봇 3대 렌더링 (이동 궤적 잔상 + 계획 경로 선 + 라이다 스캔 빔 + 펄스 링) */}
               {Object.values(robots).map((bot) => {
                 const bx = toSvgX(bot.x);
                 const by = toSvgY(bot.y);
@@ -710,7 +781,19 @@ export default function Page({ menu }: MenuPageProps) {
                       />
                     )}
 
-                    {/* 2. 맥박 펄스 링 (Ping Ring) */}
+                    {/* 2. 계획 경로 선 (Planned Corridor Path - 67cm 게이트 우회 경로 시각화) */}
+                    {bot.pathQueue && bot.pathQueue.length > 0 && (
+                      <polyline
+                        points={[`${bx},${by}`, ...bot.pathQueue.map((n) => `${toSvgX(n.x)},${toSvgY(n.y)}`)].join(" ")}
+                        fill="none"
+                        stroke={bot.color}
+                        strokeWidth="1.5"
+                        strokeDasharray="3 3"
+                        opacity="0.65"
+                      />
+                    )}
+
+                    {/* 3. 맥박 펄스 링 (Ping Ring) */}
                     <circle
                       cx={bx}
                       cy={by}
@@ -721,7 +804,7 @@ export default function Page({ menu }: MenuPageProps) {
                       opacity={pulseOp}
                     />
 
-                    {/* 3. 360도 회전 라이다 스캔 부채꼴 빔 */}
+                    {/* 4. 360도 회전 라이다 스캔 부채꼴 빔 */}
                     <path
                       d={getSectorPath(bx, by, beamLen, sweepDeg - 18, sweepDeg + 18)}
                       fill={bot.color + "25"}
@@ -740,23 +823,23 @@ export default function Page({ menu }: MenuPageProps) {
                     />
                     <circle cx={tipX} cy={tipY} r="2" fill={bot.color} opacity="0.9" />
 
-                    {/* 4. 선택 강조 링 */}
+                    {/* 5. 선택 강조 링 */}
                     {isSelected && (
                       <circle cx={bx} cy={by} r="18" fill="none" stroke="#ffffff" strokeWidth="2" strokeDasharray="3 3" />
                     )}
 
-                    {/* 5. 로봇 본체 원형 */}
+                    {/* 6. 로봇 본체 원형 */}
                     <circle cx={bx} cy={by} r="12" fill={bot.color} stroke="#ffffff" strokeWidth="1.5" />
 
-                    {/* 6. 헤딩 방향 지시선 */}
+                    {/* 7. 헤딩 방향 지시선 */}
                     <line x1={bx} y1={by} x2={ax} y2={ay} stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
 
-                    {/* 7. 로봇 번호 레이블 */}
+                    {/* 8. 로봇 번호 레이블 */}
                     <text x={bx} y={by + 3.5} textAnchor="middle" fill="#000000" fontSize="9" fontWeight="bold">
                       {bot.id.replace("pinky", "P")}
                     </text>
 
-                    {/* 8. 상태 텍스트 */}
+                    {/* 9. 상태 텍스트 */}
                     <text x={bx} y={by + 22} textAnchor="middle" fill={bot.color} fontSize="8" fontWeight="bold">
                       {bot.state}
                     </text>
