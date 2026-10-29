@@ -5,6 +5,7 @@ picks its environment variables and override arguments. It runs with this app's 
 venv), so the dashboard must release the follower port and the cameras before starting it.
 """
 
+import json
 import os
 import queue
 import re
@@ -55,6 +56,50 @@ def model_label(omx_dir: Path, policy: str, model: Path) -> str:
         return str(Path(model).relative_to(outputs_dir(omx_dir, policy)))
     except ValueError:
         return str(model)
+
+
+def dataset_for_model(model: Path) -> Path | None:
+    """Training dataset of a model folder (<run>/checkpoints/<step>/pretrained_model), when it is on disk.
+
+    Dashboard runs record the host path in <run>.run.json; command-line runs only have train.sh's
+    container path /data/<name>, which is train.sh's default DATA_DIR (<policy>/data) on the host.
+    """
+    model = Path(model)
+    if len(model.parents) < 3:
+        return None
+    run = model.parents[2]
+    candidates = []
+    try:
+        candidates.append(Path(json.loads((run.parent / f"{run.name}.run.json").read_text())["dataset_root"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    try:
+        root = Path(json.loads((model / "train_config.json").read_text())["dataset"]["root"])
+        if root.parts[:2] == ("/", "data") and len(root.parts) > 2:
+            candidates.append(run.parents[2] / "data" / root.relative_to("/data"))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return next((c for c in candidates if (c / "meta" / "info.json").exists()), None)
+
+
+def first_frames(root: Path, episode: int) -> dict:
+    """{camera role: HxWx3 uint8} of the episode's first frame; roles without a video are left out."""
+    import numpy as np
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    ds = LeRobotDataset(f"local/{Path(root).name}", root=root, episodes=[int(episode)])
+    item = ds[0]
+    out = {}
+    prefix = "observation.images."
+    for key in ds.meta.camera_keys:
+        img = item.get(key)
+        if img is None:
+            continue
+        hwc = img.permute(1, 2, 0).numpy() if hasattr(img, "permute") else np.asarray(img)
+        if hwc.dtype != np.uint8:
+            hwc = (hwc * 255).clip(0, 255).astype(np.uint8)
+        out[key[len(prefix):] if key.startswith(prefix) else key] = np.ascontiguousarray(hwc)
+    return out
 
 
 def build_rollout(

@@ -529,6 +529,7 @@ class MainWindow(QMainWindow):
             self.cb_infer_policy.addItem(folder, key)
         self.cb_infer_policy.currentIndexChanged.connect(self._infer_policy_changed)
         self.cb_model = QComboBox()
+        self.cb_model.currentIndexChanged.connect(self._model_changed)
         self.cb_model.setToolTip("학습 결과의 pretrained_model 폴더 (최신 학습, last 먼저)")
         btn_model_pick = QPushButton("폴더 선택")
         btn_model_pick.clicked.connect(self._browse_model)
@@ -566,6 +567,8 @@ class MainWindow(QMainWindow):
         ens_row.addWidget(self.ck_ensemble)
         ens_row.addWidget(self.sp_ens_k)
         ens_row.addWidget(self.sp_ens_m)
+        self.ck_infer_view = QCheckBox("실시간 보기 (rerun 창: 카메라·관절값)")
+        self.ck_infer_view.setToolTip("lerobot --display_data=true. 화면 표시에 CPU를 써서 제어 주기가 조금 느려질 수 있습니다")
         self.ed_infer_extra = QLineEdit()
         self.ed_infer_extra.setPlaceholderText("예: --policy.n_action_steps=20 --robot.max_relative_target=5")
         self.lbl_infer_hw = QLabel()
@@ -575,6 +578,7 @@ class MainWindow(QMainWindow):
         of.addRow("실행 시간", self.sp_infer_duration)
         of.addRow("장치", self.cb_infer_device)
         of.addRow("앙상블", ens_row)
+        of.addRow("", self.ck_infer_view)
         of.addRow("추가 인자", self.ed_infer_extra)
         of.addRow("", self.lbl_infer_hw)
         left.addWidget(obox)
@@ -609,6 +613,42 @@ class MainWindow(QMainWindow):
         self.lbl_infer_stat = QLabel("대기")
         self.lbl_infer_stat.setStyleSheet("font-family:monospace;font-size:13px;")
         right.addWidget(self.lbl_infer_stat)
+
+        sbox = QGroupBox("장면 맞추기 (학습 데이터 첫 프레임 ↔ 지금 카메라)")
+        sg = QGridLayout(sbox)
+        self.ed_ref_data = QLineEdit()
+        self.ed_ref_data.setPlaceholderText("모델을 고르면 학습 데이터셋을 자동으로 찾습니다")
+        self.ed_ref_data.editingFinished.connect(self._load_ref)
+        btn_ref_pick = QPushButton("데이터셋 폴더 선택")
+        btn_ref_pick.clicked.connect(self._browse_ref_data)
+        self.sp_ref_ep = QSpinBox()
+        self.sp_ref_ep.setPrefix("에피소드 ")
+        self.sp_ref_ep.valueChanged.connect(lambda _v: self._load_ref())
+        self.btn_live_cams = QPushButton("카메라 연결")
+        self.btn_live_cams.setToolTip("설정 탭의 카메라를 열어 지금 화면을 보여 줍니다 (추론을 시작하면 자동으로 놓습니다)")
+        self.btn_live_cams.clicked.connect(self._connect_cameras)
+        srow = QHBoxLayout()
+        srow.addWidget(self.ed_ref_data, 1)
+        for w in (btn_ref_pick, self.sp_ref_ep, self.btn_live_cams):
+            w.setFocusPolicy(Qt.NoFocus)
+            srow.addWidget(w)
+        sg.addLayout(srow, 0, 0, 1, 3)
+        self.ref_labels, self.live_labels = {}, {}
+        for c, role in enumerate(("top", "wrist"), start=1):
+            sg.addWidget(QLabel(role), 1, c, Qt.AlignCenter)
+            for r, (title, store) in enumerate((("기준", self.ref_labels), ("지금", self.live_labels)), start=2):
+                if c == 1:
+                    sg.addWidget(QLabel(title), r, 0)
+                lbl = QLabel()
+                lbl.setFixedSize(320, 240)
+                lbl.setAlignment(Qt.AlignCenter)
+                lbl.setStyleSheet("background:#111;color:#888;")
+                store[role] = lbl
+                sg.addWidget(lbl, r, c)
+        right.addWidget(sbox)
+        self.ref_frames: dict = {}
+        self.ref_request = 0  # only the latest load may fill the reference labels
+
         self.infer_log = QPlainTextEdit()
         self.infer_log.setReadOnly(True)
         self.infer_log.setFocusPolicy(Qt.ClickFocus)
@@ -668,6 +708,7 @@ class MainWindow(QMainWindow):
         self.ck_ensemble.setChecked(bool(i["ensemble"]))
         self.sp_ens_k.setValue(int(i["ensemble_k"]))
         self.sp_ens_m.setValue(float(i["ensemble_m"]))
+        self.ck_infer_view.setChecked(bool(i.get("display", False)))
         self._load_infer_params()
 
     def _collect_settings(self) -> dict:
@@ -722,6 +763,7 @@ class MainWindow(QMainWindow):
             "ensemble": self.ck_ensemble.isChecked(),
             "ensemble_k": self.sp_ens_k.value(),
             "ensemble_m": self.sp_ens_m.value(),
+            "display": self.ck_infer_view.isChecked(),
         }
         return c
 
@@ -1179,6 +1221,8 @@ class MainWindow(QMainWindow):
         if select is None:
             select = self.cb_model.currentData() or ""
         omx, policy = self.inferencer.omx_dir, self._infer_policy()
+        before = self.cb_model.currentData()
+        self.cb_model.blockSignals(True)
         self.cb_model.clear()
         paths = [str(p) for p in inferencer.list_models(omx, policy)]
         if select and select not in paths and Path(select).is_dir():
@@ -1186,6 +1230,59 @@ class MainWindow(QMainWindow):
         for p in paths:
             self.cb_model.addItem(inferencer.model_label(omx, policy, Path(p)), p)
         self.cb_model.setCurrentIndex(max(self.cb_model.findData(select), 0))
+        self.cb_model.blockSignals(False)
+        if self.cb_model.currentData() != before or not self.ed_ref_data.text():
+            self._model_changed()
+
+    def _model_changed(self, _index: int = -1):
+        """Point the scene reference at the selected model's training data."""
+        model = self.cb_model.currentData()
+        root = inferencer.dataset_for_model(Path(model)) if model else None
+        self.ed_ref_data.setText(str(root) if root else "")
+        self.sp_ref_ep.blockSignals(True)
+        self.sp_ref_ep.setValue(0)
+        self.sp_ref_ep.blockSignals(False)
+        self._load_ref()
+
+    def _browse_ref_data(self):
+        start = self.ed_ref_data.text() or str(Path.home())
+        d = QFileDialog.getExistingDirectory(self, "학습 데이터셋 폴더 선택 (meta/info.json이 있는 폴더)", start)
+        if d:
+            self.ed_ref_data.setText(d)
+            self._load_ref()
+
+    def _show_ref(self, text: str = ""):
+        for role, lbl in self.ref_labels.items():
+            img = self.ref_frames.get(role)
+            if img is not None:
+                lbl.setPixmap(to_pixmap(img, lbl.width(), lbl.height()))
+            else:
+                lbl.clear()
+                lbl.setText(text or "데이터 없음")
+
+    def _load_ref(self):
+        """Read the episode's first frame in the background; decoding video takes a few seconds."""
+        self.ref_request += 1
+        req = self.ref_request
+        self.ref_frames = {}
+        root = Path(self.ed_ref_data.text().strip()) if self.ed_ref_data.text().strip() else None
+        eps = trainer.episode_count(root) if root else 0
+        self.sp_ref_ep.blockSignals(True)
+        self.sp_ref_ep.setMaximum(max(eps - 1, 0))
+        self.sp_ref_ep.blockSignals(False)
+        if eps == 0:
+            self._show_ref("학습 데이터셋 없음 (폴더 선택)" if root is None else "데이터셋을 읽을 수 없습니다")
+            return
+        ep = self.sp_ref_ep.value()
+        self._show_ref("불러오는 중...")
+
+        def work():
+            try:
+                self.ui_events.put(("ref_frames", (req, inferencer.first_frames(root, ep))))
+            except Exception as e:  # noqa: BLE001
+                self.ui_events.put(("ref_frames", (req, f"불러오기 실패: {e}")))
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _browse_model(self):
         start = self.cb_model.currentData() or str(trainer.outputs_dir(self.inferencer.omx_dir, self._infer_policy()))
@@ -1215,7 +1312,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "모델", "실행할 모델을 고르세요.")
             return
         try:
-            extra = trainer.split_extra_args(self.ed_infer_extra.text())
+            # Before the typed arguments, so an explicit --display_data there still wins.
+            extra = ["--display_data=true"] if self.ck_infer_view.isChecked() else []
+            extra += trainer.split_extra_args(self.ed_infer_extra.text())
             self._collect_settings()
         except ValueError as e:
             QMessageBox.warning(self, "설정 오류", str(e))
@@ -1279,6 +1378,15 @@ class MainWindow(QMainWindow):
             elif role not in self.cameras.roles:
                 lbl.clear()
                 lbl.setText("카메라 없음")
+        for role, lbl in self.live_labels.items():
+            img = None if self.inferencer.running else self.cameras.latest(role)
+            if img is not None:
+                lbl.setPixmap(to_pixmap(img, lbl.width(), lbl.height()))
+            elif self.inferencer.running or role not in self.cameras.roles:
+                text = "추론 중 — rerun 창에서 확인" if self.inferencer.running else "카메라 꺼짐 (카메라 연결)"
+                if lbl.text() != text:  # avoid re-setting the same text every tick
+                    lbl.clear()
+                    lbl.setText(text)
         self._refresh()
 
     def _handle_event(self, kind, payload):
@@ -1334,6 +1442,14 @@ class MainWindow(QMainWindow):
             if ok:
                 self.pb_train.setValue(self.pb_train.maximum())
             self._refresh_runs()
+        elif kind == "ref_frames":
+            req, result = payload
+            if req == self.ref_request:
+                if isinstance(result, str):
+                    self._show_ref(result)
+                else:
+                    self.ref_frames = result
+                    self._show_ref()
         elif kind == "infer_log":
             self.infer_log.appendPlainText(payload)
         elif kind == "infer_done":
@@ -1423,6 +1539,7 @@ class MainWindow(QMainWindow):
         self.btn_infer_stop.setStyleSheet(STYLE_RED if stop_ok else "")
         self.infer_box.setEnabled(not inferring)
         self.infer_model_box.setEnabled(not inferring)
+        self.btn_live_cams.setEnabled(not inferring and not running and not self.cameras.roles)
         if inferring:
             t = int(self.inferencer.elapsed())
             self.lbl_infer_stat.setText(f"{'중지 중' if self.inferencer.stop_requested else '실행 중'}   경과 {t // 60:d}:{t % 60:02d}")
