@@ -58,6 +58,16 @@ DEFAULTS = {
         "wandb": False,
         "holdout_episodes": "",
     },
+    "infer": {
+        # Inference runs omx_train/<policy>/inference.sh with this app's Python (lerobot 0.6.1).
+        "policy": "act",
+        # policy -> {model, device, duration, extra_args}; missing values = inference.sh values
+        "params": {},
+        "task": "",
+        "ensemble": False,
+        "ensemble_k": 5,
+        "ensemble_m": 0.01,
+    },
 }
 
 

@@ -51,3 +51,10 @@ train:
   params: {}
   wandb: false
   holdout_episodes: ''
+infer:
+  policy: act
+  params: {}
+  task: ''
+  ensemble: false
+  ensemble_k: 5
+  ensemble_m: 0.01

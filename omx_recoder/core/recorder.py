@@ -66,22 +66,28 @@ def _same_features(a: dict, b: dict) -> bool:
     return True
 
 
-def _flush(ds) -> None:
-    """Close parquet writers so files on disk are valid even if the app crashes later."""
-    from lerobot.datasets.utils import update_chunk_file_indices
+def _writer_kwargs(vcodec: str) -> dict:
+    from lerobot.configs import RGBEncoderConfig
 
-    ds._close_writer()
-    ds.meta._close_writer()
-    ds._writer_closed_for_reading = True
-    # LeRobot reopens a closed episodes-metadata writer on the same file, truncating it.
-    # Point the next episode at a new metadata file instead (the data parquet does this via the flag above).
-    latest = ds.meta.latest_episode
-    if latest is not None:
-        chunk_idx, file_idx = update_chunk_file_indices(
-            latest["meta/episodes/chunk_index"][0], latest["meta/episodes/file_index"][0], ds.meta.chunks_size
-        )
-        latest["meta/episodes/chunk_index"] = [chunk_idx]
-        latest["meta/episodes/file_index"] = [file_idx]
+    # Frames go straight to per-camera encoders while recording (no temp PNGs), so a
+    # discarded take leaves nothing on disk that could leak into the next episode's video.
+    return {
+        "rgb_encoder": RGBEncoderConfig(vcodec=vcodec),
+        "streaming_encoding": True,
+        "encoder_queue_maxsize": ENCODER_QUEUE_FRAMES,
+    }
+
+
+def _reopen(ds, writer_kwargs: dict):
+    """Finalize so files on disk are valid even if the app crashes later, then reopen for writing.
+
+    A closed parquet writer would be reopened on the same file and truncate it; resume() reads the
+    episodes back from disk and starts the next episode in new data and metadata files.
+    """
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    ds.finalize()
+    return LeRobotDataset.resume(ds.repo_id, root=ds.root, **writer_kwargs)
 
 
 def _remove_stale_encoder_dirs(root: Path) -> None:
@@ -96,6 +102,7 @@ class Recorder:
         self.datasets = {}
         self.task_dir: Path | None = None
         self.fps = 30
+        self._writer_kwargs: dict = {}
         self._busy = threading.Event()
         self._lock = threading.Lock()
         self.on_event = lambda kind, payload: None
@@ -130,9 +137,7 @@ class Recorder:
         self.task_dir = Path(task_dir)
         self.fps = fps
         features = build_features(camera_shapes)
-        # Frames go straight to per-camera encoders while recording (no temp PNGs), so a
-        # discarded take leaves nothing on disk that could leak into the next episode's video.
-        streaming = {"streaming_encoding": True, "encoder_queue_maxsize": ENCODER_QUEUE_FRAMES}
+        self._writer_kwargs = _writer_kwargs(vcodec)
         user = hub_user or "local"
         opened = {}
         for kind in KINDS:
@@ -157,8 +162,7 @@ class Recorder:
                             "설정을 맞추거나 다른 태스크명을 사용하세요."
                         )
                     _remove_stale_encoder_dirs(root)
-                    ds = LeRobotDataset(repo_id, root=root, vcodec=vcodec, **streaming)
-                    _flush(ds)
+                    ds = LeRobotDataset.resume(repo_id, root=root, **self._writer_kwargs)
             if ds is None:
                 root.parent.mkdir(parents=True, exist_ok=True)
                 ds = LeRobotDataset.create(
@@ -168,8 +172,7 @@ class Recorder:
                     root=root,
                     robot_type="omx_follower",
                     use_videos=True,
-                    vcodec=vcodec,
-                    **streaming,
+                    **self._writer_kwargs,
                 )
             info_file = root / "meta" / INFO_FILE
             info_file.write_text(json.dumps({"units": UNITS, "kind": kind}, ensure_ascii=False, indent=2))
@@ -198,9 +201,9 @@ class Recorder:
 
     def buffer_size(self) -> int:
         ds = self.datasets.get("success")
-        if ds is None or ds.episode_buffer is None:
+        if ds is None or ds.writer is None or ds.writer.episode_buffer is None:
             return 0
-        return ds.episode_buffer["size"]
+        return ds.writer.episode_buffer["size"]
 
     def finish(self, outcome: str, meta: dict) -> None:
         """outcome: success | fail | discard. Runs in background thread."""
@@ -215,7 +218,7 @@ class Recorder:
                 src.clear_episode_buffer()
                 self.on_event("saved", {"outcome": "discard", "frames": size})
                 return
-            enc = src._streaming_encoder  # None when no camera is configured
+            enc = src.writer._streaming_encoder  # None when no camera is configured
             dropped = sum(enc._dropped_frames.values()) if enc is not None else 0
             if dropped:
                 # The videos would be shorter than the parquet and every later frame misaligned.
@@ -228,14 +231,12 @@ class Recorder:
                 self.on_event("saved", {"outcome": "discard", "frames": size})
                 return
             if outcome == "success":
-                ep_idx = self._save(src, src.episode_buffer, 1)
-                dst = src
+                kind, buf = "success", src.writer.episode_buffer
             else:
-                dst = self.datasets["fail"]
-                buf = self._transfer(src, dst)
-                src.episode_buffer = src.create_episode_buffer()
-                ep_idx = self._save(dst, buf, 0)
-            self._write_sidecar(dst, ep_idx, outcome, size, meta)
+                kind, buf = "fail", self._transfer(src, self.datasets["fail"])
+                src.writer.episode_buffer = src.writer._create_episode_buffer()
+            ep_idx = self._save(kind, buf, 1 if outcome == "success" else 0)
+            self._write_sidecar(self.datasets[kind], ep_idx, outcome, size, meta)
             self.on_event("saved", {"outcome": outcome, "frames": size, "episode_index": ep_idx})
         except Exception as e:  # noqa: BLE001
             logger.exception("save failed")
@@ -243,31 +244,32 @@ class Recorder:
             try:
                 # After a fail transfer the in-progress encoder belongs to the fail dataset.
                 for ds in self.datasets.values():
-                    if ds._streaming_encoder is not None:
-                        ds._streaming_encoder.cancel_episode()
+                    if ds.writer is not None:
+                        ds.writer.cancel_pending_videos()
                 self.datasets["success"].clear_episode_buffer()
             except Exception:  # noqa: BLE001
                 pass
         finally:
             self._busy.clear()
 
-    def _save(self, ds, buf, success: int) -> int:
+    def _save(self, kind: str, buf, success: int) -> int:
+        ds = self.datasets[kind]
         n = buf["size"]
         buf["episode_success"] = [np.array([success], dtype=np.int64) for _ in range(n)]
         ep_idx = int(buf["episode_index"])
         ds.save_episode(episode_data=buf, parallel_encoding=False)
-        ds.episode_buffer = ds.create_episode_buffer()
-        _flush(ds)
+        self.datasets[kind] = _reopen(ds, self._writer_kwargs)
         return ep_idx
 
     @staticmethod
     def _transfer(src, dst) -> dict:
         """Move the recorded episode (buffer + in-progress video encoder) from the success dataset to the fail dataset."""
-        buf = src.episode_buffer
+        buf = src.writer.episode_buffer
         buf["episode_index"] = dst.meta.total_episodes
         # The frames were streamed into src's encoder. Swap encoders so dst.save_episode finishes this
         # episode, and src keeps an idle one (same fps/codec settings) for the next take.
-        src._streaming_encoder, dst._streaming_encoder = dst._streaming_encoder, src._streaming_encoder
+        sw, dw = src.writer, dst.writer
+        sw._streaming_encoder, dw._streaming_encoder = dw._streaming_encoder, sw._streaming_encoder
         return buf
 
     def _write_sidecar(self, ds, ep_idx: int, outcome: str, frames: int, meta: dict) -> None:

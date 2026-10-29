@@ -34,17 +34,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import hub, trainer
-from core.cameras import CameraManager
+from core import hub, inferencer, trainer
+from core.cameras import CameraManager, role_alias
 from core.config import (
     APP_DIR,
     CAMERA_ROLES,
     MOTORS,
     load_config,
     load_poses,
+    parse_cam_index,
     save_config,
     save_poses,
 )
+from core.inferencer import Inferencer
+from core.ports import resolve_arm_ports
 from core.recorder import Recorder
 from core.robot_ctrl import Mode, RobotController
 from core.trainer import Trainer
@@ -87,10 +90,13 @@ class MainWindow(QMainWindow):
         self.train_episodes: list[int] | None = None  # None = every episode
         self.train_holdout: list[int] = []
         self.train_split_error = ""
+        self.inferencer = Inferencer(self._omx_dir())
+        self.infer_policy = ""  # policy whose values the inference box currently shows
 
         tabs = QTabWidget()
         tabs.addTab(self._build_dashboard(), "대시보드")
         tabs.addTab(self._build_train(), "학습")
+        tabs.addTab(self._build_infer(), "추론")
         tabs.addTab(self._build_settings(), "설정")
         self.setCentralWidget(tabs)
         self._load_settings_to_ui()
@@ -510,6 +516,107 @@ class MainWindow(QMainWindow):
         right.addWidget(self.train_log, 1)
         return root
 
+    def _build_infer(self) -> QWidget:
+        root = QWidget()
+        h = QHBoxLayout(root)
+        left = QVBoxLayout()
+        h.addLayout(left, 1)
+
+        mbox = QGroupBox("모델 (omx_train/<정책>/outputs/train)")
+        mf = QFormLayout(mbox)
+        self.cb_infer_policy = QComboBox()
+        for key, folder in trainer.POLICIES.items():
+            self.cb_infer_policy.addItem(folder, key)
+        self.cb_infer_policy.currentIndexChanged.connect(self._infer_policy_changed)
+        self.cb_model = QComboBox()
+        self.cb_model.setToolTip("학습 결과의 pretrained_model 폴더 (최신 학습, last 먼저)")
+        btn_model_pick = QPushButton("폴더 선택")
+        btn_model_pick.clicked.connect(self._browse_model)
+        btn_model_refresh = QPushButton("새로고침")
+        btn_model_refresh.clicked.connect(lambda: self._refresh_models())
+        mrow = QHBoxLayout()
+        mrow.addWidget(self.cb_model, 1)
+        for b in (btn_model_pick, btn_model_refresh):
+            b.setFocusPolicy(Qt.NoFocus)
+            mrow.addWidget(b)
+        mf.addRow("정책", self.cb_infer_policy)
+        mf.addRow("모델", mrow)
+        left.addWidget(mbox)
+
+        obox = QGroupBox("실행 설정 (inference.sh에 덮어쓸 값)")
+        of = QFormLayout(obox)
+        self.ed_infer_task = QLineEdit()
+        self.ed_infer_task.setPlaceholderText("비우면 inference.sh의 문장 (SmolVLA는 학습 데이터 문장과 같아야 함)")
+        self.sp_infer_duration = QSpinBox()
+        self.sp_infer_duration.setRange(0, 3600)
+        self.sp_infer_duration.setSuffix(" 초")
+        self.sp_infer_duration.setSpecialValueText("무한 (중지할 때까지)")
+        self.cb_infer_device = QComboBox()
+        self.cb_infer_device.addItems(["cpu", "cuda"])
+        self.ck_ensemble = QCheckBox("k스텝 temporal ensembling (ACT 전용)")
+        self.sp_ens_k = QSpinBox()
+        self.sp_ens_k.setRange(1, 100)
+        self.sp_ens_k.setPrefix("k = ")
+        self.sp_ens_m = QDoubleSpinBox()
+        self.sp_ens_m.setRange(-1.0, 1.0)
+        self.sp_ens_m.setDecimals(3)
+        self.sp_ens_m.setSingleStep(0.01)
+        self.sp_ens_m.setPrefix("m = ")
+        ens_row = QHBoxLayout()
+        ens_row.addWidget(self.ck_ensemble)
+        ens_row.addWidget(self.sp_ens_k)
+        ens_row.addWidget(self.sp_ens_m)
+        self.ed_infer_extra = QLineEdit()
+        self.ed_infer_extra.setPlaceholderText("예: --policy.n_action_steps=20 --robot.max_relative_target=5")
+        self.lbl_infer_hw = QLabel()
+        self.lbl_infer_hw.setWordWrap(True)
+        self.lbl_infer_hw.setStyleSheet("color:#888;")
+        of.addRow("작업 문장", self.ed_infer_task)
+        of.addRow("실행 시간", self.sp_infer_duration)
+        of.addRow("장치", self.cb_infer_device)
+        of.addRow("앙상블", ens_row)
+        of.addRow("추가 인자", self.ed_infer_extra)
+        of.addRow("", self.lbl_infer_hw)
+        left.addWidget(obox)
+        self.infer_box = obox
+        self.infer_model_box = mbox
+
+        xbox = QGroupBox("실행")
+        xv = QVBoxLayout(xbox)
+        self.btn_infer = QPushButton("추론 시작")
+        self.btn_infer_stop = QPushButton("중지")
+        for b in (self.btn_infer, self.btn_infer_stop):
+            b.setMinimumHeight(48)
+            b.setFocusPolicy(Qt.NoFocus)
+        self.btn_infer.clicked.connect(self._start_infer)
+        self.btn_infer_stop.clicked.connect(self.inferencer.stop)
+        xrow = QHBoxLayout()
+        xrow.addWidget(self.btn_infer, 2)
+        xrow.addWidget(self.btn_infer_stop, 1)
+        xv.addLayout(xrow)
+        note = QLabel(
+            "로봇이 정책대로 움직입니다. 주변을 비우고 언제든 중지를 누를 수 있게 하세요. "
+            "대시보드에서 BringUp 중이면 먼저 Servo OFF 하세요 (팔로워 포트와 카메라를 추론에 넘겨줍니다)."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#888;")
+        xv.addWidget(note)
+        left.addWidget(xbox)
+        left.addStretch()
+
+        right = QVBoxLayout()
+        h.addLayout(right, 2)
+        self.lbl_infer_stat = QLabel("대기")
+        self.lbl_infer_stat.setStyleSheet("font-family:monospace;font-size:13px;")
+        right.addWidget(self.lbl_infer_stat)
+        self.infer_log = QPlainTextEdit()
+        self.infer_log.setReadOnly(True)
+        self.infer_log.setFocusPolicy(Qt.ClickFocus)
+        self.infer_log.setMaximumBlockCount(2000)
+        right.addWidget(QLabel("추론 로그 (첫 줄 = 같은 추론을 터미널에서 실행하는 명령)"))
+        right.addWidget(self.infer_log, 1)
+        return root
+
     # ================================================================== settings io
     def _load_settings_to_ui(self):
         c = self.cfg
@@ -553,6 +660,15 @@ class MainWindow(QMainWindow):
         self._load_train_params()
         self._check_docker()
         self._update_train_data()
+        i = c["infer"]
+        self.cb_infer_policy.blockSignals(True)
+        self.cb_infer_policy.setCurrentIndex(max(self.cb_infer_policy.findData(i["policy"]), 0))
+        self.cb_infer_policy.blockSignals(False)
+        self.ed_infer_task.setText(i["task"])
+        self.ck_ensemble.setChecked(bool(i["ensemble"]))
+        self.sp_ens_k.setValue(int(i["ensemble_k"]))
+        self.sp_ens_m.setValue(float(i["ensemble_m"]))
+        self._load_infer_params()
 
     def _collect_settings(self) -> dict:
         c = self.cfg
@@ -596,6 +712,17 @@ class MainWindow(QMainWindow):
             "wandb": self.ck_wandb.isChecked(),
             "holdout_episodes": self.ed_holdout.text().strip(),
         }
+        iparams = dict(c["infer"].get("params") or {})
+        if self.infer_policy:
+            iparams[self.infer_policy] = self._infer_params()
+        c["infer"] = {
+            "policy": self._infer_policy(),
+            "params": iparams,
+            "task": self.ed_infer_task.text().strip(),
+            "ensemble": self.ck_ensemble.isChecked(),
+            "ensemble_k": self.sp_ens_k.value(),
+            "ensemble_m": self.sp_ens_m.value(),
+        }
         return c
 
     def _save_settings(self) -> bool:
@@ -606,7 +733,7 @@ class MainWindow(QMainWindow):
             return False
         save_config(self.cfg)
         self._log("설정 저장 완료")
-        if self.session and not self.ctrl.running:
+        if self.session and not self.ctrl.running and not self.inferencer.running:
             self._connect_cameras()
         return True
 
@@ -647,7 +774,7 @@ class MainWindow(QMainWindow):
         self._log(f"카메라 연결: {', '.join(f'{r}({p})' for r, p in paths.items()) if paths else '없음'}")
 
     def _find_cameras(self):
-        if self.ctrl.running:
+        if self.ctrl.running or self.inferencer.running:
             return
         self.cameras.disconnect()
         cur = {r: {"index_or_path": self.cam_edits[r][0].text()} for r in CAMERA_ROLES}
@@ -660,7 +787,7 @@ class MainWindow(QMainWindow):
             self._connect_cameras()
 
     def _bringup(self):
-        if not self.session or self.ctrl.running:
+        if not self.session or self.ctrl.running or self.inferencer.running:
             return
         if not self._save_settings():
             return
@@ -1014,9 +1141,131 @@ class MainWindow(QMainWindow):
         if d:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
 
+    # ================================================================== inference (omx_train/<policy>/inference.sh)
+    def _infer_policy(self) -> str:
+        return self.cb_infer_policy.currentData() or "act"
+
+    def _infer_params(self) -> dict:
+        return {
+            "model": self.cb_model.currentData() or "",
+            "device": self.cb_infer_device.currentText(),
+            "duration": self.sp_infer_duration.value(),
+            "extra_args": self.ed_infer_extra.text().strip(),
+        }
+
+    def _load_infer_params(self):
+        """Fill the inference box for the selected policy: its saved values over inference.sh's."""
+        policy = self._infer_policy()
+        self.infer_policy = policy
+        script = inferencer.inference_script(self.inferencer.omx_dir, policy)
+        try:
+            defaults = inferencer.script_defaults(script)
+        except OSError:
+            defaults = {}
+            self._log(f"inference.sh를 찾을 수 없습니다: {script}", error=True)
+        saved = (self.cfg["infer"].get("params") or {}).get(policy) or {}
+        self.cb_infer_device.setCurrentText(saved.get("device") or defaults.get("policy.device", "cpu"))
+        self.sp_infer_duration.setValue(int(saved.get("duration", defaults.get("duration", 30))))
+        self.ed_infer_extra.setText(saved.get("extra_args", ""))
+        self._refresh_models(saved.get("model", ""))
+
+    def _infer_policy_changed(self, _index: int):
+        if self.infer_policy:
+            self.cfg["infer"].setdefault("params", {})[self.infer_policy] = self._infer_params()
+        self._load_infer_params()
+
+    def _refresh_models(self, select: str | None = None):
+        """select None keeps the current model (refresh button); a policy change passes its own."""
+        if select is None:
+            select = self.cb_model.currentData() or ""
+        omx, policy = self.inferencer.omx_dir, self._infer_policy()
+        self.cb_model.clear()
+        paths = [str(p) for p in inferencer.list_models(omx, policy)]
+        if select and select not in paths and Path(select).is_dir():
+            paths.insert(0, select)  # a folder picked by hand
+        for p in paths:
+            self.cb_model.addItem(inferencer.model_label(omx, policy, Path(p)), p)
+        self.cb_model.setCurrentIndex(max(self.cb_model.findData(select), 0))
+
+    def _browse_model(self):
+        start = self.cb_model.currentData() or str(trainer.outputs_dir(self.inferencer.omx_dir, self._infer_policy()))
+        d = QFileDialog.getExistingDirectory(self, "모델 폴더 선택 (config.json이 있는 pretrained_model)", start)
+        if not d:
+            return
+        if not (Path(d) / "config.json").exists():
+            QMessageBox.warning(self, "모델 폴더", "config.json이 없습니다. pretrained_model 폴더를 고르세요.")
+            return
+        self._refresh_models(d)
+
+    def _infer_cameras(self) -> dict[str, str]:
+        """Camera paths from the settings tab, or the /dev/cam_* aliases when a path is empty."""
+        out = {}
+        for role in ("top", "wrist"):
+            idx = parse_cam_index(self.cfg["cameras"][role].get("index_or_path"))
+            idx = idx if idx is not None else role_alias(role)
+            if idx is not None:
+                out[role] = f"/dev/video{idx}" if isinstance(idx, int) else idx
+        return out
+
+    def _start_infer(self):
+        if self.inferencer.running or self.ctrl.running or self.recorder.busy:
+            return
+        model = self.cb_model.currentData()
+        if not model or not Path(model).is_dir():
+            QMessageBox.warning(self, "모델", "실행할 모델을 고르세요.")
+            return
+        try:
+            extra = trainer.split_extra_args(self.ed_infer_extra.text())
+            self._collect_settings()
+        except ValueError as e:
+            QMessageBox.warning(self, "설정 오류", str(e))
+            return
+        save_config(self.cfg)
+        cams = self._infer_cameras()
+        missing = [r for r in ("top", "wrist") if r not in cams]
+        if missing:
+            QMessageBox.warning(self, "카메라", f"{', '.join(missing)} 카메라 경로가 없습니다. 설정 탭에서 지정하세요.")
+            return
+        self._log("추론: 팔로워 포트 확인 중...")
+        QApplication.processEvents()
+        ports, notes = resolve_arm_ports(self.cfg["robot"]["follower_port"], "")
+        for n in notes:
+            self._log(n)
+        port = ports.get("follower")
+        if not port:
+            QMessageBox.warning(self, "팔로워암", "팔로워암을 찾지 못했습니다. USB·전원(12V)을 확인하세요.")
+            return
+        policy = self._infer_policy()
+        ens = (self.sp_ens_k.value(), self.sp_ens_m.value()) if self.ck_ensemble.isChecked() and policy == "act" else None
+        argv, env = inferencer.build_rollout(
+            self.inferencer.omx_dir,
+            policy,
+            Path(model),
+            port,
+            cams,
+            self.cfg["robot"]["follower_id"],
+            self.ed_infer_task.text().strip(),
+            self.sp_infer_duration.value(),
+            self.cb_infer_device.currentText(),
+            ens,
+            extra,
+        )
+        dur = self.sp_infer_duration.value()
+        msg = (
+            f"로봇이 정책대로 움직입니다.\n\n모델: {self.cb_model.currentText()}\n"
+            f"시간: {f'{dur}초' if dur else '중지할 때까지'}\n\n로봇 주변을 비웠나요?"
+        )
+        if QMessageBox.question(self, "추론 시작", msg) != QMessageBox.Yes:
+            return
+        # lerobot opens the cameras itself; the dashboard previews would hold them.
+        self.cameras.disconnect()
+        self._log(f"추론 시작: {trainer.POLICIES[policy]} · {self.cb_model.currentText()} (포트 {port})")
+        self.infer_log.appendPlainText("")
+        self.inferencer.start(argv, env)
+
     # ================================================================== loop
     def _tick(self):
-        for q in (self.ctrl.events, self.ui_events, self.trainer.events):
+        for q in (self.ctrl.events, self.ui_events, self.trainer.events, self.inferencer.events):
             while True:
                 try:
                     kind, payload = q.get_nowait()
@@ -1085,6 +1334,21 @@ class MainWindow(QMainWindow):
             if ok:
                 self.pb_train.setValue(self.pb_train.maximum())
             self._refresh_runs()
+        elif kind == "infer_log":
+            self.infer_log.appendPlainText(payload)
+        elif kind == "infer_done":
+            if payload == 0:
+                self._log("추론 완료")
+                head = "완료"
+            elif self.inferencer.stop_requested:
+                self._log("추론 중지됨")
+                head = "중지됨"
+            else:
+                self._log(f"추론 비정상 종료 (코드 {payload}) — 추론 탭 로그를 확인하세요", error=True)
+                head = f"오류 (코드 {payload})"
+            self.lbl_infer_stat.setText(head)
+            if self.session and not self.ctrl.running:
+                self._connect_cameras()
         elif kind == "build_done":
             if payload == 0:
                 self._log("학습 이미지 빌드 완료")
@@ -1103,12 +1367,15 @@ class MainWindow(QMainWindow):
         saving = self.recorder.busy
         active = running and mode in (Mode.MOVING, Mode.HOLD, Mode.TELEOP, Mode.FAULT)
 
-        self.btn_session.setEnabled(not running)
-        self.ed_output.setEnabled(not running)
-        self.ed_task_name.setEnabled(not running)
+        inferring = self.inferencer.running
+        # Inference owns the follower port and the cameras while it runs.
+        locked = running or inferring
+        self.btn_session.setEnabled(not locked)
+        self.ed_output.setEnabled(not locked)
+        self.ed_task_name.setEnabled(not locked)
         for b in self.settings_boxes:
-            b.setEnabled(not running)
-        self.btn_bringup.setEnabled(bool(self.session) and not running)
+            b.setEnabled(not locked)
+        self.btn_bringup.setEnabled(bool(self.session) and not locked)
         self.btn_servo_off.setEnabled(active and not recording and mode != Mode.MOVING)
         # Poses are read from the leader, so it must be free to move (TELEOP).
         pose_ok = running and mode == Mode.TELEOP and not recording and not pending
@@ -1131,7 +1398,9 @@ class MainWindow(QMainWindow):
 
         training = self.trainer.running
         busy = self.trainer.busy
-        can_train = not busy and not recording and not pending and not saving and self.docker_ok and self.image_ok
+        can_train = (
+            not busy and not recording and not pending and not saving and not inferring and self.docker_ok and self.image_ok
+        )
         self.train_box.setEnabled(not busy)
         self.train_data_box.setEnabled(not busy)
         self.btn_build.setEnabled(self.docker_ok and not busy)
@@ -1145,6 +1414,26 @@ class MainWindow(QMainWindow):
         if training:
             t = int(self.trainer.elapsed())
             self.lbl_train_out.setText(f"출력: {self.trainer.out_dir}\n경과 {t // 3600:d}:{t // 60 % 60:02d}:{t % 60:02d}")
+
+        can_infer = not inferring and not running and not saving and self.cb_model.count() > 0
+        self.btn_infer.setEnabled(can_infer)
+        self.btn_infer.setStyleSheet(STYLE_GREEN if can_infer else "")
+        stop_ok = inferring and not self.inferencer.stop_requested
+        self.btn_infer_stop.setEnabled(stop_ok)
+        self.btn_infer_stop.setStyleSheet(STYLE_RED if stop_ok else "")
+        self.infer_box.setEnabled(not inferring)
+        self.infer_model_box.setEnabled(not inferring)
+        if inferring:
+            t = int(self.inferencer.elapsed())
+            self.lbl_infer_stat.setText(f"{'중지 중' if self.inferencer.stop_requested else '실행 중'}   경과 {t // 60:d}:{t % 60:02d}")
+        elif running:
+            self.lbl_infer_hw.setText("BringUp 중입니다. 추론하려면 대시보드에서 Servo OFF 하세요.")
+        else:
+            cams = self._infer_cameras()
+            self.lbl_infer_hw.setText(
+                f"팔로워 포트: {self.cfg['robot']['follower_port'] or 'auto'} · id {self.cfg['robot']['follower_id']}\n"
+                f"카메라: top {cams.get('top', '없음')} · wrist {cams.get('wrist', '없음')} (설정 탭 값)"
+            )
 
         if recording:
             t = s.get("rec_seconds", 0.0)
@@ -1267,6 +1556,13 @@ class MainWindow(QMainWindow):
             if QMessageBox.question(self, "종료", "학습 이미지를 빌드하는 중입니다. 빌드를 중단하고 종료할까요?") != QMessageBox.Yes:
                 event.ignore()
                 return
+        if self.inferencer.running:
+            if QMessageBox.question(self, "종료", "추론이 실행 중입니다. 추론을 중지하고 종료할까요?") != QMessageBox.Yes:
+                event.ignore()
+                return
+            self._log("추론 중지 후 종료 중...")
+            QApplication.processEvents()
+            self.inferencer.shutdown()
         if self.ctrl.running:
             if s.get("recording") or s.get("pending"):
                 QMessageBox.warning(self, "종료", "녹화 중이거나 결과 선택 대기 중입니다. 먼저 정리하세요.")

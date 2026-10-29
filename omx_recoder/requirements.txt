@@ -1,3 +1,5 @@
 # Keep the Qt bindings reproducible; validate new versions before upgrading.
 PySide6==6.8.3
 pyyaml
+# Recording and robot inference (inference tab) share this; Python 3.12+.
+lerobot[core_scripts,dynamixel,smolvla,scipy-dep]==0.6.1

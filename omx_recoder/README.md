@@ -1,14 +1,14 @@
 # OMX 모방학습 데이터 수집 대시보드
 
-OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하고, LeRobot 데이터셋(v3.0)으로 저장하는 데스크톱 툴입니다.
+OMX-AI 리더-팔로워 원격조종으로 모방학습 데이터를 녹화하고, LeRobot 데이터셋(v3.0)으로 저장하는 데스크톱 툴입니다. 학습(Docker)과 로봇 추론도 같은 화면에서 실행합니다.
 
 ---
 
 ## 1. 준비
 
 **필요 환경**
-- Ubuntu 22.04
-- LeRobot 0.4.4가 설치된 가상환경
+- Ubuntu 22.04 / 24.04, Python 3.12
+- LeRobot 0.6.1이 설치된 가상환경 (녹화·추론 공통, 학습은 Docker 안의 0.6.1)
 - 리더암·팔로워암 USB 연결 (udev 설정 불필요: BringUp 때 모터 ID로 보드를 자동 감지)
 - 팔로워암 전원(12V) 연결
 - (학습 탭을 쓸 때) Docker + nvidia-container-toolkit, NVIDIA GPU — 아래 **Docker 설치** 참고
@@ -22,9 +22,12 @@ cd kernel-robot-repo-4
 git sparse-checkout set omx_recoder omx_train   # 학습 탭은 omx_train을 씀
 cd omx_recoder
 
-source ~/venv/il/bin/activate
-pip install -r requirements.txt
+# Python 3.12 가상환경 (LeRobot 0.6.1은 Python 3.12 이상 필요)
+python3.12 -m venv ~/venv/il06
+source ~/venv/il06/bin/activate
+pip install -r requirements.txt     # lerobot 0.6.1 (core_scripts·dynamixel·smolvla) 포함, torch(CUDA) 수 GB
 ```
+> 예전 `~/venv/il`(Python 3.10, LeRobot 0.4.4)은 이 버전의 대시보드를 실행할 수 없습니다. 0.4.4로 녹화한 데이터에는 0.6.1에서 그대로 이어서 녹화할 수 있습니다.
 
 **실행**
 ```bash
@@ -105,7 +108,26 @@ python main.py
 3. `학습 시작`을 누르면 train.sh가 Docker 컨테이너(`omx-train-<태스크>_<정책>_<시각>`)를 띄웁니다. 진행률, loss, 로그가 화면에 표시됩니다. 로그 첫 줄은 같은 학습을 터미널에서 실행하는 명령입니다.
 4. **대시보드를 꺼도 학습은 계속됩니다.** 다시 켜면 실행 중인(또는 그사이 끝난) 학습에 자동으로 다시 연결합니다. 터미널에서는 `docker logs -f omx-train-<이름>`으로 볼 수 있습니다.
 5. `중지`로 멈춥니다 (`docker stop`). 체크포인트가 저장된 학습은 목록에서 골라 `이어서 학습`으로 마지막 체크포인트부터 다시 시작합니다.
-6. 결과는 `omx_train/<정책>/outputs/train/<이름>/`에 저장됩니다. 학습된 정책은 `checkpoints/last/pretrained_model/`에 있고, 옆의 `<이름>.run.json`에 데이터 경로·제외한 에피소드·실행 명령이 남습니다. 평가·로봇 추론은 [omx_train](../omx_train/README.md)을 참고하세요.
+6. 결과는 `omx_train/<정책>/outputs/train/<이름>/`에 저장됩니다. 학습된 정책은 `checkpoints/last/pretrained_model/`에 있고, 옆의 `<이름>.run.json`에 데이터 경로·제외한 에피소드·실행 명령이 남습니다. 오프라인 평가는 [omx_train](../omx_train/README.md)을 참고하세요.
+
+### ⑧ 추론 (로봇 실행)
+**추론 탭**은 `omx_train/<정책>/inference.sh`(`lerobot-rollout`)를 대시보드와 같은 venv로 실행합니다. 터미널에서 `./inference.sh`로 실행하는 것과 같은 스크립트입니다.
+
+> ⚠️ **로봇이 정책대로 움직입니다.** 로봇 주변을 비우고, 언제든 `중지`를 누를 수 있게 하세요. `inference.sh`의 `--robot.max_relative_target`(한 스텝 최대 이동량)이 안전장치입니다.
+
+1. 대시보드에서 BringUp 중이면 **먼저 Servo OFF** 합니다. 추론이 팔로워 포트와 카메라를 직접 열기 때문에, 추론하는 동안 대시보드 카메라 미리보기는 꺼집니다.
+2. **정책**과 **모델**을 고릅니다. 모델 목록은 `omx_train/<정책>/outputs/train/*/checkpoints/*/pretrained_model`(최신 학습, `last` 먼저)이고, 다른 위치의 모델은 `폴더 선택`으로 지정합니다 (HF 모델은 `hf download <저장소> --local-dir <폴더>`로 먼저 받기).
+3. 실행 설정을 정합니다. 비워 둔 값은 `inference.sh`에 적힌 값을 씁니다.
+   - **작업 문장**: SmolVLA는 학습 데이터의 문장과 같아야 합니다. ACT는 쓰지 않습니다.
+   - **실행 시간**: 0이면 `중지`를 누를 때까지 실행합니다.
+   - **장치**: ACT는 `cpu`도 되고, SmolVLA는 `cuda`가 필요합니다 (CPU는 예측 1회 약 10초).
+   - **앙상블** (ACT 전용): k 스텝마다 다시 예측하고 겹치는 예측을 가중 평균합니다 (`act_ensemble.py`).
+   - **추가 인자**: 그 밖의 `lerobot-rollout` 옵션. 예: `--policy.n_action_steps=20 --robot.max_relative_target=5`
+4. 포트·카메라·로봇 id는 **설정 탭 값**을 씁니다. 팔로워 포트가 `auto`면 자동으로 찾고, 카메라 경로가 비어 있으면 `/dev/cam_top`, `/dev/cam_wrist` 별칭을 씁니다. 로봇 id(`follower_id`)를 녹화 때와 같게 두어야 같은 캘리브레이션을 씁니다.
+5. `추론 시작` → 확인 창에서 `Yes`. 로그 첫 줄은 같은 추론을 터미널에서 실행하는 명령입니다.
+6. `중지`는 Ctrl+C와 같습니다. lerobot이 로봇 연결을 정리하고 끝나며, 10초 안에 끝나지 않으면 강제 종료합니다. 추론 중에 앱을 닫으면 추론을 먼저 중지합니다.
+
+> 추론 설정은 앱을 끌 때 `config.yaml`의 `infer:` 항목에 정책별로 저장됩니다.
 
 > 학습 설정은 앱을 끌 때 `config.yaml`의 `train:` 항목에 저장됩니다. `train.omx_train_dir`로 omx_train 위치를 바꿀 수 있습니다 (기본 `../omx_train`).
 
