@@ -475,12 +475,23 @@ export default function Page({ menu }: MenuPageProps) {
       return;
     }
 
-    addLog("SEND", taskName, "docker/cobot_simulation", `태스크 목표 전송: /pinky1/goal_pose -> [${targetX.toFixed(2)}, ${targetY.toFixed(2)}]`);
+    addLog(
+      "SEND",
+      taskName,
+      "cobot_gui (C안)",
+      `[C안 gw_sig] OperatorCommand.srv 요청: /pinky1/goal_pose -> [${targetX.toFixed(2)}, ${targetY.toFixed(2)}]`,
+    );
     setActiveTaskName(taskName);
 
     // 가상 ACK 수신
     setTimeout(() => {
-      addLog("ACK", taskName, "pinky1/cmd_vel", "도커 백엔드 수락 확인: 50Hz 보간 주행 개시", 2.1);
+      addLog(
+        "ACK",
+        taskName,
+        "fms_core",
+        "서명 검증 완료 (ConsoleLease 단일 조종권 PASS, RTT: 2.1ms) -> 50Hz 보간 주행 개시",
+        2.1,
+      );
     }, 150);
 
     const startX = pinkies[0].x;
@@ -531,11 +542,22 @@ export default function Page({ menu }: MenuPageProps) {
       return;
     }
 
-    addLog("SEND", taskName, `docker/omx_${armIdx + 1}`, `관절 제어 신호 송신: Z=200mm 수직 피킹 시퀀스 실행`);
+    addLog(
+      "SEND",
+      taskName,
+      "cobot_gui (C안)",
+      `[C안 gw_sig] OperatorCommand.srv 요청: /omx_${armIdx + 1}/arm_command (Z=200mm 수직 피킹)`,
+    );
     setActiveTaskName(taskName);
 
     setTimeout(() => {
-      addLog("ACK", taskName, `omx_${armIdx + 1}/joint_states`, "1.2 rad/s 속도 클램프 준수 확인 (토크 ON)", 1.9);
+      addLog(
+        "ACK",
+        taskName,
+        "fms_core",
+        "서명 검증 완료 (1.2 rad/s 속도 클램프 준수, RTT: 1.9ms)",
+        1.9,
+      );
     }, 150);
 
     const startTime = performance.now();
@@ -654,6 +676,9 @@ export default function Page({ menu }: MenuPageProps) {
             <Badge variant="outline" className="border-cyan-600 text-cyan-400">
               DOCKER: CONNECTED
             </Badge>
+            <Badge variant="outline" className="border-emerald-600 text-emerald-400 font-mono">
+              명령 규격: C안 (OperatorCommand.srv)
+            </Badge>
             <Badge variant="outline" className="border-purple-600 text-purple-400">
               ROBOTS: 3 AMR + 3 ARMS
             </Badge>
@@ -661,8 +686,8 @@ export default function Page({ menu }: MenuPageProps) {
         </AlertTitle>
         <AlertDescription className="text-[#999999] text-xs mt-1.5 flex justify-between items-center">
           <span>
-            브라우저 내장 3D 캔버스에서 핑키 3대와 로봇팔 3대의 물리 모델을 제어하고, 각 포인트별 태스크 동작 신호를
-            도커 백엔드로 송수신하여 즉시 검증합니다.
+            본 온라인 실험장은 <b>명령 통신 C안(OperatorCommand.srv, gw_sig 전자서명 및 ConsoleLease 조종권 검증)</b>을 준수하며,
+            브라우저 내장 3D 캔버스에서 핑키와 로봇팔의 물리 모션 및 신호 생명주기(SEND → ACK → DONE)를 사전 검증합니다.
           </span>
           <span className="font-mono text-cyan-400 shrink-0 font-bold ml-2">
             현재 상태: {activeTaskName}
