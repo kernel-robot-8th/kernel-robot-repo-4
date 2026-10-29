@@ -135,7 +135,7 @@ def test_validate_zones_exit_cannot_be_zone_members():
 
 
 def test_general_names():
-    """일반 지점은 P1~P10 만, 번호순으로 돌려준다 (P11·구역·홈 이름은 제외)."""
-    assert optional_general_names() == ['P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']
-    pts = {'P10': 1, 'P2': 1, 'P1': 1, 'P11': 1, 'P0': 1, 'ZA': 1, 'I1': 1, 'ZA_EXIT': 1}
-    assert general_names(pts) == ['P1', 'P2', 'P10']
+    """일반 지점은 P1~P50 만, 번호순으로 돌려준다 (P51·구역·홈 이름은 제외)."""
+    assert optional_general_names() == [f'P{i}' for i in range(3, 51)]
+    pts = {'P50': 1, 'P10': 1, 'P2': 1, 'P1': 1, 'P51': 1, 'P0': 1, 'ZA': 1, 'I1': 1, 'ZA_EXIT': 1}
+    assert general_names(pts) == ['P1', 'P2', 'P10', 'P50']

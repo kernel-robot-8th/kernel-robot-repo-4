@@ -197,25 +197,27 @@ def test_load_points_ok(n):
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
-def test_optional_general_points_p3_to_p10(n):
-    """P3~P10 은 YAML 에 있는 것만 로드되고 goto 허용에 들어간다. P11 은 읽지 않는다."""
+def test_optional_general_points_p3_to_p50(n):
+    """P3~P50 은 YAML 에 있는 것만 로드되고 goto 허용에 들어간다. P51 은 읽지 않는다."""
     from cobot_pinky_patrol.patrol_points_utils import general_names
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
     base = _params_from_yaml(n)
     pts, *_ = _fake_node(cls, base)._load_points()
-    assert general_names(pts) == [f'P{i}' for i in range(1, 11)]  # YAML 에 P1~P10 이 모두 있다
+    assert general_names(pts) == [f'P{i}' for i in range(1, 51)]  # YAML 에 P1~P50 이 모두 있다
     assert 'P3' in pts and 'P10' in pts
-    for i in range(3, 11):                                       # 선택 지점은 빼도 시작된다
+    for i in range(3, 51):                                       # 선택 지점은 빼도 시작된다
         base = {k: v for k, v in base.items() if k != f'points.P{i}'}
     pts, *_ = _fake_node(cls, base)._load_points()
     assert general_names(pts) == ['P1', 'P2']
-    more = dict(base, **{'points.P3': [1.0, 2.0, 0.5], 'points.P10': [3.0, 4.0]})
+    more = dict(base, **{'points.P3': [1.0, 2.0, 0.5], 'points.P10': [3.0, 4.0],
+                         'points.P50': [5.0, 6.0]})
     pts, *_ = _fake_node(cls, more)._load_points()
     assert pts['P3'] == (1.0, 2.0, 0.5) and pts['P10'] == (3.0, 4.0)
-    assert general_names(pts) == ['P1', 'P2', 'P3', 'P10']
-    over = dict(more, **{'points.P11': [9.0, 9.0]})
+    assert pts['P50'] == (5.0, 6.0)
+    assert general_names(pts) == ['P1', 'P2', 'P3', 'P10', 'P50']
+    over = dict(more, **{'points.P51': [9.0, 9.0]})
     pts, *_ = _fake_node(cls, over)._load_points()
-    assert 'P11' not in pts                                      # 최대 P10
+    assert 'P51' not in pts                                      # 최대 P50
     with pytest.raises(Exception, match='소수점'):
         _fake_node(cls, dict(base, **{'points.P3': [0, 0]}))._load_points()
 
@@ -777,7 +779,7 @@ def _cmd(env, n, data, held=None):
     ('zone:', 'no point given'),
     ('goto:', 'no point given'),
     ('zone:P99', 'unknown point'),
-    ('goto:P11', 'unknown point'),  # P10 을 넘는 지점
+    ('goto:P51', 'unknown point'),  # P50 을 넘는 지점
 ])
 def test_cmd_cb_rejects_wrong_command_without_starting(env, n, data, detail):
     r = _cmd(env, n, data)
