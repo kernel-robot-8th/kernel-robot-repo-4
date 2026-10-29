@@ -59,7 +59,7 @@
   }
   body.dragging .stage{outline:2px dashed var(--accent); outline-offset:-6px;}
   .points{margin-top:10px; font-size:12px;}
-  .points-list{list-style:none; margin:6px 0 0; padding:0; max-height:160px; overflow:auto;}
+  .points-list{list-style:none; margin:6px 0 0; padding:0; max-height:220px; overflow:auto;}
   .points-list li{
     display:flex; justify-content:space-between; gap:8px; padding:5px 8px; border-bottom:1px solid var(--line);
     color:var(--text); font-size:12px;
@@ -107,6 +107,7 @@
 
   <div class="points">
     <div id="wpEmpty" class="empty">waypoint 불러오기 버튼으로 pinkyN.yaml (cobot_pinky_patrol/config) 을 선택하거나 끌어다 놓으면 points 가 지도에 표시됩니다.</div>
+    <div id="wpHidden" class="empty" style="display:none"></div>
     <ul class="points-list" id="wpList"></ul>
   </div>
 
@@ -118,7 +119,7 @@
     <span><i class="sw" style="background:#ffd23f"></i> waypoint 홈 (I)</span>
     <span><i class="sw" style="background:#c792ea"></i> waypoint 일반 (P)</span>
     <span><i class="sw" style="background:#ff6b9d"></i> waypoint 구역 (Z / Z_EXIT)</span>
-    <span><i class="sw" style="background:#8a949e"></i> 미실측 (0, 0)</span>
+    <span>➤ 화살표 = 도착 방향(yaw)</span>
   </div>
 </div>
 
@@ -247,35 +248,50 @@ function wpKind(w){
   if(w.x === 0 && w.y === 0) return 'spare'; // 예비 점은 원점에 겹쳐 쌓인다
   return 'general';
 }
-const WP_COLOR = { home:'#ffd23f', general:'#c792ea', zone:'#ff6b9d', spare:'#8a949e' };
+const WP_COLOR = { home:'#ffd23f', general:'#d9a8ff', zone:'#ff6b9d' };
 
 function wpInRange(w){
   const [px, py] = mapToPx(w.x, w.y);
   return px >= 0 && px <= META.image_w && py >= 0 && py <= META.image_h;
 }
 
+// 점에서 yaw 방향으로 나가는 화살표. 본체보다 1px 씩 굵은 검정 윤곽을 먼저 그린다.
+function drawArrow(cx, cy, yaw, color){
+  const L = 24, head = 9, spread = Math.PI / 7;
+  // map 의 y 는 위쪽이 +, 캔버스의 y 는 아래쪽이 + 라서 sin 을 뒤집는다
+  const ex = cx + L*Math.cos(yaw), ey = cy - L*Math.sin(yaw);
+  const ang = Math.atan2(ey - cy, ex - cx);
+  const tri = () => {
+    ctx.beginPath(); ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - head*Math.cos(ang - spread), ey - head*Math.sin(ang - spread));
+    ctx.lineTo(ex - head*Math.cos(ang + spread), ey - head*Math.sin(ang + spread));
+    ctx.closePath();
+  };
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 4.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+  tri(); ctx.stroke();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+  tri(); ctx.fill();
+}
+
 function drawWaypoints(){
   if(!showWaypoints || !mapLoaded) return;
   waypoints.forEach(w=>{
-    if(!wpInRange(w)) return;
     const kind = wpKind(w);
+    if(kind === 'spare' || !wpInRange(w)) return; // (0, 0) 예비 점은 그리지 않는다
     const [px, py] = mapToPx(w.x, w.y);
     const cx = px*SCALE, cy = py*SCALE;
-    ctx.fillStyle = WP_COLOR[kind];
-    ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1;
-    if(kind !== 'spare' && w.yaw !== null){
-      // map 의 y 는 위쪽이 +, 캔버스의 y 는 아래쪽이 + 라서 sin 을 뒤집는다
-      const ex = cx + 14*Math.cos(w.yaw), ey = cy - 14*Math.sin(w.yaw);
-      ctx.strokeStyle = WP_COLOR[kind]; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
-      ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1;
-    }
-    ctx.beginPath(); ctx.arc(cx, cy, kind === 'spare' ? 3 : 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    if(kind !== 'spare'){
-      ctx.font = 'bold 11px monospace';
-      ctx.fillStyle = '#0d1117'; ctx.fillText(w.name, cx+8, cy-7);
-      ctx.fillStyle = WP_COLOR[kind]; ctx.fillText(w.name, cx+7, cy-8);
-    }
+    const color = WP_COLOR[kind];
+    if(w.yaw !== null) drawArrow(cx, cy, w.yaw, color);
+    ctx.fillStyle = color; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    // 라벨: 얇은 검정 테두리 위에 글자를 얹는다 (번지는 후광·그림자는 쓰지 않는다)
+    ctx.font = 'bold 13px ' + getComputedStyle(document.body).fontFamily;
+    ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = '#000';
+    ctx.strokeText(w.name, cx+9, cy-9);
+    ctx.fillStyle = color; ctx.fillText(w.name, cx+9, cy-9);
   });
 }
 
@@ -301,13 +317,17 @@ function parseWaypoints(text){
 
 function renderWaypointList(){
   const list = document.getElementById('wpList');
+  const hiddenEl = document.getElementById('wpHidden');
+  const spare = waypoints.filter(w => wpKind(w) === 'spare');
   document.getElementById('wpEmpty').style.display = waypoints.length ? 'none' : 'block';
+  hiddenEl.style.display = spare.length ? 'block' : 'none';
+  hiddenEl.textContent = `숨김: 미실측 (0, 0) 점 ${spare.length}개 (${spare.map(w => w.name).join(', ')})`;
   list.innerHTML = '';
-  waypoints.forEach(w=>{
+  waypoints.filter(w => wpKind(w) !== 'spare').forEach(w=>{
     const li = document.createElement('li');
-    const yaw = w.yaw === null ? '-' : w.yaw.toFixed(2) + ' rad';
-    const note = wpKind(w) === 'spare' ? ' (미실측/예비)' : (mapLoaded && !wpInRange(w) ? ' (지도 범위 밖)' : '');
-    li.innerHTML = `<span><span class="c" style="color:${WP_COLOR[wpKind(w)]}">${w.name}</span> — map: (${w.x.toFixed(3)}, ${w.y.toFixed(3)}) m &nbsp; yaw: ${yaw}${note}</span>`;
+    const yaw = w.yaw === null ? '-' : `${w.yaw.toFixed(2)} rad (${Math.round(w.yaw*180/Math.PI)}°)`;
+    const note = mapLoaded && !wpInRange(w) ? ' (지도 범위 밖)' : '';
+    li.innerHTML = `<span><span class="c" style="color:${WP_COLOR[wpKind(w)]}; font-weight:700">${w.name}</span> — map: (${w.x.toFixed(3)}, ${w.y.toFixed(3)}) m &nbsp; yaw: ${yaw}${note}</span>`;
     list.appendChild(li);
   });
 }
@@ -469,6 +489,7 @@ cv.addEventListener('mousemove', (e)=>{
   // 마우스 근처(8 화면 픽셀) 의 가장 가까운 waypoint 이름
   let best = null, bd = 8 / SCALE;
   if(showWaypoints) waypoints.forEach(w=>{
+    if(wpKind(w) === 'spare') return;
     const [wx, wy] = mapToPx(w.x, w.y);
     const d = Math.hypot(wx - px, wy - py);
     if(d < bd){ bd = d; best = w; }
