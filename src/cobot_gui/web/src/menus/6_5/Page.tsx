@@ -1,7 +1,7 @@
-// 메뉴 6.5 시뮬레이션·기능 검증 (SR-22 통신 반응성 및 기능 검증 센터)
+// 메뉴 6.5 시뮬레이션·기능 검증 (SR-22 통신 반응성 검증 및 대화형 3D 시뮬레이션 뷰포트)
 // 가짜 주행 애니메이션 대신, 핑키 3대와 로봇팔 3대의 실시간 통신 링크, 명령 송신 후 반응 여부(ACK/RTT),
-// 50Hz 텔레메트리 매트릭스를 정밀 모니터링하고 로컬 3D 뷰어(RViz2/MuJoCo) 연동을 제어합니다.
-import { useState } from "react";
+// 50Hz 텔레메트리 매트릭스를 정밀 모니터링하고 원클릭 인터랙티브 3D 뷰어(Three-free HTML5 3D Canvas)를 직접 구동합니다.
+import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -44,14 +44,29 @@ interface ResponseLog {
   detail: string;
 }
 
+interface Point3D {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export default function Page({ menu }: MenuPageProps) {
   // 1. 장치 선택 상태
   const [selectedRobot, setSelectedRobot] = useState<string>("pinky1");
   const [selectedArm, setSelectedArm] = useState<string>("omx_1");
   const [gateWidth, setGateWidth] = useState<number>(0.67);
 
-  // 2. 로컬 3D 렌더링 뷰어 프로세스 상태
+  // 2. 3D 물리 뷰어 모달/뷰포트 활성화 상태
   const [is3DRunning, setIs3DRunning] = useState<boolean>(false);
+  const [viewPreset, setViewPreset] = useState<"iso" | "top" | "side">("iso");
+
+  // 3D 카메라 오르빗 컨트롤 (라디안)
+  const [azimuth, setAzimuth] = useState<number>(Math.PI * 0.25); // 45도
+  const [elevation, setElevation] = useState<number>(Math.PI * 0.18); // 약 32도
+  const [zoom, setZoom] = useState<number>(1.0);
+  const isDraggingRef = useRef<boolean>(false);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // 3. 최근 명령 반응 로그 이력
   const [logs, setLogs] = useState<ResponseLog[]>([
@@ -114,7 +129,7 @@ export default function Page({ menu }: MenuPageProps) {
     setLogs((prev) => [newLog, ...prev.slice(0, 15)]);
   };
 
-  // 로컬 3D 렌더링 뷰어 토글
+  // 3D 뷰어 토글 핸들러
   const handleToggle3D = () => {
     setIs3DRunning((prev) => !prev);
     const now = new Date();
@@ -124,11 +139,11 @@ export default function Page({ menu }: MenuPageProps) {
         {
           id: `log-${Date.now()}`,
           time: timeStr,
-          device: "Local OS Host",
-          command: "launch_3d_viewer (DISPLAY=:20.0)",
+          device: "3D Viewport",
+          command: "launch_interactive_3d_studio",
           status: "EXECUTING",
-          rttMs: 3.5,
-          detail: "로컬 3D 시각화 프로세스(RViz2 / MuJoCo passive) 기동 요청 성공",
+          rttMs: 2.5,
+          detail: "신발 매장 3D 물리 뷰포트 캔버스 렌더러 가동 (마우스 오르빗 활성)",
         },
         ...prev,
       ]);
@@ -137,15 +152,305 @@ export default function Page({ menu }: MenuPageProps) {
         {
           id: `log-${Date.now()}`,
           time: timeStr,
-          device: "Local OS Host",
-          command: "stop_3d_viewer",
+          device: "3D Viewport",
+          command: "close_3d_viewport",
           status: "COMPLETED",
-          rttMs: 1.2,
-          detail: "로컬 3D 뷰어 프로세스 안전 종료 완료",
+          rttMs: 1.1,
+          detail: "3D 뷰어 닫힘 및 2D 토폴로지 모드로 복귀",
         },
         ...prev,
       ]);
     }
+  };
+
+  // 3D 뷰 시점 프리셋 변경
+  const handleApplyPreset = (preset: "iso" | "top" | "side") => {
+    setViewPreset(preset);
+    if (preset === "iso") {
+      setAzimuth(Math.PI * 0.25);
+      setElevation(Math.PI * 0.18);
+      setZoom(1.0);
+    } else if (preset === "top") {
+      setAzimuth(0);
+      setElevation(Math.PI * 0.48);
+      setZoom(1.1);
+    } else if (preset === "side") {
+      setAzimuth(0);
+      setElevation(Math.PI * 0.05);
+      setZoom(1.05);
+    }
+  };
+
+  // 3D Canvas 렌더링 루프 (Pure HTML5 Canvas 3D Perspective Projection)
+  useEffect(() => {
+    if (!is3DRunning) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let tickCount = 0;
+
+    // 3D 좌표 -> 2D 캔버스 픽셀 투영 헬퍼
+    const project = (p: Point3D) => {
+      const cx = p.x - 1.25;
+      const cy = p.y - 1.20;
+      const cz = p.z;
+
+      // 1. 방위각(Azimuth) 회전 (Z축 중심)
+      const x1 = cx * Math.cos(azimuth) - cy * Math.sin(azimuth);
+      const y1 = cx * Math.sin(azimuth) + cy * Math.cos(azimuth);
+      const z1 = cz;
+
+      // 2. 고도각(Elevation) 회전 (X축 중심)
+      const x2 = x1;
+      const y2 = y1 * Math.cos(elevation) - z1 * Math.sin(elevation);
+      const z2 = y1 * Math.sin(elevation) + z1 * Math.cos(elevation);
+
+      // 3. 원근감(Perspective) 스케일
+      const dist = 3.8;
+      const fov = 380 * zoom;
+      const depth = dist + y2;
+      const scale = fov / Math.max(0.1, depth);
+
+      return {
+        x: canvas.width / 2 + x2 * scale,
+        y: canvas.height / 2 - z2 * scale,
+        depth,
+      };
+    };
+
+    // 3D 박스(큐브) 렌더링 헬퍼
+    const drawBox = (
+      minX: number,
+      maxX: number,
+      minY: number,
+      maxY: number,
+      minZ: number,
+      maxZ: number,
+      fillColor: string,
+      strokeColor: string
+    ) => {
+      const v = [
+        project({ x: minX, y: minY, z: minZ }), // 0
+        project({ x: maxX, y: minY, z: minZ }), // 1
+        project({ x: maxX, y: maxY, z: minZ }), // 2
+        project({ x: minX, y: maxY, z: minZ }), // 3
+        project({ x: minX, y: minY, z: maxZ }), // 4
+        project({ x: maxX, y: minY, z: maxZ }), // 5
+        project({ x: maxX, y: maxY, z: maxZ }), // 6
+        project({ x: minX, y: maxY, z: maxZ }), // 7
+      ];
+
+      // 상단면
+      ctx.fillStyle = fillColor;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1;
+
+      // Top face
+      ctx.beginPath();
+      ctx.moveTo(v[4].x, v[4].y);
+      ctx.lineTo(v[5].x, v[5].y);
+      ctx.lineTo(v[6].x, v[6].y);
+      ctx.lineTo(v[7].x, v[7].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Side front/south
+      ctx.beginPath();
+      ctx.moveTo(v[0].x, v[0].y);
+      ctx.lineTo(v[1].x, v[1].y);
+      ctx.lineTo(v[5].x, v[5].y);
+      ctx.lineTo(v[4].x, v[4].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Side west/left
+      ctx.beginPath();
+      ctx.moveTo(v[0].x, v[0].y);
+      ctx.lineTo(v[3].x, v[3].y);
+      ctx.lineTo(v[7].x, v[7].y);
+      ctx.lineTo(v[4].x, v[4].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
+
+    const render = () => {
+      tickCount++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // A. 바닥 판 렌더링 (2.5m x 2.4m, Z=0)
+      const f0 = project({ x: 0, y: 0, z: 0 });
+      const f1 = project({ x: 2.5, y: 0, z: 0 });
+      const f2 = project({ x: 2.5, y: 2.4, z: 0 });
+      const f3 = project({ x: 0, y: 2.4, z: 0 });
+
+      ctx.beginPath();
+      ctx.moveTo(f0.x, f0.y);
+      ctx.lineTo(f1.x, f1.y);
+      ctx.lineTo(f2.x, f2.y);
+      ctx.lineTo(f3.x, f3.y);
+      ctx.closePath();
+      ctx.fillStyle = "#18181d";
+      ctx.fill();
+      ctx.strokeStyle = "#3f3f46";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 바닥 그리드선 (0.5m 간격)
+      ctx.strokeStyle = "#27272a";
+      ctx.lineWidth = 1;
+      for (let x = 0.5; x <= 2.0; x += 0.5) {
+        const pA = project({ x, y: 0, z: 0 });
+        const pB = project({ x, y: 2.4, z: 0 });
+        ctx.beginPath();
+        ctx.moveTo(pA.x, pA.y);
+        ctx.lineTo(pB.x, pB.y);
+        ctx.stroke();
+      }
+      for (let y = 0.5; y <= 2.0; y += 0.5) {
+        const pA = project({ x: 0, y, z: 0 });
+        const pB = project({ x: 2.5, y, z: 0 });
+        ctx.beginPath();
+        ctx.moveTo(pA.x, pA.y);
+        ctx.lineTo(pB.x, pB.y);
+        ctx.stroke();
+      }
+
+      // B. 67cm 중앙 통과 게이트 영역 (초록색 투명 바닥 표시)
+      const g0 = project({ x: 1.2, y: 0, z: 0.001 });
+      const g1 = project({ x: 1.3, y: 0, z: 0.001 });
+      const g2 = project({ x: 1.3, y: gateWidth, z: 0.001 });
+      const g3 = project({ x: 1.2, y: gateWidth, z: 0.001 });
+      ctx.beginPath();
+      ctx.moveTo(g0.x, g0.y);
+      ctx.lineTo(g1.x, g1.y);
+      ctx.lineTo(g2.x, g2.y);
+      ctx.lineTo(g3.x, g3.y);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(34, 197, 94, 0.25)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(74, 222, 128, 0.8)";
+      ctx.stroke();
+
+      // C. 3D 중앙 분리 벽 (Wall: X 1.20~1.30, Y gateWidth~2.4, Z 0~0.25m)
+      drawBox(1.20, 1.30, gateWidth, 2.40, 0, 0.22, "#52525b", "#a1a1aa");
+
+      // D. 3D 창고 랙 (Top Rack & Right Rack)
+      drawBox(1.42, 2.40, 2.14, 2.40, 0, 0.20, "#78350f", "#d97706");
+      drawBox(2.16, 2.40, 0.67, 2.14, 0, 0.20, "#78350f", "#d97706");
+
+      // E. 3D 매장 카운터 및 벤치
+      drawBox(0.10, 0.70, 1.70, 2.00, 0, 0.18, "#1e3a8a", "#3b82f6");
+      drawBox(0.10, 0.40, 1.10, 1.50, 0, 0.12, "#064e3b", "#10b981");
+
+      // F. 3D 핑키 로봇 3대 렌더링 (원통형 차체 + 라이다 회전 빔)
+      Object.entries(robots).forEach(([rid, bot]) => {
+        const bp = project({ x: bot.x, y: bot.y, z: 0.035 });
+        const topP = project({ x: bot.x, y: bot.y, z: 0.07 });
+
+        // 로봇 원형 차체
+        ctx.beginPath();
+        ctx.arc(bp.x, bp.y, 11 * zoom, 0, Math.PI * 2);
+        ctx.fillStyle = bot.color;
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // 상단 라이다 퍽 (Lidar Puck)
+        ctx.beginPath();
+        ctx.arc(topP.x, topP.y, 4 * zoom, 0, Math.PI * 2);
+        ctx.fillStyle = "#111111";
+        ctx.fill();
+        ctx.strokeStyle = "#888888";
+        ctx.stroke();
+
+        // 3D 회전 라이다 레이저 빔
+        const sweepAngle = (tickCount * 0.12 + (rid === "pinky2" ? 2 : rid === "pinky3" ? 4 : 0));
+        const beamX = bot.x + Math.cos(sweepAngle) * 0.35;
+        const beamY = bot.y + Math.sin(sweepAngle) * 0.35;
+        const tipP = project({ x: beamX, y: beamY, z: 0.07 });
+
+        ctx.beginPath();
+        ctx.moveTo(topP.x, topP.y);
+        ctx.lineTo(tipP.x, tipP.y);
+        ctx.strokeStyle = bot.color;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // 로봇 레이블
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 9px monospace";
+        ctx.fillText(rid.toUpperCase(), bp.x - 14, bp.y - 14);
+      });
+
+      // G. 3D 로봇팔 3대 렌더링 (Base + Articulated Segments)
+      Object.entries(arms).forEach(([aid, arm]) => {
+        const baseP = project({ x: arm.x, y: arm.y, z: 0.02 });
+        const shoulderP = project({ x: arm.x, y: arm.y, z: 0.09 });
+        const elbowP = project({ x: arm.x + 0.06, y: arm.y, z: 0.16 });
+        const wristP = project({ x: arm.x + 0.08, y: arm.y - 0.04, z: 0.22 }); // Z=200mm 높이 표시!
+
+        // 베이스
+        ctx.fillStyle = "#eab308";
+        ctx.beginPath();
+        ctx.arc(baseP.x, baseP.y, 7 * zoom, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 다관절 링크 선
+        ctx.strokeStyle = "#facc15";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(baseP.x, baseP.y);
+        ctx.lineTo(shoulderP.x, shoulderP.y);
+        ctx.lineTo(elbowP.x, elbowP.y);
+        ctx.lineTo(wristP.x, wristP.y);
+        ctx.stroke();
+
+        // 관절 노드
+        [shoulderP, elbowP, wristP].forEach((joint) => {
+          ctx.beginPath();
+          ctx.arc(joint.x, joint.y, 2.5 * zoom, 0, Math.PI * 2);
+          ctx.fillStyle = "#ffffff";
+          ctx.fill();
+        });
+
+        // 팔 레이블
+        ctx.fillStyle = "#facc15";
+        ctx.font = "bold 9px monospace";
+        ctx.fillText(`${aid.toUpperCase()} (Z=200mm)`, baseP.x - 20, baseP.y - 12);
+      });
+
+      animId = requestAnimationFrame(render);
+    };
+
+    render();
+    return () => cancelAnimationFrame(animId);
+  }, [is3DRunning, azimuth, elevation, zoom, gateWidth]);
+
+  // 마우스 오르빗 드래그 이벤트 핸들러
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDraggingRef.current = true;
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    const dx = e.clientX - lastMousePosRef.current.x;
+    const dy = e.clientY - lastMousePosRef.current.y;
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+
+    setAzimuth((a) => a - dx * 0.008);
+    setElevation((el) => Math.max(0.05, Math.min(Math.PI * 0.48, el + dy * 0.008)));
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
   };
 
   // SVG 좌표 변환 (0~2.5m, 0~2.4m -> SVG 픽셀)
@@ -208,13 +513,13 @@ export default function Page({ menu }: MenuPageProps) {
               variant="outline"
               size="sm"
               onClick={handleToggle3D}
-              className={`rounded-none h-7 px-3 text-xs font-bold font-mono ${
+              className={`rounded-none h-7 px-3 text-xs font-bold font-mono transition-all ${
                 is3DRunning
-                  ? "bg-red-950/50 border-red-500 text-red-300 hover:bg-red-900/60"
-                  : "bg-blue-950/50 border-blue-500 text-blue-300 hover:bg-blue-900/60"
+                  ? "bg-red-950/70 border-red-500 text-red-200 hover:bg-red-900/80 shadow-[0_0_12px_rgba(239,68,68,0.4)]"
+                  : "bg-blue-950/70 border-blue-500 text-blue-200 hover:bg-blue-900/80 shadow-[0_0_12px_rgba(59,130,246,0.4)]"
               }`}
             >
-              {is3DRunning ? "⏹ 3D 뷰어 창 종료" : "🚀 로컬 3D 뷰어 창 띄우기 (RViz2 / MuJoCo)"}
+              {is3DRunning ? "✕ 3D 뷰어 창 닫기" : "🚀 3D 뷰어 창 열기 (대화형 3D 스튜디오)"}
             </Button>
           </div>
         </div>
@@ -224,15 +529,103 @@ export default function Page({ menu }: MenuPageProps) {
           <div className="flex items-center gap-2">
             <span className="text-cyan-400 font-bold">💡 아키텍처 안내:</span>
             <span>
-              본 화면은 <b>통신 반응 여부(ACK/RTT) 및 텔레메트리 검증용 디지털 트윈</b>입니다.
-              실제 3D 그래픽 렌더링은 로컬 OS의 <code className="text-green-400 mx-1">ros2 launch cobot_simulation bringup_sim.launch.py</code>(또는 위 버튼)를 통해 네이티브 3D 창으로 가동됩니다.
+              상단 버튼을 누르면 <b>웹 대화형 3D 뷰포트</b>가 바로 열리며, 로컬 OS 네이티브 창(RViz2)은 터미널에서
+              <code className="text-green-400 mx-1">ros2 launch cobot_simulation bringup_sim.launch.py</code>
+              실행 시 네이티브 데스크톱 창으로 함께 연동 가동됩니다.
             </span>
           </div>
-          <Badge variant="outline" className={`font-mono text-[10px] ${is3DRunning ? "border-green-500 text-green-400" : "border-neutral-600 text-neutral-400"}`}>
-            {is3DRunning ? "● 3D 프로세스 활성 (DISPLAY=:20)" : "○ 3D 프로세스 대기"}
+          <Badge variant="outline" className={`font-mono text-[10px] ${is3DRunning ? "border-green-500 text-green-400 bg-green-950/30" : "border-neutral-600 text-neutral-400"}`}>
+            {is3DRunning ? "● 3D 뷰포트 활성화됨" : "○ 3D 뷰포트 대기"}
           </Badge>
         </div>
       </div>
+
+      {/* [NEW] 실시간 대화형 3D 물리 뷰어 윈도우 (버튼 클릭 시 화면에 즉시 팝업/확장) */}
+      {is3DRunning && (
+        <Card className="rounded-none border-2 border-blue-500/80 bg-[#0d0e12] shadow-[0_0_24px_rgba(37,99,235,0.25)] animate-in fade-in duration-200">
+          <CardHeader className="py-2.5 px-4 border-b border-border bg-[#13151b] flex flex-row items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold text-white flex items-center gap-2">
+                <span>🎮 대화형 3D 아레나 뷰포트 (Interactive 3D Simulation)</span>
+                <Badge variant="outline" className="border-blue-400 text-blue-300 font-mono text-[10px]">
+                  WebGL / 3D Canvas 가동
+                </Badge>
+              </span>
+              <span className="text-xs text-[#888888]">
+                * 캔버스 위를 마우스로 드래그하면 360° 시점 회전 및 줌이 가능합니다.
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 font-mono text-xs">
+              <span className="text-[#888888] mr-1">시점:</span>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("iso")}
+                className={`px-2 py-0.5 border text-[11px] ${
+                  viewPreset === "iso" ? "border-blue-500 text-blue-300 bg-blue-950/40" : "border-border text-gray-400"
+                }`}
+              >
+                아이소(3D)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("top")}
+                className={`px-2 py-0.5 border text-[11px] ${
+                  viewPreset === "top" ? "border-blue-500 text-blue-300 bg-blue-950/40" : "border-border text-gray-400"
+                }`}
+              >
+                탑뷰(Top)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("side")}
+                className={`px-2 py-0.5 border text-[11px] ${
+                  viewPreset === "side" ? "border-blue-500 text-blue-300 bg-blue-950/40" : "border-border text-gray-400"
+                }`}
+              >
+                측면(Side)
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.min(1.6, z + 0.1))}
+                className="px-2 py-0.5 border border-border text-[11px] text-gray-300 hover:bg-[#222222]"
+              >
+                줌 +
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))}
+                className="px-2 py-0.5 border border-border text-[11px] text-gray-300 hover:bg-[#222222]"
+              >
+                줌 -
+              </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIs3DRunning(false)}
+                className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/30 ml-2"
+              >
+                ✕ 닫기
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-3 flex flex-col items-center justify-center bg-[#090a0d]">
+            <canvas
+              ref={canvasRef}
+              width={760}
+              height={380}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              className="w-full max-w-[760px] aspect-[2/1] cursor-grab active:cursor-grabbing border border-border/60 bg-[#090a0d] shadow-inner select-none"
+            />
+            <div className="w-full max-w-[760px] mt-2 flex items-center justify-between text-[11px] font-mono text-[#71717a]">
+              <span>[좌클릭 드래그] 360° 시점 회전 | [휠/버튼] 줌 배율 ({(zoom * 100).toFixed(0)}%)</span>
+              <span className="text-cyan-400">Z=200mm 수직 피킹 관절 및 67cm 통과 게이트 3D 모델 실시간 투영 중</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 메인 2열 그리드: 좌측 장치 배치도 & 텔레메트리 매트릭스, 우측 명령 반응 검증 패널 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
