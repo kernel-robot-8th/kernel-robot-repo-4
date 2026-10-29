@@ -1,0 +1,446 @@
+{
+  "_doc": "Scene parameters (metres, degrees). Frame: robot base bottom centre, x forward, y left, z up. fitted = from the recorded video (sim/calibrate_top_camera.py, fit_workspace.py, fit_boxes.py, fit_wrist_camera.py); user = tape measurement from memory (2026-10-26).",
+  "floor_z": -0.07,
+  "top_camera": {
+    "pos_m": [
+      -0.04674517920598739,
+      0.035868285269090305,
+      0.4779107829040276
+    ],
+    "yaw_pitch_roll_deg": [
+      3.0317589575271193,
+      -38.715761583543284,
+      1.12865629448366
+    ],
+    "fovy_deg": 32.667701995456795,
+    "source": "calibrate_cameras.py with kinematic anchors; IoU arm 0.499 table 0.915 boxes 0.464/0.665 disk 0.980"
+  },
+  "table": {
+    "x_near": 0.1705059154755212,
+    "x_far": 0.3600839495302735,
+    "y_right": -0.30775833899436467,
+    "y_left": 0.14121981619666257,
+    "top_z": 0.15535740008304968,
+    "source": "joint fit: top face IoU 0.904; top_z from kinematics (anchor_kinematics.py)"
+  },
+  "pinky": {
+    "x": 0.15744490655860274,
+    "y": 0.20371020065234674,
+    "disk_top_z": 0.12890206955135539,
+    "disk_radius": 0.05,
+    "disk_half_height": 0.01,
+    "body_size_m": [
+      0.2,
+      0.07
+    ],
+    "source": "centre and height from kinematics (first release); radius / body from the user"
+  },
+  "boxes": {
+    "box1": {
+      "pos_m": [
+        0.18229156176487188,
+        -0.007681418330647518,
+        0.21535740008304968
+      ],
+      "yaw_deg": 0.0,
+      "size_m": 0.04,
+      "mass_kg": 0.01,
+      "rgba": [
+        0.9,
+        0.75,
+        0.75,
+        1
+      ]
+    },
+    "box2": {
+      "pos_m": [
+        0.18229156176487188,
+        -0.007681418330647518,
+        0.17535740008304967
+      ],
+      "yaw_deg": 0.0,
+      "size_m": 0.04,
+      "mass_kg": 0.01,
+      "rgba": [
+        0.9,
+        0.4,
+        0.35,
+        1
+      ]
+    }
+  },
+  "wrist_camera": {
+    "pos_m": [
+      -0.0314812611081852,
+      0.006872620651692035,
+      0.006659234430789773
+    ],
+    "yaw_pitch_roll_deg": [
+      0.10815838127724586,
+      27.723578635521566,
+      -0.7310962869606648
+    ],
+    "fovy_deg": 37.7364614473964,
+    "base_axes": [
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        -1,
+        0,
+        0
+      ]
+    ],
+    "source": "calibrate_cameras.py with kinematic anchors; IoU box 0.494 table 0.420; pinhole approximation of a wide-angle lens"
+  },
+  "box_starts": {
+    "ep0": {
+      "box1": {
+        "pos_m": [
+          0.18229156176487188,
+          -0.007681418330647518,
+          0.21535740008304968
+        ],
+        "yaw_deg": 6.359933366449736
+      },
+      "box2": {
+        "pos_m": [
+          0.18229156176487188,
+          -0.007681418330647518,
+          0.17535740008304967
+        ],
+        "yaw_deg": 6.359933366449736
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep1": {
+      "box1": {
+        "pos_m": [
+          0.18097967867592296,
+          -0.010305481037607337,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.18097967867592296,
+          -0.010305481037607337,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep2": {
+      "box1": {
+        "pos_m": [
+          0.1842211899767646,
+          -0.00895004044447582,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.1842211899767646,
+          -0.00895004044447582,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep3": {
+      "box1": {
+        "pos_m": [
+          0.18083140863082547,
+          -0.011481987438045304,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.18083140863082547,
+          -0.011481987438045304,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep4": {
+      "box1": {
+        "pos_m": [
+          0.1791531251296432,
+          -0.018447136699079145,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.1791531251296432,
+          -0.018447136699079145,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep5": {
+      "box1": {
+        "pos_m": [
+          0.1815276045825443,
+          -0.010033501537579394,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.1815276045825443,
+          -0.010033501537579394,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep6": {
+      "box1": {
+        "pos_m": [
+          0.17390068268289344,
+          -0.009987537052188135,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.17390068268289344,
+          -0.009987537052188135,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep7": {
+      "box1": {
+        "pos_m": [
+          0.17976849452927018,
+          -0.010545294759395791,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.17976849452927018,
+          -0.010545294759395791,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep8": {
+      "box1": {
+        "pos_m": [
+          0.17513072083993364,
+          -0.0137725778882331,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.17513072083993364,
+          -0.0137725778882331,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep9": {
+      "box1": {
+        "pos_m": [
+          0.18385862012092052,
+          -0.01614514768130212,
+          0.21535740008304968
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.18385862012092052,
+          -0.01614514768130212,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep10": {
+      "box1": {
+        "pos_m": [
+          0.2071152527592524,
+          -0.00042682439317313036,
+          0.17535740008304967
+        ],
+        "yaw_deg": 25.572005697222114
+      },
+      "box2": {
+        "pos_m": [
+          0.6,
+          -0.6,
+          0.17535740008304967
+        ],
+        "yaw_deg": 25.572005697222114
+      },
+      "boxes": {
+        "box1": "D"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep11": {
+      "box1": {
+        "pos_m": [
+          0.22628688732778757,
+          0.003322076194624492,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.6,
+          -0.6,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "D"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep12": {
+      "box1": {
+        "pos_m": [
+          0.22069465134136634,
+          0.004628996714061203,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.6,
+          -0.6,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "D"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep13": {
+      "box1": {
+        "pos_m": [
+          0.22547981935079658,
+          0.002946618146741975,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.6,
+          -0.6,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "D"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep14": {
+      "box1": {
+        "pos_m": [
+          0.2350639312987216,
+          -0.01882505718745102,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "box2": {
+        "pos_m": [
+          0.6,
+          -0.6,
+          0.17535740008304967
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "D"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    }
+  },
+  "box_size_source": "user (4 cm); the joint image fit gave 3.9 cm"
+}

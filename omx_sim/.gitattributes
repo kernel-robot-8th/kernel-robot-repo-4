@@ -1,0 +1,4 @@
+# STL 메시는 바이너리, 셸 스크립트·Dockerfile 은 Windows 에서 받아도 LF 로 고정한다.
+*.stl binary
+*.sh text eol=lf
+docker/* text eol=lf

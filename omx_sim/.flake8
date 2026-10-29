@@ -1,0 +1,3 @@
+[flake8]
+# omx_sim is not a colcon package (no ament lint); the scripts keep a 120-column style.
+max-line-length = 120
