@@ -4,10 +4,13 @@
 
 ## 🚀 주요 특징
 - **인공신경망/대용량 가중치(PyTorch/LeRobot/CUDA) 완전 배제**: 일반 노트북 및 CI 환경에서도 1초 만에 빌드 및 즉시 실행
-- **공식 맵 규격 정합**: `map_shoe_store_1021_gate67.yaml` (2.5m × 2.4m, 67cm 중앙 통과 게이트, 8개 정본 웨이포인트) 100% 반영
+- **공식 맵 규격 및 최신 v9 웨이포인트 정합**: 
+  - `map_shoe_store_1021_gate67.yaml` (2.5m × 2.4m, 8개 정본 웨이포인트 `WP_*`) 100% 반영
+  - 최신 `feature/navigation` (navigation_v9) 정본 웨이포인트(`ZA`, `ZB`, `ZC`, `I1`~`I3`, `WA_slot*`, `WC_slot*`) 동시 지원
+  - `gate_clearance_m` 파라미터화(기본 0.67m, v9 축소 0.31~0.59m 가변 시험 지원)
 - **다중 로봇 플릿 지원**:
   - Pinky 1~3호기: 차동 구동 기구학, 360° 2D 라이다 레이캐스팅(`LaserScan`), 오도메트리(`Odometry`), TF 브로드캐스팅(`map` $\to$ `odom` $\to$ `base_footprint`), 폐루프 웨이포인트 자율주행
-  - OpenManipulator-X 1~3호기: 5-DOF + 그리퍼 관절, Temporal Ensembling($\alpha=0.01$) 관절 제어 스무딩, 표준 픽앤플레이스(Z=200mm 수직 상승) 시퀀스
+  - OpenManipulator-X 1~3호기: 5-DOF + 그리퍼 관절, 초당 1.2 rad/s 속도 제한 선형 보간(velocity-clamped kinematic interpolation), 표준 픽앤플레이스(Z=200mm 수직 상승) 시퀀스
 
 ## 📦 빌드 및 실행
 ```bash

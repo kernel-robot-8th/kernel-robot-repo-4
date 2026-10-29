@@ -13,8 +13,10 @@
    - 기존 매니퓰레이션 시뮬레이션 브랜치는 수 기가바이트(GB)에 달하는 LeRobot 0.4.4, PyTorch, 가중치 체크포인트 및 오프라인 BC 데이터셋에 강결합되어 일반 팀원이 자신의 PC나 CI 환경에서 실행하기 불가능했습니다.
 2. **팀 전체를 위한 가상 아레나 통합 테스트베드 제공**:
    - 주행(Navigation), 관제(Control Center/FMS), 매니퓰레이터(Manipulation), 비전(Vision), 웹 GUI 팀원이 실물 로봇 없이도 즉시 전체 시스템을 결합 검증할 수 있는 단일 launch 환경을 제공합니다.
-3. **공식 계약 및 도면 100% 준수**:
+3. **공식 계약 및 도면 & 최신 v9 웨이포인트 100% 준수**:
    - `map_shoe_store_1021_gate67.yaml` 맵 규격(2.5m × 2.4m, 67cm 중앙 게이트, 8대 정본 웨이포인트)과 100% 일치합니다.
+   - 최신 `feature/navigation` (navigation_v9) 브랜치의 정본 웨이포인트(`ZA`, `ZB`, `ZC`, `I1`~`I3`, `WA_slot*`, `WC_slot*`)를 동시 등록하여 신규 노선 개발과 즉시 결합 검증할 수 있습니다.
+   - 중앙 게이트 통과 폭(`gate_clearance_m: 0.67`)을 파라미터화하여 좁은 게이트(31~59cm) 검증을 지원합니다.
 
 ---
 
@@ -27,11 +29,11 @@
   - 실시간 오도메트리 (`nav_msgs/msg/Odometry`) 및 TF 트리 브로드캐스팅 (`map` $\to$ `odom` $\to$ `base_footprint`)
   - `cmd_vel` 수동 주행 및 폐루프 웨이포인트 자율주행 모드 지원
 - **OpenManipulator-X 5축 로봇팔 3대 (`omx_1`, `omx_2`, `omx_3`)**:
-  - `omx_1`: 창고 1번 상차대 (`WP_LOAD_1`: X=2.015, Y=2.105)
-  - `omx_2`: 창고 2번 상차대 (`WP_LOAD_2`: X=2.015, Y=1.5375)
-  - `omx_3`: 매장 하차대 (`WP_UNLOAD`: X=0.415, Y=1.85)
+  - `omx_1`: 창고 1번 상차대 (`WP_LOAD_1` / `ZA`: X=2.015, Y=2.105)
+  - `omx_2`: 창고 2번 상차대 (`WP_LOAD_2` / `ZB`: X=2.015, Y=1.5375)
+  - `omx_3`: 매장 하차대 (`WP_UNLOAD` / `ZC`: X=0.415, Y=1.85)
   - 관절각 5-DOF + 2-jaw 그리퍼 JointState 발행
-  - Temporal Ensembling ($\alpha=0.01\sim0.05$) 관절 모션 스무딩 및 표준 픽앤플레이스(Z=200mm 수직 상승) 시퀀스 내장
+  - 초당 1.2 rad/s 속도 제한 선형 보간(velocity-clamped kinematic interpolation) 및 표준 픽앤플레이스(Z=200mm 수직 상승) 시퀀스 내장
 
 ---
 
