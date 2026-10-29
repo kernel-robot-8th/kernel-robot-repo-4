@@ -30,13 +30,12 @@ describe("6.5 시뮬레이션·기능 검증", () => {
     expect(screen.getByText("🤖 핑키 이동 로봇 제어")).toBeInTheDocument();
   });
 
-  it("50Hz 실시간 시뮬레이션 텔레메트리와 자동 순회 데모 모드를 제공한다", () => {
+  it("실시간 텔레메트리 매트릭스와 로컬 3D 뷰어 제어 버튼을 제공한다", () => {
     render(<Page menu={findMenu("6.5")!} />);
     expect(screen.getByText(/LIVE SIM 50Hz/)).toBeInTheDocument();
-    expect(screen.getByText(/SIM TIME:/)).toBeInTheDocument();
-    expect(screen.getByText(/360° ACTIVE/)).toBeInTheDocument();
-    expect(screen.getByText(/자동 순회 데모/)).toBeInTheDocument();
-    expect(screen.getByText(/Dual-View: 2D Web \+ 3D Native/)).toBeInTheDocument();
+    expect(screen.getByText(/다중 장치 텔레메트리 & 통신 반응 매트릭스/)).toBeInTheDocument();
+    expect(screen.getByText(/로컬 3D 뷰어 창 띄우기/)).toBeInTheDocument();
+    expect(screen.getByText(/실시간 명령 반응 이력/)).toBeInTheDocument();
   });
 
   it("터미널 CLI 실행 명령어 카드와 3D 네이티브 안내를 표시한다", () => {
