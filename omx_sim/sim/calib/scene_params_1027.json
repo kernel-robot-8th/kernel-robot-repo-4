@@ -1,0 +1,217 @@
+{
+  "_doc": "10/27 workspace (sim/fit_env_1027.py). Metres, degrees. Frame: robot base bottom centre, x forward, y left, z up.",
+  "dataset": "data/omx_1027_jihyeok_train8",
+  "scene_file": "workspace_scene_1027.xml",
+  "floor_z": -0.08,
+  "stand_size_m": [
+    0.2,
+    0.27
+  ],
+  "stand_rgba": [
+    0.82,
+    0.66,
+    0.46,
+    1
+  ],
+  "top_camera": {
+    "pos_m": [
+      0.032443535724348174,
+      -0.22988896289934624,
+      0.47580057631229933
+    ],
+    "yaw_pitch_roll_deg": [
+      95.4145927184839,
+      -35.216012090213034,
+      -11.792351453963231
+    ],
+    "fovy_deg": 41.17945754517445,
+    "source": "fit_top_camera_1027.py, arm silhouette IoU 0.639 (tape lens position [0.17, -0.28, 0.64] fitted IoU 0.495)"
+  },
+  "table": {
+    "x_near": 0.17,
+    "x_far": 0.445,
+    "y_right": -0.15,
+    "y_left": 0.15,
+    "top_z": 0.155735349923374,
+    "source": "x/y tape; top_z from kinematics (box centre at grasp - 2 cm); tape said 0.22"
+  },
+  "pinky": {
+    "x": 0.00403483476984904,
+    "y": 0.20646470125051816,
+    "disk_top_z": 0.12,
+    "disk_radius": 0.0575,
+    "disk_half_height": 0.0075,
+    "body_size_m": [
+      0.2,
+      0.07
+    ],
+    "source": "diameter / thickness tape; centre and top height from the top video (disk IoU 0.940) around the release point [2.4, 21.1] cm; tape said centre (7, 20), top 0.032; body size from the 10/24 scene"
+  },
+  "boxes": {
+    "box1": {
+      "pos_m": [
+        0.21370261538185042,
+        -0.008326170633722096,
+        0.175735349923374
+      ],
+      "yaw_deg": 0.0,
+      "size_m": [
+        0.06,
+        0.06,
+        0.04
+      ],
+      "mass_kg": 0.01,
+      "rgba": [
+        0.85,
+        0.4,
+        0.38,
+        1
+      ]
+    }
+  },
+  "wrist_camera": {
+    "pos_m": [
+      -0.0314812611081852,
+      0.006872620651692035,
+      0.006659234430789773
+    ],
+    "yaw_pitch_roll_deg": [
+      0.10815838127724586,
+      27.723578635521566,
+      -0.7310962869606648
+    ],
+    "fovy_deg": 37.7364614473964,
+    "base_axes": [
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        -1,
+        0,
+        0
+      ]
+    ],
+    "source": "calibrate_cameras.py with kinematic anchors; IoU box 0.494 table 0.420; pinhole approximation of a wide-angle lens"
+  },
+  "box_starts": {
+    "ep0": {
+      "box1": {
+        "pos_m": [
+          0.21370261538185042,
+          -0.008326170633722096,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep1": {
+      "box1": {
+        "pos_m": [
+          0.2134743245870811,
+          -0.0010822160640733642,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep2": {
+      "box1": {
+        "pos_m": [
+          0.2196347371858987,
+          -0.007446526700578971,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep3": {
+      "box1": {
+        "pos_m": [
+          0.2192549078564896,
+          -0.013458071613672273,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep4": {
+      "box1": {
+        "pos_m": [
+          0.2163045795019654,
+          -0.0157590860444183,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep5": {
+      "box1": {
+        "pos_m": [
+          0.2208911883665312,
+          0.02036395055308801,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep6": {
+      "box1": {
+        "pos_m": [
+          0.22310125252462604,
+          0.002895277676764712,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    },
+    "ep7": {
+      "box1": {
+        "pos_m": [
+          0.22143521133360905,
+          0.010726632018816443,
+          0.175735349923374
+        ],
+        "yaw_deg": 0.0
+      },
+      "boxes": {
+        "box1": "heart box"
+      },
+      "source": "gripper tip (forward kinematics) at grasp"
+    }
+  }
+}

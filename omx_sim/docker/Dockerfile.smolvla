@@ -1,0 +1,7 @@
+# Training image with SmolVLA dependencies (transformers, num2words) on top of omx-lerobot.
+# Build: docker build -f docker/Dockerfile.smolvla -t omx-lerobot-smolvla:0.6.1 docker
+FROM omx-lerobot:0.6.1
+
+ARG LEROBOT_VERSION=0.6.1
+USER root
+RUN pip install "lerobot[training,smolvla]==${LEROBOT_VERSION}"
