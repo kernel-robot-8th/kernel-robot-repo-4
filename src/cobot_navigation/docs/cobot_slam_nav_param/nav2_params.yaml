@@ -38,7 +38,12 @@ amcl:
     z_short: 0.05
     scan_topic: scan
     set_initial_pose: true
-    initial_pose: [0, 0, 0]   # Default: [0, 0, 0] / pinky 1: [0, 0, 0] / pinky 2: [0, -0.67, 0]
+    # Default: [0, 0, 0] / pinky 1: [0, 0, 0] / pinky 2: [0, -0.2, 0] / pinky 3: [0, -0.4, 0]
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.0
 
 bt_navigator:
   ros__parameters:
@@ -155,7 +160,7 @@ controller_server:
     general_goal_checker: 
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
-      xy_goal_tolerance: 0.025                  # [m] 목표 지점 반경 0.25m 안에 들어오면 도착 인정
+      xy_goal_tolerance: 0.03                   # [m] 목표 지점 반경 0.03m 안에 들어오면 도착 인정
       yaw_goal_tolerance: 0.17                  # [rad] 목표 각도 오차 약 10도 이내면 올바르게 본 것으로 인정
 
     # ==========================================================
@@ -187,7 +192,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 8.0
-        inflation_radius: 0.45   # 벽과의 거리를 좁히려면 안전지대 자체의 폭을 줄여야 함
+        inflation_radius: 0.20   # 벽과의 거리를 좁히려면 안전지대 자체의 폭을 줄여야 함
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
@@ -245,8 +250,8 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 10.0
-        inflation_radius: 0.45
+        cost_scaling_factor: 8.0
+        inflation_radius: 0.2
       always_send_full_costmap: True
 
 # The yaml_filename does not need to be specified since it going to be set by defaults in launch.
@@ -336,3 +341,4 @@ velocity_smoother:
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
     enable_stamped_cmd_vel: false
+
