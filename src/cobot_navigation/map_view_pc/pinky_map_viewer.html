@@ -86,6 +86,7 @@
     <span><span class="tag">pixel</span> <span class="val" id="pxOut">-</span></span>
     <span><span class="tag">map (x, y)</span> <span class="val" id="xyOut">-</span></span>
     <span><span class="tag">occupancy</span> <span class="val2" id="occOut">-</span></span>
+    <span><span class="tag">waypoint</span> <span class="val2" id="wpOut">-</span></span>
   </div>
 
   <div class="controls">
@@ -93,6 +94,9 @@
     <input type="file" id="mapFile" accept=".yaml,.yml,.pgm" multiple hidden>
     <button id="clearBtn">모든 점 지우기</button>
     <button id="gridBtn">그리드 on/off</button>
+    <button id="wpOpenBtn">waypoint 불러오기</button>
+    <button id="wpToggleBtn">waypoint on/off</button>
+    <button id="wpClearBtn">waypoint 지우기</button>
   </div>
   <div class="sub" id="mapNote">지도 불러오기 버튼으로 .yaml + .pgm 을 함께 선택하거나, 이 화면에 끌어다 놓으세요.</div>
 
@@ -101,11 +105,20 @@
     <ul class="points-list" id="pointsList"></ul>
   </div>
 
+  <div class="points">
+    <div id="wpEmpty" class="empty">waypoint 불러오기 버튼으로 pinkyN.yaml (cobot_pinky_patrol/config) 을 선택하거나 끌어다 놓으면 points 가 지도에 표시됩니다.</div>
+    <ul class="points-list" id="wpList"></ul>
+  </div>
+
   <div class="legend">
     <span><i class="sw" style="background:#ff5c5c"></i> 0.2 m 그리드</span>
     <span><i class="sw" style="background:#39c6ff"></i> 0.05 m 그리드</span>
     <span><i class="sw" style="background:#5fd3a3"></i> map 원점 (0,0)</span>
     <span><i class="sw" style="background:#f2a65a"></i> 클릭한 지점</span>
+    <span><i class="sw" style="background:#ffd23f"></i> waypoint 홈 (I)</span>
+    <span><i class="sw" style="background:#c792ea"></i> waypoint 일반 (P)</span>
+    <span><i class="sw" style="background:#ff6b9d"></i> waypoint 구역 (Z / Z_EXIT)</span>
+    <span><i class="sw" style="background:#8a949e"></i> 미실측 (0, 0)</span>
   </div>
 </div>
 
@@ -220,6 +233,83 @@ function draw(){
     ctx.fillStyle = '#f2a65a'; ctx.font = 'bold 10px monospace';
     ctx.fillText('P'+(i+1), p.px*SCALE+6, p.py*SCALE-6);
   });
+
+  drawWaypoints();
+}
+
+// ---- waypoint (pinkyN.yaml 의 points) ----
+let waypoints = []; // {name, x, y, yaw|null}
+let showWaypoints = true;
+
+function wpKind(w){
+  if(/^Z.*_EXIT$/.test(w.name) || /^Z/.test(w.name)) return 'zone';
+  if(/^I/.test(w.name)) return 'home';
+  if(w.x === 0 && w.y === 0) return 'spare'; // 예비 점은 원점에 겹쳐 쌓인다
+  return 'general';
+}
+const WP_COLOR = { home:'#ffd23f', general:'#c792ea', zone:'#ff6b9d', spare:'#8a949e' };
+
+function wpInRange(w){
+  const [px, py] = mapToPx(w.x, w.y);
+  return px >= 0 && px <= META.image_w && py >= 0 && py <= META.image_h;
+}
+
+function drawWaypoints(){
+  if(!showWaypoints || !mapLoaded) return;
+  waypoints.forEach(w=>{
+    if(!wpInRange(w)) return;
+    const kind = wpKind(w);
+    const [px, py] = mapToPx(w.x, w.y);
+    const cx = px*SCALE, cy = py*SCALE;
+    ctx.fillStyle = WP_COLOR[kind];
+    ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1;
+    if(kind !== 'spare' && w.yaw !== null){
+      // map 의 y 는 위쪽이 +, 캔버스의 y 는 아래쪽이 + 라서 sin 을 뒤집는다
+      const ex = cx + 14*Math.cos(w.yaw), ey = cy - 14*Math.sin(w.yaw);
+      ctx.strokeStyle = WP_COLOR[kind]; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 1;
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, kind === 'spare' ? 3 : 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    if(kind !== 'spare'){
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = '#0d1117'; ctx.fillText(w.name, cx+8, cy-7);
+      ctx.fillStyle = WP_COLOR[kind]; ctx.fillText(w.name, cx+7, cy-8);
+    }
+  });
+}
+
+// pinkyN.yaml 의 points: 블록에서 `이름: [x, y(, yaw)]` 만 뽑는다. 주석(#)과 다른 키는 무시한다.
+function parseWaypoints(text){
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex(l => /^\s*points:\s*(#.*)?$/.test(l));
+  if(start < 0) throw new Error('yaml 에서 points: 블록을 찾지 못했습니다');
+  const base = lines[start].match(/^\s*/)[0].length;
+  const num = '([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)';
+  const re = new RegExp(`^\\s*([A-Za-z0-9_]+):\\s*\\[\\s*${num}\\s*,\\s*${num}\\s*(?:,\\s*${num}\\s*)?\\]`);
+  const out = [];
+  for(let i = start + 1; i < lines.length; i++){
+    const line = lines[i].split('#')[0];
+    if(!line.trim()) continue;
+    if(line.match(/^\s*/)[0].length <= base) break; // points 블록이 끝났다
+    const m = line.match(re);
+    if(m) out.push({ name: m[1], x: +m[2], y: +m[3], yaw: m[4] === undefined ? null : +m[4] });
+  }
+  if(!out.length) throw new Error('points 안에서 [x, y] 좌표를 읽지 못했습니다');
+  return out;
+}
+
+function renderWaypointList(){
+  const list = document.getElementById('wpList');
+  document.getElementById('wpEmpty').style.display = waypoints.length ? 'none' : 'block';
+  list.innerHTML = '';
+  waypoints.forEach(w=>{
+    const li = document.createElement('li');
+    const yaw = w.yaw === null ? '-' : w.yaw.toFixed(2) + ' rad';
+    const note = wpKind(w) === 'spare' ? ' (미실측/예비)' : (mapLoaded && !wpInRange(w) ? ' (지도 범위 밖)' : '');
+    li.innerHTML = `<span><span class="c" style="color:${WP_COLOR[wpKind(w)]}">${w.name}</span> — map: (${w.x.toFixed(3)}, ${w.y.toFixed(3)}) m &nbsp; yaw: ${yaw}${note}</span>`;
+    list.appendChild(li);
+  });
 }
 
 img.onload = draw;
@@ -279,19 +369,32 @@ function showMap(name, meta, canvas){
   draw();
 }
 
-// files: File[] — .yaml 1개와 그 yaml 의 image: 가 가리키는 .pgm 이 들어 있어야 한다.
+// files: File[] — map .yaml(image: 포함)+그 .pgm 과 순찰 .yaml(points: 포함)을 종류별로 가려 읽는다.
 async function loadFromFiles(files){
   mapNote.textContent = '';
   try{
-    const yf = files.find(f => /\.ya?ml$/i.test(f.name));
-    if(!yf) throw new Error('.yaml 파일도 함께 선택하세요');
-    const meta = parseYaml(await yf.text());
-    const base = meta.image.split('/').pop();
-    const pf = files.find(f => f.name === base);
-    if(!pf) throw new Error(`yaml 이 가리키는 이미지(${base})도 함께 선택하세요`);
-    showMap(yf.name.replace(/\.ya?ml$/i, ''), meta, pgmToCanvas(await pf.arrayBuffer()));
+    const yamls = [];
+    for(const f of files.filter(f => /\.ya?ml$/i.test(f.name))) yamls.push({ f, text: await f.text() });
+    if(!yamls.length) throw new Error('.yaml 파일도 함께 선택하세요');
+    const mapY = yamls.find(y => /^\s*image:/m.test(y.text));
+    const wpY = yamls.find(y => /^\s*points:/m.test(y.text));
+    if(!mapY && !wpY) throw new Error('map yaml(image:) 도 waypoint yaml(points:) 도 아닙니다');
+    if(mapY){
+      const meta = parseYaml(mapY.text);
+      const base = meta.image.split('/').pop();
+      const pf = files.find(f => f.name === base);
+      if(!pf) throw new Error(`yaml 이 가리키는 이미지(${base})도 함께 선택하세요`);
+      showMap(mapY.f.name.replace(/\.ya?ml$/i, ''), meta, pgmToCanvas(await pf.arrayBuffer()));
+    }
+    if(wpY){
+      waypoints = parseWaypoints(wpY.text);
+      showWaypoints = true;
+      renderWaypointList();
+      draw();
+      mapNote.textContent = `waypoint ${waypoints.length}개 (${wpY.f.name})` + (mapLoaded ? '' : ' — 지도를 불러오면 표시됩니다');
+    }
   }catch(e){
-    mapNote.textContent = '지도 로드 실패: ' + e.message;
+    mapNote.textContent = '불러오기 실패: ' + e.message;
   }
 }
 
@@ -303,13 +406,13 @@ fileInput.onchange = async () => {
   await loadFromFiles([...fileInput.files]);
   fileInput.value = '';
 };
-document.getElementById('openBtn').onclick = async () => {
+async function pickFiles(id, description){
   if(window.showOpenFilePicker){
     try{
       const handles = await window.showOpenFilePicker({
-        id: 'pinky-maps',
+        id,
         multiple: true,
-        types: [{ description: 'ROS map (.yaml, .pgm)', accept: { 'application/octet-stream': ['.yaml', '.yml', '.pgm'] } }],
+        types: [{ description, accept: { 'application/octet-stream': ['.yaml', '.yml', '.pgm'] } }],
       });
       await loadFromFiles(await Promise.all(handles.map(h => h.getFile())));
       return;
@@ -319,7 +422,9 @@ document.getElementById('openBtn').onclick = async () => {
     }
   }
   fileInput.click();
-};
+}
+document.getElementById('openBtn').onclick = () => pickFiles('pinky-maps', 'ROS map (.yaml, .pgm)');
+document.getElementById('wpOpenBtn').onclick = () => pickFiles('pinky-waypoints', 'waypoint (pinkyN.yaml)');
 
 // 방법 2: 드래그 앤 드롭
 window.addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('dragging'); });
@@ -361,6 +466,14 @@ cv.addEventListener('mousemove', (e)=>{
   const px = (e.clientX - r.left) * (cv.width / r.width) / SCALE;
   const py = (e.clientY - r.top) * (cv.height / r.height) / SCALE;
   updateReadout(px, py);
+  // 마우스 근처(8 화면 픽셀) 의 가장 가까운 waypoint 이름
+  let best = null, bd = 8 / SCALE;
+  if(showWaypoints) waypoints.forEach(w=>{
+    const [wx, wy] = mapToPx(w.x, w.y);
+    const d = Math.hypot(wx - px, wy - py);
+    if(d < bd){ bd = d; best = w; }
+  });
+  document.getElementById('wpOut').textContent = best ? `${best.name} (${best.x.toFixed(2)}, ${best.y.toFixed(2)})` : '-';
 });
 
 function renderPointsList(){
@@ -392,6 +505,8 @@ cv.addEventListener('click', (e)=>{
 
 document.getElementById('clearBtn').onclick = ()=>{ points = []; renderPointsList(); draw(); };
 document.getElementById('gridBtn').onclick = ()=>{ showGrid = !showGrid; draw(); };
+document.getElementById('wpToggleBtn').onclick = ()=>{ showWaypoints = !showWaypoints; draw(); };
+document.getElementById('wpClearBtn').onclick = ()=>{ waypoints = []; renderWaypointList(); draw(); };
 </script>
 </body>
 </html>
