@@ -131,7 +131,7 @@ class PinkyPatrolNode(Node):
     # ==========================================================================
     # 복귀 지점 이름은 파라미터 home_name (config/pinky2.yaml, self.home_name)
     NAV_RETRIES = 3                                   # 진입 절차 중 한 목표에 대한 이동 최대 시도 횟수
-    # goto 허용 지점 = YAML 에 좌표가 있는 일반 지점(P1~P10) + 자기 홈(I<n>). 구역 지점(Z*)은 zone 명령 전용, W*/Z*_EXIT 는 직접 이동 금지
+    # goto 허용 지점 = YAML 에 좌표가 있는 일반 지점(P1~P50) + 자기 홈(I<n>). 구역 지점(Z*)은 zone 명령 전용, W*/Z*_EXIT 는 직접 이동 금지
     IDLE_TICK_SEC = 1.0                               # 유휴 복귀 타이머 확인 주기(초). 복귀까지의 시간은 파라미터 idle_return_sec
 
     # ==========================================================================
@@ -263,7 +263,7 @@ class PinkyPatrolNode(Node):
                 raw[name] = self.get_parameter(f'points.{name}').value
             except ParameterUninitializedException:
                 pass   # 누락은 validate_points 가 이름을 모아 한꺼번에 보고한다
-        for name in optional_general_names():      # P3~P10: 값이 있는 것만 사용 (없으면 goto 불가)
+        for name in optional_general_names():      # P3~P50: 값이 있는 것만 사용 (없으면 goto 불가)
             try:
                 raw[name] = self.get_parameter(f'points.{name}').value
             except ParameterUninitializedException:

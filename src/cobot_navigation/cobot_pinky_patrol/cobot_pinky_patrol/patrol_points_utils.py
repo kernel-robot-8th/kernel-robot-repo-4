@@ -16,9 +16,9 @@ import math
 # 구역별 출구 지점(Z<구역>_EXIT)은 구역 이름에 따라 달라지므로
 # required_names(zone_names) 가 덧붙인다. 이름 자체는 코드가 참조하므로 좌표와 달리 코드에 남긴다.
 REQUIRED_POINTS = ('P1', 'P2')
-# 일반 지점은 P1~P10 까지 쓸 수 있다. P3~P10 은 선택이라 YAML 에 좌표가 있는 것만 goto 로 갈 수 있다
+# 일반 지점은 P1~P50 까지 쓸 수 있다. P3~P50 은 선택이라 YAML 에 좌표가 있는 것만 goto 로 갈 수 있다
 # (좌표를 모르는 지점을 (0,0,0) 으로 채우면 goto 때 원점으로 가므로 아예 정의하지 않는다).
-MAX_GENERAL_POINTS = 10
+MAX_GENERAL_POINTS = 50
 
 
 class PointsConfigError(ValueError):
@@ -89,12 +89,12 @@ def exit_name(zone):
 
 
 def optional_general_names():
-    """선택 일반 지점 이름 ``['P3', ..., 'P10']`` (YAML 에 있으면 읽고, 없으면 건너뛴다)."""
+    """선택 일반 지점 이름 ``['P3', ..., 'P50']`` (YAML 에 있으면 읽고, 없으면 건너뛴다)."""
     return [f'P{i}' for i in range(len(REQUIRED_POINTS) + 1, MAX_GENERAL_POINTS + 1)]
 
 
 def general_names(points):
-    """``points`` 안의 일반 지점(P1~P10) 이름만 번호순으로 돌려준다."""
+    """``points`` 안의 일반 지점(P1~P50) 이름만 번호순으로 돌려준다."""
     allowed = {f'P{i}' for i in range(1, MAX_GENERAL_POINTS + 1)}
     return sorted((n for n in points if n in allowed), key=lambda n: int(n[1:]))
 
