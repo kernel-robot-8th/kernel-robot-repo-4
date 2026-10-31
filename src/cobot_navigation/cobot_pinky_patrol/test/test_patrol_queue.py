@@ -177,7 +177,7 @@ def _fake_node(cls, params):
 
     node.declare_parameter = declare_parameter
     node.get_parameter = get_parameter
-    node._load_points = types.MethodType(cls.__dict__['_load_points'], node)
+    node._load_points = types.MethodType(cls._load_points, node)
     return node
 
 
@@ -393,10 +393,18 @@ def make_robot(env, n, robot_id, travel=0.3):
                  'make_pose', 'get_current_pose', '_run_goto', '_run_zone', '_run_leave',
                  '_run_idle_return', '_exit_held_zone', '_arm_idle', '_idle_tick', '_finish_task',
                  '_prepare_nav', '_start_task', '_navigate', '_leave_zone', '_wait_interruptible',
-                 '_retreat_after_stop', '_end_state'):
-        setattr(r, name, types.MethodType(cls.__dict__[name], r))
+                 '_retreat_after_stop', '_end_state', '_execute_command'):
+        setattr(r, name, types.MethodType(getattr(cls, name), r))
     r.get_logger = nav.get_logger
-    r.publish_status = lambda state, idx, detail='': r.statuses.append((state, detail))
+    r._command_context = threading.local()
+    r._incoming_command_id = None
+
+    def publish_status(state, idx, detail='', task_finished=False):
+        if state in ('DONE', 'FAILED', 'STOPPED'):
+            r._command_context.terminal = (state, idx, detail)
+        r.statuses.append((state, detail))
+
+    r.publish_status = publish_status
     r.start_blink = lambda *a, **k: None
     r.stop_blink = lambda: None
     r.set_drive_led = lambda: None
@@ -510,7 +518,7 @@ def test_stop_command_callback_does_not_cancel_from_callback_thread(env, n):
     'Executor is already spinning' 으로 노드가 죽었다 (T4, 2026-10-14)."""
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
     r = make_robot(env, n, f'pinky{n}')
-    r._cmd_cb = types.MethodType(cls.__dict__['_cmd_cb'], r)
+    r._cmd_cb = types.MethodType(cls._cmd_cb, r)
     calls = []
     r.navigator.cancelTask = lambda: calls.append('cancel')
     r._running = True
@@ -642,7 +650,7 @@ def test_emergency_stop_in_zone_keeps_token_and_position(env):
 def test_cmd_cb_emergency_stop_sets_both_flags(env, n):
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
     r = make_robot(env, n, f'pinky{n}')
-    r._cmd_cb = types.MethodType(cls.__dict__['_cmd_cb'], r)
+    r._cmd_cb = types.MethodType(cls._cmd_cb, r)
     r._running = True
     r._cmd_cb(types.SimpleNamespace(data='emergency_stop'))
     assert r._stop_requested and r._emergency_requested
@@ -656,7 +664,7 @@ def test_start_is_disabled_and_reports_failed(env, n):
     """R1: start 는 작업을 시작하지 않고 FAILED(start disabled) 로 응답한다."""
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
     r = make_robot(env, n, f'pinky{n}')
-    r._cmd_cb = types.MethodType(cls.__dict__['_cmd_cb'], r)
+    r._cmd_cb = types.MethodType(cls._cmd_cb, r)
     r._running = False
     r._thread = None
     r._cmd_cb(types.SimpleNamespace(data='start'))
@@ -763,7 +771,7 @@ def _cmd(env, n, data, held=None):
     """_cmd_cb 만 단독으로 시험한다 (작업 스레드를 띄우지 않는 거부 경로 전용)."""
     cls = importlib.import_module(MODS[n]).PinkyPatrolNode
     r = make_robot(env, n, f'pinky{n}')
-    r._cmd_cb = types.MethodType(cls.__dict__['_cmd_cb'], r)
+    r._cmd_cb = types.MethodType(cls._cmd_cb, r)
     r._held_zone = held
     r._cmd_cb(types.SimpleNamespace(data=data))
     return r
@@ -898,7 +906,7 @@ def test_home_command_exits_zone_then_goes_home(env):
     r = make_robot(env, 2, 'pinky2')
     run_task(env, r, r._run_zone, 'ZA')
     assert r._held_zone == 'A'
-    r._cmd_cb = types.MethodType(importlib.import_module(MODS[2]).PinkyPatrolNode.__dict__['_cmd_cb'], r)
+    r._cmd_cb = types.MethodType(importlib.import_module(MODS[2]).PinkyPatrolNode._cmd_cb, r)
     r._cmd_cb(types.SimpleNamespace(data='home'))
     assert env.pump(lambda: not r._running, 15), states(r)
     assert r.statuses[-1] == ('DONE', 'returned home')
@@ -910,7 +918,7 @@ def test_home_command_exits_zone_then_goes_home(env):
 def test_home_command_at_home_does_not_move_and_busy_is_ignored(env):
     """이미 홈이면 이동 없이 DONE, 작업 중이면 home 을 무시한다."""
     r = make_robot(env, 2, 'pinky2')
-    r._cmd_cb = types.MethodType(importlib.import_module(MODS[2]).PinkyPatrolNode.__dict__['_cmd_cb'], r)
+    r._cmd_cb = types.MethodType(importlib.import_module(MODS[2]).PinkyPatrolNode._cmd_cb, r)
     r._last_point = r.home_name
     r._cmd_cb(types.SimpleNamespace(data='home'))
     assert env.pump(lambda: not r._running, 10), states(r)

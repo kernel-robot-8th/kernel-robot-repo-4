@@ -20,6 +20,15 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 | 2. 명령과 상태 | 관제 PC가 `/pinkyN/patrol_cmd` 로 명령을 보내고, 로봇이 `/pinkyN/patrol_status` 로 상태(JSON)를 돌려준다 | `cobot_pinky_patrol_cmd`, `cobot_pinky_patrol` |
 | 3. 구역 토큰과 대기열 | 구역마다 토큰 1개와 FIFO 대기열을 관제 PC의 매니저가 관리한다. 로봇은 허가(토큰)를 받은 뒤에만 구역에 들어간다 | `cobot_zone_traffic_control` |
 
+## 관제 BT 리팩토링
+
+`refactor/control-server-bt-mqtt-db` 브랜치에서 UI → MQTT → 관제 Python BT → ROS → Pinky → Nav2 BT 흐름을 추가했습니다. 실제 SQLite 저장소와 MQTT 이벤트 outbox를 사용하며 추후 서버 DB로 교체할 수 있도록 경계를 분리했습니다.
+
+- [구조 분석·데이터 흐름·변경 결과 단일 HTML 리포트](docs/control_server_bt_report.html)
+- [실제 tick 기반 BT 상태·방문 경로 시각화](docs/control_server_bt_report.html#bt-visualizer)
+- [관제 패키지 실행·MQTT 계약·검증 안내](cobot_fleet_control/README.md)
+- 순찰 구현은 `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` 한 곳에서 관리하며 기존 로봇별 실행 이름은 호환 진입점입니다.
+
 ## 구성도
 
 ![cobot_navigation 구성도](docs/cobot_navigation_architecture.svg)
@@ -38,6 +47,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 
 | 폴더 | 종류 | 실행 위치 | 역할 | 상세 |
 |---|---|---|---|---|
+| `cobot_fleet_control` | ROS 2 패키지 | 관제 PC | Python BT 업무 실행, MQTT 입출력, SQLite 상태·이벤트 저장 | [README](cobot_fleet_control/README.md) |
 | `cobot_domain_bridge` | ROS 2 패키지 | 관제 PC | 관제 PC(100)와 로봇(10/20/30) 사이 토픽 중계 | [README](cobot_domain_bridge/README.md) |
 | `cobot_zone_traffic_control` | ROS 2 패키지 | 관제 PC(매니저) / 로봇(클라이언트 import) | 위험구역에 한 대만 들어가도록 허가·대기열 슬롯 관리 | [README](cobot_zone_traffic_control/README.md) |
 | `cobot_pinky_patrol` | ROS 2 패키지 | 각 로봇 | Nav2 순찰 노드 (`pinky_patrol_node_pinky1/2/3`) | [README](cobot_pinky_patrol/README.md) |
@@ -155,7 +165,7 @@ ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<
 | 지점 좌표, 홈, 구역 소속, 유휴 복귀 시간 | `cobot_pinky_patrol/config/pinky{1,2,3}.yaml` | 좌표는 소수점으로(`0.0`). 맵이 바뀌면 이 YAML 만 고친다 |
 | 구역 이름, 대기 앵커·방향·간격, 대기 상한, 타임아웃 | `cobot_zone_traffic_control/config/zone_params.yaml` | `robot_ids`, `zone_names` 는 순찰 YAML 과 같아야 한다. 앵커는 여기가 **유일한 출처** |
 | 브릿지 토픽 추가·수정 | `cobot_domain_bridge/config/pinky_bridge_pinky{1,2,3}.yaml` | 세 파일을 **같이** 고친다 |
-| 순찰 흐름 | `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node_pinky{1,2,3}.py` | 세 파일이 거의 같으므로 같이 맞춘다 |
+| 순찰 흐름 | `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` | 공통 구현 한 곳만 수정한다 |
 | Nav2·SLAM 파라미터 | `docs/cobot_slam_nav_param/` | 변경 이력은 `param_changes.md` |
 | 지도 | `map_view_pc/maps/` (v9), `docs/cobot_map/` (이전 v6) | 뷰어에서 yaml 과 pgm 을 함께 불러온다 |
 
@@ -193,7 +203,7 @@ cd src/cobot_navigation/cobot_zone_traffic_control && python3 -m pytest test/
 - **대기 위치 실측**: 줄이 늘어나는 `-y` 쪽에 장애물이 없는지 확인해야 합니다. 구역 A·B 는 대기 위치가 같아서 두 구역에 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있습니다. A·B 슬롯 2 는 홈 `I1` 과 0.1 m, C 슬롯 1 은 `ZC_EXIT` 와 0.4 m 입니다.
 - **`start` 순회 비활성**: v1.1.0 부터 `start` 는 받으면 `FAILED` 로 응답합니다(순회 코드는 노드 파일에 주석으로 보관).
 - **함께 재배포**: 메시지 맨 앞에 구역 이름이 붙으므로 **관제 PC 매니저 → 로봇 3대 순서로 함께** 재배포해야 하고 구형 노드와 섞어 쓸 수 없습니다. 같은 구역을 쓰는 로봇은 모두 같은 대기열 방식이어야 하며, 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.
-- **패키지 간 import**: 순찰 노드가 `cobot_zone_traffic_control.zone_gate_client` 를 직접 import 하는데, `cobot_pinky_patrol/package.xml` 에는 의존성이 선언되어 있지 않습니다. CLAUDE.md 3-6(기능 패키지끼리 import 하지 않고 토픽으로만 통신)과도 다르므로, 공용 패키지로 옮길지 팀 결정이 필요합니다.
+- **패키지 간 import**: 순찰 노드가 `cobot_zone_traffic_control.zone_gate_client` 를 직접 import 하며 `cobot_pinky_patrol/package.xml` 에 런타임 의존성을 선언했습니다. CLAUDE.md 3-6(기능 패키지끼리 import 하지 않고 토픽으로만 통신)과도 다르므로, 공용 패키지로 옮길지 팀 결정이 필요합니다.
 - **ROS 도메인 번호**: 이 폴더는 관제 PC 100, 로봇 10/20/30 을 씁니다. 팀 공통 결정 D2([`docs/fms_decisions.md`](../../docs/fms_decisions.md))는 실물 10·12 제안이 `proposed` 상태라 확정되면 맞춰야 합니다.
 - **Nav2 파라미터 문서**: `param_changes.md` 는 정적 비교 결과이며 실제 실행으로 검증하지 않았습니다.
 - **브릿지 설정 중복**: 토픽을 추가·수정할 때 `pinky_bridge_pinky{1,2,3}.yaml` 세 파일을 같이 고쳐야 합니다.

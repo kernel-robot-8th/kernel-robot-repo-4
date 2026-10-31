@@ -164,3 +164,7 @@ cobot_pinky_patrol/
     ├── patrol_points_utils.py              # 좌표 파싱·검증 (ROS 비의존)
     └── pinky_patrol_node_pinky{1,2,3}.py   # 대기열 방식 순찰 노드
 ```
+
+## 관제 연동 리팩토링
+
+로봇별 실행 이름은 유지하고 주행 코드는 `cobot_pinky_patrol/pinky_patrol_node.py`로 통합했습니다. YAML의 `robot_id`·좌표·홈 설정이 우선하며 기존 문자열 명령도 지원합니다. 신규 관제는 `command_id`와 `command`를 담은 JSON으로 명령을 보내고, 작업 정리가 끝난 최종 응답의 `task_finished=true`를 확인합니다. [MQTT·DB·BT 계약](../cobot_fleet_control/README.md)을 참고하세요.

@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinky 관제 구조 · BT / MQTT / DB 리팩토링 리포트</title>
+<style>
+:root{--bg:#0b1220;--panel:#131e30;--border:#2b3b53;--muted:#adbed2;--ink:#edf3fc;--mint:#68e2c2;--blue:#80b7ff;--amber:#ffd086;--red:#ff9caa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 system-ui,-apple-system,"Noto Sans KR",sans-serif}a{color:var(--blue);text-underline-offset:4px}main{max-width:1180px;margin:auto;padding:48px 28px 80px}h1{font-size:clamp(30px,5vw,52px);line-height:1.25;margin:20px 0}h2{font-size:27px;margin:0 0 20px}h3{font-size:19px;margin:0 0 8px}p{margin:8px 0 16px;overflow-wrap:anywhere}.muted,small{color:var(--muted)}.eyebrow{color:var(--mint);font-size:13px;letter-spacing:.12em}.tag{display:inline-block;padding:3px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;color:var(--muted)}.tag.good{color:var(--mint)}.tag.warn{color:var(--amber)}nav{display:flex;gap:16px;flex-wrap:wrap;padding:20px 0;border-bottom:1px solid var(--border);margin-bottom:36px}section{margin-top:54px;scroll-margin-top:20px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.two{grid-template-columns:repeat(2,minmax(0,1fr))}.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px}.metric{font-size:30px;font-weight:700;line-height:1.5;color:var(--mint)}.callout{padding:18px 22px;border-left:3px solid var(--mint);background:#142b30;margin:22px 0}.warning{border-color:var(--amber);background:#2a251d}.flow{display:grid;grid-template-columns:1fr 30px 1fr 30px 1.3fr;align-items:center;gap:8px;margin:24px 0}.box{padding:18px 14px;border:1px solid var(--border);border-radius:10px;text-align:center;background:var(--panel)}.box.active{border-color:var(--mint);box-shadow:0 0 0 2px #68e2c229}.arrow{text-align:center;color:var(--mint)}.return{text-align:center;color:var(--blue);border-bottom:1px dashed var(--border);padding:10px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:13px 15px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}th{color:var(--muted);font-weight:600}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{font-size:.88em;color:#b8d7ff;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:20px;border-radius:10px;background:#080e18;border:1px solid var(--border);font-size:13px;line-height:1.7}ul,ol{padding-left:22px}li{margin:7px 0}button,select{font:inherit;background:#1c2e46;color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:9px 15px}button{cursor:pointer}button.primary{color:#071712;background:var(--mint);font-weight:700}button:disabled{opacity:.4;cursor:default}button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--mint);outline-offset:4px}.controls{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}.timeline{list-style:none;padding:0}.timeline li{border-left:2px solid var(--border);padding:6px 0 10px 18px;color:var(--muted)}.timeline li.current{color:var(--mint);border-color:var(--mint)}details{border-bottom:1px solid var(--border);padding:16px 0}summary{cursor:pointer;font-weight:600}.status{font-weight:700;color:var(--mint)}.foot{margin-top:60px;border-top:1px solid var(--border);padding-top:20px;color:var(--muted);font-size:13px}@media(max-width:780px){main{padding:26px 16px}.grid,.two{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}.card{padding:18px}h2{font-size:24px}}@media print{body{background:white;color:#111}main{max-width:none;padding:0}.card,.box,.callout{background:#f4f6f8;color:#111;break-inside:avoid}pre{background:#f4f6f8;color:#111}.muted,small,th{color:#444}nav,.controls{display:none}a,code,.metric{color:#174278}section{margin-top:30px}.tag{color:#444}}
+
+.bt-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;margin:14px 0}.bt-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}.bt-canvas{overflow:auto;padding:28px 10px;background:#080e18;border:1px solid var(--border);border-radius:12px;min-height:320px}.bt-tree,.bt-tree ul{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:22px}.bt-tree{width:max-content;min-width:100%}.bt-tree ul{padding-top:30px;position:relative}.bt-tree ul:before{content:"";position:absolute;top:15px;left:125px;right:125px;border-top:1px solid var(--border)}.bt-tree ul:after{content:"";position:absolute;top:0;height:15px;left:50%;border-left:1px solid var(--border)}.bt-tree li{position:relative;display:flex;flex-direction:column;align-items:center}.bt-tree ul>li:before{content:"";height:15px;border-left:1px solid var(--border);position:absolute;top:-15px}.bt-node{width:250px;border:2px solid #566477;border-radius:10px;padding:14px;background:#131e30;font-size:13px}.bt-node strong{display:block;font-size:16px}.bt-node .bt-status{font-weight:bold;display:inline-block;margin:8px 0}.bt-node[data-status="RUNNING"]{border-color:var(--amber)}.bt-node[data-status="RUNNING"] .bt-status{color:var(--amber)}.bt-node[data-status="SUCCESS"]{border-color:var(--mint)}.bt-node[data-status="SUCCESS"] .bt-status{color:var(--mint)}.bt-node[data-status="FAILURE"]{border-color:var(--red)}.bt-node[data-status="FAILURE"] .bt-status{color:var(--red)}.bt-node[data-visited="true"]{box-shadow:0 0 0 3px #edf3fc33}.bt-node[data-visited="false"] .bt-visit{color:var(--muted)}.bt-meta{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}.bt-range{width:100%;accent-color:var(--mint)}#bt-error{color:var(--red)}#bt-data{max-height:300px;overflow:auto}.bt-visit{display:block;border-top:1px solid var(--border);margin-top:9px;padding-top:8px}input[type=file]{max-width:100%;font:inherit;font-size:13px}input[type=range]{cursor:pointer}.bt-graph-label{font-size:13px;color:var(--muted);margin-top:8px}
+@media(max-width:600px){.bt-node{width:146px;padding:10px;font-size:12px;overflow-wrap:anywhere}.bt-node strong{font-size:14px}.bt-tree,.bt-tree ul{gap:10px}.bt-tree ul:before{left:73px;right:73px}.bt-canvas{padding:22px 8px}}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">COBOT NAVIGATION / REFACTORING REPORT / 2026.10.31</div>
+<h1>작업 판단은 관제로,<br>주행 실행은 Pinky로.</h1>
+<p class="muted">UI에서 내린 명령이 어떤 데이터로 저장되고, 어느 BT를 거쳐, 어떤 결과로 돌아오는지 설명할 수 있는 구조.</p>
+<span class="tag good">구현 + 격리 검증</span> <span class="tag">refactor/control-server-bt-mqtt-db</span> <span class="tag warn">현장 주행 미검증</span>
+<nav aria-label="리포트 목차"><a href="#run-order">실행 순서 · BT 화면 확인</a><a href="#diagnosis">현재 구조 진단</a><a href="#architecture">목표 구조</a><a href="#bt">BT 책임</a><a href="#data">실제 데이터</a><a href="#bt-visualizer">BT 실행 시각화</a><a href="#demo">흐름 시연</a><a href="#changes">변경 파일</a><a href="#verification">검증</a><a href="#roadmap">남은 작업</a></nav>
+</header>
+<div class="grid">
+<div class="card"><div class="metric">3 → 1</div><h3>순찰 구현 통합</h3><p class="muted">로봇별 약 1,090줄의 중복을 공통 실행기로 통합. 기존 실행 이름은 유지.</p></div>
+<div class="card"><div class="metric">2개 BT 계층</div><h3>관제 업무 / 로봇 주행</h3><p class="muted">관제는 Python py_trees, 로봇은 기존 Nav2 / BehaviorTree.CPP.</p></div>
+<div class="card"><div class="metric">명령 ID</div><h3>입력부터 결과까지 연결</h3><p class="muted">MQTT 입력·DB 기록·ROS 명령·최종 응답이 하나의 ID를 공유.</p></div>
+</div>
+<section id="run-order"><h2>실행 순서와 BT 화면 확인</h2>
+<div class="callout warning"><strong>launch는 관제 서버를 실행합니다. 브라우저 BT 창을 자동으로 열거나 실시간으로 갱신하지는 않습니다.</strong><br>현재 BT 화면은 이 HTML을 별도로 열어 사용하는 기록 재생 화면입니다. 처음에는 격리 시험 이력이 보이고, 실제 실행 결과는 DB에서 JSON을 내보내 가져와야 합니다. 서버를 켠 뒤 명령을 접수해야 해당 작업의 BT가 생성됩니다.</div>
+<div class="table-wrap"><table><thead><tr><th>구분</th><th>현재 동작</th></tr></thead><tbody>
+<tr><td>관제 launch</td><td>MQTT 연결·DB 준비·ROS 통신·BT tick 실행. GUI 자동 실행 없음.</td></tr>
+<tr><td>HTML을 처음 열었을 때</td><td>가짜 로봇으로 수집한 기본 실행 이력 표시. 현재 로봇의 실시간 상태가 아님.</td></tr>
+<tr><td>실제 작업의 BT 확인</td><td>명령 실행 → DB 이력 JSON 내보내기 → HTML에서 파일 선택 → 이전/다음·자동 재생.</td></tr>
+<tr><td>실시간 BT 이벤트</td><td>관제 서버가 MQTT events로 발행. HTML에는 실시간 구독 기능이 아직 없음. 아래 구독 명령으로 수신 확인 가능.</td></tr>
+</tbody></table></div>
+<div class="card"><h3>UI 클릭 후 실제 통신 경로</h3>
+<pre>UI 클릭
+ → MQTT: cobot/fleet/commands에 JSON 발행
+ → 관제 PC: cobot_fleet_control이 수신·검증·DB 기록·BT 처리
+ → 관제 PC: /pinky1/patrol_cmd에 ROS 2 String 발행 (도메인 100)
+ → cobot_domain_bridge: 로봇 도메인으로 중계 (pinky1 = 10)
+ → Pinky: /patrol_cmd 수신 → 공통 순찰 실행기 → Nav2 실행
+ ← /patrol_status → 브릿지 → 관제 결과·BT 상태 저장
+ ← MQTT: cobot/fleet/events → UI 표시</pre>
+<p><strong>MQTT와 ROS 사이의 변환은 cobot_fleet_control이 담당하고, ROS 도메인 사이 중계는 cobot_domain_bridge가 담당합니다.</strong> domain_bridge 자체가 MQTT를 수신하는 구조는 아닙니다. 현재 UI 버튼의 MQTT 발행 연결은 별도 추가해야 하며, 위 수동 발행 절차로 서버 경로를 확인할 수 있습니다.</p></div>
+<h3>0. HTML과 기본 BT 시각화 열기</h3>
+<p>ROS나 MQTT를 켜기 전에도 열 수 있습니다. 실제 로봇 명령을 발행하지 않습니다.</p>
+<pre>xdg-open /home/tory/ws/kernel-robot-repo-4/src/cobot_navigation/docs/control_server_bt_report.html</pre>
+<p><a href="#bt-visualizer">BT 실행 시각화로 이동</a>해서 실행 이력을 고르고 이전/다음 또는 자동 재생을 누릅니다.</p>
+<h3>1. 관제 PC: 최초 설치·빌드</h3>
+<p>아래 워크스페이스 경로는 현재 개발 PC 기준입니다. 다른 장비에서는 실제 워크스페이스 경로로 바꿉니다. 가상환경이 이미 준비돼 있으면 재사용합니다.</p>
+<pre>cd /home/tory/ws/kernel-robot-repo-4
+source /opt/ros/jazzy/setup.bash
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+python -m pip install 'py_trees==2.2.3' 'paho-mqtt==2.1.0'
+python -m colcon build --symlink-install --packages-select \
+  cobot_fleet_control cobot_zone_traffic_control cobot_domain_bridge
+source install/setup.bash</pre>
+<h3>2. 각 Pinky: 새 순찰 실행기 배포·빌드와 Nav2 준비</h3>
+<p>각 로봇에 이 브랜치의 순찰 코드를 배포한 뒤 로봇의 워크스페이스에서 빌드합니다. 기존 실행기도 업데이트해야 JSON 명령과 최종 응답을 처리합니다.</p>
+<pre># 각 로봇의 워크스페이스 최상위에서
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
+source install/setup.bash</pre>
+<p>각 로봇에서 <strong>기존 Nav2 bringup</strong>을 먼저 실행합니다. 해당 bringup과 pinky_interfaces·pinky_led는 로봇 설치 환경에 있으며, 이 저장소에는 전체 bringup 명령이 없습니다. 기존 장비의 실행 절차를 사용합니다.</p>
+<h3>3. MQTT 브로커 준비</h3>
+<p>기본 연결 주소는 <code>localhost:1883</code>입니다. 이미 브로커가 있으면 그대로 사용합니다. 관제 PC에 Mosquitto가 설치돼 있고 1883 포트가 비어 있다면, 개발용 로컬 브로커를 별도 터미널에서 다음처럼 실행할 수 있습니다.</p>
+<pre>mosquitto -p 1883 -v</pre>
+<p>다른 서버를 쓰면 <a href="../cobot_fleet_control/config/fleet_control.yaml">fleet_control.yaml</a>의 mqtt_host·mqtt_port를 맞춥니다. 계정·TLS는 COBOT_MQTT_USERNAME·COBOT_MQTT_PASSWORD·COBOT_MQTT_CA 환경변수를 사용합니다. 브로커는 관제 launch가 자동으로 띄우지 않습니다.</p>
+<h3>4. 관제 PC: 브릿지 → 구역 매니저 → 관제 서버 실행</h3>
+<p>아래 <strong>각 터미널마다</strong> 먼저 공통 환경을 불러옵니다.</p>
+<pre>cd /home/tory/ws/kernel-robot-repo-4
+source /opt/ros/jazzy/setup.bash
+source .venv/bin/activate
+source install/setup.bash
+export ROS_DOMAIN_ID=100</pre>
+<div class="grid"><div class="card"><h3>터미널 A · 브릿지</h3><pre>ros2 launch cobot_domain_bridge bridges.launch.xml</pre></div><div class="card"><h3>터미널 B · 구역 매니저</h3><pre>ros2 launch cobot_zone_traffic_control zone_manager.launch.xml</pre><p class="muted">zone_manager는 1개만 실행합니다.</p></div><div class="card"><h3>터미널 C · 관제 서버</h3><pre>ros2 launch cobot_fleet_control fleet_control.launch.xml</pre><p class="muted">이 시점에는 서버가 대기합니다. 작업 BT는 명령 접수 시 생성됩니다.</p></div></div>
+<h3>5. 각 Pinky: 순찰 실행기 시작</h3>
+<p>각 로봇에서 ROS·해당 워크스페이스 install/setup.bash를 불러온 터미널로 자기 로봇에 해당하는 명령 하나를 실행합니다.</p>
+<pre># pinky1 장비
+ROS_DOMAIN_ID=10 ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
+
+# pinky2 장비
+ROS_DOMAIN_ID=20 ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
+
+# pinky3 장비
+ROS_DOMAIN_ID=30 ros2 launch cobot_pinky_patrol pinky3_patrol.launch.xml</pre>
+<h3>6. 상태를 구독한 뒤 UI 또는 MQTT로 명령 전송</h3>
+<p>현재 UI 버튼의 MQTT 발행 연결은 별도 구현 대상입니다. Mosquitto 클라이언트가 설치된 환경에서는 아래 명령으로 입력·결과를 확인할 수 있습니다. 다른 브로커를 쓴다면 호스트·포트·인증 옵션도 맞춥니다.</p>
+<pre># 별도 모니터 터미널: 접수 결과·업무 상태·로봇 상태·BT 스냅샷
+mosquitto_sub -h localhost -p 1883 -q 1 -v \
+  -t 'cobot/fleet/receipts' -t 'cobot/fleet/events'</pre>
+<p><strong>아래 발행 명령은 실제 이동 요청입니다.</strong> 로봇·주변·지점 좌표를 확인한 뒤 실행합니다. 새 작업에는 새 command_id를 사용하고 동일 요청 재전송에는 기존 ID를 유지합니다. retain 옵션은 사용하지 않습니다.</p>
+<pre>mosquitto_pub -h localhost -p 1883 -q 1 \
+  -t 'cobot/fleet/commands' \
+  -m '{"command_id":"job-run-001","robot_id":"pinky1","operation":"goto","points":["P1"],"timeout_sec":300}'</pre>
+<p>수신 확인: ACCEPTED → RUNNING → SUCCEEDED/FAILED 또는 UNKNOWN. 이벤트 중 <code>type=bt_snapshot</code>에는 노드 상태와 이번 tick 방문 여부가 들어갑니다. MQTT 연결 확인과 로봇 주행 성공은 따로 확인합니다.</p>
+<h3>7. 방금 실행한 작업의 실제 BT를 HTML에서 확인</h3>
+<p>관제 PC의 환경을 불러온 별도 터미널에서, 위 명령 ID로 이력을 내보냅니다. 명령이 실행 중이어도 현재까지 기록된 스냅샷을 읽을 수 있습니다.</p>
+<pre>ros2 run cobot_fleet_control fleet_bt_trace \
+  --db ~/.cobot/fleet_control.sqlite3 \
+  --command-id job-run-001 \
+  --output /tmp/bt_trace.json</pre>
+<ol><li>이 HTML의 <a href="#bt-visualizer">BT 실행 시각화</a>로 이동합니다.</li><li><strong>관제 DB에서 내보낸 실행 이력 JSON 열기</strong>에서 <code>/tmp/bt_trace.json</code>을 선택합니다.</li><li>출처가 <strong>가져온 DB 기록</strong>으로 바뀌었는지 확인합니다. 초기의 격리 시험 데이터와 구분됩니다.</li><li>이전/다음·슬라이더로 노드 색과 방문 여부를 확인합니다. 정상 실행에서는 전달 노드는 한 번만 실행되고 대기 노드가 계속 방문됩니다.</li></ol>
+<p class="muted">이 화면은 가져온 파일 시점의 기록입니다. 이후 상태를 보려면 다시 내보내고 파일을 다시 선택합니다. 스냅샷이 0개라면 command_id·DB 경로·명령 접수 여부·새 패키지 배포 여부를 확인합니다. 관측 대상은 관제 Python BT이며 로봇 Nav2 내부 BT는 별도 계측 대상입니다.</p>
+</section>
+<section id="diagnosis"><h2>01. 현재 구조에서 설명과 확장을 막는 부분</h2>
+<p>분석 기준은 작업 전 <code>feature/navigation</code>의 <code>045423e</code>입니다. 저장소에 있는 코드와 문서로 확인한 사실이며 실제 장비 동작을 추정해서 완료로 적지 않았습니다.</p>
+<div class="table-wrap"><table><thead><tr><th>확인한 구조</th><th>문제</th><th>이번 조치</th></tr></thead><tbody>
+<tr><td>pinky1 1,092줄 / pinky2·3 각각 1,091줄</td><td>기본 로봇 ID·주석 차이에도 같은 주행 로직을 세 곳에서 관리</td><td>공통 <code>pinky_patrol_node.py</code> + 로봇별 얇은 호환 진입점</td></tr>
+<tr><td>명령은 <code>goto:P1</code> 같은 String</td><td>어떤 UI 요청의 결과인지 연결할 ID가 없음</td><td>기존 String 토픽 안에 JSON 봉투와 명령 ID 추가</td></tr>
+<tr><td>로봇 내부에서 명령 분기·Nav2·LED·유휴 복귀·구역 처리</td><td>업무 정책과 장비 실행 경계가 흐림</td><td>관제 BT·업무 서비스·저장소·통신 어댑터 분리. 기존 장비 실행 정책은 단계적으로 유지</td></tr>
+<tr><td>MQTT·DB 경로 없음</td><td>요청 이력, 재전송, 서버 재시작 시 작업 추적이 어려움</td><td>Paho MQTT + SQLite + 영속 outbox 구현</td></tr>
+<tr><td>로봇이 DONE을 보낸 뒤 LED 등 정리 작업 수행</td><td>관제가 곧바로 다음 명령을 보내면 로봇이 작업 중으로 무시 가능</td><td>정리 후 <code>task_finished=true</code> 최종 응답 추가</td></tr>
+</tbody></table></div>
+<p class="muted">별도 확인 사항: zone_gate_client 직접 import, 강제 토큰 만료, 임시 지점 좌표, 대기 슬롯 중첩 가능성은 기존 구조에 남습니다. 이번 작업에서 해당 물리 정책을 바꾸지 않았습니다.</p>
+</section>
+<section id="architecture"><h2>02. 명령과 결과가 흐르는 구조</h2>
+<div class="flow" aria-label="UI에서 관제 서버로 들어오는 명령 흐름"><div class="box"><strong>관제 UI</strong><br><small>사용자 의도 · 고유 요청 ID</small></div><div class="arrow">→</div><div class="box"><strong>MQTT 브로커</strong><br><small>QoS 1 / retain=false</small></div><div class="arrow">→</div><div class="box"><strong>관제 서버</strong><br><small>입력 검증 → DB 기록 → Python BT</small></div></div>
+<div class="flow"><div class="box"><strong>SQLite / 향후 서버 DB</strong><br><small>commands · robot_status · outbox</small></div><div class="arrow">↔</div><div class="box"><strong>관제 ROS 어댑터</strong><br><small>도메인 100 · 기존 String 토픽</small></div><div class="arrow">→</div><div class="box"><strong>도메인 브릿지 → Pinky</strong><br><small>10 / 20 / 30 · 공통 주행 실행기</small></div></div>
+<div class="return">← patrol_status 최종 응답 ← Nav2 BT · 경로 계획 / 주행 / 복구</div>
+<div class="return">← UI 이벤트 ← MQTT PUBACK ← DB outbox ← 관제의 결과 판정</div>
+<div class="callout">관제 서버가 업무의 진행 상태를 관리합니다. 구역 점유의 단일 판단자는 기존 <strong>zone_manager</strong>이며, 로봇은 허가를 받고 출구에 도착한 뒤 토큰을 반납합니다. 업무 성공과 구역 점유 해제는 별개입니다.</div>
+<div class="grid two"><div class="card"><h3>추가한 서버 코드의 경계</h3><pre>contracts    입력 검증 / 명령 봉투
+service      중복 방지 / 로봇 예약 / BT 수명
+behaviours   전달 → 최종 결과 대기
+repository   Protocol + SQLite + outbox
+node         MQTT 큐 / ROS 입출력 / tick</pre></div><div class="card"><h3>DB는 교체할 수 있는 어댑터</h3><p>현재도 실제 파일 SQLite에 기록합니다. 향후 서버 DB가 정해지면 저장소 경계를 구현하고 상태 변경과 outbox 삽입을 같은 트랜잭션으로 묶습니다.</p><p class="muted">PostgreSQL 등 외부 DB 연결·마이그레이션은 아직 구현하지 않았습니다. 다중 서버에는 원자적 로봇 예약·고유 제약·리더 선출이 추가로 필요합니다.</p></div></div>
+</section>
+<section id="bt"><h2>03. ROS 2 BT와 Python BT의 역할</h2>
+<div class="grid two"><div class="card"><span class="tag good">이번에 추가</span><h3>관제 · py_trees 2.2.3</h3><pre>관제 작업 Sequence(memory=True)
+ ├─ 로봇 명령 전달
+ │   ├─ DB: RUNNING 기록
+ │   └─ ROS 명령 1회 발행
+ └─ 작업 종료 확인
+     ├─ 같은 로봇 + 같은 command_id?
+     ├─ task_finished=true?
+     └─ 성공 / 실패 / 시간 초과</pre><p>대기 노드는 즉시 RUNNING을 반환합니다. memory Sequence가 대기 노드에서 재개하므로 tick마다 이동 명령을 다시 보내지 않습니다. 실제 구현은 이 두 단계이며 충전·검사·복합 작업 트리는 후속 확장입니다. <a href="https://py-trees.readthedocs.io/en/release-2.2.x/composites.html">공식 Sequence 설명</a></p></div>
+<div class="card"><span class="tag">기존 실행 체계 재사용</span><h3>로봇 · Nav2 / BehaviorTree.CPP</h3><pre>공통 순찰 실행기
+ └─ BasicNavigator
+     └─ NavigateToPose
+         └─ Nav2 BT Navigator
+             ├─ 경로 계산
+             ├─ 경로 추종
+             └─ Nav2 복구 동작</pre><p>Nav2 BT Navigator는 BT XML을 읽어 BehaviorTree.CPP로 실행합니다. 기존 Nav2를 재사용하며 이번에 BT XML이나 플러그인을 새로 배포하지 않습니다. 로봇의 실제 XML 선택은 현장 설정 확인이 필요합니다. <a href="https://api.nav2.org/nav2-jazzy/html/md_nav2_bt_navigator_README.html">Jazzy 공식 설명</a></p></div></div>
+<p class="muted"><a href="https://behaviortree.dev/docs/ros2_integration/">BehaviorTree.ROS2</a>는 C++ ROS 액션·서비스 노드가 필요한 향후 대안입니다. 현재는 Python 관제와 기존 Nav2가 이미 있어 중복 실행 엔진을 추가하지 않았습니다.</p>
+</section>
+<section id="data"><h2>04. 실제 데이터 계약</h2>
+<p>UI는 고유 ID를 만들고 같은 사용자 요청의 재전송에는 그 ID를 재사용합니다. 관제는 같은 ID의 다른 내용과 같은 로봇에 대한 동시 작업을 거절합니다.</p>
+<div class="grid two"><div><h3>UI → MQTT → 관제</h3><pre>{
+  "command_id": "job-20261031-001",
+  "robot_id": "pinky1",
+  "operation": "goto",
+  "points": ["P1", "P2"],
+  "timeout_sec": 300
+}</pre></div><div><h3>관제 → ROS → 로봇</h3><pre>{
+  "command_id": "job-20261031-001",
+  "command": "goto:P1,P2"
+}</pre><p class="muted">토픽: <code>/pinky1/patrol_cmd</code><br>기존 <code>std_msgs/String</code>의 data에 JSON을 담습니다. 좌표의 정본은 로봇 YAML입니다.</p></div></div>
+<div class="grid two" style="margin-top:20px"><div><h3>로봇 → 관제의 최종 상태</h3><pre>{
+  "command_id": "job-20261031-001",
+  "state": "DONE",
+  "waypoint": -1,
+  "detail": "arrived P2",
+  "time": 1793400000.0,
+  "task_finished": true
+}</pre></div><div><h3>DB outbox → MQTT → UI</h3><pre>{
+  "event_id": 17,
+  "type": "command_state",
+  "command_id": "job-20261031-001",
+  "robot_id": "pinky1",
+  "state": "SUCCEEDED",
+  "detail": "arrived P2",
+  "recorded_at": 1793400000.1
+}</pre></div></div>
+<p class="muted">위 값은 계약 설명을 위한 예시입니다. <code>status.time</code>은 로봇 보고 시각, <code>recorded_at</code>은 관제 기록 시각입니다. MQTT 이벤트는 중복될 수 있어 UI가 event_id로 제거해야 합니다. 로봇 원문 상태도 <code>type=robot_status</code> 이벤트와 DB 최신 상태로 보관합니다.</p>
+<div class="table-wrap"><table><thead><tr><th>경로</th><th>담기는 데이터</th><th>확인하는 의미</th></tr></thead><tbody>
+<tr><td><code>cobot/fleet/commands</code></td><td>업무 JSON · QoS 1 · retain=false</td><td>실행 요청. 브로커 ACK은 작업 성공을 의미하지 않음</td></tr>
+<tr><td><code>cobot/fleet/receipts</code></td><td>접수/중복 현재 상태 또는 REJECTED</td><td>편의 알림. 거절 내역은 현재 영속 저장하지 않음</td></tr>
+<tr><td><code>/pinkyN/patrol_status</code></td><td>로봇 실행 상태 · 명령 ID · 종료 여부</td><td>중간 DONE과 실제 작업 정리 종료를 구분</td></tr>
+<tr><td><code>commands</code></td><td>정규화된 입력 · 로봇 · 최신 업무 상태</td><td>중복 방지와 서버 재시작 후 미확정 작업 확인</td></tr>
+<tr><td><code>robot_status</code></td><td>로봇별 최신 상태 원문과 수신 시각</td><td>UI 현재 상태 조회 어댑터의 데이터 원본</td></tr>
+<tr><td><code>outbox → cobot/fleet/events</code></td><td>명령 상태·로봇 상태·BT 스냅샷 이벤트와 고유 event_id</td><td>상태 변경과 통지 예약을 원자 기록. PUBACK 후 발행 완료 처리</td></tr>
+</tbody></table></div>
+<div class="callout warning"><strong>UNKNOWN은 실패나 정지 확정이 아닙니다.</strong> 응답 시간 초과·서버 재시작·전달 예외에는 로봇 예약을 유지합니다. 실제 지연 최종 응답이 오면 해제합니다. 응답이 영구 유실된 경우 현장 확인 후 별도 조정이 필요합니다. 물리 동작의 exactly-once는 보장하지 않습니다.</div>
+</section>
+<section id="bt-visualizer"><h2>실제 BT 실행 상태 시각화</h2>
+<p>아래 트리는 <strong>실제 py_trees 실행에서 수집한 스냅샷</strong>을 재생합니다. 기본 이력은 가짜 로봇·임시 SQLite를 사용한 격리 실행이며 실물 데이터가 아닙니다. 노드의 상태 색과 <strong>이번 tick 방문 여부</strong>를 나눠 보세요.</p>
+<div class="callout">첫 tick: 전달 SUCCESS → 대기 RUNNING. 다음 tick: 전달은 SUCCESS를 유지하지만 <strong>다시 실행되지 않습니다</strong>. 종료 tick: 대기와 루트가 SUCCESS/FAILURE로 바뀝니다. 타임아웃의 루트 FAILURE는 업무 UNKNOWN과 함께 표시합니다.</div>
+<div class="controls"><label for="bt-scenario">실행 이력 <select id="bt-scenario"></select></label><button id="bt-prev">← 이전</button><button class="primary" id="bt-next">다음 →</button><button id="bt-play">자동 재생</button><button id="bt-demo">기본 이력 복원</button></div>
+<div class="card"><label for="bt-import">관제 DB에서 내보낸 실행 이력 JSON 열기</label><br><input type="file" id="bt-import" accept=".json,application/json"><p class="muted">파일은 브라우저 안에서만 읽습니다. MQTT 실시간 구독은 하지 않습니다. 스냅샷은 상태 또는 방문 경로가 바뀔 때만 기록하므로 tick 번호가 건너뛸 수 있습니다.</p><p id="bt-error" role="alert"></p></div>
+<div class="bt-meta"><span class="tag" id="bt-source"></span><span id="bt-tick"></span><span id="bt-job"></span><span id="bt-phase"></span></div>
+<label for="bt-frame">기록 프레임 <span id="bt-frame-count"></span></label><input class="bt-range" id="bt-frame" type="range" min="0" max="0" value="0">
+<div class="bt-legend"><span><i class="bt-dot" style="background:#566477"></i>INVALID · 미실행/무효</span><span><i class="bt-dot" style="background:var(--amber)"></i>RUNNING</span><span><i class="bt-dot" style="background:var(--mint)"></i>SUCCESS</span><span><i class="bt-dot" style="background:var(--red)"></i>FAILURE</span><span>밝은 외곽선 = 이번 tick 방문</span></div>
+<div id="bt-graph" class="bt-canvas" aria-live="polite"></div><p class="bt-graph-label">트리 상태·방문 경로의 원본은 <a href="https://py-trees.readthedocs.io/en/release-2.2.x/modules.html#py_trees.visitors.SnapshotVisitor">공식 SnapshotVisitor</a>와 각 Behaviour의 status입니다. 트리 구조는 해당 실행의 children 관계로 그립니다.</p>
+<div class="grid two" style="margin-top:20px"><div class="card"><h3>직전 기록과 비교</h3><ul id="bt-diff"></ul></div><div class="card"><h3>이번 기록의 판정</h3><p id="bt-explanation"></p><p class="muted">Nav2 내부 BT는 이 화면의 관측 대상이 아닙니다. 현재 관제 Python BT만 실제로 계측합니다.</p></div></div>
+<details><summary>현재 프레임의 원본 스냅샷</summary><pre id="bt-data"></pre></details>
+<p>운영 이력 내보내기: <code>ros2 run cobot_fleet_control fleet_bt_trace --db ~/.cobot/fleet_control.sqlite3 --command-id &lt;명령ID&gt; --output /tmp/bt_trace.json</code>. 이력은 기존 <code>cobot/fleet/events</code>에도 <code>type=bt_snapshot</code>으로 발행됩니다. <a href="../cobot_fleet_control/cobot_fleet_control/bt_visualization.py">관측·내보내기 구현</a></p>
+</section>
+<script id="bt-traces" type="application/json">{"format": "cobot-bt-trace-v1", "source": "demo", "snapshots": [{"command_id": "visual-success", "event_id": 2, "job_state": "ACCEPTED", "nodes": [{"children": [], "feedback": "", "id": "23246870-d18b-4a23-a02a-08078fe17122", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "INVALID", "visited": false}, {"children": [], "feedback": "", "id": "36eaf85d-d9fe-4e34-a192-86984f12afb8", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "INVALID", "visited": false}, {"children": ["23246870-d18b-4a23-a02a-08078fe17122", "36eaf85d-d9fe-4e34-a192-86984f12afb8"], "feedback": "", "id": "654dc82b-d742-481f-9786-87b9332d44ea", "kind": "Sequence", "name": "관제 작업", "status": "INVALID", "visited": false}], "phase": "created", "recorded_at": 1793413098.5842366, "robot_id": "pinky1", "root_id": "654dc82b-d742-481f-9786-87b9332d44ea", "tick": 0, "type": "bt_snapshot", "scenario_label": "정상 완료"}, {"command_id": "visual-success", "event_id": 4, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "23246870-d18b-4a23-a02a-08078fe17122", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": true}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "36eaf85d-d9fe-4e34-a192-86984f12afb8", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["23246870-d18b-4a23-a02a-08078fe17122", "36eaf85d-d9fe-4e34-a192-86984f12afb8"], "feedback": "", "id": "654dc82b-d742-481f-9786-87b9332d44ea", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5843875, "robot_id": "pinky1", "root_id": "654dc82b-d742-481f-9786-87b9332d44ea", "tick": 1, "type": "bt_snapshot", "scenario_label": "정상 완료"}, {"command_id": "visual-success", "event_id": 5, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "23246870-d18b-4a23-a02a-08078fe17122", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "36eaf85d-d9fe-4e34-a192-86984f12afb8", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["23246870-d18b-4a23-a02a-08078fe17122", "36eaf85d-d9fe-4e34-a192-86984f12afb8"], "feedback": "", "id": "654dc82b-d742-481f-9786-87b9332d44ea", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5844598, "robot_id": "pinky1", "root_id": "654dc82b-d742-481f-9786-87b9332d44ea", "tick": 2, "type": "bt_snapshot", "scenario_label": "정상 완료"}, {"command_id": "visual-success", "event_id": 7, "job_state": "SUCCEEDED", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "23246870-d18b-4a23-a02a-08078fe17122", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "로봇 정리 완료: DONE", "id": "36eaf85d-d9fe-4e34-a192-86984f12afb8", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "SUCCESS", "visited": true}, {"children": ["23246870-d18b-4a23-a02a-08078fe17122", "36eaf85d-d9fe-4e34-a192-86984f12afb8"], "feedback": "", "id": "654dc82b-d742-481f-9786-87b9332d44ea", "kind": "Sequence", "name": "관제 작업", "status": "SUCCESS", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5845978, "robot_id": "pinky1", "root_id": "654dc82b-d742-481f-9786-87b9332d44ea", "tick": 4, "type": "bt_snapshot", "scenario_label": "정상 완료"}, {"command_id": "visual-failure", "event_id": 2, "job_state": "ACCEPTED", "nodes": [{"children": [], "feedback": "", "id": "6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "INVALID", "visited": false}, {"children": [], "feedback": "", "id": "402e5ba0-536e-4149-984a-7d1d9b38303a", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "INVALID", "visited": false}, {"children": ["6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "402e5ba0-536e-4149-984a-7d1d9b38303a"], "feedback": "", "id": "18957e33-b37d-4129-a102-3a3aff14628b", "kind": "Sequence", "name": "관제 작업", "status": "INVALID", "visited": false}], "phase": "created", "recorded_at": 1793413098.5851126, "robot_id": "pinky1", "root_id": "18957e33-b37d-4129-a102-3a3aff14628b", "tick": 0, "type": "bt_snapshot", "scenario_label": "로봇 최종 실패"}, {"command_id": "visual-failure", "event_id": 4, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": true}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "402e5ba0-536e-4149-984a-7d1d9b38303a", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "402e5ba0-536e-4149-984a-7d1d9b38303a"], "feedback": "", "id": "18957e33-b37d-4129-a102-3a3aff14628b", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5852294, "robot_id": "pinky1", "root_id": "18957e33-b37d-4129-a102-3a3aff14628b", "tick": 1, "type": "bt_snapshot", "scenario_label": "로봇 최종 실패"}, {"command_id": "visual-failure", "event_id": 5, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "402e5ba0-536e-4149-984a-7d1d9b38303a", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "402e5ba0-536e-4149-984a-7d1d9b38303a"], "feedback": "", "id": "18957e33-b37d-4129-a102-3a3aff14628b", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.58529, "robot_id": "pinky1", "root_id": "18957e33-b37d-4129-a102-3a3aff14628b", "tick": 2, "type": "bt_snapshot", "scenario_label": "로봇 최종 실패"}, {"command_id": "visual-failure", "event_id": 7, "job_state": "FAILED", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "로봇 정리 완료: FAILED", "id": "402e5ba0-536e-4149-984a-7d1d9b38303a", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "FAILURE", "visited": true}, {"children": ["6909d570-59a8-4fe6-ac01-3d76d6b7df1b", "402e5ba0-536e-4149-984a-7d1d9b38303a"], "feedback": "", "id": "18957e33-b37d-4129-a102-3a3aff14628b", "kind": "Sequence", "name": "관제 작업", "status": "FAILURE", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5854115, "robot_id": "pinky1", "root_id": "18957e33-b37d-4129-a102-3a3aff14628b", "tick": 4, "type": "bt_snapshot", "scenario_label": "로봇 최종 실패"}, {"command_id": "visual-timeout", "event_id": 2, "job_state": "ACCEPTED", "nodes": [{"children": [], "feedback": "", "id": "89299be5-cbfd-4ea2-9952-443ae1ab323b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "INVALID", "visited": false}, {"children": [], "feedback": "", "id": "15d57e0a-e0f9-40c5-8b86-07f454d07ac7", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "INVALID", "visited": false}, {"children": ["89299be5-cbfd-4ea2-9952-443ae1ab323b", "15d57e0a-e0f9-40c5-8b86-07f454d07ac7"], "feedback": "", "id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "kind": "Sequence", "name": "관제 작업", "status": "INVALID", "visited": false}], "phase": "created", "recorded_at": 1793413098.5858724, "robot_id": "pinky1", "root_id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "tick": 0, "type": "bt_snapshot", "scenario_label": "응답 시간 초과"}, {"command_id": "visual-timeout", "event_id": 4, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "89299be5-cbfd-4ea2-9952-443ae1ab323b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": true}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "15d57e0a-e0f9-40c5-8b86-07f454d07ac7", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["89299be5-cbfd-4ea2-9952-443ae1ab323b", "15d57e0a-e0f9-40c5-8b86-07f454d07ac7"], "feedback": "", "id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5860035, "robot_id": "pinky1", "root_id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "tick": 1, "type": "bt_snapshot", "scenario_label": "응답 시간 초과"}, {"command_id": "visual-timeout", "event_id": 5, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "89299be5-cbfd-4ea2-9952-443ae1ab323b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "15d57e0a-e0f9-40c5-8b86-07f454d07ac7", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["89299be5-cbfd-4ea2-9952-443ae1ab323b", "15d57e0a-e0f9-40c5-8b86-07f454d07ac7"], "feedback": "", "id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.586073, "robot_id": "pinky1", "root_id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "tick": 2, "type": "bt_snapshot", "scenario_label": "응답 시간 초과"}, {"command_id": "visual-timeout", "event_id": 7, "job_state": "UNKNOWN", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "89299be5-cbfd-4ea2-9952-443ae1ab323b", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "응답 시간 초과 · 물리 동작 미확정 · 로봇 예약 유지", "id": "15d57e0a-e0f9-40c5-8b86-07f454d07ac7", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "FAILURE", "visited": true}, {"children": ["89299be5-cbfd-4ea2-9952-443ae1ab323b", "15d57e0a-e0f9-40c5-8b86-07f454d07ac7"], "feedback": "", "id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "kind": "Sequence", "name": "관제 작업", "status": "FAILURE", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5862072, "robot_id": "pinky1", "root_id": "c3fdf61a-f9b4-4043-8e9e-9a76f3febc93", "tick": 4, "type": "bt_snapshot", "scenario_label": "응답 시간 초과"}, {"command_id": "visual-duplicate", "event_id": 2, "job_state": "ACCEPTED", "nodes": [{"children": [], "feedback": "", "id": "bd9a02f0-3d4f-459e-8af1-8def017da39a", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "INVALID", "visited": false}, {"children": [], "feedback": "", "id": "f0b04349-44a2-4d7e-a56d-600feb999e4d", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "INVALID", "visited": false}, {"children": ["bd9a02f0-3d4f-459e-8af1-8def017da39a", "f0b04349-44a2-4d7e-a56d-600feb999e4d"], "feedback": "", "id": "17376d81-5c56-471a-9304-0f814203fda8", "kind": "Sequence", "name": "관제 작업", "status": "INVALID", "visited": false}], "phase": "created", "recorded_at": 1793413098.5866644, "robot_id": "pinky1", "root_id": "17376d81-5c56-471a-9304-0f814203fda8", "tick": 0, "type": "bt_snapshot", "scenario_label": "중복 요청"}, {"command_id": "visual-duplicate", "event_id": 4, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "bd9a02f0-3d4f-459e-8af1-8def017da39a", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": true}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "f0b04349-44a2-4d7e-a56d-600feb999e4d", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["bd9a02f0-3d4f-459e-8af1-8def017da39a", "f0b04349-44a2-4d7e-a56d-600feb999e4d"], "feedback": "", "id": "17376d81-5c56-471a-9304-0f814203fda8", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.586786, "robot_id": "pinky1", "root_id": "17376d81-5c56-471a-9304-0f814203fda8", "tick": 1, "type": "bt_snapshot", "scenario_label": "중복 요청"}, {"command_id": "visual-duplicate", "event_id": 5, "job_state": "RUNNING", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "bd9a02f0-3d4f-459e-8af1-8def017da39a", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "같은 명령 ID의 task_finished=true 응답 대기", "id": "f0b04349-44a2-4d7e-a56d-600feb999e4d", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "RUNNING", "visited": true}, {"children": ["bd9a02f0-3d4f-459e-8af1-8def017da39a", "f0b04349-44a2-4d7e-a56d-600feb999e4d"], "feedback": "", "id": "17376d81-5c56-471a-9304-0f814203fda8", "kind": "Sequence", "name": "관제 작업", "status": "RUNNING", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5868657, "robot_id": "pinky1", "root_id": "17376d81-5c56-471a-9304-0f814203fda8", "tick": 2, "type": "bt_snapshot", "scenario_label": "중복 요청"}, {"command_id": "visual-duplicate", "event_id": 7, "job_state": "SUCCEEDED", "nodes": [{"children": [], "feedback": "ROS 명령 발행 완료 · 실제 도착은 결과 대기에서 확인", "id": "bd9a02f0-3d4f-459e-8af1-8def017da39a", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "SUCCESS", "visited": false}, {"children": [], "feedback": "로봇 정리 완료: DONE", "id": "f0b04349-44a2-4d7e-a56d-600feb999e4d", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "SUCCESS", "visited": true}, {"children": ["bd9a02f0-3d4f-459e-8af1-8def017da39a", "f0b04349-44a2-4d7e-a56d-600feb999e4d"], "feedback": "", "id": "17376d81-5c56-471a-9304-0f814203fda8", "kind": "Sequence", "name": "관제 작업", "status": "SUCCESS", "visited": true}], "phase": "tick", "recorded_at": 1793413098.5869896, "robot_id": "pinky1", "root_id": "17376d81-5c56-471a-9304-0f814203fda8", "tick": 4, "type": "bt_snapshot", "scenario_label": "중복 요청"}, {"command_id": "visual-dispatch_error", "event_id": 2, "job_state": "ACCEPTED", "nodes": [{"children": [], "feedback": "", "id": "4421d940-4e29-489f-a897-495200243e88", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "INVALID", "visited": false}, {"children": [], "feedback": "", "id": "83161907-b41b-482d-85ac-0522f3ff4095", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "INVALID", "visited": false}, {"children": ["4421d940-4e29-489f-a897-495200243e88", "83161907-b41b-482d-85ac-0522f3ff4095"], "feedback": "", "id": "aa34c891-8bfe-47e8-a728-f1ee2d7ad9c6", "kind": "Sequence", "name": "관제 작업", "status": "INVALID", "visited": false}], "phase": "created", "recorded_at": 1793413098.5873702, "robot_id": "pinky1", "root_id": "aa34c891-8bfe-47e8-a728-f1ee2d7ad9c6", "tick": 0, "type": "bt_snapshot", "scenario_label": "전달 예외"}, {"command_id": "visual-dispatch_error", "event_id": 5, "job_state": "UNKNOWN", "nodes": [{"children": [], "feedback": "", "id": "4421d940-4e29-489f-a897-495200243e88", "kind": "Dispatch", "name": "로봇 명령 전달", "status": "INVALID", "visited": false}, {"children": [], "feedback": "", "id": "83161907-b41b-482d-85ac-0522f3ff4095", "kind": "AwaitResult", "name": "작업 종료 확인", "status": "INVALID", "visited": false}, {"children": ["4421d940-4e29-489f-a897-495200243e88", "83161907-b41b-482d-85ac-0522f3ff4095"], "feedback": "", "id": "aa34c891-8bfe-47e8-a728-f1ee2d7ad9c6", "kind": "Sequence", "name": "관제 작업", "status": "INVALID", "visited": false}], "phase": "tick_error", "recorded_at": 1793413098.5875, "robot_id": "pinky1", "root_id": "aa34c891-8bfe-47e8-a728-f1ee2d7ad9c6", "tick": 1, "type": "bt_snapshot", "scenario_label": "전달 예외"}]}</script>
+<section id="demo"><h2>05. 한 건의 데이터 흐름 따라가기</h2>
+<p class="muted">아래는 브라우저 안에서만 움직이는 설명용 시연입니다. MQTT·DB·ROS에 연결하지 않으며 실제 로봇 데이터를 표시하지 않습니다. 구현된 서비스의 상태 규칙을 단계별로 보여줍니다.</p>
+<div class="controls"><label for="scenario">상황 <select id="scenario"><option value="success">정상 완료</option><option value="duplicate">동일 명령 재수신</option><option value="timeout">응답 시간 초과</option><option value="failure">주행 실패</option><option value="restart">서버 재시작</option></select></label><button class="primary" id="next">다음 단계 →</button><button id="reset">처음부터</button></div>
+<div class="grid two"><div class="card"><span class="tag warn">시연 데이터</span><h3 id="step-title">UI 명령 준비</h3><p id="explanation"></p><p>업무 상태 <span class="status" id="job-state">—</span> · 전달 횟수 <strong id="dispatch-count">0</strong></p><ol class="timeline" id="timeline"></ol></div><div class="card"><h3>현재 단계의 데이터</h3><pre id="payload" aria-live="polite"></pre></div></div>
+</section>
+<section id="changes"><h2>06. 코드 변경과 확장 위치</h2>
+<div class="table-wrap"><table><thead><tr><th>파일</th><th>담당 책임</th><th>확장할 때</th></tr></thead><tbody>
+<tr><td><a href="../cobot_fleet_control/cobot_fleet_control/contracts.py">contracts.py</a></td><td>입력 타입·ID·로봇·명령·시간 검증</td><td>명령 스키마 버전·권한·업무 입력</td></tr>
+<tr><td><a href="../cobot_fleet_control/cobot_fleet_control/service.py">service.py</a></td><td>로봇별 예약·중복·상태 상관관계</td><td>할당 정책·취소·복합 업무 수명</td></tr>
+<tr><td><a href="../cobot_fleet_control/cobot_fleet_control/behaviours.py">behaviours.py</a></td><td>py_trees 작업 구성과 결과 대기</td><td>검사·충전·인계 단계 Behaviour</td></tr>
+<tr><td><a href="../cobot_fleet_control/cobot_fleet_control/repository.py">repository.py</a></td><td>SQLite 실저장·상태 전이·outbox</td><td>서버 DB 어댑터·보존 정책·조회</td></tr>
+<tr><td><a href="../cobot_fleet_control/cobot_fleet_control/fleet_control_node.py">fleet_control_node.py</a></td><td>Paho callback v2·MQTT 입력 큐·ROS 발행/수신</td><td>운영 인증·관측성·다른 전송 수단</td></tr>
+<tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py">pinky_patrol_node.py</a></td><td>단일 공통 로봇 실행·명령 ID 전달·최종 응답</td><td>장비 실행 기능. 업무 정책은 관제에서 확장</td></tr>
+<tr><td><code>pinky_patrol_node_pinky1/2/3.py</code></td><td>기존 ros2 run/launch 이름을 유지하는 호환 진입점</td><td>로봇 추가는 코드 복사 대신 설정·등록으로 처리</td></tr>
+</tbody></table></div>
+<p>새 패키지는 setup.py·package.xml·resource·setup.cfg·XML launch·YAML config를 함께 등록했습니다. 설명과 주석은 한국어로 작성했습니다. 기존 브릿지의 토픽 이름·메시지 타입, zone_manager의 FIFO/토큰 동작은 유지했습니다.</p>
+</section>
+<section id="verification"><h2>07. 검증 결과</h2>
+<div id="test-results" class="card">
+<div class="metric">219 passed · 4 skipped</div>
+<p><strong>BT 시각화 추가 검증: 관제 테스트 32개 통과.</strong> 실제 MQTT·ROS 왕복에서 bt_snapshot 수신까지 확인했습니다. 관제 패키지 재빌드·린트 통과. 실제 트리 5개 시나리오의 18개 스냅샷을 수집해 브라우저에서 상태·방문 생략·자동 재생·JSON 가져오기·모바일 레이아웃을 검증했습니다.</p>
+<p>순찰·구역 교통 제어·관제 테스트를 ROS_DOMAIN_ID=77 / ROS_LOCALHOST_ONLY=1에서 실행했습니다. 가짜 navigator와 실제 zone_manager, 실제 로컬 MQTT 브로커를 사용했습니다. 4개는 기존 비활성 순회 테스트입니다.</p>
+<ul><li>실제 로컬 MQTT → 관제 → ROS 가짜 로봇 → SQLite → MQTT 최종 결과 왕복 통과. 동일 명령 두 번 수신 시 ROS 전달 1회 확인.</li><li>중복·ID 충돌·로봇 예약·다른 로봇/이전 ID 응답 무시·중간 DONE·최종 응답·실패·시간 초과·서버 재시작·outbox ACK·실제 상태 원문 저장 검증.</li><li>관제·순찰·교통 제어 3개 ROS 패키지 빌드 통과. 빌드 산출물과 테스트 DB는 /tmp에 저장.</li><li>신규 관제 패키지, 호환 진입점, 명령 상관관계 테스트의 ament_flake8·ament_pep257 통과.</li><li>Chrome 데스크톱·모바일(390px) 화면 확인. 5개 시연·초기화·고유 ID·내부/소스 링크·가로 넘침 검사 통과, JavaScript 오류 없음.</li></ul>
+<p class="muted">공통 순찰 실행기 전체의 기존 주행 코드는 기존 스타일을 이어받습니다. 기존 코드 전체에 대한 린트 통과를 주장하지 않습니다. 실제 하드웨어·도메인 브릿지·Nav2 주행 시험은 수행하지 않았습니다.</p>
+</div>
+<p class="muted">실제 브로커 시험은 테스트 전용 amqtt 0.11.3을 임시 가상환경에 설치해 사용합니다. 제품 의존성은 py_trees 2.2.3과 paho-mqtt 2.1.0입니다. <a href="https://eclipse.dev/paho/clients/python/docs/">Paho 공식 문서</a>의 Callback API v2, QoS, PUBACK 처리 계약을 따릅니다.</p>
+</section>
+<section id="roadmap"><h2>08. 도입 순서와 남은 범위</h2>
+<ol><li><strong>로봇 실행기부터 새 버전으로 배포</strong>: 기존 실행 이름·YAML은 유지. 신규 JSON 명령과 최종 응답을 이해해야 합니다.</li><li><strong>브로커 준비</strong>: TLS·ACL·계정과 영속 저장을 구성합니다. 브라우저 MQTT 직접 연결에는 WSS 리스너가 필요합니다.</li><li><strong>관제 1개 실행</strong>: DB 저장 경로와 기존 도메인 브릿지·zone_manager를 확인합니다. 패키지의 <a href="../cobot_fleet_control/README.md">실행 안내</a>를 따릅니다.</li><li><strong>UI 연결</strong>: 명령 ID 생성, receipts 표시, events의 event_id 중복 제거, 업무 상태와 물리 상태를 나눠 표시합니다.</li><li><strong>서버 DB·운영 API 확장</strong>: DB 어댑터, 과거 이벤트 조회, UNKNOWN 현장 확인·해제, MQTT 취소/선점 계약을 추가합니다.</li><li><strong>업무 정책 이전</strong>: 현재 로봇에 남은 유휴 복귀·구역 실행 절차를 관제 BT로 옮길지 결정합니다. 로컬 정지·주행 보호는 로봇에서 계속 처리합니다.</li></ol>
+<details open><summary>이번 구현의 경계</summary><p>단일 서버와 명령 단위 BT가 구현 범위입니다. UI 제품 화면, 외부 운영 DB, 복합 업무·충전·다중 서버 리더 선출, 조회 HTTP API는 포함하지 않습니다. 이 HTML은 배포용 관제 UI가 아니라 독립 리포트입니다.</p></details>
+<details><summary>물리 동작·데이터 신뢰성의 남은 항목</summary><p>ROS String 전달과 DB는 하나의 트랜잭션이 아닙니다. 관제 재시작 때 자동 재전송하지 않고 UNKNOWN으로 남깁니다. 로봇 재시작 후의 영속 명령 중복 제거·완료 응답 재전송·하트비트는 후속 계약입니다. 큐 포화 시 접수하지 않고 오류를 기록하며, 지속 세션의 미확인 메시지는 브로커 설정·재접속에 의존합니다. UI 수신 ACK은 현재 구현하지 않았으므로 MQTT PUBACK과 UI 화면 반영은 서로 다릅니다.</p></details>
+<details><summary>기존 구역·좌표 정책의 남은 항목</summary><p>유휴 120초 자동 복귀, max_hold_sec 토큰 강제 해제, 패키지 간 zone_gate_client 직접 import, 임시 좌표와 대기 슬롯 중첩 가능성은 별도 검증·변경 대상입니다. 실제 장비·도메인 브릿지·현장 지도에서의 주행은 이번 격리 테스트가 보증하지 않습니다.</p></details>
+</section>
+<div class="foot">이 파일은 CSS·JavaScript를 모두 포함하며 외부 CDN 없이 열립니다. 오픈소스 문서·소스 링크는 클릭할 때만 접근합니다. 브랜치는 작업 전에 생성했습니다. 실제 장비 배포·주행은 수행하지 않았습니다. 커밋·푸시 상태는 Git 이력에서 확인합니다.</div>
+</main>
+<script>
+'use strict';
+// 모든 데이터는 설명용이다. 네트워크 발행·로봇 제어 기능을 두지 않는다.
+const command = {command_id:'job-20261031-001',robot_id:'pinky1',operation:'goto',points:['P1','P2'],timeout_sec:300};
+const step = (title,explanation,state,count,payload) => ({title,explanation,state,count,payload});
+const base = [
+step('UI 명령 준비','사용자 요청 하나에 고유 ID를 만들고 MQTT로 전달합니다.','—',0,command),
+step('검증 후 DB 접수','등록된 로봇과 입력을 확인하고 commands와 ACCEPTED 이벤트를 같은 트랜잭션에 기록합니다.','ACCEPTED',0,{table:'commands',...command,state:'ACCEPTED'}),
+step('관제 BT가 ROS 명령 전달','RUNNING을 기록한 뒤 로봇에 한 번 전달합니다. 이후 tick은 결과 대기 단계에서 재개합니다.','RUNNING',1,{topic:'/pinky1/patrol_cmd',data:{command_id:command.command_id,command:'goto:P1,P2'}})
+];
+const success = [
+step('로봇 주행 상태 수신','Nav2 진행 상태를 원문으로 저장하고 UI용 robot_status 이벤트를 예약합니다.','RUNNING',1,{type:'robot_status',robot_id:'pinky1',status:{command_id:command.command_id,state:'MOVING',detail:'P1',task_finished:false}}),
+step('중간 DONE 수신','로봇의 정리 절차가 남았으므로 다음 업무를 아직 허용하지 않습니다.','RUNNING',1,{command_id:command.command_id,state:'DONE',detail:'arrived P2',task_finished:false}),
+step('최종 결과와 UI 이벤트','같은 ID의 최종 응답을 확인하면 SUCCEEDED와 outbox를 커밋합니다. 발행 완료는 브로커 PUBACK으로 확인합니다.','SUCCEEDED',1,{event_id:17,type:'command_state',command_id:command.command_id,robot_id:'pinky1',state:'SUCCEEDED',detail:'arrived P2'})
+];
+function steps(){const kind=document.getElementById('scenario').value;
+if(kind==='duplicate')return [...base,step('같은 명령 ID 재수신','내용이 같으면 DB의 현재 상태를 반환합니다. 새 BT를 만들거나 이동 명령을 다시 보내지 않습니다.','RUNNING',1,{command_id:command.command_id,state:'RUNNING',source:'existing command'}),...success];
+if(kind==='timeout')return [...base,step('결과 대기 시간 초과','로봇은 계속 움직일 수 있어 UNKNOWN으로 기록하고 로봇 예약을 유지합니다.','UNKNOWN',1,{state:'UNKNOWN',detail:'응답 시간 초과: 로봇 점유 유지'}),step('다음 명령 거절','지연 최종 응답 또는 현장 확인이 필요합니다.','UNKNOWN',1,{state:'REJECTED',detail:'로봇 작업 중 또는 UNKNOWN: 기존 작업 확인 필요'})];
+if(kind==='failure')return [...base,step('로봇 최종 실패 수신','정리가 끝난 FAILED를 받으면 업무를 실패로 확정합니다. 구역 점유 해제 여부는 별도 상태입니다.','FAILED',1,{command_id:command.command_id,state:'FAILED',detail:'navigation failed',task_finished:true})];
+if(kind==='restart')return [...base,step('관제 서버 재시작','진행 중 명령을 UNKNOWN으로 복구합니다. 로봇 동작을 모르므로 자동 재전송하지 않습니다.','UNKNOWN',1,{state:'UNKNOWN',detail:'서버 재시작: 현장 확인 필요',redispatch:false}),step('지연 최종 응답 도착','일치하는 실제 최종 응답이 도착하면 미확정 상태를 해소할 수 있습니다.','SUCCEEDED',1,{command_id:command.command_id,state:'DONE',task_finished:true})];
+return [...base,...success];}
+let index=0;
+function render(){const list=steps();const current=list[index];document.getElementById('step-title').textContent=current.title;document.getElementById('explanation').textContent=current.explanation;document.getElementById('job-state').textContent=current.state;document.getElementById('dispatch-count').textContent=current.count;document.getElementById('payload').textContent=JSON.stringify(current.payload,null,2);document.getElementById('next').disabled=index===list.length-1;const timeline=document.getElementById('timeline');timeline.replaceChildren();list.forEach((s,i)=>{const item=document.createElement('li');item.textContent=(i+1)+'. '+s.title;if(i===index)item.className='current';timeline.appendChild(item);});}
+document.getElementById('next').addEventListener('click',()=>{index++;render();});
+document.getElementById('reset').addEventListener('click',()=>{index=0;render();});
+document.getElementById('scenario').addEventListener('change',()=>{index=0;render();});
+render();
+</script>
+<script>
+'use strict';
+// status와 visited는 실제 py_trees 관측값이다. 원본 데이터로 트리 구조를 생성한다.
+(()=>{
+const byId=id=>document.getElementById(id);
+const demo=JSON.parse(byId('bt-traces').textContent);
+let dataset=demo, groups=[], frame=0, timer=null;
+function stop(){if(timer!==null)clearInterval(timer);timer=null;byId('bt-play').textContent='자동 재생';}
+function validate(data){
+ if(!data||data.format!=='cobot-bt-trace-v1'||!Array.isArray(data.snapshots)||!data.snapshots.length||data.snapshots.length>5000)throw Error('지원 형식: cobot-bt-trace-v1, 스냅샷 1~5000개');
+ for(const s of data.snapshots){
+  if(typeof s.command_id!=='string'||typeof s.root_id!=='string'||!Array.isArray(s.nodes)||!s.nodes.length||s.nodes.length>100||!Number.isInteger(s.tick))throw Error('스냅샷 구조 오류');
+  const nodes=new Map(s.nodes.map(n=>[n.id,n]));
+  if(nodes.size!==s.nodes.length||!nodes.has(s.root_id))throw Error('노드 ID 또는 루트 오류');
+  const seen=new Set();
+  function walk(id,depth){
+   if(depth>30||seen.has(id)||!nodes.has(id))throw Error('트리의 순환/중복/잘못된 자식 관계');
+   seen.add(id);const n=nodes.get(id);
+   if(typeof n.name!=='string'||typeof n.kind!=='string'||typeof n.visited!=='boolean'||!['INVALID','RUNNING','SUCCESS','FAILURE'].includes(n.status)||!Array.isArray(n.children))throw Error('노드 상태 형식 오류');
+   n.children.forEach(child=>walk(child,depth+1));
+  }
+  walk(s.root_id,0);if(seen.size!==nodes.size)throw Error('연결되지 않은 노드');
+ }
+}
+function load(data){validate(data);stop();dataset=data;const map=new Map();data.snapshots.forEach(s=>{const key=s.command_id+' / '+s.root_id;if(!map.has(key))map.set(key,[]);map.get(key).push(s);});groups=[...map.values()];const select=byId('bt-scenario');select.replaceChildren();groups.forEach((g,i)=>{const o=document.createElement('option');o.value=i;o.textContent=g[0].scenario_label||g[0].command_id+' · '+g[0].robot_id;select.appendChild(o);});frame=0;render();}
+function current(){return groups[Number(byId('bt-scenario').value)||0];}
+function render(){
+ const list=current(),s=list[frame],nodes=new Map(s.nodes.map(n=>[n.id,n]));
+ byId('bt-source').textContent=dataset.source==='demo'?'격리 실행 기록 · 가짜 로봇':'가져온 DB 기록 · 장비 출처는 수집 환경 확인';
+ byId('bt-tick').textContent='Tick '+s.tick;byId('bt-job').textContent='업무 '+s.job_state;byId('bt-phase').textContent='단계 '+s.phase;
+ byId('bt-frame').max=list.length-1;byId('bt-frame').value=frame;byId('bt-frame-count').textContent=(frame+1)+' / '+list.length;
+ byId('bt-prev').disabled=frame===0;byId('bt-next').disabled=frame===list.length-1;
+ function nodeItem(id){const n=nodes.get(id),li=document.createElement('li'),box=document.createElement('div');box.className='bt-node';box.dataset.status=n.status;box.dataset.visited=n.visited;
+  const kind=document.createElement('small');kind.textContent=n.kind;box.appendChild(kind);const name=document.createElement('strong');name.textContent=n.name;box.appendChild(name);const status=document.createElement('span');status.className='bt-status';status.textContent=n.status;box.appendChild(status);const feedback=document.createElement('div');feedback.textContent=n.feedback||'—';box.appendChild(feedback);const visited=document.createElement('span');visited.className='bt-visit';visited.textContent=n.visited?'이번 tick 방문':n.status==='INVALID'?'아직 실행 안 함 / 무효 상태':'상태 유지 · 이번 tick 미방문';box.appendChild(visited);li.appendChild(box);if(n.children.length){const children=document.createElement('ul');n.children.forEach(child=>children.appendChild(nodeItem(child)));li.appendChild(children);}return li;
+ }
+ const tree=document.createElement('ul');tree.className='bt-tree';tree.appendChild(nodeItem(s.root_id));byId('bt-graph').replaceChildren(tree);
+ const changes=byId('bt-diff');changes.replaceChildren();let count=0;const prev=frame?new Map(list[frame-1].nodes.map(n=>[n.id,n])):null;
+ for(const n of s.nodes){const before=prev&&prev.get(n.id);if(!before||before.status!==n.status||before.visited!==n.visited){const item=document.createElement('li');item.textContent=n.name+': '+(before?before.status:'생성')+' → '+n.status+' / 방문 '+(before?before.visited:'없음')+' → '+n.visited;changes.appendChild(item);count++;}}
+ if(!count){const item=document.createElement('li');item.textContent='노드 상태·방문 경로 유지. 업무 상태 또는 실행 단계 변화 기록.';changes.appendChild(item);}
+ let explanation=s.phase==='created'?'트리 생성만 완료했습니다. 아직 이동 명령을 발행하지 않았습니다.':s.job_state==='UNKNOWN'?'BT 실패는 작업이 미확정이라는 뜻입니다. 실제 정지로 판단하지 않고 로봇 예약을 유지합니다.':s.job_state==='SUCCEEDED'?'실제 로봇 최종 응답을 확인해 대기 노드와 루트가 성공했습니다.':s.job_state==='FAILED'?'최종 실패 응답에 따라 대기 노드와 루트가 실패했습니다.':'결과 대기가 RUNNING입니다. 이미 성공한 전달 노드는 memory Sequence가 다시 실행하지 않습니다.';
+ if(s.phase==='tick_error')explanation+=' tick 예외가 발생해 노드 상태가 마지막 관측값일 수 있습니다.';
+ byId('bt-explanation').textContent=explanation;byId('bt-data').textContent=JSON.stringify(s,null,2);
+}
+byId('bt-prev').onclick=()=>{stop();if(frame>0)frame--;render();};byId('bt-next').onclick=()=>{stop();if(frame<current().length-1)frame++;render();};byId('bt-frame').oninput=e=>{stop();frame=Number(e.target.value);render();};byId('bt-scenario').onchange=()=>{stop();frame=0;render();};
+byId('bt-play').onclick=()=>{if(timer!==null){stop();return;}if(frame===current().length-1)frame=0;render();byId('bt-play').textContent='일시 정지';timer=setInterval(()=>{if(frame<current().length-1){frame++;render();}if(frame===current().length-1)stop();},1000);};
+byId('bt-demo').onclick=()=>{byId('bt-error').textContent='';byId('bt-import').value='';load(demo);};
+byId('bt-import').onchange=async e=>{stop();const file=e.target.files[0];if(!file)return;try{if(file.size>10*1024*1024)throw Error('파일은 10 MiB 이하로 명령별 내보내기를 사용하세요');const data=JSON.parse(await file.text());validate(data);data.source='recorded';load(data);byId('bt-error').textContent='';}catch(err){byId('bt-error').textContent=err.message;}};
+load(demo);
+})();
+</script>
+</body></html>

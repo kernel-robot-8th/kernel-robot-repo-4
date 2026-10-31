@@ -1,0 +1,11 @@
+fleet_control:
+  ros__parameters:
+    robot_ids: [pinky1, pinky2, pinky3]
+    mqtt_host: localhost
+    mqtt_port: 1883
+    mqtt_client_id: cobot_fleet_control
+    mqtt_prefix: cobot/fleet
+    db_path: ~/.cobot/fleet_control.sqlite3
+    tick_sec: 0.1
+    queue_capacity: 1000
+    # 계정·비밀번호·CA 경로는 환경변수로 전달하며 저장소에 기록하지 않는다.
