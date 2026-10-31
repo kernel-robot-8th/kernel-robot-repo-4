@@ -29,6 +29,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 - [실제 tick 기반 BT 상태·방문 경로 시각화](docs/control_server_bt_report.html#bt-visualizer)
 - [Docker로 관제 버전·실행 환경 고정](cobot_fleet_control/config/docker/README.md)
 - [관제 패키지 실행·MQTT 계약·검증 안내](cobot_fleet_control/README.md)
+- [관제에서 세 로봇 순차 기동·IP·SSH 설정](cobot_fleet_control/README.md#관제에서-로봇까지-순차-기동): `ros2 launch cobot_fleet_control fleet_startup.launch.xml`로 미리보기, `execute:=true`로 실제 기동.
 - 순찰 구현은 `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` 한 곳에서 관리하며 기존 로봇별 실행 이름은 호환 진입점입니다.
 
 ## 구성도
@@ -52,7 +53,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 | `cobot_fleet_control` | ROS 2 패키지 | 관제 PC | Python BT 업무 실행, MQTT 입출력, SQLite 상태·이벤트 저장 | [README](cobot_fleet_control/README.md) |
 | `cobot_domain_bridge` | ROS 2 패키지 | 관제 PC | 관제 PC(100)와 로봇(10/20/30) 사이 토픽 중계 | [README](cobot_domain_bridge/README.md) |
 | `cobot_zone_traffic_control` | ROS 2 패키지 | 관제 PC(매니저) / 로봇(클라이언트 import) | 위험구역에 한 대만 들어가도록 허가·대기열 슬롯 관리 | [README](cobot_zone_traffic_control/README.md) |
-| `cobot_pinky_patrol` | ROS 2 패키지 | 각 로봇 | Nav2 순찰 노드 (`pinky_patrol_node_pinky1/2/3`) | [README](cobot_pinky_patrol/README.md) |
+| `cobot_pinky_patrol` | ROS 2 패키지 | 각 로봇 | 공통 Nav2 실행기 (`pinky_patrol_node`) + 현장·로봇 설정 | [README](cobot_pinky_patrol/README.md) |
 | `cobot_pinky_patrol_cmd` | 스크립트 | 관제 PC | 터미널에서 순찰 명령 전송·상태 모니터 | [README](cobot_pinky_patrol_cmd/README.md) |
 | `map_view_pc` | 웹 뷰어 | 아무 PC | 지도 위에서 map 좌표 확인 (현재 지도 v9) | [README](map_view_pc/README.md) |
 | `ros2_network_test` | 진단 도구 | 관제 PC | ROS 2 네트워크 진단·이상 이력 대시보드 | [README](ros2_network_test/README.md) |
@@ -124,13 +125,13 @@ ros2 launch cobot_domain_bridge bridges.launch.xml pinky2:=false    # pinky2 제
 export ROS_DOMAIN_ID=100
 ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
 
-# 4. 각 로봇: 순찰 노드 (좌표를 config/pinkyN.yaml 에서 읽으므로 launch 로 실행)
+# 4. 각 로봇: 공통 실행기 + 공통·현장·로봇 설정
 export ROS_DOMAIN_ID=10   # pinky1 (pinky2 = 20, pinky3 = 30)
-ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml     # pinky2_patrol / pinky3_patrol
+ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
 ```
 
 Nav2 파라미터는 [`docs/cobot_slam_nav_param/`](docs/cobot_slam_nav_param/param_changes.md) 에 정리되어 있습니다.
-YAML 없이 `ros2 run` 만 하면 필수 지점이 비어 순찰 노드가 시작을 거부합니다. `ros2 run` 을 쓰려면 `--ros-args --params-file <config/pinkyN.yaml>` 를 붙입니다.
+기존 `pinky1_patrol.launch.xml`·`pinky2_patrol.launch.xml`·`pinky3_patrol.launch.xml`도 공통 launch를 호출합니다. 직접 `ros2 run`할 때는 common·현장·로봇 YAML을 모두 전달합니다. [설정 이전·직접 실행 안내](cobot_pinky_patrol/README.md#기존-실행-명령과-설정-경로-이전)를 참고하세요.
 
 ## 순찰 명령
 
@@ -164,7 +165,8 @@ ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<
 
 | 바꾸려는 것 | 파일 | 주의 |
 |---|---|---|
-| 지점 좌표, 홈, 구역 소속, 유휴 복귀 시간 | `cobot_pinky_patrol/config/pinky{1,2,3}.yaml` | 좌표는 소수점으로(`0.0`). 맵이 바뀌면 이 YAML 만 고친다 |
+| 지점·홈 좌표, 구역 소속·EXIT | `cobot_pinky_patrol/config/sites/lab.yaml` | 모든 로봇이 같은 현장 좌표를 공유한다. 좌표는 소수점으로(`0.0`) 작성 |
+| 로봇 ID·홈 이름 / 실행 기본값 | `cobot_pinky_patrol/config/robots/pinky{1,2,3}.yaml` / `config/common.yaml` | 로봇별 차이와 공통 실행 설정을 분리 |
 | 구역 이름, 대기 앵커·방향·간격, 대기 상한, 타임아웃 | `cobot_zone_traffic_control/config/zone_params.yaml` | `robot_ids`, `zone_names` 는 순찰 YAML 과 같아야 한다. 앵커는 여기가 **유일한 출처** |
 | 브릿지 토픽 추가·수정 | `cobot_domain_bridge/config/pinky_bridge_pinky{1,2,3}.yaml` | 세 파일을 **같이** 고친다 |
 | 순찰 흐름 | `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` | 정책은 patrol_controller.py, ROS 입출력은 pinky_patrol_node.py에서 수정한다 |
@@ -203,7 +205,7 @@ cd src/cobot_navigation/cobot_zone_traffic_control && python3 -m pytest test/
 
 - **지점 좌표 미실측**: `P11`~`P50` 은 모두 `(0, 0, 0)` 임시값이라 `goto` 하면 원점으로 갑니다. pinky1~3 의 구역 지점·일반 지점 좌표도 같은 값이며 실측 확인이 남아 있으니, 확인 전에는 구역 지점으로 이동하지 마세요.
 - **대기 위치 실측**: 줄이 늘어나는 `-y` 쪽에 장애물이 없는지 확인해야 합니다. 구역 A·B 는 대기 위치가 같아서 두 구역에 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있습니다. A·B 슬롯 2 는 홈 `I1` 과 0.1 m, C 슬롯 1 은 `ZC_EXIT` 와 0.4 m 입니다.
-- **`start` 순회 비활성**: v1.1.0 부터 `start` 는 받으면 `FAILED` 로 응답합니다(순회 코드는 노드 파일에 주석으로 보관).
+- **`start` 순회 비활성**: v1.1.0 부터 `start` 는 받으면 `FAILED` 로 응답합니다.
 - **함께 재배포**: 메시지 맨 앞에 구역 이름이 붙으므로 **관제 PC 매니저 → 로봇 3대 순서로 함께** 재배포해야 하고 구형 노드와 섞어 쓸 수 없습니다. 같은 구역을 쓰는 로봇은 모두 같은 대기열 방식이어야 하며, 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.
 - **패키지 간 import**: 순찰 노드가 `cobot_zone_traffic_control.zone_gate_client` 를 직접 import 하며 `cobot_pinky_patrol/package.xml` 에 런타임 의존성을 선언했습니다. CLAUDE.md 3-6(기능 패키지끼리 import 하지 않고 토픽으로만 통신)과도 다르므로, 공용 패키지로 옮길지 팀 결정이 필요합니다.
 - **ROS 도메인 번호**: 이 폴더는 관제 PC 100, 로봇 10/20/30 을 씁니다. 팀 공통 결정 D2([`docs/fms_decisions.md`](../../docs/fms_decisions.md))는 실물 10·12 제안이 `proposed` 상태라 확정되면 맞춰야 합니다.

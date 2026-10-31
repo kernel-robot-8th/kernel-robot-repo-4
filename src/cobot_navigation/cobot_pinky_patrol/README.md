@@ -1,187 +1,143 @@
 # cobot_pinky_patrol
 
-Pinky 로봇에서 실행하는 Nav2 순찰 노드 패키지입니다. 로봇마다 노드(`pinky_patrol_node_pinky1`, `pinky_patrol_node_pinky2`, `pinky_patrol_node_pinky3`)가 하나씩 있으며, 위험 구역에 **한 대만** 들어가도록 `cobot_zone_traffic_control`의 대기열 슬롯 방식과 연동합니다.
+각 Pinky에서 같은 Python 실행기를 사용하고 공통·현장·로봇 설정을 조합합니다. 로봇 한 대마다 프로세스 하나가 실행됩니다. 관제 PC는 `patrol_cmd`로 요청하고 로봇은 Nav2로 주행한 뒤 `patrol_status`로 결과를 보고합니다.
 
-## 주요 기능
+## 설정의 관리 위치
 
-- **명령 수신**: `patrol_cmd`(String)로 `goto:<P>[,<P>,...]` / `zone:<P>` / `leave` / `home` / `stop` / `emergency_stop` (아래 "명령과 동작" 표 참고). `start`(전체 순회)는 v1.1.0 에서 **비활성**이며 받으면 `FAILED`(detail `start disabled`)로 응답합니다 (순회 코드는 노드 파일에 주석으로 보관)
-- **상태 발행**: `patrol_status`에 JSON 발행 — `{"state": "MOVING", "waypoint": 2, "detail": "ZB", "time": ...}`
-  `IDLE` `STARTING` `MOVING` `QUEUEING` `ARRIVED` `HOLDING_ZONE` `LEAVING_ZONE` `RETREATING` `RETURNING` `IDLE_WAIT` `DONE` `STOPPED` `FAILED` `RETRY`
-- **대기열 진입**: 구역 진입 전에 먼저 요청을 보냅니다.
-  - 구역이 비어 있으면 바로 허가를 받아 목적지로 직행
-  - 점유 중이면 매니저가 준 슬롯으로 이동해 `QUEUEING` 대기, 슬롯이 바뀌면 새 슬롯으로 재이동
-  - 대기열이 가득 차면 `FAILED`(`queue_full`), `stop`/이동 실패 시 대기열에서 빠지고 허가를 받았다면 락 반납
-- **위치 복원**: 마지막 위치를 `~/.pinky_last_pose.json`에 저장하고, 노드 실행 후 첫 작업에서만 AMCL 초기 위치로 보낸 뒤 제자리 회전으로 방향 보정
-- **LED**: 대기 초록 깜박임 / 주행 초록 / 구역 대기 빨강 깜박임 / 도착 후 대기 노랑 깜박임
-
-## 연관 파일
-
+```text
+cobot_pinky_patrol/
+├── config/
+│   ├── common.yaml          # 주기·재시도·준비 제한·초기 회전·유휴 복귀 기본값
+│   ├── sites/
+│   │   └── lab.yaml         # 공통 map 좌표, 홈 좌표, 구역 소속, EXIT
+│   └── robots/
+│       ├── pinky1.yaml      # robot_id: pinky1, home_name: I1
+│       ├── pinky2.yaml      # robot_id: pinky2, home_name: I2
+│       └── pinky3.yaml      # robot_id: pinky3, home_name: I3
+├── launch/
+│   ├── patrol.launch.xml    # 설정을 선택하는 공통 launch
+│   └── pinky{1,2,3}_patrol.launch.xml  # 기존 명령 호환용 include
+└── cobot_pinky_patrol/
+    ├── pinky_patrol_node.py # 공통 ROS 입출력·초기화·LED
+    ├── patrol_controller.py # 명령·구역·정지·유휴 복귀 상태 기계
+    ├── async_navigation.py  # 비동기 Nav2 목표 접수·취소·최종 결과
+    └── patrol_points_utils.py # 좌표·구역·명령 검증
 ```
-관제 PC(100)  pinky_control_client.py ──/<robot>/patrol_cmd──▶ domain_bridge ──▶ patrol_node (로봇 10/20/30)
-             zone_manager_node ◀── request_entry / cancel_entry / notify_exit ── ZoneGateClient
-                                  ──▶ grant_entry / queue_slot ──────────────────▶ (zone_gate_client)
+
+좌표 변경은 `config/sites/lab.yaml` 한 곳에서 합니다. 로봇별 파일에는 ID와 홈 이름을 두며 같은 현장 좌표를 복사하지 않습니다. 로봇을 추가할 때는 `config/robots/<robot_id>.yaml`과 현장에 맞는 홈을 등록합니다. fleet의 `robot_ids`, zone_manager의 `robot_ids`, 도메인 브릿지도 함께 구성해야 합니다.
+
+현재 lab 설정에는 일반 지점 P1~P35가 있습니다. P36~P50의 예비 `[0.0, 0.0, 0.0]` 항목은 제거했으므로 해당 명령은 `unknown point`로 거절됩니다. 일반 지점 이름은 P50까지 지원하지만 실제 좌표를 등록한 지점만 이동할 수 있습니다. 좌표는 map 프레임의 `[x, y]` 또는 `[x, y, yaw]`이며 m·rad 단위, 소수점으로 작성합니다.
+
+대기 앵커·슬롯은 `cobot_zone_traffic_control/config/zone_params.yaml`에서 관리합니다. 현장 파일의 `zone_names`와 해당 매니저의 구역 이름을 맞춥니다. 같은 현장에 배포하는 로봇은 같은 지도와 현장 설정을 사용해야 합니다.
+
+### YAML이 실제로 적용되는 위치
+
+`launch/patrol.launch.xml`이 아래 순서로 ROS 파라미터 파일을 전달합니다. 뒤 파일에서 같은 이름을 지정하면 그 값이 우선합니다.
+
+```xml
+<param from="$(find-pkg-share cobot_pinky_patrol)/config/common.yaml"/>
+<param from="$(find-pkg-share cobot_pinky_patrol)/config/sites/$(var site).yaml"/>
+<param from="$(find-pkg-share cobot_pinky_patrol)/config/robots/$(var robot_id).yaml"/>
 ```
-![시스템 구성도](docs/pinky_patrol_flow.svg)
 
-| 파일 | 실행 위치 | 역할 |
-|---|---|---|
-| `cobot_pinky_patrol/pinky_patrol_node_pinky{1,2,3}.py` | 각 로봇 | 순찰·goto, 구역 진입 절차 |
-| `cobot_zone_traffic_control/.../zone_gate_client.py` | 각 로봇 (import) | 진입 요청·취소·이탈 통보, 허가·슬롯 수신 |
-| `cobot_zone_traffic_control/.../zone_manager_node.py` | 관제 PC (1대) | 점유자 1명 + FIFO 대기열, 허가·슬롯 좌표 발행 |
-| `cobot_pinky_patrol_cmd/pinky_control_client.py` | 관제 PC | 터미널에서 명령 전송 |
+각 YAML의 `pinky_patrol_node:`는 파일명·클래스명이 아닌 ROS 노드 이름입니다. launch의 `name="pinky_patrol_node"`와 대응하며 Python은 `declare_parameter()`와 `get_parameter()`로 값을 읽습니다. 좌표·구역은 `_load_points()`에서 검증합니다. 설정 누락을 기본 좌표로 채워서 주행하지 않습니다. `robot_id`도 명시해야 합니다.
 
-- 로봇 코드와 YAML 에는 대기 좌표(앵커·슬롯)가 없습니다. 로봇에는 출구 `Z<구역>_EXIT` 만 있고(`config/pinkyN.yaml`), 대기 앵커는 매니저 `zone_params.yaml` 의 구역별 `queue_anchor` 한 곳에만 둡니다. 매니저가 슬롯 좌표를 계산해 `queue_slot` 으로 주며, 로봇은 응답이 오기 전에는 제자리에서 기다립니다. 앵커 / 출구는 구역 A `(0.1, 0.6, 0.0)` / `(0.5, 0.0, -1.5)`, 구역 B `(0.1, 0.6, 0.0)`(A 와 같은 대기 위치) / `(0.55, -0.6, -1.5)`, 구역 C `(-0.7, -0.08, 1.5)` / `(-0.3, -0.4, 1.5)` 입니다 (2026-10-27 확정). 앵커는 구역 소속 지점과 좌표가 달라야 합니다(같으면 대기자가 점유자 자리로 갑니다). 대기줄은 세 구역 모두 -y 방향입니다.
-- **같은 구역의 로봇은 모두 같은 대기열 방식으로 맞추세요.** 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.
-- `robot_id`는 `zone_params.yaml`의 `robot_ids`와 같아야 합니다.
+설정은 시작할 때 읽습니다. 소스를 수정한 뒤 패키지를 재빌드하고 `install/setup.bash`를 source한 후 노드를 다시 실행합니다. 작업 중인 로봇의 설정을 실시간으로 바꾸는 기능은 없습니다.
 
-### 경로와 규칙
+## 빌드와 실행
 
-| 로봇 | `start` 경로 (v1.1.0 비활성, 주석 보관) | goto 홈 |
-|---|---|---|
-| pinky1 | (구역 2개 이전 순회 경로, 주석 보관) | `I1` (0, 0) |
-| pinky2 | (구역 2개 이전 순회 경로, 주석 보관) | `I2` (0, -0.2) |
-| pinky3 | (구역 2개 이전 순회 경로, 주석 보관) | `I3` (0, -0.4) |
-
-- 위험구역은 **3개(`A`, `B`, `C`)** 이고 구역마다 토큰(락)·대기열이 따로입니다. 구역 소속 지점은 `config/pinkyN.yaml` 의 `zone_points` 로 정하며 현재 A = `ZA`, B = `ZB`, C = `ZC` 입니다 (`P1`~`P50` 은 모두 구역 밖 일반 지점).
-- 구역 대기 앵커(`queue_anchor`) 뒤쪽 대기 슬롯(`queue_back_dir`: 세 구역 모두 -y, 슬롯이 맵 안에 있어야 Nav2 가 받아들입니다)과 pinky1~3 의 구역 지점·일반 지점 좌표는 같은 값이며 실측 확인이 남아 있습니다. 확인 전에는 구역 지점으로 이동하지 마세요. A·B 가 같은 대기 위치를 쓰므로 A 대기자와 B 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있고, A·B 슬롯 2 가 홈 I1 과 같은 자리이고 C 슬롯 1 이 ZC_EXIT 와 0.4 m 인 점도 현장에서 확인해야 합니다.
-
-### 명령과 동작 (지점 단위 독립 이동)
-
-| 명령 | 동작 |
-|---|---|
-| `goto:<P>[,<P>...]` | **구역 밖** 일반 지점(`P1`~`P50` 중 YAML 에 있는 것. `P1`·`P2` 필수, `P3`~`P50` 선택. **현재 P11~P50 은 모두 (0,0,0) 임시값이라 goto 하면 원점으로 갑니다**)과 자기 홈(`I<n>`)만 순서대로 이동. 도착 후 홈으로 가지 않고 대기. 구역 지점을 주면 `FAILED: use zone`, W*/Z*_EXIT 는 `not allowed` |
-| `zone:<P>` | 구역 지점 **1개**로 이동. 매니저 응답(허가/대기 슬롯)을 받은 뒤 토큰(`request_entry` → `grant_entry`)을 받은 **뒤에만** 출발하고, 도착 후 토큰을 **유지**(`HOLDING_ZONE`) |
-| `leave` | 보유 중인 구역의 `EXIT` 로 이동해 **도착한 뒤에** 토큰 반납. 보유 구역이 없으면 `FAILED: no zone held` |
-| `home` | 초기 위치(`I<n>`)로 복귀. 구역 안이면 `EXIT` 에서 토큰을 반납한 뒤 이동합니다. 이미 홈이면 이동 없이 `DONE` (유휴 복귀와 같은 절차를 즉시 실행) |
-| `stop` | 현재 작업 중단. 구역 안이면 `EXIT` 로 나와 락 반납. 작업 중이 아니면 상태 발행 없이 경고 로그만 남기고 무시 |
-| `emergency_stop` | 그 자리 정지 + 락 유지(`max_hold_sec` 후 매니저가 강제 해제). 작업 중이 아니면 `stop` 과 같이 무시. 노드는 구역을 쥔 것으로 기억하지 않아 다음 `zone` 이 토큰을 다시 요청 |
-| `start` | 비활성 (`FAILED: start disabled`) |
-
-- 같은 구역 `zone` 재명령은 토큰을 다시 요청하지 않고 바로 이동합니다. 다른 구역 `zone` 이나 `goto` 는 먼저 **현재 구역 `EXIT` 에 도착해 토큰을 반납한 뒤** 출발합니다 (한 번에 한 구역 토큰만 쥐므로 교착이 없습니다).
-- `EXIT` 에 도달하지 못하면 토큰을 반납하지 않고 `FAILED` 로 응답합니다(`max_hold_sec` 뒤 매니저가 해제). 다시 `leave` 로 재시도할 수 있습니다.
-- **자동 홈 복귀는 없습니다.** 마지막 명령을 마친 뒤 `idle_return_sec`(`config/pinkyN.yaml`, 기본 `120.0`초, 0 이하이면 끔) 동안 새 명령이 없을 때만 홈으로 복귀합니다. 구역 안이면 `EXIT` 반납 후 홈으로 갑니다. 새 명령이 오면 타이머가 취소되고, `stop`/실패 뒤에는 타이머를 걸지 않습니다.
-- 상태 토픽(`patrol_status`): `HOLDING_ZONE`(detail = 구역), `IDLE_WAIT`(detail = 복귀까지 초)가 추가되었습니다. 작업 중에 온 `goto` / `zone` / `leave` / `home` 은 상태 발행 없이 경고 로그만 남기고 무시됩니다 (`stop` / `emergency_stop` 만 작업 중에 받아들여집니다).
-- `max_hold_sec`(`zone_params.yaml`, 240초)는 유휴 복귀 120초와 `EXIT` 이동 시간보다 길어야 합니다.
-- `package.xml` 에는 아직 의존성(`cobot_zone_traffic_control`, `nav2_simple_commander`, `pinky_interfaces`)과 description / license 가 선언되어 있지 않습니다. 자세한 내용은 [cobot_navigation README 의 "알려진 제약"](../README.md#알려진-제약)을 봅니다.
-
-## 설치 방법
-
-로봇에는 Nav2, `pinky_interfaces`(`SetLed`), `pinky_led`가 이미 있어야 합니다 (이 저장소에 없음). 환경: Ubuntu 24.04, ROS 2 `jazzy`.
+Ubuntu 24.04 / ROS 2 Jazzy 기준입니다. 로봇의 드라이버·지도·Nav2 bringup, `pinky_interfaces`, `pinky_led`는 기존 장비 환경을 사용합니다.
 
 ```bash
-# 로봇 (저장소 루트에서)
-git clone https://github.com/kernel-robot-8th/kernel-robot-repo-4.git
-cd kernel-robot-repo-4
-git checkout feature/navigation   # 주행 담당 작업 브랜치
+# 로봇 워크스페이스 최상위에서
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
 source install/setup.bash
+
+# Nav2 bringup을 먼저 실행한 뒤 별도 터미널에서
+ROS_DOMAIN_ID=10 ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
+# pinky2: ROS_DOMAIN_ID=20, robot_id:=pinky2
+# pinky3: ROS_DOMAIN_ID=30, robot_id:=pinky3
 ```
 
-관제 PC는 `colcon build --packages-select cobot_zone_traffic_control cobot_domain_bridge` 후 `source install/setup.bash` 합니다.
+`robot_id`는 필수이고 `site` 기본값은 `lab`입니다. 기존 bringup에 LED 서버가 없으면 `start_led:=true`를 추가합니다. 기본값은 false이며 노드에서 서버를 자동 실행하지 않습니다. LED 응답이 지연되어도 주행·정지 콜백은 계속 처리합니다.
 
-## 실행 방법
+관제 PC에서는 기존 도메인 브릿지와 zone_manager를 실행합니다. 도메인은 관제 100, 로봇 10/20/30입니다. [전체 실행 안내](../README.md), [MQTT·관제 계약](../cobot_fleet_control/README.md)을 참고하세요.
 
-각 터미널에서 `source /opt/ros/jazzy/setup.bash && source install/setup.bash`를 먼저 합니다.
+### 기존 실행 명령과 설정 경로 이전
 
-1. **로봇**: Nav2 bringup 실행
-2. **관제 PC**: 도메인 브릿지
-   ```bash
-   export ROS_DOMAIN_ID=100
-   ros2 launch cobot_domain_bridge bridges.launch.xml
-   ```
-3. **관제 PC**: zone_manager (새 터미널)
-   ```bash
-   export ROS_DOMAIN_ID=100
-   ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
-   ```
-4. **각 로봇**: 순찰 노드
-   좌표·홈 지점은 `config/pinkyN.yaml` 에서 읽으므로 **launch 로 실행**합니다. (YAML 없이 `ros2 run` 만 하면 필수 지점이 비어 노드가 시작을 거부합니다. `ros2 run` 을 쓰려면 `--ros-args --params-file <config/pinkyN.yaml>` 를 붙입니다.)
-   ```bash
-   # pinky1
-   export ROS_DOMAIN_ID=10
-   ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
-
-   # pinky2
-   export ROS_DOMAIN_ID=20
-   ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
-
-   # pinky3 (홈 I3 = (0, -0.4))
-   export ROS_DOMAIN_ID=30
-   ros2 launch cobot_pinky_patrol pinky3_patrol.launch.xml
-   ```
-
-## 사용 예시
-
-관제 PC(워크스페이스 최상위)에서 `ROS_DOMAIN_ID=100`으로 실행합니다.
+아래 launch 명령은 계속 사용할 수 있으며 공통 launch에 로봇 ID를 전달합니다. `site`와 `start_led` 옵션도 전달됩니다.
 
 ```bash
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 monitor          # 상태 출력 (별도 터미널, Ctrl+C 종료)
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 start            # (비활성) FAILED: start disabled 응답
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 goto P1 P2        # 구역 밖 지점 이동 (홈으로 가지 않음, idle_return_sec 후 복귀)
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 zone ZA          # 구역 A 지점: 토큰 받고 이동, 토큰 유지
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 leave            # 구역 EXIT 로 나가 토큰 반납
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 home             # 초기 위치로 복귀
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 stop             # 중지
-
-# 대기열 확인: 두 로봇에 같은 구역 zone 을 거의 동시에 보내면 늦은 쪽이 QUEUEING으로 대기
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky1 zone ZA
-python3 src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py pinky2 zone ZA
-ros2 topic echo /zone_manager/status      # <구역>:free | <구역>:occupied_by:<robot_id>
-# 로봇 한 대로 대기열을 시험하려면 가짜 robot_id 로 구역을 먼저 잡는다: ../cobot_zone_traffic_control/README.md 의 "구역 수동 점유 / 해제"
+ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
+ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
+ros2 launch cobot_pinky_patrol pinky3_patrol.launch.xml
 ```
 
-테스트(가짜 navigator + 실제 매니저, 격리 도메인에서만 통합 테스트 실행). `src/cobot_navigation` 폴더에서 실행합니다.
+`pinky_patrol_node_pinky1/2/3` 실행 이름은 같은 `pinky_patrol_node:main`의 별칭으로 유지합니다. 로봇별 Python 파일은 제거했습니다. 로봇 식별은 실행 이름이 아니라 설정으로 지정합니다.
+
+예전 `config/pinkyN.yaml`은 공통·현장·로봇 파일로 분리되어 제거됐습니다. 직접 `ros2 run`하는 스크립트는 단일 예전 파일 대신 세 파일을 전달하도록 변경합니다.
 
 ```bash
-ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest cobot_pinky_patrol/test/test_patrol_queue.py -q
+PATROL_SHARE="$(ros2 pkg prefix --share cobot_pinky_patrol)"
+ros2 run cobot_pinky_patrol pinky_patrol_node --ros-args \
+  --params-file "$PATROL_SHARE/config/common.yaml" \
+  --params-file "$PATROL_SHARE/config/sites/lab.yaml" \
+  --params-file "$PATROL_SHARE/config/robots/pinky1.yaml"
 ```
 
-## 환경변수
+## 명령과 상태
 
-| 변수 | 값 | 설명 |
-|---|---|---|
-| `ROS_DOMAIN_ID` | 관제 PC `100`, pinky1 `10`, pinky2 `20`, pinky3 `30` | 장비별 도메인 (도메인 간 중계는 `domain_bridge`) |
-| `ROS_DOMAIN_ID=77` + `ROS_LOCALHOST_ONLY=1` | 시험용 | 통합 테스트 전용 격리 값 (아니면 통합 테스트 skip) |
-| `RMW_IMPLEMENTATION`, `CYCLONEDDS_URI`, `ROS_AUTOMATIC_DISCOVERY_RANGE` | `rmw_cyclonedds_cpp`, `file:///home/pinky/.ros/cyclonedds_robot.xml`, `SUBNET` | 로봇 DDS 설정. 웹 GUI가 SSH로 켤 때 주입 (직접 실행 시 로봇 터미널 값 사용) |
+### 관제의 원격 통합 기동
 
-노드 파라미터 `robot_id`(기본: pinky1 노드 `pinky1`, pinky2 노드 `pinky2`, pinky3 노드 `pinky3`)는 환경변수가 아닙니다. 재시도 횟수는 노드 파일의 클래스 상수(`NAV_RETRIES`)라 코드를 수정해야 바뀝니다. 유휴 복귀 시간 `idle_return_sec` 은 YAML 파라미터입니다. **지점 좌표와 홈 지점(`home_name`)은 `config/pinkyN.yaml` 의 파라미터**이며, 맵이 바뀌면 이 YAML 만 고치면 됩니다(좌표는 `[x, y]` 또는 `[x, y, yaw]`, m·rad, 소수점으로 작성). 값이 빠지거나 형식이 틀리면 노드가 오류 로그를 남기고 시작하지 않습니다. `W<구역>` 는 `cobot_zone_traffic_control/config/zone_params.yaml` 의 `zone_<구역>.queue_anchor` 와 같아야 합니다(테스트가 검사). 구역 이름(`zone_names`)과 소속 지점(`zone_points`)도 이 YAML 의 파라미터이며, 값이 빠지거나 소속이 모순(중복 소속·홈이 구역 안 등)이면 노드가 시작을 거부합니다.
+관제는 이 패키지의 `robot_startup` 실행기를 SSH로 호출해 `pinky_bringup/bringup_robot.launch.xml` → `pinky_navigation/bringup_launch.xml map:=...` → 공통 패트롤 launch를 순서대로 시작할 수 있습니다. 각 단계의 최소 간격과 준비 검사·시간 제한을 적용하며 세 프로세스를 계속 관리합니다. [관제 통합 기동·IP·SSH 설정](../cobot_fleet_control/README.md#관제에서-로봇까지-순차-기동)을 참고하세요.
 
-## 프로젝트 구조
+기본 workspace는 `/ws/kernel-robot-repo-4`, 지도는 로봇의 `~/cobot_map_v9.yaml`입니다. 기존 vendor setup과 이 workspace의 setup을 source한 환경에서 로봇 한 대를 직접 순차 기동하려면 다음 명령을 사용합니다. 이 명령은 실제 프로세스를 시작합니다.
 
-```
-cobot_pinky_patrol/
-├── README.md, package.xml, setup.py, setup.cfg
-├── config/pinky{1,2,3}.yaml                # 로봇별 지점 좌표·home_name 파라미터
-├── launch/pinky{1,2,3}_patrol.launch.xml  # 노드 + 좌표 YAML 실행
-├── PinkyPatrolNode.html                    # 순찰 노드 흐름도
-├── docs/pinky_patrol_flow.svg              # 시스템 구성도
-├── docs/prd/                               # 위험구역 대기열 단계별 PRD
-├── test/test_patrol_queue.py            # 대기열 진입 테스트
-├── test/test_patrol_commands.py         # 명령 처리 테스트
-├── test/test_patrol_points_utils.py     # 좌표 파싱·검증 단위 테스트
-└── cobot_pinky_patrol/
-    ├── patrol_points_utils.py              # 좌표 파싱·검증 (ROS 비의존)
-    └── pinky_patrol_node_pinky{1,2,3}.py   # 대기열 방식 순찰 노드
+```bash
+ros2 run cobot_pinky_patrol robot_startup --robot-id pinky1 --domain-id 10
 ```
 
-## 관제 연동 리팩토링
+지도 YAML·이미지·vendor 패키지 존재를 먼저 확인합니다. SSH 세션 종료 또는 Ctrl+C 시 이 실행기가 시작한 프로세스를 역순 정리합니다. 이미 수동으로 실행한 bringup·Nav2·패트롤과 함께 중복 실행하지 않습니다.
 
-로봇별 실행 이름은 유지하고 주행 코드는 `cobot_pinky_patrol/pinky_patrol_node.py`로 통합했습니다. YAML의 `robot_id`·좌표·홈 설정이 우선하며 기존 문자열 명령도 지원합니다. 신규 관제는 `command_id`와 `command`를 담은 JSON으로 명령을 보내고, 작업 정리가 끝난 최종 응답의 `task_finished=true`를 확인합니다. [MQTT·DB·BT 계약](../cobot_fleet_control/README.md)을 참고하세요.
+### 업무 명령
 
-## 단일 executor 비동기 실행기로 전환
+기존 문자열 명령과 관제의 JSON 명령을 모두 처리합니다. JSON은 `{"command_id":"job1","command":"goto:P1,P2"}` 형태이며 최종 응답에 같은 ID와 `task_finished=true`를 붙입니다.
 
-주행·구역 대기·초기 회전·LED 점멸의 작업 스레드와 while/sleep·중첩 spin을 제거했습니다. 기존 ros2 run/launch 이름과 MQTT·ROS 명령 계약은 유지합니다.
+| 명령 | 동작 |
+|---|---|
+| `goto:P1,P2` | 등록된 구역 밖 일반 지점 또는 자기 홈으로 순서대로 이동 |
+| `zone:ZA` | 구역 허가 후 지점 1개로 이동하고 토큰 유지 |
+| `leave` | 보유 구역의 EXIT에 도착한 뒤 토큰 반납 |
+| `home` | 보유 구역을 EXIT로 나온 뒤 자기 홈으로 이동 |
+| `stop` | 이전 액션 종료를 확인하고, 구역 보유 중이면 EXIT 후퇴 |
+| `emergency_stop` | 주행 취소, 보유 구역 기억 유지, 유휴 복귀 중단 |
+| `start` | 비활성, `start disabled`로 거절 |
 
-- `pinky_patrol_node.py`: ROS 토픽·액션·라이프사이클·초기화·LED 타이머. 콜백이 완료를 기다리지 않습니다.
-- `patrol_controller.py`: ROS와 분리된 작업 상태 기계. goto/zone/leave/home·재시도·유휴 복귀·정지 후 출구 이동 정책.
-- `async_navigation.py`: 목표 접수·피드백·취소·최종 결과 Future. 목표 세대 번호로 이전 콜백을 무시합니다.
-- `zone_gate_client.py`: 동일 노드의 토픽 콜백으로 허가·슬롯 갱신. 미사용 동기 wait_for_entry API는 제거했습니다.
+구역 밖 지점 이동은 완료 즉시 홈으로 돌아가지 않습니다. 성공 후 `idle_return_sec`(기본 120초) 동안 새 명령이 없으면 복귀합니다. 0 이하이면 유휴 복귀를 끕니다. 실패·정지 후에는 자동 복귀를 예약하지 않습니다.
 
-정지 요청 후 `CANCELING`에서 이전 액션의 최종 종료를 기다립니다. 취소 ACK이나 거절만으로 새 목표를 보내지 않습니다. 결과가 유실되면 busy를 유지하며, 관제 업무는 시간 초과 후 UNKNOWN일 수 있습니다. 비상정지 후에는 기존 구역 보유 상태를 유지하고 자동 복귀를 걸지 않습니다. 일반 stop은 EXIT 도착 후 토큰을 반납합니다. 작업이 끝나 구역을 점유한 상태에서도 stop/비상정지를 처리합니다.
+정지 요청은 `CANCELING`에서 이전 액션의 최종 결과를 기다립니다. 취소 ACK이나 거절만으로 다음 목표를 시작하지 않습니다. 결과가 유실되면 busy를 유지하며 관제 작업은 UNKNOWN이 될 수 있습니다. 구역 관리자의 기존 강제 만료 정책은 별도로 유지됩니다.
 
-준비 단계에서 amcl·bt_navigator 라이프사이클과 액션 서버를 비동기로 확인합니다. 준비 제한 시간은 nav_ready_timeout_sec, 노드 목록은 lifecycle_nodes로 설정합니다. 저장 위치 복원·회전이 필요 없으면 restore_pose=false로 설정합니다. 초기 회전 중에도 stop 콜백이 동작합니다.
+관제 PC에서 기존 CLI를 사용할 수 있습니다. fleet의 작업 접수·기록을 사용하려면 MQTT로 요청합니다.
 
-LED 서버가 bringup에 없으면 `ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml start_led:=true`를 사용합니다. 기본값은 false이며 노드가 드라이버를 자동 spawn하지 않습니다. LED 서비스가 없거나 응답이 지연되어도 주행은 계속됩니다. 단일 executor가 다른 프로세스의 계산·DDS 내부 스레드까지 하나로 합친다는 의미는 아닙니다.
+```bash
+export ROS_DOMAIN_ID=100
+CLIENT=src/cobot_navigation/cobot_pinky_patrol_cmd/pinky_control_client.py
+python3 "$CLIENT" pinky1 monitor
+python3 "$CLIENT" pinky1 goto P1 P2
+python3 "$CLIENT" pinky1 zone ZA
+python3 "$CLIENT" pinky1 leave
+python3 "$CLIENT" pinky1 home
+```
 
-이전 스레드 내부 메서드를 직접 실행하던 테스트는 상태 기계 정책·실제 ROS 액션 테스트로 교체했습니다. YAML·명령·좌표 검증과 zone_manager 회귀 검사는 유지합니다. [실제 로직 읽는 순서와 디버깅 지도](../docs/control_server_bt_report.html#logic-debug)에서 확인 함수·상태값·중단점·격리 시험을 찾을 수 있습니다.
+## 검증
+
+`src/cobot_navigation`에서 실행합니다.
+
+```bash
+python3 -m pytest cobot_pinky_patrol/test -q
+# ROS 액션·토픽 통합 시험은 격리 환경에서만 실행
+ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest cobot_pinky_patrol/test -q
+```
+
+ROS 없는 환경에서는 좌표·명령·상태 기계·설정·설치 등록 검사를 실행하고 ROS 로딩·액션 시험은 건너뜁니다. 테스트의 가짜 Nav2는 실제 현장 주행·브릿지 왕복을 대신하지 않습니다.

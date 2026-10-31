@@ -1,0 +1,10 @@
+# 모든 로봇의 실행 기본값. 현장 좌표와 로봇 식별 정보는 별도 파일에 둔다.
+pinky_patrol_node:
+  ros__parameters:
+    tick_sec: 0.05
+    nav_retries: 3
+    nav_ready_timeout_sec: 60.0
+    lifecycle_nodes: [amcl, bt_navigator]
+    initial_rotation_sec: 4.0
+    restore_pose: true
+    idle_return_sec: 120.0

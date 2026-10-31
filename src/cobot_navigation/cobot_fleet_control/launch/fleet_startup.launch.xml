@@ -1,0 +1,10 @@
+<launch>
+  <arg name="config" default="$(find-pkg-share cobot_fleet_control)/config/fleet_startup.yaml"/>
+  <arg name="execute" default="false" description="true이면 실제 SSH·ROS 프로세스 기동"/>
+  <executable unless="$(var execute)"
+    cmd="ros2 run cobot_fleet_control fleet_startup --config '$(var config)'"
+    name="fleet_startup_preview" output="screen"/>
+  <executable if="$(var execute)"
+    cmd="ros2 run cobot_fleet_control fleet_startup --config '$(var config)' --execute"
+    name="fleet_startup" output="screen"/>
+</launch>

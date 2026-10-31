@@ -14,6 +14,98 @@ UI → MQTT → 관제 서버의 `py_trees` → ROS 도메인 브릿지 → Pink
 - `resolve_unknown.py`: 현장 정지 확인 후 UNKNOWN 작업 한 건의 예약을 해제하는 운영 CLI.
 - 로봇: Nav2가 제공하는 `nav2_bt_navigator`/BehaviorTree.CPP로 경로 계획·주행·복구. 이번 변경은 로봇의 Nav2 BT XML을 교체하지 않습니다.
 
+## 관제에서 로봇까지 순차 기동
+
+`fleet_startup.launch.xml`은 Linux 관제 PC에서 브릿지·구역 관리자와 세 로봇의 원격 기동을 묶습니다. 작업 BT 서버와 분리된 프로세스 관리 기능이며, 기본 실행은 SSH 접속도 ROS 프로세스 실행도 하지 않는 **미리보기**입니다.
+
+```bash
+# 관제 PC: ROS·가상환경·워크스페이스 환경을 불러온 뒤
+ros2 launch cobot_fleet_control fleet_startup.launch.xml
+```
+
+`config/fleet_startup.yaml`에 다음 주소와 로봇 워크스페이스를 등록했습니다. SSH 계정은 아직 받지 않았으므로 공란입니다. 각 `ssh_user`를 채우기 전에는 실제 실행이 거절됩니다.
+
+| 로봇 | IP | ROS 도메인 |
+|---|---|---|
+| pinky1 | 192.168.45.21 | 10 |
+| pinky2 | 192.168.45.22 | 20 |
+| pinky3 | 192.168.45.23 | 30 |
+
+로봇 워크스페이스는 `/ws/kernel-robot-repo-4`입니다. SSH로 로봇의 ROS와 `install/setup.bash`를 source한 뒤 해당 디렉터리에서 `robot_startup`을 실행합니다. 지도 `~/cobot_map_v9.yaml`의 HOME 확장은 로봇에서 하며 YAML이 가리키는 이미지 파일도 사전 검사합니다.
+
+```text
+관제 PC: bridge → zone_manager
+  → pinky1: bringup → 센서 확인 → Nav2 → 활성 상태 확인 → patrol → ID 확인
+  → 3초 간격
+  → pinky2: 동일 순서
+  → 3초 간격
+  → pinky3: 동일 순서
+  → 관제 PC: fleet_control 업무 서버 시작
+```
+
+각 로봇에서 실행하는 실제 명령은 다음과 같습니다.
+
+```bash
+ros2 launch pinky_bringup bringup_robot.launch.xml
+ros2 launch pinky_navigation bringup_launch.xml map:="$HOME/cobot_map_v9.yaml"
+ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
+```
+
+`stage_delay_sec` 기본값 5초는 각 단계의 최소 간격입니다. 간격 이후 `/scan`, `/odom`, `/tf` 메시지를 확인하고, Nav2의 `/amcl`·`/bt_navigator`가 active이며 `/navigate_to_pose` 서버가 있는지 확인합니다. 패트롤의 `robot_id`까지 확인한 뒤 다음 로봇으로 진행합니다. 토픽 이름은 `readiness_topics`, 단계 제한 시간은 `stage_timeout_sec`(기본 90초)로 조정합니다. 이 검사는 기동 당시의 ROS 준비 상태이며 위치 추정 정확도·물리 주행 검증을 뜻하지 않습니다.
+
+로봇에도 새 `robot_startup` 실행기가 필요합니다. 먼저 새 패키지를 배포·빌드합니다.
+
+```bash
+# 각 로봇에서 기존 vendor ROS 환경을 불러온 뒤
+cd /ws/kernel-robot-repo-4
+colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
+source install/setup.bash
+
+# 관제 PC의 워크스페이스에서도 새 실행기를 등록
+colcon build --packages-select cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
+source install/setup.bash
+```
+
+vendor 패키지가 다른 workspace에 있으면 `underlay_setups`에 해당 로봇의 `install/setup.bash` 절대 경로를 넣습니다. 파일은 ROS → vendor underlay → `/ws/kernel-robot-repo-4/install/setup.bash` 순서로 읽습니다. SSH는 대화형 터미널의 `.bashrc` 설정을 자동 적용하지 않으므로 사용 중인 DDS 환경변수는 `environment`에 명시합니다. 로봇별로 기본값을 덮어쓸 수 있습니다.
+
+SSH는 키 인증과 사전에 확인·등록된 호스트 키를 사용합니다. 비밀번호·개인키 본문을 YAML에 저장하지 않으며 호스트 키 검사를 자동으로 끄지 않습니다. 네이티브 Ubuntu 관제의 OpenSSH 클라이언트(`ssh`)가 필요합니다. SSH 계정·키 인증·underlay 설정과 미리보기 내용을 확인한 뒤 실제 기동합니다.
+
+```bash
+# 실제 SSH 접속과 프로세스 기동
+ros2 launch cobot_fleet_control fleet_startup.launch.xml execute:=true
+
+# 이미 관제 서비스가 실행 중이면 로봇만 기동; --execute 없이 실행하면 미리보기
+STARTUP_CONFIG="$(ros2 pkg prefix --share cobot_fleet_control)/config/fleet_startup.yaml"
+ros2 run cobot_fleet_control fleet_startup --config "$STARTUP_CONFIG" --robots-only --execute
+# 특정 로봇만 선택하려면 --robot pinky1 추가
+```
+
+한 단계 실패·시간 초과·SSH 종료 시 전체 기동을 중단하고 이 도구가 시작한 프로세스를 역순 정리합니다. Ctrl+C도 동일하게 처리합니다. SSH TTY와 로봇의 HUP/TERM 처리로 원격 정리를 시도하며, 강제 전원 종료·네트워크 단절에서 즉시 물리 정지를 보장하는 기능은 아닙니다. 수동 bringup·Nav2·패트롤 또는 기존 관제/Docker 서비스와 중복 기동하지 않습니다. 통합 기동 자체는 이동 목표를 발행하지 않습니다.
+
+현재 검증은 가짜 로컬 프로세스·준비 출력·설정 검사로 수행했습니다. 실제 SSH·vendor bringup·ROS 준비 검사 왕복은 계정 정보와 장비 환경을 받은 뒤 확인해야 합니다.
+
+### 로봇을 추가할 때
+
+원격 기동기는 `fleet_startup.yaml`의 `robots` 항목을 순서대로 읽으므로 3대로 제한되지 않습니다. 기동은 순차이며, 이미 준비된 로봇 프로세스는 계속 실행됩니다. 새 로봇이 같은 Pinky 실행 방식을 사용한다면 Python 실행 코드를 복사할 필요가 없습니다.
+
+예를 들어 pinky4를 추가할 때는 다음 설정을 함께 변경합니다. 아래 IP와 도메인은 예시이며 실제 할당값으로 바꿉니다.
+
+1. `cobot_fleet_control/config/fleet_startup.yaml`의 `robots`에 접속 정보를 추가합니다.
+
+   ```yaml
+   pinky4:
+     host: 192.168.45.24
+     ssh_user: 실제_로봇_계정
+     domain_id: 40
+   ```
+
+2. `cobot_pinky_patrol/config/robots/pinky4.yaml`을 만들고 ROS 노드 이름 아래 `robot_id: pinky4`, `home_name: I4`를 지정합니다. `config/sites/lab.yaml`의 `points`에는 실제 측정한 I4 좌표를 추가합니다. 미측정 좌표를 예비 원점으로 등록하지 않습니다. 다른 현장을 사용한다면 해당 현장 파일과 `site`를 지정합니다.
+3. 업무 관제의 `cobot_fleet_control/config/fleet_control.yaml`과 구역 관리자의 `cobot_zone_traffic_control/config/zone_params.yaml` 양쪽 `robot_ids`에 `pinky4`를 추가합니다.
+4. 현재 도메인 브릿지는 로봇별 등록 방식입니다. `cobot_domain_bridge/config/pinky_bridge_pinky3.yaml`을 참고해 `pinky_bridge_pinky4.yaml`을 만들고 로봇 ID, 관제 측 토픽 접두사, 로봇 도메인을 맞춥니다. 관제 도메인 100은 유지합니다. `launch/bridges.launch.xml`에도 해당 브릿지를 실행하는 항목을 추가해야 합니다. IP 등록만으로 이 브릿지가 자동 생성되지는 않습니다.
+5. 관제와 로봇의 변경 패키지를 재빌드·배포합니다. 로봇에 같은 지도·현장 설정과 vendor 패키지를 준비하고 SSH 인증·호스트 키를 등록합니다. 미리보기 후 `--robot pinky4 --robots-only --execute`로 추가 로봇만 점검할 수 있습니다. 관제·구역 관리자·브릿지 설정 반영을 위한 재시작은 진행 중인 작업을 정리한 뒤 수행합니다.
+
+로봇 ID·도메인은 서로 중복되지 않아야 합니다. 대기열 슬롯 수와 물리 간격, 공유 구역의 운용 조건도 늘어난 로봇 수에 맞게 확인합니다.
+
 ## Docker로 버전과 실행 환경 고정
 
 호스트의 venv·pip·colcon 절차를 Docker 이미지 빌드로 처리할 수 있습니다. Linux Docker Engine과 Compose 플러그인이 필요하며, 호스트에 ROS를 설치하지 않아도 됩니다. [Docker 실행·버전·배포 안내](config/docker/README.md)를 참고하세요.

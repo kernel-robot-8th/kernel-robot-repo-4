@@ -17,6 +17,7 @@
 <div class="eyebrow">COBOT NAVIGATION / REFACTORING REPORT / 2026.10.31</div>
 <h1>작업 판단은 관제로,<br>주행 실행은 Pinky로.</h1>
 <p class="muted">UI에서 내린 명령이 어떤 데이터로 저장되고, 어느 BT를 거쳐, 어떤 결과로 돌아오는지 설명할 수 있는 구조.</p>
+<p class="muted">설정 분리 이후 실행은 <code>patrol.launch.xml robot_id:=pinky1 site:=lab</code>을 사용합니다. 공통 설정은 <code>config/common.yaml</code>, 좌표는 <code>config/sites/lab.yaml</code>, 로봇 식별은 <code>config/robots/pinkyN.yaml</code>에서 관리합니다. 아래 시험 수치는 이 리포트 작성 당시 기록이며 설정 리팩토링의 재검증 결과는 별도입니다. <a href="../cobot_pinky_patrol/README.md">현재 설정·실행 안내</a></p>
 <span class="tag good">구현 + 격리 검증</span> <span class="tag">refactor/control-server-bt-mqtt-db</span> <span class="tag warn">현장 주행 미검증</span>
 <nav aria-label="리포트 목차"><a href="#docker-run">Docker 실행 · 버전 고정</a><a href="#run-order">실행 순서 · BT 화면 확인</a><a href="#diagnosis">현재 구조 진단</a><a href="#architecture">목표 구조</a><a href="#bt">BT 책임</a><a href="#logic-debug">실제 로직 · 디버깅 지도</a><a href="#data">실제 데이터</a><a href="#bt-visualizer">BT 실행 시각화</a><a href="#demo">흐름 시연</a><a href="#changes">변경 파일</a><a href="#verification">검증</a><a href="#roadmap">남은 작업</a></nav>
 </header>
@@ -301,7 +302,7 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python -m pytest \
 <tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py">pinky_patrol_node.py</a></td><td>단일 executor ROS 입출력·라이프사이클·초기화·LED 타이머</td><td>순찰 정책은 patrol_controller.py, 액션 수명은 async_navigation.py에서 수정</td></tr>
 <tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/patrol_controller.py">patrol_controller.py</a></td><td>순찰 상태·단계·구역·정지·유휴 복귀 정책</td><td>업무별 로봇 실행 정책 수정과 단위 디버깅</td></tr>
 <tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/async_navigation.py">async_navigation.py</a></td><td>비동기 액션 접수·취소·최종 결과와 지연 콜백 차단</td><td>목표 중복·취소·통신 미확정 상황 디버깅</td></tr>
-<tr><td><code>pinky_patrol_node_pinky1/2/3.py</code></td><td>기존 ros2 run/launch 이름을 유지하는 호환 진입점</td><td>로봇 추가는 코드 복사 대신 설정·등록으로 처리</td></tr>
+<tr><td><code>pinky_patrol_node</code> + <code>config/robots/pinkyN.yaml</code></td><td>공통 실행기와 로봇 식별 설정. 기존 실행 이름은 같은 진입점의 별칭</td><td>공통·현장·로봇 설정을 조합하고 공통 launch로 실행</td></tr>
 </tbody></table></div>
 <p>새 패키지는 setup.py·package.xml·resource·setup.cfg·XML launch·YAML config를 함께 등록했습니다. 설명과 주석은 한국어로 작성했습니다. 기존 브릿지의 토픽 이름·메시지 타입, zone_manager의 FIFO/토큰 동작은 유지했습니다.</p>
 </section>

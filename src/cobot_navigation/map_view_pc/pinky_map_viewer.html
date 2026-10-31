@@ -106,7 +106,7 @@
   </div>
 
   <div class="points">
-    <div id="wpEmpty" class="empty">waypoint 불러오기 버튼으로 pinkyN.yaml (cobot_pinky_patrol/config) 을 선택하거나 끌어다 놓으면 points 가 지도에 표시됩니다.</div>
+    <div id="wpEmpty" class="empty">waypoint 불러오기 버튼으로 lab.yaml (cobot_pinky_patrol/config/sites) 을 선택하거나 끌어다 놓으면 points 가 지도에 표시됩니다.</div>
     <div id="wpHidden" class="empty" style="display:none"></div>
     <ul class="points-list" id="wpList"></ul>
   </div>
@@ -238,7 +238,7 @@ function draw(){
   drawWaypoints();
 }
 
-// ---- waypoint (pinkyN.yaml 의 points) ----
+// ---- waypoint (현장 YAML의 points) ----
 let waypoints = []; // {name, x, y, yaw|null}
 let showWaypoints = true;
 
@@ -295,7 +295,7 @@ function drawWaypoints(){
   });
 }
 
-// pinkyN.yaml 의 points: 블록에서 `이름: [x, y(, yaw)]` 만 뽑는다. 주석(#)과 다른 키는 무시한다.
+// 현장 YAML의 points: 블록에서 `이름: [x, y(, yaw)]` 만 뽑는다. 주석(#)과 다른 키는 무시한다.
 function parseWaypoints(text){
   const lines = text.split(/\r?\n/);
   const start = lines.findIndex(l => /^\s*points:\s*(#.*)?$/.test(l));
@@ -444,7 +444,7 @@ async function pickFiles(id, description){
   fileInput.click();
 }
 document.getElementById('openBtn').onclick = () => pickFiles('pinky-maps', 'ROS map (.yaml, .pgm)');
-document.getElementById('wpOpenBtn').onclick = () => pickFiles('pinky-waypoints', 'waypoint (pinkyN.yaml)');
+document.getElementById('wpOpenBtn').onclick = () => pickFiles('pinky-waypoints', 'waypoint (sites/lab.yaml)');
 
 // 방법 2: 드래그 앤 드롭
 window.addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('dragging'); });

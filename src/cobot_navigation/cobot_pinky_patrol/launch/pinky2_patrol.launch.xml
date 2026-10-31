@@ -1,9 +1,10 @@
 <launch>
-  <!-- 기존 bringup에 LED가 없을 때만 start_led:=true로 켠다. -->
+  <!-- 기존 실행 명령 호환용. 모든 로봇은 공통 launch를 사용한다. -->
+  <arg name="site" default="lab"/>
   <arg name="start_led" default="false"/>
-  <node if="$(var start_led)" pkg="pinky_led" exec="led_server" output="screen"/>
-  <!-- pinky2 순찰 노드 + 좌표 파라미터. ROS_DOMAIN_ID 는 장비별로 따로 지정 (pinky1=10, pinky2=20, pinky3=30) -->
-  <node pkg="cobot_pinky_patrol" exec="pinky_patrol_node_pinky2" name="pinky_patrol_node" output="screen">
-    <param from="$(find-pkg-share cobot_pinky_patrol)/config/pinky2.yaml"/>
-  </node>
+  <include file="$(find-pkg-share cobot_pinky_patrol)/launch/patrol.launch.xml">
+    <arg name="robot_id" value="pinky2"/>
+    <arg name="site" value="$(var site)"/>
+    <arg name="start_led" value="$(var start_led)"/>
+  </include>
 </launch>

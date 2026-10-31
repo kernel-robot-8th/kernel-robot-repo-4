@@ -2,11 +2,11 @@
 
 import json
 import os
-from pathlib import Path
 import time
 from types import SimpleNamespace
 
 import pytest
+from test_patrol_config import load_parameters
 import yaml
 
 ISOLATED = (os.environ.get('ROS_DOMAIN_ID') == '77'
@@ -28,13 +28,11 @@ def ros_env(tmp_path, monkeypatch):
 
     from cobot_pinky_patrol.pinky_patrol_node import PinkyPatrolNode
 
-    config_file = Path(__file__).resolve().parents[1] / 'config/pinky1.yaml'
-    config = yaml.safe_load(config_file.read_text())
-    params = config['pinky_patrol_node']['ros__parameters']
+    params = load_parameters('pinky1')
     params.update(restore_pose=False, idle_return_sec=0.0, tick_sec=0.01,
                   pose_file=str(tmp_path / 'pose.json'))
     param_file = tmp_path / 'params.yaml'
-    param_file.write_text(yaml.safe_dump(config))
+    param_file.write_text(yaml.safe_dump({'pinky_patrol_node': {'ros__parameters': params}}))
     monkeypatch.setattr(PinkyPatrolNode, '_create_led_client',
                         lambda self: SimpleNamespace(service_is_ready=lambda: False))
     rclpy.init(args=['--ros-args', '--params-file', str(param_file)])
