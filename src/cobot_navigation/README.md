@@ -120,6 +120,71 @@ ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml     # pinky2_patrol / pi
 Nav2 파라미터는 [`docs/cobot_slam_nav_param/`](docs/cobot_slam_nav_param/param_changes.md) 에 정리되어 있습니다.
 YAML 없이 `ros2 run` 만 하면 필수 지점이 비어 순찰 노드가 시작을 거부합니다. `ros2 run` 을 쓰려면 `--ros-args --params-file <config/pinkyN.yaml>` 를 붙입니다.
 
+## 초기 위치 (initial pose)
+
+Nav2 를 켤 때 AMCL 이 로봇의 처음 위치를 어디로 잡을지 **로봇별 nav2 파라미터 파일**에 고정해 둡니다. 따로 실행하는 스크립트는 없고, Nav2 실행 명령에 이 파일을 `params_file:=` 로 넘기면 적용됩니다.
+
+| 로봇 | 파일 (`docs/cobot_slam_nav_param/`) | 초기 위치 (x, y, yaw) | 도메인 |
+|---|---|---|---|
+| pinky1 | `nav2_params_pinky1.yaml` | (0.0, 0.0, 0.0) | 10 |
+| pinky2 | `nav2_params_pinky2.yaml` | (0.0, -0.2, 0.0) | 20 |
+| pinky3 | `nav2_params_pinky3.yaml` | (0.0, -0.4, 0.0) | 30 |
+
+값은 순찰 노드 YAML 의 홈(`I1`~`I3`, `cobot_pinky_patrol/config/pinkyN.yaml`)과 같습니다. 세 파일은 `nav2_params.yaml` 과 `amcl.initial_pose` 만 다르므로, `nav2_params.yaml` 을 고치면 세 파일도 같이 고칩니다.
+
+### 사용 방법 (로봇에서, pinky2 예시)
+
+1. 로봇을 초기 위치에 놓습니다. pinky2 는 (0, -0.2) 에, 지도의 +x 방향(yaw 0)을 보게 놓습니다.
+2. 로봇 bringup
+
+   ~~~bash
+   export ROS_DOMAIN_ID=20
+   ros2 launch pinky_bringup bringup_robot.launch.xml
+   ~~~
+
+3. Nav2 bringup (새 터미널). 로봇별 파일을 넘깁니다.
+
+   ~~~bash
+   export ROS_DOMAIN_ID=20
+   ros2 launch pinky_navigation bringup_launch.xml map:=<지도.yaml> \
+     params_file:=<워크스페이스>/src/cobot_navigation/docs/cobot_slam_nav_param/nav2_params_pinky2.yaml
+   ~~~
+
+4. 확인
+
+   ~~~bash
+   ros2 param get /amcl initial_pose.y      # -0.2
+   ros2 topic echo /amcl_pose --once        # 위치가 (0, -0.2) 근처
+   ~~~
+
+### 초기 위치 바꾸기
+
+해당 로봇 파일의 `amcl:` 아래 `initial_pose` 의 `x`, `y`, `yaw` 를 고치고 Nav2 를 다시 켭니다. 단위는 m·rad, 값은 소수점(`0.0`)으로 씁니다. 리스트 형식(`initial_pose: [0, 0, 0]`)은 Jazzy AMCL 이 무시하므로 쓰지 않습니다. 홈을 바꾸면 순찰 YAML 의 `points.I<n>` 도 같이 바꿉니다.
+
+~~~yaml
+amcl:
+  ros__parameters:
+    set_initial_pose: true
+    initial_pose:
+      x: 0.0
+      y: -0.2
+      z: 0.0
+      yaw: 0.0
+~~~
+
+### 실행 중 다시 맞추기 (관제 PC)
+
+위치가 틀어지면 관제 PC(`ROS_DOMAIN_ID=100`)에서 브릿지를 거쳐 `/pinkyN/initialpose` 를 보냅니다. RViz 의 "2D Pose Estimate" 토픽을 `/pinkyN/initialpose` 로 바꿔 써도 됩니다. yaw θ 는 `z = sin(θ/2)`, `w = cos(θ/2)` 로 넣습니다.
+
+~~~bash
+ros2 topic pub --once /pinky2/initialpose geometry_msgs/msg/PoseWithCovarianceStamped \
+  "{header: {frame_id: map}, pose: {pose: {position: {x: 0.0, y: -0.2}, orientation: {z: 0.0, w: 1.0}}}}"
+~~~
+
+### 시작 위치는 항상 이 값
+
+순찰 노드는 마지막 위치를 저장하거나 다시 보내지 않으므로, Nav2 를 켤 때마다 위 파라미터 값에서 시작합니다(재부팅해도 같음). 로봇을 이 좌표에 놓고 켭니다. 켠 뒤 로봇이 움직이면서 AMCL 이 라이다로 위치를 계속 보정하는 것은 정상 동작입니다.
+
 ## 순찰 명령
 
 **명령을 보내면 로봇이 실제로 움직이므로** 주변을 확인한 뒤 보냅니다. 워크스페이스 최상위에서 `ROS_DOMAIN_ID=100` 으로 실행합니다.
