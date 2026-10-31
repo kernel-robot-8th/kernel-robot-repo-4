@@ -59,7 +59,7 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from std_msgs.msg import String
 from pinky_interfaces.srv import SetLed
-import json, math, os, time, threading, subprocess
+import json, math, time, threading, subprocess
 
 # 같은 패키지의 좌표 파싱·검증 (ROS 비의존)
 from cobot_pinky_patrol.patrol_points_utils import (PointsConfigError, exit_name,
@@ -84,9 +84,6 @@ class PinkyPatrolNode(Node):
     # ==========================================================================
     # 2. 좌표 / 경로 상수
     # ==========================================================================
-
-    # 재시작해도 마지막 위치를 기억하기 위한 저장 파일 경로
-    POSE_FILE = os.path.expanduser('~/.pinky_last_pose.json')
 
     # [v1.1.0 R3] 지점 좌표(POINTS)는 코드에서 제거하고 config/pinky3.yaml 의 points 파라미터로 옮겼다.
     #   - 형식: (x, y) 또는 (x, y, yaw[rad]), map 좌표계 [m]. 읽기/검증은 _load_points() 와 patrol_points_utils.py.
@@ -183,7 +180,6 @@ class PinkyPatrolNode(Node):
         self._stop_requested = False  # stop / emergency_stop 명령 수신 여부
         self._emergency_requested = False  # emergency_stop 수신 여부 (True 면 후퇴/락 반납 없이 현재 동작 유지)
         self._thread = None           # 작업 스레드 핸들
-        self._pose_initialized = False  # 초기 위치 보정을 이미 했는지 (노드 실행 후 1회만)
         self._held_zone = None        # 토큰을 보유 중인 구역 이름 (None = 구역 밖). 명령 사이에도 유지된다
         self._idle_deadline = None    # 이 시각(time.monotonic)이 지나면 홈 복귀 (None = 타이머 없음)
         self._last_point = None       # 마지막으로 도착한 지점 이름 (홈에 있는지 판단용)
@@ -485,20 +481,6 @@ class PinkyPatrolNode(Node):
         cp = feedback.current_pose.pose
         return (cp.position.x, cp.position.y, self.quat_to_yaw(cp.orientation))
 
-    def save_last_pose(self, x, y, yaw=0.0):
-        """다음 실행 시 이어서 시작할 수 있도록 마지막 위치를 파일에 저장."""
-        with open(self.POSE_FILE, 'w') as f:
-            json.dump({'x': x, 'y': y, 'yaw': yaw}, f)
-
-    def load_last_pose(self):
-        """저장된 마지막 위치 로드. 없으면 None."""
-        if os.path.exists(self.POSE_FILE):
-            with open(self.POSE_FILE) as f:
-                data = json.load(f)
-                data.setdefault('yaw', 0.0)   # 구버전 파일 호환
-                return data
-        return None
-
     def publish_initial_pose(self, x, y, yaw):
         """
         AMCL 초기 위치 발행. 구독자가 붙을 때까지 대기해야 메시지 유실이 없음
@@ -539,25 +521,6 @@ class PinkyPatrolNode(Node):
         cmd_pub.publish(Twist())   # 정지 명령으로 마무리
         time.sleep(0.5)
 
-    def _init_pose_once(self):
-        """
-        노드 실행 후 첫 작업(start/goto)에서만 초기 위치 보정을 수행.
-        저장된 마지막 위치를 AMCL에 알려주고 제자리 회전으로 방향을 잡는다.
-        이미 했거나 저장된 위치가 없으면 아무것도 하지 않음.
-        """
-        if self._pose_initialized:
-            return
-        self._pose_initialized = True   # 실패/없음이어도 다시 시도하지 않음
-
-        last = self.load_last_pose()
-        if last is None:
-            self.get_logger().info('저장된 위치 없음 - 초기 위치 보정 생략')
-            return
-        self.publish_initial_pose(last['x'], last['y'], last['yaw'])
-        self.get_logger().info('초기 방향 보정을 위해 제자리 회전을 시작합니다...')
-        self.spin_in_place(duration=4.0, angular_speed=0.5)
-        self.get_logger().info('초기 방향 보정 완료.')
-
     # ==========================================================================
     # 10. 주행 (Nav2 이동 헬퍼)
     # ==========================================================================
@@ -580,14 +543,6 @@ class PinkyPatrolNode(Node):
                 return False
 
             result = self.navigator.getResult()
-
-            # 마지막 위치 저장 (다음 노드 실행 시 초기 위치 보정에 사용)
-            current = self.get_current_pose()
-            if current is None and result == TaskResult.SUCCEEDED:
-                current = (wp[0], wp[1], wp[2] if len(wp) > 2 else 0.0)
-            if current is not None:
-                self.save_last_pose(*current)
-
             if result == TaskResult.SUCCEEDED:
                 return True
             self.get_logger().warn(f'이동 실패({result}), 재시도 {attempt+1}/{retries}')
@@ -681,7 +636,6 @@ class PinkyPatrolNode(Node):
                     if self._stop_requested:        # stop 으로 취소된 것이면 실패로 세지 않음
                         continue
                     result = self.navigator.getResult()
-                    self._record_pose(pose, result)
                     if result != TaskResult.SUCCEEDED:
                         fails += 1
                         self.get_logger().warn(
@@ -722,14 +676,6 @@ class PinkyPatrolNode(Node):
         end = time.time() + 2.0
         while not self.navigator.isTaskComplete() and time.time() < end:
             pass    # isTaskComplete 가 0.1초씩 spin 하므로 busy loop 아님
-
-    def _record_pose(self, wp, result):
-        """이동 결과와 무관하게 마지막 위치를 저장 (_navigate 와 같은 규칙)."""
-        current = self.get_current_pose()
-        if current is None and result == TaskResult.SUCCEEDED:
-            current = (wp[0], wp[1], wp[2] if len(wp) > 2 else 0.0)
-        if current is not None:
-            self.save_last_pose(*current)
 
     def _abort_entry(self, idx, name, state, detail=None):
         """
@@ -861,9 +807,12 @@ class PinkyPatrolNode(Node):
         self._running = False
 
     def _prepare_nav(self, detail):
-        """작업 시작 공통: 상태 발행, 최초 1회 초기 위치 보정, Nav2 활성 대기."""
+        """
+        작업 시작 공통: 상태 발행, Nav2 활성 대기.
+        마지막 위치를 저장·재발행하지 않는다: 시작 위치는 항상 nav2 파라미터의 amcl.initial_pose
+        (docs/cobot_slam_nav_param/nav2_params_pinkyN.yaml). 실행 중 보정은 /initialpose 로 직접 보낸다.
+        """
         self.publish_status('STARTING', -1, detail)
-        self._init_pose_once()   # 최초 1회만 초기 위치 보정
         self.navigator.waitUntilNav2Active()
 
     def _run_goto(self, names):

@@ -42,7 +42,7 @@ amcl:
     scan_topic: scan
     set_initial_pose: true
     # pinky2 홈 I2 (cobot_pinky_patrol/config/pinky2.yaml 의 points.I2 와 같아야 한다)
-    # 주의: 순찰 노드는 첫 명령 때 ~/.pinky_last_pose.json 이 있으면 그 위치를 initialpose 로 다시 보낸다 (기존 동작).
+    # 순찰 노드는 마지막 위치를 저장·재발행하지 않으므로 Nav2 시작 위치는 항상 이 값이다.
     initial_pose:
       x: 0.0
       y: -0.2

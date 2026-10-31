@@ -389,7 +389,7 @@ def make_robot(env, n, robot_id, travel=0.3):
     r.zone_allowed = {p for ms in r.zone_points.values() for p in ms}
     from cobot_pinky_patrol.patrol_points_utils import general_names
     r.goto_allowed = (set(general_names(r.points)) | {r.home_name}) - r.zone_allowed
-    for name in ('_queue_and_enter', '_start_goal', '_cancel_goal', '_record_pose', '_abort_entry',
+    for name in ('_queue_and_enter', '_start_goal', '_cancel_goal', '_abort_entry',
                  'make_pose', 'get_current_pose', '_run_goto', '_run_zone', '_run_leave',
                  '_run_idle_return', '_exit_held_zone', '_arm_idle', '_idle_tick', '_finish_task',
                  '_prepare_nav', '_start_task', '_navigate', '_leave_zone', '_wait_interruptible',
@@ -401,8 +401,6 @@ def make_robot(env, n, robot_id, travel=0.3):
     r.stop_blink = lambda: None
     r.set_drive_led = lambda: None
     r.set_idle_led = lambda: None
-    r.save_last_pose = lambda *a: None
-    r._init_pose_once = lambda: None
     r._running = False   # _start_task / 테스트가 필요할 때 세운다
     return r
 
