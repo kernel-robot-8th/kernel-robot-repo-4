@@ -1,0 +1,15 @@
+<launch>
+  <!-- 로봇 ID는 필수. 실행 코드와 현장 좌표를 로봇마다 복사하지 않는다. -->
+  <arg name="robot_id" description="config/robots에 등록된 로봇 ID"/>
+  <arg name="site" default="lab" description="config/sites의 현장 이름"/>
+  <arg name="start_led" default="false"/>
+
+  <node if="$(var start_led)" pkg="pinky_led" exec="led_server" output="screen"/>
+  <node pkg="cobot_pinky_patrol" exec="pinky_patrol_node" name="pinky_patrol_node" output="screen">
+    <!-- 뒤에 전달한 파일의 값이 앞의 같은 파라미터를 덮어쓴다. -->
+    <param from="$(find-pkg-share cobot_pinky_patrol)/config/common.yaml"/>
+    <param from="$(find-pkg-share cobot_pinky_patrol)/config/sites/$(var site).yaml"/>
+    <param from="$(find-pkg-share cobot_pinky_patrol)/config/robots/$(var robot_id).yaml"/>
+    <param name="robot_id" value="$(var robot_id)"/>
+  </node>
+</launch>

@@ -1,9 +1,10 @@
-"""pinky_patrol_node_pinky{1,2,3} 의 대기열 진입 흐름 테스트.
+"""공통 실행기와 로봇별 설정의 좌표 로딩 회귀 테스트.
 
 - YAML·좌표 로딩의 기존 회귀 검증. 비동기 정책·실제 ROS 액션은 별도 테스트에서 검증한다.
 - ROS_DOMAIN_ID=77 + ROS_LOCALHOST_ONLY=1 이 아니면 통합 테스트는 건너뜀 (실제 관제 도메인 보호).
 - 이 PC 에는 pinky_interfaces(로봇 전용)가 없으므로 SetLed 를 스텁으로 대체한다.
 """
+import ast
 import importlib
 import os
 import sys
@@ -11,6 +12,7 @@ import types
 from pathlib import Path
 
 import pytest
+from test_patrol_config import load_parameters
 import yaml
 
 HERE = Path(__file__).resolve().parent
@@ -29,19 +31,22 @@ if 'pinky_interfaces' not in sys.modules:
     sys.modules['pinky_interfaces'] = _pi
     sys.modules['pinky_interfaces.srv'] = _srv
 
-MODS = {1: 'cobot_pinky_patrol.pinky_patrol_node_pinky1',
-        2: 'cobot_pinky_patrol.pinky_patrol_node_pinky2',
-        3: 'cobot_pinky_patrol.pinky_patrol_node_pinky3'}
+NODE_SOURCE = PKG / 'cobot_pinky_patrol/pinky_patrol_node.py'
+
+
+def _patrol_class():
+    """ROS가 있는 환경에서 실제 파라미터 선언·로딩 메서드를 검증한다."""
+    pytest.importorskip('rclpy')
+    return importlib.import_module('cobot_pinky_patrol.pinky_patrol_node').PinkyPatrolNode
 
 
 def load_raw(n):
-    """config/pinkyN.yaml 의 ros__parameters 원본."""
-    prm = yaml.safe_load((PKG / f'config/pinky{n}.yaml').read_text(encoding='utf-8'))
-    return prm['pinky_patrol_node']['ros__parameters']
+    """공통·현장·로봇 YAML을 합친 ros__parameters 원본."""
+    return load_parameters(f'pinky{n}')
 
 
 def load_cfg(n):
-    """config/pinkyN.yaml 의 (points, home_name, zone_names, zone_points). 노드가 읽는 값과 같은 파서를 쓴다."""
+    """설정 계층의 좌표·홈·구역을 노드와 같은 파서로 읽는다."""
     from cobot_pinky_patrol.patrol_points_utils import parse_points, parse_zone_names, parse_zone_points
     prm = load_raw(n)
     pts = parse_points(prm['points'])
@@ -67,7 +72,7 @@ ISOLATED = (os.environ.get('ROS_DOMAIN_ID') == '77'
 @pytest.mark.parametrize('n', [1, 2])
 def test_waypoint_indexes_match_door_names(n):
     """WAYPOINTS 순번(ZONE_*_INDEX)이 문 좌표(ZONE_*_NAME)와 일치해야 start 경로가 맞게 동작한다."""
-    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
+    cls = _patrol_class()
     # R3 이후 WAYPOINTS 는 좌표가 아닌 지점 이름 리스트 (되살릴 때 이 비교를 이름 기준으로 맞춘다)
     assert cls.WAYPOINTS[cls.ZONE_ENTRY_INDEX] == cls.ZONE_ENTRY_NAME
     assert cls.WAYPOINTS[cls.ZONE_EXIT_INDEX] == cls.ZONE_EXIT_NAME
@@ -79,17 +84,20 @@ def test_no_hardcoded_queue_coordinates(n):
     pts = load_cfg(n)[0]
     extra = [k for k in pts if k.startswith(('RED', 'WAIT', 'QUEUE'))]
     assert extra == []
-    src = Path(importlib.import_module(MODS[n]).__file__).read_text(encoding='utf-8')
+    src = NODE_SOURCE.read_text(encoding='utf-8')
     assert 'zone_gate_client import' not in src.replace('zone_gate_client', '')
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_no_coordinates_left_in_node_code(n):
     """좌표·구역 정보는 YAML 로 옮겼으므로 노드에 POINTS/HOME_NAME/ZONE_POINTS 등 상수가 남아 있으면 안 된다."""
-    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
-    for name in ('POINTS', 'HOME_NAME', 'ZONE_POINTS', 'ZONE_ENTRY_NAME', 'ZONE_EXIT_NAME',
-                 'STOP_EXIT_NAME', 'GOTO_ALLOWED'):
-        assert not hasattr(cls, name), name
+    tree = ast.parse(NODE_SOURCE.read_text(encoding='utf-8'))
+    constants = {target.id for assignment in ast.walk(tree)
+                 if isinstance(assignment, ast.Assign) for target in assignment.targets
+                 if isinstance(target, ast.Name)}
+    assert not constants.intersection({
+        'POINTS', 'HOME_NAME', 'ZONE_POINTS', 'ZONE_ENTRY_NAME', 'ZONE_EXIT_NAME',
+        'STOP_EXIT_NAME', 'GOTO_ALLOWED'})
 
 
 @pytest.mark.parametrize('n', [1, 2, 3])
@@ -189,7 +197,7 @@ def _params_from_yaml(n):
 
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_load_points_ok(n):
-    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
+    cls = _patrol_class()
     assert _fake_node(cls, _params_from_yaml(n))._load_points() == load_cfg(n)
 
 
@@ -197,10 +205,10 @@ def test_load_points_ok(n):
 def test_optional_general_points_p3_to_p50(n):
     """P3~P50 은 YAML 에 있는 것만 로드되고 goto 허용에 들어간다. P51 은 읽지 않는다."""
     from cobot_pinky_patrol.patrol_points_utils import general_names
-    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
+    cls = _patrol_class()
     base = _params_from_yaml(n)
     pts, *_ = _fake_node(cls, base)._load_points()
-    assert general_names(pts) == [f'P{i}' for i in range(1, 51)]  # YAML 에 P1~P50 이 모두 있다
+    assert general_names(pts) == [f'P{i}' for i in range(1, 36)]
     assert 'P3' in pts and 'P10' in pts
     for i in range(3, 51):                                       # 선택 지점은 빼도 시작된다
         base = {k: v for k, v in base.items() if k != f'points.P{i}'}
@@ -222,7 +230,7 @@ def test_optional_general_points_p3_to_p50(n):
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_load_points_refuses_missing_and_bad_values(n):
     from cobot_pinky_patrol.patrol_points_utils import PointsConfigError
-    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
+    cls = _patrol_class()
     base = _params_from_yaml(n)
     # 1) YAML 없이 실행 (전부 미설정)
     with pytest.raises(PointsConfigError, match='zone_names'):

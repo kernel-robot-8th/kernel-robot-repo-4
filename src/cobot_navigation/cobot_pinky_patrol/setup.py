@@ -12,8 +12,10 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # 좌표 파라미터 YAML 과 로봇별 launch (없으면 install 에 복사되지 않아 노드가 시작을 거부함)
+        # 설정의 하위 디렉터리도 같은 경로로 설치한다.
         ('share/' + package_name + '/config', glob('config/*.yaml')),
+        ('share/' + package_name + '/config/sites', glob('config/sites/*.yaml')),
+        ('share/' + package_name + '/config/robots', glob('config/robots/*.yaml')),
         ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
     ],
     install_requires=['setuptools'],
@@ -29,9 +31,12 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'pinky_patrol_node_pinky1 = cobot_pinky_patrol.pinky_patrol_node_pinky1:main',
-            'pinky_patrol_node_pinky2 = cobot_pinky_patrol.pinky_patrol_node_pinky2:main',
-            'pinky_patrol_node_pinky3 = cobot_pinky_patrol.pinky_patrol_node_pinky3:main',
+            'robot_startup = cobot_pinky_patrol.robot_startup:main',
+            'pinky_patrol_node = cobot_pinky_patrol.pinky_patrol_node:main',
+            # 기존 실행 이름도 같은 구현을 호출한다. 로봇 ID는 파라미터로 지정한다.
+            'pinky_patrol_node_pinky1 = cobot_pinky_patrol.pinky_patrol_node:main',
+            'pinky_patrol_node_pinky2 = cobot_pinky_patrol.pinky_patrol_node:main',
+            'pinky_patrol_node_pinky3 = cobot_pinky_patrol.pinky_patrol_node:main',
         ],
     },
 )

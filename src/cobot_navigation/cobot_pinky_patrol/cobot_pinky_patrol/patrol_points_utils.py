@@ -1,7 +1,7 @@
 """
 순찰 지점 좌표의 파싱·검증 (ROS 비의존 순수 함수).
 
-좌표는 코드에 박지 않고 ``config/pinkyN.yaml`` 의 ``points`` 파라미터로 받는다.
+좌표는 코드에 박지 않고 ``config/sites/<site>.yaml`` 의 ``points`` 파라미터로 받는다.
 노드는 파라미터를 읽어 이 모듈에 넘기기만 하고, 형식 규칙은 여기 한곳에서 고친다.
 ROS 를 import 하지 않으므로 로봇·Nav2 없이 단위 테스트할 수 있다.
 
@@ -70,11 +70,12 @@ def validate_points(points, required, home_name):
     missing = [n for n in required if n not in points]
     if missing:
         raise PointsConfigError(
-            f'필수 지점이 없습니다: {missing}. config/pinkyN.yaml 의 points 에 '
+            f'필수 지점이 없습니다: {missing}. config/sites/<site>.yaml 의 points 에 '
             f'[x, y] 또는 [x, y, yaw] 로 추가하세요 (YAML 을 지정했는지도 확인: launch 또는 --params-file).')
     if not home_name:
         raise PointsConfigError(
-            'home_name 이 비어 있습니다. config/pinkyN.yaml 에 home_name: I1 처럼 지점 이름을 쓰세요.')
+            'home_name 이 비어 있습니다. config/robots/<robot_id>.yaml 에 '
+            'home_name: I1 처럼 지점 이름을 쓰세요.')
     if home_name not in points:
         raise PointsConfigError(
             f"home_name '{home_name}' 이(가) points 에 없습니다. 있는 지점: {sorted(points)}")

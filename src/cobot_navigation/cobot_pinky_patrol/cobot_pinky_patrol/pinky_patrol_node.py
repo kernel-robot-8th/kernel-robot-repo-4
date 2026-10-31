@@ -29,10 +29,10 @@ from .patrol_points_utils import (optional_general_names, parse_points, parse_zo
 class PinkyPatrolNode(Node):
     """입출력만 담당한다. 작업 정책은 PatrolController가 소유한다."""
 
-    def __init__(self, default_robot_id='pinky1'):
+    def __init__(self):
         super().__init__('pinky_patrol_node')
         defaults = {
-            'robot_id': default_robot_id, 'idle_return_sec': 120.0,
+            'robot_id': '', 'idle_return_sec': 120.0,
             'tick_sec': 0.05, 'nav_retries': 3, 'nav_ready_timeout_sec': 60.0,
             'lifecycle_nodes': ['amcl', 'bt_navigator'], 'lifecycle_poll_sec': 0.5,
             'lifecycle_response_timeout_sec': 2.0,
@@ -53,6 +53,10 @@ class PinkyPatrolNode(Node):
         if self.config['initial_rotation_sec'] < 0 or self.config['initialpose_settle_sec'] < 0:
             raise ValueError('초기화 시간은 0 이상이어야 합니다')
         self.robot_id = self.config['robot_id']
+        if not self.robot_id or ':' in self.robot_id:
+            raise PointsConfigError(
+                'robot_id를 지정하세요. 공통 launch의 robot_id 인자 또는 '
+                'config/robots/<robot_id>.yaml을 사용하세요 (콜론은 사용할 수 없습니다).')
         self.points, self.home_name, self.zone_names, self.zone_points = self._load_points()
         self.pose_file = os.path.expanduser(self.config['pose_file'])
         self.status_pub = self.create_publisher(String, 'patrol_status', 10)
@@ -92,7 +96,7 @@ class PinkyPatrolNode(Node):
 
     def _load_points(self):
         """
-        config/pinkyN.yaml 의 구역·좌표 설정을 읽어 검증한다.
+        현장·로봇 YAML에서 전달한 구역·좌표 파라미터를 읽어 검증한다.
 
         (zone_names, zone_points.<구역>, points.*, home_name)
 
@@ -115,8 +119,8 @@ class PinkyPatrolNode(Node):
             raise PointsConfigError(f'zone_names 타입 오류: {e}. 문자열 리스트(예: [A, B])로 쓰세요.') from e
         except ParameterUninitializedException:
             raise PointsConfigError(
-                'zone_names 가 없습니다. config/pinkyN.yaml 에 zone_names: [A, B] 처럼 구역 이름을 쓰세요 '
-                '(YAML 을 지정했는지도 확인: launch 또는 --params-file).') from None
+                'zone_names 가 없습니다. config/sites/<site>.yaml 에 구역 이름을 쓰세요 '
+                '(공통 launch 또는 common/현장/로봇 --params-file을 함께 지정하세요).') from None
         zone_names = parse_zone_names(zone_names_raw)
 
         # 구역 지점(Z<구역>)과 홈(I<n>)의 이름도 YAML 이 정하므로, 이름을 먼저 읽은 뒤 좌표를 선언한다

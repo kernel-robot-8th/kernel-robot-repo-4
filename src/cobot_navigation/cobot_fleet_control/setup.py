@@ -17,6 +17,7 @@ setup(
     license='Apache-2.0',
     entry_points={'console_scripts': [
         'fleet_control_node = cobot_fleet_control.fleet_control_node:main',
+        'fleet_startup = cobot_fleet_control.fleet_startup:main',
         'fleet_bt_trace = cobot_fleet_control.bt_visualization:main',
         'fleet_resolve_unknown = cobot_fleet_control.resolve_unknown:main']},
 )
