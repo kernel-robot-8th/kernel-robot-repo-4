@@ -168,3 +168,20 @@ cobot_pinky_patrol/
 ## 관제 연동 리팩토링
 
 로봇별 실행 이름은 유지하고 주행 코드는 `cobot_pinky_patrol/pinky_patrol_node.py`로 통합했습니다. YAML의 `robot_id`·좌표·홈 설정이 우선하며 기존 문자열 명령도 지원합니다. 신규 관제는 `command_id`와 `command`를 담은 JSON으로 명령을 보내고, 작업 정리가 끝난 최종 응답의 `task_finished=true`를 확인합니다. [MQTT·DB·BT 계약](../cobot_fleet_control/README.md)을 참고하세요.
+
+## 단일 executor 비동기 실행기로 전환
+
+주행·구역 대기·초기 회전·LED 점멸의 작업 스레드와 while/sleep·중첩 spin을 제거했습니다. 기존 ros2 run/launch 이름과 MQTT·ROS 명령 계약은 유지합니다.
+
+- `pinky_patrol_node.py`: ROS 토픽·액션·라이프사이클·초기화·LED 타이머. 콜백이 완료를 기다리지 않습니다.
+- `patrol_controller.py`: ROS와 분리된 작업 상태 기계. goto/zone/leave/home·재시도·유휴 복귀·정지 후 출구 이동 정책.
+- `async_navigation.py`: 목표 접수·피드백·취소·최종 결과 Future. 목표 세대 번호로 이전 콜백을 무시합니다.
+- `zone_gate_client.py`: 동일 노드의 토픽 콜백으로 허가·슬롯 갱신. 미사용 동기 wait_for_entry API는 제거했습니다.
+
+정지 요청 후 `CANCELING`에서 이전 액션의 최종 종료를 기다립니다. 취소 ACK이나 거절만으로 새 목표를 보내지 않습니다. 결과가 유실되면 busy를 유지하며, 관제 업무는 시간 초과 후 UNKNOWN일 수 있습니다. 비상정지 후에는 기존 구역 보유 상태를 유지하고 자동 복귀를 걸지 않습니다. 일반 stop은 EXIT 도착 후 토큰을 반납합니다. 작업이 끝나 구역을 점유한 상태에서도 stop/비상정지를 처리합니다.
+
+준비 단계에서 amcl·bt_navigator 라이프사이클과 액션 서버를 비동기로 확인합니다. 준비 제한 시간은 nav_ready_timeout_sec, 노드 목록은 lifecycle_nodes로 설정합니다. 저장 위치 복원·회전이 필요 없으면 restore_pose=false로 설정합니다. 초기 회전 중에도 stop 콜백이 동작합니다.
+
+LED 서버가 bringup에 없으면 `ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml start_led:=true`를 사용합니다. 기본값은 false이며 노드가 드라이버를 자동 spawn하지 않습니다. LED 서비스가 없거나 응답이 지연되어도 주행은 계속됩니다. 단일 executor가 다른 프로세스의 계산·DDS 내부 스레드까지 하나로 합친다는 의미는 아닙니다.
+
+이전 스레드 내부 메서드를 직접 실행하던 테스트는 상태 기계 정책·실제 ROS 액션 테스트로 교체했습니다. YAML·명령·좌표 검증과 zone_manager 회귀 검사는 유지합니다. [실제 로직 읽는 순서와 디버깅 지도](../docs/control_server_bt_report.html#logic-debug)에서 확인 함수·상태값·중단점·격리 시험을 찾을 수 있습니다.

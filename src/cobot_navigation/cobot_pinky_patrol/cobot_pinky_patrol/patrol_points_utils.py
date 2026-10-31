@@ -168,7 +168,9 @@ def validate_zones(zone_points, points, home_name):
                 problems.append(f'{n} 가 구역 {owner[n]} 와 {zone} 에 동시에 속합니다.')
             owner[n] = zone
     if home_name in owner:
-        problems.append(f'home_name {home_name} 가 구역 {owner[home_name]} 안에 있습니다. 홈은 구역 밖 지점이어야 합니다.')
+        problems.append(
+            f'home_name {home_name} 가 구역 {owner[home_name]} 안에 있습니다. '
+            '홈은 구역 밖 지점이어야 합니다.')
     if problems:
         raise PointsConfigError('구역 설정 오류: ' + ' / '.join(problems))
 

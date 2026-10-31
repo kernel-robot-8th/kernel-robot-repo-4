@@ -13,6 +13,19 @@ UI → MQTT → 관제 서버의 `py_trees` → ROS 도메인 브릿지 → Pink
 - `fleet_control_node.py`: `paho-mqtt==2.1.0` MQTT 통신, ROS 입출력, executor 스레드에서 DB/BT 실행.
 - 로봇: Nav2가 제공하는 `nav2_bt_navigator`/BehaviorTree.CPP로 경로 계획·주행·복구. 이번 변경은 로봇의 Nav2 BT XML을 교체하지 않습니다.
 
+## Docker로 버전과 실행 환경 고정
+
+호스트의 venv·pip·colcon 절차를 Docker 이미지 빌드로 처리할 수 있습니다. Linux Docker Engine과 Compose 플러그인이 필요하며, 호스트에 ROS를 설치하지 않아도 됩니다. [Docker 실행·버전·배포 안내](config/docker/README.md)를 참고하세요.
+
+```bash
+# src/cobot_navigation에서
+bash cobot_fleet_control/config/docker/fleet_docker.sh build
+# 개발용 로컬 브로커도 함께 실행. 기존 브로커 사용 시에는 up
+bash cobot_fleet_control/config/docker/fleet_docker.sh up-local
+```
+
+ROS·브로커 이미지는 digest, Python 직접·하위 의존성은 버전과 wheel 해시로 고정합니다. 세 관제 서비스는 같은 이미지를 사용하고 SQLite는 별도 named volume에 보존합니다. 이미지 전체 빌드·컨테이너 기동은 이 작업 환경에 Docker가 없어 아직 검증하지 못했습니다. 아래는 Docker를 쓰지 않을 때의 네이티브 실행 절차입니다.
+
 ## 설치와 빌드
 
 Ubuntu 24.04 / ROS 2 Jazzy / Python 3.12 기준입니다. Paho의 Callback API v2를 사용하므로 배포판 기본 패키지 버전 대신 아래 고정 버전을 준비합니다.
@@ -109,3 +122,9 @@ ros2 run cobot_fleet_control fleet_bt_trace \
 ```
 
 JSON 형식은 `cobot-bt-trace-v1`, 브라우저 입력 제한은 10 MiB/5,000 스냅샷입니다. 많은 작업은 `--command-id`로 나눠 추출합니다. 현재 관측 대상은 관제 Python BT이며 로봇 Nav2 내부 BT·실제 물리 위치는 별도 계측이 필요합니다. 재시작 후 종료된 트리를 자동 재개하거나 지연 결과에 맞춰 과거 트리 색을 다시 칠하지 않습니다.
+
+## 실행 스레드와 디버깅
+
+관제 BT·DB·ROS 처리는 명시적인 SingleThreadedExecutor에서 실행합니다. Paho loop_start의 통신 스레드는 수신 큐만 갱신하며 업무 상태는 직접 변경하지 않습니다. 로봇은 작업 스레드 대신 비동기 액션·타이머 상태 기계로 전환했습니다. SQLite·작은 위치 파일 I/O는 동기이므로 하드 실시간 실행을 보장하는 구조는 아닙니다.
+
+[실제 로직·디버깅 지도](../docs/control_server_bt_report.html#logic-debug)에 MQTT 수신부터 관제 BT, 로봇 상태 기계, 액션 취소·결과까지 읽는 순서와 증상별 확인 함수·변수를 정리했습니다.

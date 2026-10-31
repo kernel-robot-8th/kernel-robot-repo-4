@@ -25,7 +25,9 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 `refactor/control-server-bt-mqtt-db` 브랜치에서 UI → MQTT → 관제 Python BT → ROS → Pinky → Nav2 BT 흐름을 추가했습니다. 실제 SQLite 저장소와 MQTT 이벤트 outbox를 사용하며 추후 서버 DB로 교체할 수 있도록 경계를 분리했습니다.
 
 - [구조 분석·데이터 흐름·변경 결과 단일 HTML 리포트](docs/control_server_bt_report.html)
+- [실제 로직 읽는 순서·증상별 디버깅 위치](docs/control_server_bt_report.html#logic-debug)
 - [실제 tick 기반 BT 상태·방문 경로 시각화](docs/control_server_bt_report.html#bt-visualizer)
+- [Docker로 관제 버전·실행 환경 고정](cobot_fleet_control/config/docker/README.md)
 - [관제 패키지 실행·MQTT 계약·검증 안내](cobot_fleet_control/README.md)
 - 순찰 구현은 `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` 한 곳에서 관리하며 기존 로봇별 실행 이름은 호환 진입점입니다.
 
@@ -165,7 +167,7 @@ ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<
 | 지점 좌표, 홈, 구역 소속, 유휴 복귀 시간 | `cobot_pinky_patrol/config/pinky{1,2,3}.yaml` | 좌표는 소수점으로(`0.0`). 맵이 바뀌면 이 YAML 만 고친다 |
 | 구역 이름, 대기 앵커·방향·간격, 대기 상한, 타임아웃 | `cobot_zone_traffic_control/config/zone_params.yaml` | `robot_ids`, `zone_names` 는 순찰 YAML 과 같아야 한다. 앵커는 여기가 **유일한 출처** |
 | 브릿지 토픽 추가·수정 | `cobot_domain_bridge/config/pinky_bridge_pinky{1,2,3}.yaml` | 세 파일을 **같이** 고친다 |
-| 순찰 흐름 | `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` | 공통 구현 한 곳만 수정한다 |
+| 순찰 흐름 | `cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py` | 정책은 patrol_controller.py, ROS 입출력은 pinky_patrol_node.py에서 수정한다 |
 | Nav2·SLAM 파라미터 | `docs/cobot_slam_nav_param/` | 변경 이력은 `param_changes.md` |
 | 지도 | `map_view_pc/maps/` (v9), `docs/cobot_map/` (이전 v6) | 뷰어에서 yaml 과 pgm 을 함께 불러온다 |
 

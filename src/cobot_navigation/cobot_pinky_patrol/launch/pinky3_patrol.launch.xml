@@ -1,4 +1,7 @@
 <launch>
+  <!-- 기존 bringup에 LED가 없을 때만 start_led:=true로 켠다. -->
+  <arg name="start_led" default="false"/>
+  <node if="$(var start_led)" pkg="pinky_led" exec="led_server" output="screen"/>
   <!-- pinky3 순찰 노드 + 좌표 파라미터. ROS_DOMAIN_ID 는 장비별로 따로 지정 (pinky1=10, pinky2=20, pinky3=30) -->
   <node pkg="cobot_pinky_patrol" exec="pinky_patrol_node_pinky3" name="pinky_patrol_node" output="screen">
     <param from="$(find-pkg-share cobot_pinky_patrol)/config/pinky3.yaml"/>

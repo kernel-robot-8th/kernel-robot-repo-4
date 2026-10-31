@@ -7,6 +7,7 @@ from queue import Empty, Full, Queue
 
 import paho.mqtt.client as mqtt
 import rclpy
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -145,11 +146,14 @@ def main(args=None):
     """관제 서버 진입점."""
     rclpy.init(args=args)
     node = FleetControlNode()
+    executor = SingleThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

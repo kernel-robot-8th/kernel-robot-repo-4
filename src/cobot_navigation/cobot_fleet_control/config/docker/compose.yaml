@@ -1,0 +1,80 @@
+name: cobot-fleet
+
+x-runtime: &runtime
+  image: ${COBOT_IMAGE:-cobot-fleet:jazzy-bt-v0.2.0}
+  build:
+    context: ../../..
+    dockerfile: cobot_fleet_control/config/docker/Dockerfile
+    args:
+      ROS_BASE_IMAGE: ${ROS_BASE_IMAGE:?versions.env를 지정하세요}
+      SOURCE_REVISION: ${COBOT_SOURCE_REVISION:-unknown}
+      SOURCE_DIRTY: ${COBOT_SOURCE_DIRTY:-unknown}
+  # Linux 관제 PC의 DDS multicast와 Fast DDS 공유 메모리 경로를 맞춘다.
+  network_mode: host
+  ipc: host
+  init: true
+  restart: "no"
+  stop_grace_period: 15s
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  environment: &ros-environment
+    ROS_DOMAIN_ID: "100"
+    ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
+    RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+
+services:
+  bridge:
+    <<: *runtime
+    command: [ros2, launch, cobot_domain_bridge, bridges.launch.xml]
+
+  zone-manager:
+    <<: *runtime
+    command: [ros2, launch, cobot_zone_traffic_control, zone_manager.launch.xml]
+
+  fleet:
+    <<: *runtime
+    depends_on:
+      bridge:
+        condition: service_started
+      zone-manager:
+        condition: service_started
+    environment:
+      <<: *ros-environment
+      COBOT_MQTT_USERNAME: ${COBOT_MQTT_USERNAME:-}
+      COBOT_MQTT_PASSWORD: ${COBOT_MQTT_PASSWORD:-}
+    volumes:
+      - fleet-data:/var/lib/cobot
+    command:
+      - ros2
+      - run
+      - cobot_fleet_control
+      - fleet_control_node
+      - --ros-args
+      - --params-file
+      - /opt/cobot_ws/install/share/cobot_fleet_control/config/fleet_control.yaml
+      - -p
+      - db_path:=/var/lib/cobot/fleet_control.sqlite3
+      - -p
+      - mqtt_host:=${MQTT_HOST:-127.0.0.1}
+      - -p
+      - mqtt_port:=${MQTT_PORT:-1883}
+
+  # 외부 브로커를 쓰면 켜지 않는다. fleet은 연결이 끊기면 재접속한다.
+  broker:
+    profiles: [local-broker]
+    image: ${MOSQUITTO_IMAGE:?versions.env를 지정하세요}
+    network_mode: host
+    init: true
+    restart: "no"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - broker-data:/mosquitto/data
+    healthcheck:
+      test: [CMD, mosquitto_pub, -h, 127.0.0.1, -p, "1883", -t, cobot/healthcheck, -m, ok, -q, "1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  fleet-data:
+  broker-data:

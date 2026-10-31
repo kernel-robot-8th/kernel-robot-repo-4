@@ -18,14 +18,49 @@
 <h1>작업 판단은 관제로,<br>주행 실행은 Pinky로.</h1>
 <p class="muted">UI에서 내린 명령이 어떤 데이터로 저장되고, 어느 BT를 거쳐, 어떤 결과로 돌아오는지 설명할 수 있는 구조.</p>
 <span class="tag good">구현 + 격리 검증</span> <span class="tag">refactor/control-server-bt-mqtt-db</span> <span class="tag warn">현장 주행 미검증</span>
-<nav aria-label="리포트 목차"><a href="#run-order">실행 순서 · BT 화면 확인</a><a href="#diagnosis">현재 구조 진단</a><a href="#architecture">목표 구조</a><a href="#bt">BT 책임</a><a href="#data">실제 데이터</a><a href="#bt-visualizer">BT 실행 시각화</a><a href="#demo">흐름 시연</a><a href="#changes">변경 파일</a><a href="#verification">검증</a><a href="#roadmap">남은 작업</a></nav>
+<nav aria-label="리포트 목차"><a href="#docker-run">Docker 실행 · 버전 고정</a><a href="#run-order">실행 순서 · BT 화면 확인</a><a href="#diagnosis">현재 구조 진단</a><a href="#architecture">목표 구조</a><a href="#bt">BT 책임</a><a href="#logic-debug">실제 로직 · 디버깅 지도</a><a href="#data">실제 데이터</a><a href="#bt-visualizer">BT 실행 시각화</a><a href="#demo">흐름 시연</a><a href="#changes">변경 파일</a><a href="#verification">검증</a><a href="#roadmap">남은 작업</a></nav>
 </header>
 <div class="grid">
 <div class="card"><div class="metric">3 → 1</div><h3>순찰 구현 통합</h3><p class="muted">로봇별 약 1,090줄의 중복을 공통 실행기로 통합. 기존 실행 이름은 유지.</p></div>
 <div class="card"><div class="metric">2개 BT 계층</div><h3>관제 업무 / 로봇 주행</h3><p class="muted">관제는 Python py_trees, 로봇은 기존 Nav2 / BehaviorTree.CPP.</p></div>
 <div class="card"><div class="metric">명령 ID</div><h3>입력부터 결과까지 연결</h3><p class="muted">MQTT 입력·DB 기록·ROS 명령·최종 응답이 하나의 ID를 공유.</p></div>
 </div>
-<section id="run-order"><h2>실행 순서와 BT 화면 확인</h2>
+<section id="docker-run"><h2>Docker로 버전·빌드·실행 환경 고정</h2>
+<p>관제 PC의 ROS source → venv 생성 → pip 설치 → colcon 빌드를 이미지 빌드로 옮깁니다. <strong>Linux Docker Engine + Compose 플러그인</strong>이 있으면 호스트에 ROS·Python 라이브러리를 설치하지 않아도 됩니다. Pinky의 Nav2·순찰 실행기는 각 로봇에 배포하는 기존 절차를 유지합니다.</p>
+<div class="grid two"><div class="card"><h3>처음 한 번 · 이미지 빌드</h3><pre>cd /home/tory/ws/kernel-robot-repo-4/src/cobot_navigation
+bash cobot_fleet_control/config/docker/fleet_docker.sh build</pre><p class="muted">현재 코드를 이미지 안에 복사하고 세 관제 패키지를 빌드합니다. 이 단계에서는 실제 ROS 프로세스를 실행하지 않습니다.</p></div><div class="card"><h3>실행 · 로컬 MQTT 포함</h3><pre>bash cobot_fleet_control/config/docker/fleet_docker.sh up-local</pre><p class="muted">관제·구역 매니저·도메인 브릿지와 선택형 개발 브로커를 실행합니다. 기존 브로커를 사용하면 up을 선택합니다.</p></div></div>
+<pre style="margin-top:20px"># 기존 외부 브로커를 사용할 경우 up-local 대신 실행
+MQTT_HOST=192.168.0.50 MQTT_PORT=1883 \
+  bash cobot_fleet_control/config/docker/fleet_docker.sh up
+
+# 로그와 실제 설치 버전 확인
+bash cobot_fleet_control/config/docker/fleet_docker.sh logs -f fleet
+# 로그 보기를 끝낸 뒤
+bash cobot_fleet_control/config/docker/fleet_docker.sh versions
+
+# 종료: DB와 브로커 데이터 볼륨은 보존
+bash cobot_fleet_control/config/docker/fleet_docker.sh down</pre>
+<p>로컬 브로커는 호스트 loopback 1883 포트를 사용하는 개발용입니다. 기존 브로커가 있으면 up을 사용합니다. 기존 호스트의 관제·브릿지·zone_manager와 중복 실행하지 않으며, 작업·구역 점유를 정리한 뒤 교체합니다. 컨테이너 시작 순서는 ROS·MQTT 연결 완료를 보장하지 않으므로 로그·실제 이벤트도 확인합니다.</p>
+<div class="table-wrap"><table><thead><tr><th>대상</th><th>고정·보존 방법</th></tr></thead><tbody>
+<tr><td>ROS Jazzy 기반 이미지</td><td>공식 registry에서 확인한 manifest digest로 고정. Ubuntu 24.04·Python 3.12 계열 사용.</td></tr>
+<tr><td>Python 의존성</td><td>py_trees 2.2.3, paho-mqtt 2.1.0, pydot 2.0.0, pyparsing 3.1.4. pip 25.0.1·setuptools 75.8.0까지 wheel SHA-256으로 고정.</td></tr>
+<tr><td>MQTT 브로커</td><td>선택형 Mosquitto 2.0.22 이미지 digest 고정. 외부 브로커 주소는 실행 환경에서 지정.</td></tr>
+<tr><td>관제 코드와 출처</td><td>코드를 이미지에 복사하며 호스트 소스는 마운트하지 않음. Git revision·미커밋 변경 여부·설치 버전 목록 기록.</td></tr>
+<tr><td>SQLite</td><td>fleet-data named volume의 /var/lib/cobot/fleet_control.sqlite3. 기본 down·컨테이너 교체 후 보존. 기존 호스트 DB 자동 이전은 하지 않음.</td></tr>
+</tbody></table></div>
+<div class="callout">배포할 때는 검증한 <strong>완성 이미지 ID/digest를 재사용</strong>합니다. 추가 apt 패키지는 빌드 시점 저장소에서 받으므로 날짜가 다른 재빌드까지 완전히 같다고 보장하지 않습니다. 이미지 태그·베이스 digest·Python lock·실제 설치 내역을 함께 관리합니다.</div>
+<h3>Docker에서 실제 BT 이력 가져오기</h3>
+<pre>bash cobot_fleet_control/config/docker/fleet_docker.sh export-bt job-run-001 \
+  &gt; /tmp/bt_trace.json
+xdg-open docs/control_server_bt_report.html</pre>
+<p><a href="#bt-visualizer">BT 실행 시각화</a>에서 /tmp/bt_trace.json을 선택합니다. Docker 실행이 BT 브라우저 창을 자동으로 열거나 실시간 구독하는 것은 아닙니다.</p>
+<h3>구성 파일과 검증 결과</h3>
+<p><a href="../cobot_fleet_control/config/docker/README.md">Docker 상세 안내</a> · <a href="../cobot_fleet_control/config/docker/Dockerfile">Dockerfile</a> · <a href="../cobot_fleet_control/config/docker/compose.yaml">compose.yaml</a> · <a href="../cobot_fleet_control/config/docker/versions.env">이미지 버전</a> · <a href="../cobot_fleet_control/config/docker/requirements.lock">Python lock</a> · <a href="../cobot_fleet_control/config/docker/fleet_docker.sh">실행 스크립트</a></p>
+<p>확인 완료: 실제 wheel 해시 고정 설치, 같은 Python 환경의 관제·구역 제어·C++ 브릿지 네이티브 빌드, 관제 BT와 Docker 구성 테스트 38개, 공식 Compose 파서의 기본/로컬 브로커 프로필 해석, 셸 문법·린트.</p>
+<div class="callout warning"><strong>이미지 전체 빌드·컨테이너 기동·Docker에서 실물 DDS 연결은 미검증입니다.</strong> 현재 작업 환경에 Docker CLI·데몬이 없습니다. Docker가 설치된 Linux PC에서 build → up/up-local → logs → MQTT/ROS 왕복 순서로 최종 확인해야 합니다.</div>
+<p class="muted">기존 팀 Docker는 개발·시험용입니다. 이번 구성은 실제 네트워크를 쓰는 관제 실행용이며 host 네트워크·IPC를 사용합니다. 근거: <a href="https://docs.docker.com/build/building/best-practices/">이미지 digest 고정</a>, <a href="https://docs.docker.com/compose/how-tos/networking/">Compose 네트워크</a>, <a href="https://docs.docker.com/compose/how-tos/startup-order/">서비스 시작 순서</a>.</p>
+</section>
+<section id="run-order"><h2>네이티브 실행 순서와 BT 화면 확인</h2><p>아래는 호스트에 직접 설치해 실행하는 방법입니다. <a href="#docker-run">Docker 실행</a>을 선택했다면 관제 PC의 네이티브 설치·브릿지·구역 매니저·관제 서버 실행은 중복 수행하지 않습니다. 각 Pinky의 Nav2와 순찰 노드는 준비해야 합니다.</p>
 <div class="callout warning"><strong>launch는 관제 서버를 실행합니다. 브라우저 BT 창을 자동으로 열거나 실시간으로 갱신하지는 않습니다.</strong><br>현재 BT 화면은 이 HTML을 별도로 열어 사용하는 기록 재생 화면입니다. 처음에는 격리 시험 이력이 보이고, 실제 실행 결과는 DB에서 JSON을 내보내 가져와야 합니다. 서버를 켠 뒤 명령을 접수해야 해당 작업의 BT가 생성됩니다.</div>
 <div class="table-wrap"><table><thead><tr><th>구분</th><th>현재 동작</th></tr></thead><tbody>
 <tr><td>관제 launch</td><td>MQTT 연결·DB 준비·ROS 통신·BT tick 실행. GUI 자동 실행 없음.</td></tr>
@@ -77,6 +112,7 @@ source install/setup.bash
 export ROS_DOMAIN_ID=100</pre>
 <div class="grid"><div class="card"><h3>터미널 A · 브릿지</h3><pre>ros2 launch cobot_domain_bridge bridges.launch.xml</pre></div><div class="card"><h3>터미널 B · 구역 매니저</h3><pre>ros2 launch cobot_zone_traffic_control zone_manager.launch.xml</pre><p class="muted">zone_manager는 1개만 실행합니다.</p></div><div class="card"><h3>터미널 C · 관제 서버</h3><pre>ros2 launch cobot_fleet_control fleet_control.launch.xml</pre><p class="muted">이 시점에는 서버가 대기합니다. 작업 BT는 명령 접수 시 생성됩니다.</p></div></div>
 <h3>5. 각 Pinky: 순찰 실행기 시작</h3>
+<p>LED 서버가 기존 bringup에 없으면 아래 launch에 <code>start_led:=true</code>를 추가합니다. 기본값은 false이며 중복 실행을 피합니다. 노드가 LED 서버를 subprocess로 자동 실행하지 않습니다. LED가 없어도 주행 처리는 계속됩니다.</p>
 <p>각 로봇에서 ROS·해당 워크스페이스 install/setup.bash를 불러온 터미널로 자기 로봇에 해당하는 명령 하나를 실행합니다.</p>
 <pre># pinky1 장비
 ROS_DOMAIN_ID=10 ros2 launch cobot_pinky_patrol pinky1_patrol.launch.xml
@@ -112,7 +148,7 @@ mosquitto_sub -h localhost -p 1883 -q 1 -v \
 <tr><td>명령은 <code>goto:P1</code> 같은 String</td><td>어떤 UI 요청의 결과인지 연결할 ID가 없음</td><td>기존 String 토픽 안에 JSON 봉투와 명령 ID 추가</td></tr>
 <tr><td>로봇 내부에서 명령 분기·Nav2·LED·유휴 복귀·구역 처리</td><td>업무 정책과 장비 실행 경계가 흐림</td><td>관제 BT·업무 서비스·저장소·통신 어댑터 분리. 기존 장비 실행 정책은 단계적으로 유지</td></tr>
 <tr><td>MQTT·DB 경로 없음</td><td>요청 이력, 재전송, 서버 재시작 시 작업 추적이 어려움</td><td>Paho MQTT + SQLite + 영속 outbox 구현</td></tr>
-<tr><td>로봇이 DONE을 보낸 뒤 LED 등 정리 작업 수행</td><td>관제가 곧바로 다음 명령을 보내면 로봇이 작업 중으로 무시 가능</td><td>정리 후 <code>task_finished=true</code> 최종 응답 추가</td></tr>
+<tr><td>로봇이 DONE을 보낸 뒤 LED 등 정리 작업 수행</td><td>관제가 곧바로 다음 명령을 보내면 로봇이 작업 중으로 무시 가능</td><td>액션 종료·필요한 구역 반납 후 <code>task_finished=true</code> 최종 응답</td></tr>
 </tbody></table></div>
 <p class="muted">별도 확인 사항: zone_gate_client 직접 import, 강제 토큰 만료, 임시 지점 좌표, 대기 슬롯 중첩 가능성은 기존 구조에 남습니다. 이번 작업에서 해당 물리 정책을 바꾸지 않았습니다.</p>
 </section>
@@ -138,12 +174,12 @@ node         MQTT 큐 / ROS 입출력 / tick</pre></div><div class="card"><h3>DB
      ├─ task_finished=true?
      └─ 성공 / 실패 / 시간 초과</pre><p>대기 노드는 즉시 RUNNING을 반환합니다. memory Sequence가 대기 노드에서 재개하므로 tick마다 이동 명령을 다시 보내지 않습니다. 실제 구현은 이 두 단계이며 충전·검사·복합 작업 트리는 후속 확장입니다. <a href="https://py-trees.readthedocs.io/en/release-2.2.x/composites.html">공식 Sequence 설명</a></p></div>
 <div class="card"><span class="tag">기존 실행 체계 재사용</span><h3>로봇 · Nav2 / BehaviorTree.CPP</h3><pre>공통 순찰 실행기
- └─ BasicNavigator
+ └─ 비동기 ActionClient
      └─ NavigateToPose
          └─ Nav2 BT Navigator
              ├─ 경로 계산
              ├─ 경로 추종
-             └─ Nav2 복구 동작</pre><p>Nav2 BT Navigator는 BT XML을 읽어 BehaviorTree.CPP로 실행합니다. 기존 Nav2를 재사용하며 이번에 BT XML이나 플러그인을 새로 배포하지 않습니다. 로봇의 실제 XML 선택은 현장 설정 확인이 필요합니다. <a href="https://api.nav2.org/nav2-jazzy/html/md_nav2_bt_navigator_README.html">Jazzy 공식 설명</a></p></div></div>
+             └─ Nav2 복구 동작</pre><p>Nav2 BT Navigator는 BT XML을 읽어 BehaviorTree.CPP로 실행합니다. 로봇 실행기는 비동기 ActionClient로 Nav2를 호출합니다. Nav2의 BT XML이나 플러그인을 새로 배포하지 않습니다. 로봇의 실제 XML 선택은 현장 설정 확인이 필요합니다. <a href="https://api.nav2.org/nav2-jazzy/html/md_nav2_bt_navigator_README.html">Jazzy 공식 설명</a></p></div></div>
 <p class="muted"><a href="https://behaviortree.dev/docs/ros2_integration/">BehaviorTree.ROS2</a>는 C++ ROS 액션·서비스 노드가 필요한 향후 대안입니다. 현재는 Python 관제와 기존 Nav2가 이미 있어 중복 실행 엔진을 추가하지 않았습니다.</p>
 </section>
 <section id="data"><h2>04. 실제 데이터 계약</h2>
@@ -185,6 +221,57 @@ node         MQTT 큐 / ROS 입출력 / tick</pre></div><div class="card"><h3>DB
 </tbody></table></div>
 <div class="callout warning"><strong>UNKNOWN은 실패나 정지 확정이 아닙니다.</strong> 응답 시간 초과·서버 재시작·전달 예외에는 로봇 예약을 유지합니다. 실제 지연 최종 응답이 오면 해제합니다. 응답이 영구 유실된 경우 현장 확인 후 별도 조정이 필요합니다. 물리 동작의 exactly-once는 보장하지 않습니다.</div>
 </section>
+<section id="logic-debug"><h2>실제 로직 읽는 순서와 디버깅 지도</h2>
+<p>현재 구현은 <strong>관제 업무와 로봇 실행 상태를 각각 단일 executor가 소유</strong>합니다. 로봇의 주행·구역 대기·초기 회전·LED 작업 스레드를 제거했습니다. MQTT의 Paho 네트워크 스레드는 수신 큐만 갱신하고 관제 상태는 executor에서 처리합니다. Nav2 자체는 별도 ROS 프로세스입니다.</p>
+<div class="callout">처음 읽을 때는 <strong>service.py → behaviours.py → patrol_controller.py → async_navigation.py</strong> 순서로 핵심 정책을 보고, 실제 통신을 따라갈 때 아래 표의 1번부터 추적하세요. 줄 번호는 이 리포트를 갱신한 소스 기준입니다.</div>
+<div class="table-wrap"><table><thead><tr><th>순서</th><th>파일·시작 함수</th><th>실제 로직</th><th>확인할 값</th></tr></thead><tbody><tr><td>1 · 외부 입력</td><td><a href="../cobot_fleet_control/cobot_fleet_control/fleet_control_node.py">fleet_control_node.py</a><br><code>FleetControlNode._consume()</code> · L93</td><td>MQTT 수신 큐 → JSON 해석 → 서비스 호출. _message()는 수신 큐에 넣고 반환한다.</td><td><code>message.topic / payload / retain, self.prefix, self.mqtt.is_connected()</code></td></tr><tr><td>2 · 입력 계약</td><td><a href="../cobot_fleet_control/cobot_fleet_control/contracts.py">contracts.py</a><br><code>Command.parse()</code> · L19</td><td>로봇·업무·지점·시간 검증과 정규화. 업무 이름이나 입력 필드를 바꿀 때 먼저 읽는다.</td><td><code>command_id / robot_id / operation / points / timeout_sec</code></td></tr><tr><td>3 · 관제 정책</td><td><a href="../cobot_fleet_control/cobot_fleet_control/service.py">service.py</a><br><code>FleetService.submit()</code> · L25</td><td>DB 중복 검사·로봇 예약·BT 생성. tick()과 on_status()에서 실행 수명·완료를 판단한다.</td><td><code>self.active, repository.busy(robot_id), 명령 ID와 로봇 ID 일치 여부</code></td></tr><tr><td>4 · 관제 BT</td><td><a href="../cobot_fleet_control/cobot_fleet_control/behaviours.py">behaviours.py</a><br><code>build_tree()</code> · L52</td><td>memory Sequence: Dispatch.update() → AwaitResult.update(). 새 업무 단계를 추가할 위치.</td><td><code>tree.root.status / result / deadline. 전달 SUCCESS와 업무 성공을 구분한다.</code></td></tr><tr><td>5 · 로봇 ROS 입출력</td><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py">pinky_patrol_node.py</a><br><code>PinkyPatrolNode._cmd_cb()</code> · L175</td><td>JSON/문자열 명령을 상태 기계에 전달. _tick()이 라이프사이클·초기화·업무·LED를 짧게 진행한다.</td><td><code>self.controller.phase, _states, _restore_stage, navigation.busy</code></td></tr><tr><td>6 · 실제 주행 정책</td><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/patrol_controller.py">patrol_controller.py</a><br><code>PatrolController.submit()</code> · L68</td><td>goto·zone·leave·home 단계 구성. _next(), _queue_tick(), _move_tick()에서 목표·구역·재시도를 진행한다.</td><td><code>phase / steps / step / held_zone / command_id / _attempts / idle_deadline</code></td></tr><tr><td>7 · 액션 접수·취소·종료</td><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/async_navigation.py">async_navigation.py</a><br><code>AsyncNavigation.start()</code> · L20</td><td>send_goal_async() → _accepted() → get_result_async() → _finished(). cancel()은 종료를 기다리지 않고 요청만 보낸다.</td><td><code>busy / _handle / _cancel_requested / _cancel_sent / _generation / fault</code></td></tr><tr><td>8 · 구역·저장·시각화</td><td><a href="../cobot_zone_traffic_control/cobot_zone_traffic_control/zone_gate_client.py">zone_gate_client.py</a><br><code>ZoneGateClient.granted()</code> · L266</td><td>구역 허가·슬롯 수신을 확인한다. 저장은 repository.py, BT 관측은 bt_visualization.py에서 분리 처리한다.</td><td><code>gate.zone / granted() / current_slot, outbox.event_id / acknowledged, 스냅샷 visited</code></td></tr></tbody></table></div>
+<h3>한 명령의 콜백 흐름</h3>
+<pre>MQTT _message() → 수신 큐 → _consume()
+ → Command.parse() → FleetService.submit() → DB ACCEPTED
+ → FleetService.tick() → Dispatch.update() → ROS patrol_cmd
+ → PinkyPatrolNode._cmd_cb() → PatrolController.submit()
+ → PREPARING: 라이프사이클·초기화 준비, 각 콜백은 즉시 반환
+ → NEXT: 다음 단계 선택
+     gate → QUEUEING: 허가·슬롯 확인, 필요하면 슬롯 액션 요청
+     move/exit/home → NAVIGATING: 액션 접수·종료 콜백 대기
+ → AsyncNavigation._finished()가 최종 결과 등록
+ → PatrolController._move_tick()가 결과 소비·다음 단계 선택
+ → _finish(): task_finished=true 상태 발행
+ → FleetService.on_status() → AwaitResult.update() → DB 결과·MQTT 이벤트</pre>
+<h3>정지와 취소를 디버깅할 때</h3>
+<pre>stop / emergency_stop 수신
+ → PatrolController.stop(): CANCELING 등록, cancel() 요청, 즉시 반환
+ → 목표 접수 전이라면 _cancel_requested=True로 기억
+ → _accepted()에서 접수 확인 후 cancel_goal_async()
+ → _cancelled(): 취소 요청의 응답만 확인 — busy를 해제하지 않음
+ → _finished(): 원래 액션이 실제로 종료되었을 때 busy=False
+ → _stop_after_cancel()
+     stop + 구역 보유: EXIT 이동 완료 후 토큰 반납 → STOPPED
+     emergency_stop: 추가 이동 없이 토큰 유지 → STOPPED</pre>
+<p class="muted">취소가 거절되거나 결과 통신이 끊기면 아직 끝나지 않은 액션을 새 목표로 덮어쓰지 않습니다. busy를 유지하고 관제는 시간 초과 후 UNKNOWN으로 남길 수 있습니다. 비상정지는 소프트웨어 요청이며 하드웨어 비상정지를 대신하지 않습니다.</p>
+<h3>증상별 중단점과 확인 항목</h3>
+<div class="table-wrap"><table><thead><tr><th>증상</th><th>중단점을 둘 함수</th><th>확인할 데이터·판단</th></tr></thead><tbody>
+<tr><td>UI 명령이 관제에 안 들어옴</td><td>FleetControlNode._connect / _message / _consume</td><td>브로커 주소·포트·인증, 연결 결과, commands 토픽, QoS 1, retain=false, inbox 포화. UI 버튼의 MQTT 발행 연결도 확인한다.</td></tr>
+<tr><td>접수는 됐지만 ROS 명령이 안 나감</td><td>FleetService.submit / tick, Dispatch.update, FleetControlNode.send</td><td>command_id 중복, repository.busy(), active 등록, ROS_DOMAIN_ID와 브릿지 토픽. 구독자 수가 있어도 브릿지 너머 실제 로봇 도착까지 보장하지는 않는다.</td></tr>
+<tr><td>STARTING에서 이동하지 않음</td><td>PinkyPatrolNode._poll_lifecycle / _state_received / _advance_preparation / _ready</td><td>amcl·bt_navigator가 active인지, action server 발견 여부, _restore_stage, initialpose 구독자, 준비 제한 시간. restore_pose 설정과 저장 좌표 파일도 확인한다.</td></tr>
+<tr><td>목표 접수 후 결과가 안 옴</td><td>AsyncNavigation._accepted / _finished, PatrolController._move_tick</td><td>handle.accepted, get_result_async의 완료, GoalStatus, busy·fault. 내부 Future.result()는 완료 콜백 안에서만 읽는다.</td></tr>
+<tr><td>구역 대기에서 멈춤</td><td>PatrolController._queue_tick, ZoneGateClient._on_grant / _on_slot / resend_if_due</td><td>구역·robot_id·토큰 일치, current_slot, grant 수신, 매니저 대기열, 재요청 시각. 슬롯 목표 변경 때 이전 액션 종료를 기다리는 중인지 확인한다.</td></tr>
+<tr><td>stop을 보냈지만 안 끝남</td><td>PatrolController.stop / _stop_after_cancel, AsyncNavigation.cancel / _cancelled / _finished</td><td>phase=CANCELING, 접수 전 취소 플래그, 취소 거절·통신 예외, 원래 액션 최종 결과. cancel ACK만 보고 완료로 처리하면 안 된다.</td></tr>
+<tr><td>출구로 갔는데 토큰이 유지됨</td><td>PatrolController._move_tick, ZoneGateClient.notify_exit, ZoneManagerNode._on_exit</td><td>exit 목표의 실제 SUCCEEDED 여부, held_zone, zone 접두·robot_id, notify_exit 전달. 출구 실패라면 토큰 유지가 의도된 동작이다.</td></tr>
+<tr><td>다른 명령의 결과가 섞임</td><td>PatrolController.submit / _reject / _finish, AsyncNavigation._feedback / _finished, FleetService.on_status</td><td>command_id·robot_id와 액션 _generation 확인. 새 명령의 busy 거절이 기존 명령의 종료로 기록되지 않아야 한다.</td></tr>
+<tr><td>LED가 안 바뀌지만 이동은 됨</td><td>PinkyPatrolNode._set_led / _advance_led / _led_done</td><td>별도 LED 서버, service_is_ready(), _led_future, 원하는 색과 _led_sent. LED 지연은 주행 콜백을 막지 않는다.</td></tr>
+<tr><td>DB에는 있는데 UI 결과가 안 보임</td><td>SqliteRepository.transition / pending / acknowledge, FleetControlNode._tick</td><td>실제 db_path, outbox payload, MQTT 연결과 PUBACK, UI의 events 구독·event_id 중복 제거. PUBACK은 UI 표시 완료가 아니다.</td></tr>
+<tr><td>BT 시각화가 안 바뀜</td><td>TreeTrace.capture, export_traces, HTML 파일 선택</td><td>명령 ID·DB 경로·파일 생성 시각, snapshot의 phase/tick/nodes/visited. 같은 대기 상태는 저장을 생략하고 HTML은 가져온 파일을 재생한다.</td></tr>
+</tbody></table></div>
+<h3>실물 없이 디버깅할 테스트</h3>
+<ul><li><a href="../cobot_pinky_patrol/test/test_patrol_controller.py">test_patrol_controller.py</a>: 작업 단계·구역 허가·슬롯 변경·실패 복구·유휴 복귀·토큰 반납 정책.</li><li><a href="../cobot_pinky_patrol/test/test_async_navigation.py">test_async_navigation.py</a>: 접수 전 취소, 취소 거절, 결과 유실, 오래된 피드백·취소 응답.</li><li><a href="../cobot_pinky_patrol/test/test_async_ros.py">test_async_ros.py</a>: 실제 ROS 액션·라이프사이클·구역 토픽을 가짜 Nav2와 단일 executor로 검증. 초기 회전 중 정지·LED 응답 지연 포함.</li><li><a href="../cobot_pinky_patrol/test/test_command_correlation.py">test_command_correlation.py</a>: busy 거절과 원래 명령 완료의 ID 분리.</li><li><a href="../cobot_fleet_control/test/test_mqtt_ros_integration.py">test_mqtt_ros_integration.py</a>: 실제 로컬 MQTT·SQLite·ROS 왕복과 BT 이벤트 수신.</li></ul>
+<pre># ROS 환경과 개발 가상환경 활성화 후 cobot_navigation에서 실행
+ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python -m pytest \
+  cobot_pinky_patrol/test/test_async_ros.py \
+  cobot_pinky_patrol/test/test_patrol_controller.py \
+  cobot_pinky_patrol/test/test_async_navigation.py -q</pre>
+<p class="muted">디버거에서 주행 중 콜백을 오래 멈추면 정지 처리도 지연됩니다. 위 격리 시험에서 중단점으로 먼저 확인하고, 실제 장비에서는 상태 로그·이벤트 기록으로 추적합니다.</p>
+</section>
 <section id="bt-visualizer"><h2>실제 BT 실행 상태 시각화</h2>
 <p>아래 트리는 <strong>실제 py_trees 실행에서 수집한 스냅샷</strong>을 재생합니다. 기본 이력은 가짜 로봇·임시 SQLite를 사용한 격리 실행이며 실물 데이터가 아닙니다. 노드의 상태 색과 <strong>이번 tick 방문 여부</strong>를 나눠 보세요.</p>
 <div class="callout">첫 tick: 전달 SUCCESS → 대기 RUNNING. 다음 tick: 전달은 SUCCESS를 유지하지만 <strong>다시 실행되지 않습니다</strong>. 종료 tick: 대기와 루트가 SUCCESS/FAILURE로 바뀝니다. 타임아웃의 루트 FAILURE는 업무 UNKNOWN과 함께 표시합니다.</div>
@@ -211,23 +298,24 @@ node         MQTT 큐 / ROS 입출력 / tick</pre></div><div class="card"><h3>DB
 <tr><td><a href="../cobot_fleet_control/cobot_fleet_control/behaviours.py">behaviours.py</a></td><td>py_trees 작업 구성과 결과 대기</td><td>검사·충전·인계 단계 Behaviour</td></tr>
 <tr><td><a href="../cobot_fleet_control/cobot_fleet_control/repository.py">repository.py</a></td><td>SQLite 실저장·상태 전이·outbox</td><td>서버 DB 어댑터·보존 정책·조회</td></tr>
 <tr><td><a href="../cobot_fleet_control/cobot_fleet_control/fleet_control_node.py">fleet_control_node.py</a></td><td>Paho callback v2·MQTT 입력 큐·ROS 발행/수신</td><td>운영 인증·관측성·다른 전송 수단</td></tr>
-<tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py">pinky_patrol_node.py</a></td><td>단일 공통 로봇 실행·명령 ID 전달·최종 응답</td><td>장비 실행 기능. 업무 정책은 관제에서 확장</td></tr>
+<tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py">pinky_patrol_node.py</a></td><td>단일 executor ROS 입출력·라이프사이클·초기화·LED 타이머</td><td>순찰 정책은 patrol_controller.py, 액션 수명은 async_navigation.py에서 수정</td></tr>
+<tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/patrol_controller.py">patrol_controller.py</a></td><td>순찰 상태·단계·구역·정지·유휴 복귀 정책</td><td>업무별 로봇 실행 정책 수정과 단위 디버깅</td></tr>
+<tr><td><a href="../cobot_pinky_patrol/cobot_pinky_patrol/async_navigation.py">async_navigation.py</a></td><td>비동기 액션 접수·취소·최종 결과와 지연 콜백 차단</td><td>목표 중복·취소·통신 미확정 상황 디버깅</td></tr>
 <tr><td><code>pinky_patrol_node_pinky1/2/3.py</code></td><td>기존 ros2 run/launch 이름을 유지하는 호환 진입점</td><td>로봇 추가는 코드 복사 대신 설정·등록으로 처리</td></tr>
 </tbody></table></div>
 <p>새 패키지는 setup.py·package.xml·resource·setup.cfg·XML launch·YAML config를 함께 등록했습니다. 설명과 주석은 한국어로 작성했습니다. 기존 브릿지의 토픽 이름·메시지 타입, zone_manager의 FIFO/토큰 동작은 유지했습니다.</p>
 </section>
 <section id="verification"><h2>07. 검증 결과</h2>
 <div id="test-results" class="card">
-<div class="metric">219 passed · 4 skipped</div>
-<p><strong>BT 시각화 추가 검증: 관제 테스트 32개 통과.</strong> 실제 MQTT·ROS 왕복에서 bt_snapshot 수신까지 확인했습니다. 관제 패키지 재빌드·린트 통과. 실제 트리 5개 시나리오의 18개 스냅샷을 수집해 브라우저에서 상태·방문 생략·자동 재생·JSON 가져오기·모바일 레이아웃을 검증했습니다.</p>
-<p>순찰·구역 교통 제어·관제 테스트를 ROS_DOMAIN_ID=77 / ROS_LOCALHOST_ONLY=1에서 실행했습니다. 가짜 navigator와 실제 zone_manager, 실제 로컬 MQTT 브로커를 사용했습니다. 4개는 기존 비활성 순회 테스트입니다.</p>
-<ul><li>실제 로컬 MQTT → 관제 → ROS 가짜 로봇 → SQLite → MQTT 최종 결과 왕복 통과. 동일 명령 두 번 수신 시 ROS 전달 1회 확인.</li><li>중복·ID 충돌·로봇 예약·다른 로봇/이전 ID 응답 무시·중간 DONE·최종 응답·실패·시간 초과·서버 재시작·outbox ACK·실제 상태 원문 저장 검증.</li><li>관제·순찰·교통 제어 3개 ROS 패키지 빌드 통과. 빌드 산출물과 테스트 DB는 /tmp에 저장.</li><li>신규 관제 패키지, 호환 진입점, 명령 상관관계 테스트의 ament_flake8·ament_pep257 통과.</li><li>Chrome 데스크톱·모바일(390px) 화면 확인. 5개 시연·초기화·고유 ID·내부/소스 링크·가로 넘침 검사 통과, JavaScript 오류 없음.</li></ul>
-<p class="muted">공통 순찰 실행기 전체의 기존 주행 코드는 기존 스타일을 이어받습니다. 기존 코드 전체에 대한 린트 통과를 주장하지 않습니다. 실제 하드웨어·도메인 브릿지·Nav2 주행 시험은 수행하지 않았습니다.</p>
+<div class="metric">207 passed · 2 skipped</div>
+<p><strong>단일 executor 비동기 전환과 Docker 구성 검사까지 포함한 푸시 전 전체 격리 검증 결과입니다.</strong> 관제·순찰·구역 교통 제어 테스트를 ROS_DOMAIN_ID=77 / ROS_LOCALHOST_ONLY=1에서 실행했습니다. 2개는 비활성 순회에 관한 기존 정적 테스트입니다.</p>
+<ul><li>실제 ROS NavigateToPose 액션·라이프사이클·토픽을 가짜 Nav2와 단일 executor에서 검증: 목표 완료·주행 중 정지·취소 거절·목표 거절 재시도·구역 진입/이탈·초기 회전 중 정지·LED 응답 지연.</li><li>접수 전 취소·지연 피드백/취소 응답·결과 유실·슬롯 변경·출구 실패·비상정지 토큰 유지·명령 ID 분리·유휴 복귀 검증. 작업 스레드·대기 루프·중첩 spin 재도입 방지 검사 포함.</li><li>실제 로컬 MQTT → 관제 → ROS 가짜 로봇 → SQLite → MQTT 결과·BT 스냅샷 왕복 통과. 동일 명령 중복 전달 방지 확인.</li><li>관제·순찰·교통 제어 ROS 패키지 3개 빌드 통과. 관제 코드와 순찰 전체 런타임 코드, 새 비동기 테스트의 ament_flake8·ament_pep257 통과.</li><li>이전 스레드 내부 메서드에 결합된 테스트를 상태 기계 정책과 실제 ROS 액션 검사로 교체했습니다. 이전 리포트의 219개와 테스트 구성이 다르며 개수만으로 전후 검증 범위를 비교하지 않습니다.</li></ul>
+<p class="muted">빌드·테스트 DB는 /tmp를 사용합니다. 실물 하드웨어·도메인 브릿지 왕복·현장 Nav2 주행은 검증하지 않았습니다. HTML의 BT는 관제 트리 실행 기록 재생이며 실시간 로봇 내부 BT 화면이 아닙니다.</p>
 </div>
 <p class="muted">실제 브로커 시험은 테스트 전용 amqtt 0.11.3을 임시 가상환경에 설치해 사용합니다. 제품 의존성은 py_trees 2.2.3과 paho-mqtt 2.1.0입니다. <a href="https://eclipse.dev/paho/clients/python/docs/">Paho 공식 문서</a>의 Callback API v2, QoS, PUBACK 처리 계약을 따릅니다.</p>
 </section>
 <section id="roadmap"><h2>08. 도입 순서와 남은 범위</h2>
-<ol><li><strong>로봇 실행기부터 새 버전으로 배포</strong>: 기존 실행 이름·YAML은 유지. 신규 JSON 명령과 최종 응답을 이해해야 합니다.</li><li><strong>브로커 준비</strong>: TLS·ACL·계정과 영속 저장을 구성합니다. 브라우저 MQTT 직접 연결에는 WSS 리스너가 필요합니다.</li><li><strong>관제 1개 실행</strong>: DB 저장 경로와 기존 도메인 브릿지·zone_manager를 확인합니다. 패키지의 <a href="../cobot_fleet_control/README.md">실행 안내</a>를 따릅니다.</li><li><strong>UI 연결</strong>: 명령 ID 생성, receipts 표시, events의 event_id 중복 제거, 업무 상태와 물리 상태를 나눠 표시합니다.</li><li><strong>서버 DB·운영 API 확장</strong>: DB 어댑터, 과거 이벤트 조회, UNKNOWN 현장 확인·해제, MQTT 취소/선점 계약을 추가합니다.</li><li><strong>업무 정책 이전</strong>: 현재 로봇에 남은 유휴 복귀·구역 실행 절차를 관제 BT로 옮길지 결정합니다. 로컬 정지·주행 보호는 로봇에서 계속 처리합니다.</li></ol>
+<ol><li><strong>로봇 실행기부터 새 버전으로 배포</strong>: 기존 실행 이름·YAML은 유지. 신규 JSON 명령과 최종 응답을 이해해야 합니다.</li><li><strong>브로커 준비</strong>: TLS·ACL·계정과 영속 저장을 구성합니다. 브라우저 MQTT 직접 연결에는 WSS 리스너가 필요합니다.</li><li><strong>관제 1개 실행</strong>: DB 저장 경로와 기존 도메인 브릿지·zone_manager를 확인합니다. 패키지의 <a href="../cobot_fleet_control/README.md">실행 안내</a>를 따릅니다.</li><li><strong>UI 연결</strong>: 명령 ID 생성, receipts 표시, events의 event_id 중복 제거, 업무 상태와 물리 상태를 나눠 표시합니다.</li><li><strong>서버 DB·운영 API 확장</strong>: DB 어댑터, 과거 이벤트 조회, UNKNOWN 현장 확인·해제, MQTT 취소/선점 계약을 추가합니다.</li><li><strong>업무 정책 이전</strong>: 현재 로봇에 남은 유휴 복귀·구역 실행 절차를 관제 BT로 옮길지 결정합니다. 현재 로봇 단계는 단일 executor의 비동기 상태 기계로 동작합니다. 로컬 정지·주행 보호는 로봇에서 계속 처리합니다.</li></ol>
 <details open><summary>이번 구현의 경계</summary><p>단일 서버와 명령 단위 BT가 구현 범위입니다. UI 제품 화면, 외부 운영 DB, 복합 업무·충전·다중 서버 리더 선출, 조회 HTTP API는 포함하지 않습니다. 이 HTML은 배포용 관제 UI가 아니라 독립 리포트입니다.</p></details>
 <details><summary>물리 동작·데이터 신뢰성의 남은 항목</summary><p>ROS String 전달과 DB는 하나의 트랜잭션이 아닙니다. 관제 재시작 때 자동 재전송하지 않고 UNKNOWN으로 남깁니다. 로봇 재시작 후의 영속 명령 중복 제거·완료 응답 재전송·하트비트는 후속 계약입니다. 큐 포화 시 접수하지 않고 오류를 기록하며, 지속 세션의 미확인 메시지는 브로커 설정·재접속에 의존합니다. UI 수신 ACK은 현재 구현하지 않았으므로 MQTT PUBACK과 UI 화면 반영은 서로 다릅니다.</p></details>
 <details><summary>기존 구역·좌표 정책의 남은 항목</summary><p>유휴 120초 자동 복귀, max_hold_sec 토큰 강제 해제, 패키지 간 zone_gate_client 직접 import, 임시 좌표와 대기 슬롯 중첩 가능성은 별도 검증·변경 대상입니다. 실제 장비·도메인 브릿지·현장 지도에서의 주행은 이번 격리 테스트가 보증하지 않습니다.</p></details>

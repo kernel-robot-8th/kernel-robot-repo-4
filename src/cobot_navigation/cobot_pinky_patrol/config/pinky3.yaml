@@ -8,6 +8,14 @@
 # 값은 반드시 소수점 형태(0.0)로 쓴다. 정수(0)로 쓰면 파라미터 타입이 달라 시작이 거부된다.
 pinky_patrol_node:
   ros__parameters:
+    # 콜백은 즉시 반환하고 이 타이머가 상태를 진행한다. 좌표와 업무 계약은 유지한다.
+    tick_sec: 0.05
+    nav_retries: 3
+    nav_ready_timeout_sec: 60.0
+    lifecycle_nodes: [amcl, bt_navigator]
+    initial_rotation_sec: 4.0
+    # Nav2에 이미 초기 위치를 지정했다면 false로 설정해 저장 위치 복원을 생략한다.
+    restore_pose: true
     # zone_manager_node 의 robot_ids (cobot_zone_traffic_control/config/zone_params.yaml) 와 같아야 한다
     robot_id: pinky3
     # 마지막 명령을 마친 뒤 새 명령이 없을 때 홈으로 복귀하기까지의 시간(초). 0 이하이면 자동 복귀를 끈다
