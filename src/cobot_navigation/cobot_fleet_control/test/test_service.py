@@ -4,6 +4,7 @@ import json
 
 from cobot_fleet_control.contracts import Command
 from cobot_fleet_control.repository import SqliteRepository
+from cobot_fleet_control.resolve_unknown import main as resolve_unknown_main
 from cobot_fleet_control.service import FleetService
 import pytest
 
@@ -167,3 +168,48 @@ def test_dispatch_error_stays_unknown(env):
         service.tick()
     assert repo.get('job1')['state'] == 'UNKNOWN'
     assert repo.busy('pinky1')
+
+
+def test_manual_resolution_preserves_history_and_releases_only_unknown(env):
+    repo, gateway, clock, service = env
+    service.submit(request())
+    service.tick()
+    clock[0] = 11
+    service.tick()
+    with pytest.raises(ValueError, match='robot_id'):
+        repo.resolve_unknown('job1', 'pinky2', 'operator1', '현장 정지 확인')
+    row = repo.resolve_unknown('job1', 'pinky1', 'operator1', '현장 정지 확인')
+    assert row['state'] == 'FAILED'
+    assert 'operator1' in row['detail']
+    assert not repo.busy('pinky1')
+    event = json.loads(repo.pending()[-1]['payload'])
+    assert event['type'] == 'command_state'
+    assert event['state'] == 'FAILED'
+    assert event['detail'] == row['detail']
+    with pytest.raises(ValueError, match='UNKNOWN'):
+        repo.resolve_unknown('job1', 'pinky1', 'operator1', '반복 해제')
+    finish(service)
+    assert repo.get('job1')['state'] == 'FAILED'
+    service.submit(request('job2'))
+
+
+def test_resolution_cli_requires_server_stop_and_confirmation(tmp_path, capsys):
+    path = str(tmp_path / 'fleet.sqlite3')
+    repo = SqliteRepository(path)
+    service = FleetService(repo, Gateway(), ['pinky1'])
+    service.submit(request())
+    service.tick()
+    repo.transition('job1', 'UNKNOWN', '응답 시간 초과')
+    args = ['--db', path, '--command-id', 'job1', '--robot-id', 'pinky1',
+            '--operator', 'operator1', '--reason', '현장 정지 확인']
+    with pytest.raises(SystemExit):
+        resolve_unknown_main(args)
+    with pytest.raises(SystemExit):
+        resolve_unknown_main(args + ['--confirm-stopped'])
+    assert repo.get('job1')['state'] == 'UNKNOWN'
+    repo.close()
+    resolve_unknown_main(args + ['--confirm-stopped'])
+    assert 'job1 (pinky1): FAILED' in capsys.readouterr().out
+    check = SqliteRepository(path)
+    assert check.get('job1')['state'] == 'FAILED'
+    check.close()
