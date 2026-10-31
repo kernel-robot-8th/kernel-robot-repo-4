@@ -1,5 +1,6 @@
 """SQLite 구현: 업무 상태와 MQTT 발행 대기 이벤트를 같은 트랜잭션에 기록한다."""
 
+import fcntl
 import json
 import sqlite3
 import time
@@ -23,13 +24,24 @@ class Repository(Protocol):
     def recover(self): ...
     def record_status(self, robot_id, status): ...
     def record_bt_snapshot(self, snapshot): ...
+    def resolve_unknown(self, command_id, robot_id, operator, reason): ...
 
 
 class SqliteRepository:
     """단일 관제 프로세스용 영속 저장소. 여러 서버 실행은 별도 리더 선출이 필요하다."""
 
     def __init__(self, path):
-        self.db = sqlite3.connect(path)
+        self.lock = open(path + '.lock', 'a+')
+        try:
+            fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            self.lock.close()
+            raise RuntimeError('관제 DB 사용 중: fleet 서버를 먼저 종료하세요') from error
+        try:
+            self.db = sqlite3.connect(path)
+        except Exception:
+            self.lock.close()
+            raise
         self.db.row_factory = sqlite3.Row
         self.db.executescript("""
             PRAGMA journal_mode=WAL;
@@ -86,6 +98,22 @@ class SqliteRepository:
                             (state, detail, command_id))
             self._event(command_id, state, detail)
 
+    def resolve_unknown(self, command_id, robot_id, operator, reason):
+        """현장 정지 확인 후 불명 작업 하나를 실패 확정하고 예약을 해제한다."""
+        detail = f'운영자 확인 해제 ({operator}): {reason}'
+        with self.db:
+            row = self.get(command_id)
+            if row is None:
+                raise ValueError('해당 command_id가 없습니다')
+            if row['robot_id'] != robot_id:
+                raise ValueError('robot_id가 기존 작업과 일치하지 않습니다')
+            if row['state'] != 'UNKNOWN':
+                raise ValueError('UNKNOWN 상태의 작업만 수동 해제할 수 있습니다')
+            self.db.execute('UPDATE commands SET state=?, detail=? WHERE command_id=?',
+                            ('FAILED', detail, command_id))
+            self._event(command_id, 'FAILED', detail)
+        return self.get(command_id)
+
     def pending(self, limit=100):
         """브로커 확인을 받지 못한 이벤트를 순서대로 재전송한다."""
         return [dict(row) for row in self.db.execute(
@@ -128,3 +156,4 @@ class SqliteRepository:
     def close(self):
         """DB 연결 해제."""
         self.db.close()
+        self.lock.close()

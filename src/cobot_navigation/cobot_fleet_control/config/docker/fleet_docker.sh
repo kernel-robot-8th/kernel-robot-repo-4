@@ -15,6 +15,8 @@ usage() {
   logs          서비스 로그 확인
   versions      실행 중 fleet의 이미지 내부 버전 기록 확인
   export-bt ID  명령별 BT 기록을 표준 출력 JSON으로 내보내기
+  resolve-unknown ID ROBOT OPERATOR REASON --confirm-stopped
+               fleet 중지 및 로봇 정지 확인 후 UNKNOWN 작업 1건 해제
 배포 이미지 선택: COBOT_IMAGE 환경변수. 이 도구는 호스트 패키지를 설치하지 않습니다.
 HELP
 }
@@ -55,6 +57,17 @@ case "$operation" in
     "${compose[@]}" exec -T fleet /opt/cobot/entrypoint.sh bash -c \
       'ros2 run cobot_fleet_control fleet_bt_trace --db /var/lib/cobot/fleet_control.sqlite3 --command-id "$1" --output /tmp/bt_trace.json && cat /tmp/bt_trace.json' \
       bash "$1"
+    ;;
+  resolve-unknown)
+    if [[ $# -ne 5 || "$5" != --confirm-stopped ]]; then
+      echo '사용법: resolve-unknown ID ROBOT OPERATOR REASON --confirm-stopped' >&2
+      exit 2
+    fi
+    "${compose[@]}" run --rm --no-deps -T fleet \
+      ros2 run cobot_fleet_control fleet_resolve_unknown \
+      --db /var/lib/cobot/fleet_control.sqlite3 \
+      --command-id "$1" --robot-id "$2" --operator "$3" --reason "$4" \
+      --confirm-stopped
     ;;
   *) usage >&2; exit 2 ;;
 esac

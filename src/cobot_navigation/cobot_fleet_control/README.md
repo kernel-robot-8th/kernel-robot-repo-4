@@ -11,6 +11,7 @@ UI → MQTT → 관제 서버의 `py_trees` → ROS 도메인 브릿지 → Pink
 - `behaviours.py`: `py_trees==2.2.3`의 memory Sequence로 전달 → 실제 작업 종료 대기. 후속 업무 단계는 Behaviour로 추가합니다.
 - `repository.py`: 저장소 Protocol + 실제 SQLite 구현. 명령 상태와 outbox 이벤트를 함께 커밋합니다. 추후 서버 DB는 같은 경계를 구현합니다.
 - `fleet_control_node.py`: `paho-mqtt==2.1.0` MQTT 통신, ROS 입출력, executor 스레드에서 DB/BT 실행.
+- `resolve_unknown.py`: 현장 정지 확인 후 UNKNOWN 작업 한 건의 예약을 해제하는 운영 CLI.
 - 로봇: Nav2가 제공하는 `nav2_bt_navigator`/BehaviorTree.CPP로 경로 계획·주행·복구. 이번 변경은 로봇의 Nav2 BT XML을 교체하지 않습니다.
 
 ## Docker로 버전과 실행 환경 고정
@@ -72,7 +73,27 @@ UI는 `cobot/fleet/commands`에 **QoS 1 / retain=false**로 아래 JSON을 보�
 
 로봇은 내부 `DONE` 이후 정리 단계가 끝난 최종 상태에만 `task_finished=true`를 붙입니다. 관제는 로봇 ID와 명령 ID가 모두 일치하는 최종 응답만 완료로 처리합니다. 로봇의 `HOLDING_ZONE`은 구역 점유 상태이고 업무 `SUCCEEDED`와 별개의 개념입니다.
 
-상태: `ACCEPTED → RUNNING → SUCCEEDED/FAILED`. 시간 초과·서버 재시작·전달 예외는 `UNKNOWN`으로 남아 로봇을 계속 예약합니다. 같은 ID의 지연 최종 응답이 오면 해제할 수 있습니다. 응답이 영구 유실된 경우 현재는 현장 확인·별도 운영 조정이 필요하며 자동 초기화/재전송 API는 제공하지 않습니다.
+상태: `ACCEPTED → RUNNING → SUCCEEDED/FAILED`. 시간 초과·서버 재시작·전달 예외는 `UNKNOWN`으로 남아 로봇을 계속 예약합니다. 같은 ID의 지연 최종 응답이 오면 해제할 수 있습니다. 응답이 영구 유실되면 현장에서 로봇 정지와 기존 작업 종료를 확인한 뒤 운영 CLI로 해당 작업만 `FAILED`로 확정합니다. 작업 기록과 사유가 `commands` 및 `events`에 남습니다. 자동 초기화/재전송 API는 제공하지 않습니다.
+
+### UNKNOWN 작업 수동 해제
+
+로봇의 물리 정지와 기존 작업 종료를 먼저 확인합니다. 관제 서버를 중지한 뒤 아래 명령을 실행하고 다시 시작합니다. 실행 중인 서버가 DB를 사용하면 CLI는 해제를 거절합니다. `command_id`와 `robot_id`가 일치하는 `UNKNOWN` 작업만 해제하며 다른 작업의 기록은 유지합니다.
+
+```bash
+# 네이티브 설치: 관제 서버 중지 후
+ros2 run cobot_fleet_control fleet_resolve_unknown \
+  --db ~/.cobot/fleet_control.sqlite3 \
+  --command-id job-run-001 --robot-id pinky1 \
+  --operator operator1 --reason '로봇 정지 및 기존 작업 종료 확인' \
+  --confirm-stopped
+
+# Docker: src/cobot_navigation에서, 새 이미지 빌드·배포 후
+docker compose --env-file cobot_fleet_control/config/docker/versions.env \
+  -f cobot_fleet_control/config/docker/compose.yaml stop fleet
+bash cobot_fleet_control/config/docker/fleet_docker.sh resolve-unknown \
+  job-run-001 pinky1 operator1 '로봇 정지 및 기존 작업 종료 확인' --confirm-stopped
+bash cobot_fleet_control/config/docker/fleet_docker.sh up
+```
 
 MQTT 이벤트는 QoS 1이므로 중복될 수 있습니다. UI는 `event_id`로 중복을 제거합니다. `recorded_at`은 서버 수신/기록 시각이고 `status.time`은 로봇 보고 시각입니다. UI 재접속 시 과거 이벤트를 조회하는 HTTP API는 아직 없으며 DB 조회 어댑터를 추가할 수 있습니다.
 
