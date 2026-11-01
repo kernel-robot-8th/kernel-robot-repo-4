@@ -1,0 +1,172 @@
+/*
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+*/
+
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --border: #dfe2e7;
+  --text: #1c2129;
+  --muted: #6b7380;
+  --good: #1f9d55;
+  --warn: #d98a00;
+  --bad: #d64545;
+  --active: #2f6fdb;
+  --idle: #8a93a0;
+  --robot-1: #2f6fdb;
+  --robot-2: #12a38a;
+  --robot-3: #8a4fd8;
+  --offline: #9aa1ab;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418;
+    --panel: #1a1e24;
+    --border: #2b313a;
+    --text: #e6e9ee;
+    --muted: #8e96a3;
+    --good: #3cc47c;
+    --warn: #f0a92e;
+    --bad: #ef6464;
+    --active: #5b93f0;
+    --idle: #7d8592;
+    --robot-1: #5b93f0;
+    --robot-2: #2fc4a8;
+    --robot-3: #a77ef0;
+    --offline: #5d646e;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+}
+
+h1, h2 { margin: 0; font-weight: 600; }
+h1 { font-size: 17px; }
+h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
+.muted { color: var(--muted); }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.links { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.link i { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+.link[data-state="good"] i { background: var(--good); }
+.updated { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.side { display: flex; flex-direction: column; gap: 16px; }
+
+.map-wrap { position: relative; width: 100%; min-width: 0; }
+#map { display: block; margin: 0 auto; max-width: 100%; border-radius: 6px; }
+.side, .panel { min-width: 0; }
+.map-empty { margin: 40px 0; text-align: center; color: var(--muted); }
+
+.cards { display: flex; flex-direction: column; gap: 10px; }
+
+.card {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--robot-color, var(--idle));
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card.offline { opacity: 0.55; border-left-color: var(--offline); }
+
+.card-top { display: flex; align-items: center; gap: 8px; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--robot-color, var(--idle)); }
+.card.offline .swatch { background: var(--offline); }
+.name { font-size: 15px; }
+
+.badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--offline);
+}
+.badge[data-state="online"] { background: var(--good); }
+.badge[data-state="offline"] { background: var(--bad); }
+
+.state-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.state { font-weight: 600; font-size: 13px; color: var(--state-color, var(--idle)); }
+.detail { font-size: 12px; }
+
+.battery { display: flex; align-items: center; gap: 8px; }
+.battery-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.battery-fill { height: 100%; width: 0; background: var(--good); }
+.battery-fill[data-level="low"] { background: var(--warn); }
+.battery-fill[data-level="critical"] { background: var(--bad); }
+.battery-text { font-size: 12px; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.meta { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.zones .muted { grid-column: 1 / -1; margin: 0; }
+
+.zone {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+.zone strong { display: block; font-size: 16px; }
+.zone span { font-size: 12px; color: var(--good); }
+.zone.occupied { border-color: var(--warn); }
+.zone.occupied span { color: var(--warn); font-weight: 600; }
+
+@media (max-width: 900px) {
+  /* minmax(0, …) 여야 canvas 너비가 칸을 밀어 넓히지 않는다 */
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}

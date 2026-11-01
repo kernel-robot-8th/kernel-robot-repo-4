@@ -1,0 +1,6 @@
+# 읽기 전용 관제 노드 파라미터 (관제 PC, ROS_DOMAIN_ID=100)
+fleet_status_node:
+  ros__parameters:
+    robots: [pinky1, pinky2, pinky3]   # 관제 PC 쪽 토픽 접두사 (/pinkyN/...)
+    stale_timeout_sec: 3.0             # 위치·배터리가 이만큼 끊기면 offline [s]
+    publish_period_sec: 1.0            # /control_center/fleet_status 발행 주기 [s]

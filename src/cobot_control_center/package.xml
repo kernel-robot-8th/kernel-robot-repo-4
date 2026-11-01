@@ -12,11 +12,20 @@
        빌드는 두 패키지를 함께 고른다 (docs/fms_map_contract.md 2절). -->
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <!-- 읽기 전용 관제 노드(fleet_status_node) -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+  <!-- 관제 백엔드(fleet_api_node). 새 의존성: PR 에서 팀 허락을 받는다. 개발은 .venv 고정 버전 -->
+  <exec_depend>python3-fastapi</exec_depend>
+  <exec_depend>python3-uvicorn</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
+  <test_depend>python3-httpx</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

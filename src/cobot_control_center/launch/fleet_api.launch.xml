@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  관제 백엔드 (FastAPI). /control_center/fleet_status 를 받아 HTTP·WebSocket 으로 내고 화면을 띄운다.
+  fastapi·uvicorn 이 필요하다 (.venv 를 켠 셸에서 빌드·실행, CLAUDE.md §5).
+    화면 /   API /api/health, /api/fleet, /api/robots, /api/robots/{robot_id}, /api/map/info, /api/map/image
+    WS /ws/fleet
+
+  map_yaml 기본값은 로봇이 쓰는 지도(cobot_navigation/map_view_pc/maps/cobot_map_v9)다.
+  colcon 표준 배치(<ws>/install/<pkg>/share/<pkg>)에서 <ws>/src 로 거슬러 올라간다.
+  다른 지도나 배치면 map_yaml:=<경로> 로 바꾼다.
+-->
+<launch>
+  <arg name="map_yaml"
+       default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml"
+       description="관제 화면 지도 YAML (로봇 amcl 과 같은 지도)"/>
+
+  <node pkg="cobot_control_center" exec="fleet_api_node" name="fleet_api_node" output="screen">
+    <param from="$(find-pkg-share cobot_control_center)/config/fleet_api_node.yaml"/>
+    <param name="map_yaml" value="$(var map_yaml)"/>
+  </node>
+</launch>

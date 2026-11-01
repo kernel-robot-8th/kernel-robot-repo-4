@@ -1,0 +1,72 @@
+<!doctype html>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  관제 화면 (읽기 전용). fleet_api_node 가 이 폴더를 / 로 서빙한다.
+  외부 라이브러리·CDN 없이 동작한다 (현장은 인터넷이 없을 수 있다).
+-->
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>로봇 관제</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>로봇 관제</h1>
+    <div class="links">
+      <span class="link" id="link-ws" data-state="bad"><i></i>백엔드</span>
+      <span class="link" id="link-source" data-state="bad"><i></i>관제 노드</span>
+      <span class="updated" id="updated">수신 대기</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel map-panel" aria-label="지도">
+      <div class="panel-head">
+        <h2>지도</h2>
+        <span class="muted" id="map-meta"></span>
+      </div>
+      <div class="map-wrap" id="map-wrap">
+        <canvas id="map"></canvas>
+        <p class="map-empty" id="map-empty" hidden>지도 없음</p>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel" aria-label="로봇">
+        <div class="panel-head"><h2>로봇</h2></div>
+        <div class="cards" id="cards"></div>
+      </section>
+
+      <section class="panel" aria-label="위험구역">
+        <div class="panel-head"><h2>위험구역</h2></div>
+        <div class="zones" id="zones"><p class="muted">구역 상태 수신 대기</p></div>
+      </section>
+    </aside>
+  </main>
+
+  <template id="card-template">
+    <article class="card">
+      <div class="card-top">
+        <span class="swatch"></span>
+        <strong class="name"></strong>
+        <span class="badge"></span>
+      </div>
+      <div class="state-row">
+        <span class="state"></span>
+        <span class="detail muted"></span>
+      </div>
+      <div class="battery" title="배터리">
+        <div class="battery-bar"><div class="battery-fill"></div></div>
+        <span class="battery-text"></span>
+      </div>
+      <div class="meta muted"></div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

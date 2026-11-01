@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  읽기 전용 관제 노드. 구독만 하고 로봇 토픽에는 발행하지 않는다.
+  출력: /control_center/fleet_status (std_msgs/String, JSON)
+-->
+<launch>
+  <node pkg="cobot_control_center" exec="fleet_status_node" name="fleet_status_node" output="screen">
+    <param from="$(find-pkg-share cobot_control_center)/config/fleet_status_node.yaml"/>
+  </node>
+</launch>

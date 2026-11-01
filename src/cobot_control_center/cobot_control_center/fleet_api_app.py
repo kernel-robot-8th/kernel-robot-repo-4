@@ -1,0 +1,115 @@
+# Copyright 2026 Pinky_Team4
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+관제 백엔드 웹 API (FastAPI, ROS 없음).
+
+브라우저는 ROS 토픽 이름을 모르고 이 API 만 본다. 안쪽(ROS 토픽, 나중의 MQTT·DB)이 바뀌어도
+여기 경로와 응답 모양을 유지한다. 지금은 읽기 전용이다. 로봇에 명령을 보내는 경로는 없다.
+"""
+
+import asyncio
+
+from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+
+# WebSocket 이 새 스냅샷을 기다리는 한 번의 최대 시간 [s]. 끊긴 연결을 이 주기로 알아챈다.
+WS_WAIT_SEC = 1.0
+
+
+def create_app(store, map_data=None, web_dir=None):
+    """
+    웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
+
+    map_data 는 load_map() 결과 (info, pgm 바이트) 또는 None, web_dir 은 화면 정적 파일 폴더다.
+    """
+    app = FastAPI(title='cobot control center API', version='0.1.0')
+
+    def map_or_404():
+        if map_data is None:
+            raise HTTPException(status_code=404, detail='지도가 설정되지 않음 (map_yaml)')
+        return map_data
+
+    @app.get('/api/map/info')
+    def map_info():
+        return map_or_404()[0]
+
+    @app.get('/api/map/image')
+    def map_image():
+        return Response(content=map_or_404()[1], media_type='image/x-portable-graymap')
+
+    def latest():
+        _, snapshot = store.get()
+        if snapshot is None:
+            raise HTTPException(status_code=503, detail='fleet_status 를 아직 받지 못함')
+        return snapshot
+
+    @app.get('/api/health')
+    def health():
+        return {'ok': True, **store.health()}
+
+    @app.get('/api/fleet')
+    def fleet():
+        return latest()
+
+    @app.get('/api/robots')
+    def robots():
+        snapshot = latest()
+        return [{'robot_id': name, **robot}
+                for name, robot in snapshot.get('robots', {}).items()]
+
+    @app.get('/api/robots/{robot_id}')
+    def robot(robot_id: str):
+        robots = latest().get('robots', {})
+        if robot_id not in robots:
+            raise HTTPException(status_code=404, detail=f'등록되지 않은 로봇: {robot_id}')
+        return {'robot_id': robot_id, **robots[robot_id]}
+
+    @app.websocket('/ws/fleet')
+    async def ws_fleet(websocket: WebSocket):
+        await websocket.accept()
+        closed = asyncio.Event()
+
+        async def watch_close():
+            # 원천이 멈춰 보낼 것이 없을 때도 끊긴 연결을 알아채려고 수신을 따로 지켜본다.
+            try:
+                while (await websocket.receive())['type'] != 'websocket.disconnect':
+                    pass
+            finally:
+                closed.set()
+
+        watcher = asyncio.create_task(watch_close())
+        seq, snapshot = store.get()
+        try:
+            if snapshot is not None:
+                await websocket.send_json(snapshot)
+            while not closed.is_set():
+                # store 는 스레드 lock 을 쓰므로 이벤트 루프를 막지 않게 스레드에서 기다린다.
+                if await asyncio.to_thread(store.wait_newer, seq, WS_WAIT_SEC):
+                    if closed.is_set():
+                        break
+                    seq, snapshot = store.get()
+                    await websocket.send_json(snapshot)
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            watcher.cancel()
+
+    # API 경로를 먼저 등록하고 마지막에 '/' 를 마운트해야 /api·/ws 가 정적 파일에 가려지지 않는다.
+    # colcon --symlink-install 은 설치된 web/ 파일을 build/ 로 가는 링크로 만든다. 그래서 링크를 따라간다.
+    if web_dir is not None:
+        app.mount('/', StaticFiles(directory=web_dir, html=True, follow_symlink=True),
+                  name='web')
+
+    return app
