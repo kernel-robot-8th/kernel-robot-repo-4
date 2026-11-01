@@ -1,0 +1,221 @@
+# Copyright 2026 Pinky_Team4
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+가짜 핑키 로직(mock_pinky_sim.py)을 ROS 없이 검사한다.
+
+지점·구역은 실제 순찰·zone_manager 설정 파일을 읽는다. 그 파일 형식이 바뀌면 여기서 먼저 깨진다.
+"""
+
+import os
+import random
+
+from cobot_mock.mock_pinky_sim import (check_domain, choose_auto_command, load_robot_configs,
+                                       load_zone_params, parse_command, RobotSim, ZoneBook)
+import pytest
+
+NAV = os.path.join(os.path.dirname(__file__), '..', '..', 'cobot_navigation')
+POINTS_DIR = os.path.join(NAV, 'cobot_pinky_patrol', 'config')
+ZONE_PARAMS = os.path.join(NAV, 'cobot_zone_traffic_control', 'config', 'zone_params.yaml')
+ROBOTS = ['pinky1', 'pinky2', 'pinky3']
+
+
+@pytest.fixture
+def fleet():
+    configs = load_robot_configs(POINTS_DIR, ROBOTS)
+    book = ZoneBook(load_zone_params(ZONE_PARAMS))
+    # 유휴 복귀는 길게 둔다 (다른 시험 중에 홈으로 가 버리지 않게). 복귀 시험만 따로 줄인다.
+    sims = {r: RobotSim(r, configs[r], book, speed_mps=1.0, idle_return_sec=60.0) for r in ROBOTS}
+    return sims, book
+
+
+def run(sims, seconds, start=0.0, dt=0.1):
+    """모든 로봇을 seconds 동안 진행하고 로봇별 이벤트를 돌려준다."""
+    events = {r: [] for r in sims}
+    t = start
+    for _ in range(int(round(seconds / dt))):
+        t += dt
+        for name, sim in sims.items():
+            events[name] += sim.step(t, dt)
+    return events, t
+
+
+def states(events):
+    return [(e['state'], e['detail']) for e in events]
+
+
+def test_configs_match_real_files():
+    configs = load_robot_configs(POINTS_DIR, ROBOTS)
+    assert [configs[r]['home'] for r in ROBOTS] == ['I1', 'I2', 'I3']
+    assert configs['pinky1']['zone_points'] == {'A': ['ZA'], 'B': ['ZB'], 'C': ['ZC']}
+    assert 'ZA_EXIT' in configs['pinky1']['points']
+    assert 'P36' not in configs['pinky1']['points']       # (0,0,0) 예비 점은 뺀다
+    zones = load_zone_params(ZONE_PARAMS)
+    assert set(zones['zones']) == {'A', 'B', 'C'}
+    assert zones['queue_max'] == 3
+
+
+@pytest.mark.parametrize('domain,ok', [('', False), ('0', False), ('10', False), ('12', False),
+                                       ('20', False), ('30', False), ('100', False),
+                                       ('101', True), ('77', True), ('abc', False)])
+def test_check_domain(domain, ok):
+    assert check_domain({'ROS_DOMAIN_ID': domain})[0] is ok
+
+
+def test_parse_command():
+    assert parse_command('goto:P1, P2') == ('goto', ['P1', 'P2'], None)
+    assert parse_command('leave') == ('leave', [], None)
+    assert parse_command('{"command_id": "job-1", "command": "zone:ZA"}') == (
+        'zone', ['ZA'], 'job-1')
+    assert parse_command('dance')[0] is None
+    assert parse_command('{"command": "goto:P1"}')[0] is None
+
+
+def test_goto_sequence(fleet):
+    sims, _ = fleet
+    ev = sims['pinky1'].command('goto:P1,P2', 0.0)
+    more, _ = run(sims, 10)
+    seq = states(ev + more['pinky1'])
+    assert seq[:3] == [('STARTING', 'P1,P2'), ('MOVING', 'P1'), ('ARRIVED', 'P1')]
+    assert seq[3:6] == [('MOVING', 'P2'), ('ARRIVED', 'P2'), ('DONE', 'arrived P2')]
+    assert seq[6] == ('IDLE_WAIT', '60')
+    assert sims['pinky1'].pose == sims['pinky1'].points['P2']
+
+
+def test_validation_failures_match_real_node(fleet):
+    sim = fleet[0]['pinky1']
+    assert states(sim.command('goto:P99', 0)) == [('FAILED', "unknown point: ['P99']")]
+    assert states(sim.command('goto:ZA', 0)) == [('FAILED', "use zone: ['ZA']")]
+    assert states(sim.command('goto:I2', 0)) == [('FAILED', "not allowed: ['I2']")]
+    assert states(sim.command('zone:P1', 0)) == [('FAILED', "zone needs one zone point: ['P1']")]
+    assert states(sim.command('goto', 0)) == [('FAILED', 'no point given')]
+    assert states(sim.command('leave', 0)) == [('FAILED', 'no zone held')]
+    assert states(sim.command('start', 0)) == [('FAILED', 'start disabled')]
+
+
+def test_busy_robot_ignores_new_command(fleet):
+    sim = fleet[0]['pinky1']
+    sim.command('goto:P3', 0.0)
+    assert sim.command('goto:P1', 0.1) == []
+
+
+def test_zone_hold_queue_and_leave(fleet):
+    sims, book = fleet
+    sims['pinky1'].command('zone:ZA', 0.0)
+    ev, t = run(sims, 10)
+    assert ('HOLDING_ZONE', 'A') in states(ev['pinky1'])
+    assert book.status_lines()[0] == 'A:occupied_by:pinky1'
+
+    # 두 번째 로봇은 대기 슬롯 0 에서 기다린다
+    first = sims['pinky2'].command('zone:ZA', t)
+    ev, t = run(sims, 10, t)
+    # 실제 노드처럼 슬롯으로 MOVING(slot) 한 뒤 QUEUEING(slot0)
+    assert states(first + ev['pinky2'])[:3] == [
+        ('STARTING', 'ZA'), ('MOVING', 'slot'), ('QUEUEING', 'slot0')]
+    assert sims['pinky2'].pose[:2] == pytest.approx(book.slot_pose('A', 0)[:2])
+    assert sims['pinky2'].running
+
+    # 점유자가 나가면 대기자가 들어간다
+    leave = sims['pinky1'].command('leave', t)
+    ev, t = run(sims, 10, t)
+    assert ('LEAVING_ZONE', 'ZA_EXIT') in states(leave + ev['pinky1'])
+    assert ('DONE', 'left zone') in states(ev['pinky1'])
+    assert ('HOLDING_ZONE', 'A') in states(ev['pinky2'])
+    assert book.owner['A'] == 'pinky2'
+
+
+def test_queue_full(fleet):
+    sims, book = fleet
+    for i, r in enumerate(['a', 'b', 'c']):
+        book.queue['A'].append(r)
+    book.owner['A'] = 'x'
+    book.granted_at['A'] = 0.0
+    ev = sims['pinky1'].command('zone:ZA', 0.0)
+    more, _ = run(sims, 1)
+    assert ('FAILED', 'queue_full') in states(ev + more['pinky1'])
+    assert not sims['pinky1'].running
+
+
+def test_stop_in_zone_retreats(fleet):
+    sims, book = fleet
+    sims['pinky1'].command('zone:ZA', 0.0)        # 비어 있어 바로 허가 -> ZA 로 가는 중
+    _, t = run(sims, 0.2)
+    assert sims['pinky1'].held_zone == 'A' and sims['pinky1'].running
+    ev = sims['pinky1'].command('stop', t)
+    more, _ = run(sims, 10, t)
+    seq = states(ev + more['pinky1'])
+    assert seq[0] == ('STOPPED', 'ZA')
+    assert ('RETREATING', 'ZA_EXIT') in seq
+    assert seq[-1] == ('STOPPED', 'retreated')
+    assert book.owner['A'] is None
+
+
+def test_emergency_stop_keeps_token(fleet):
+    sims, book = fleet
+    sims['pinky1'].command('zone:ZA', 0.0)
+    run(sims, 0.3)
+    ev = sims['pinky1'].command('emergency_stop', 0.3)
+    assert states(ev)[0][0] == 'STOPPED'
+    assert book.owner['A'] == 'pinky1'            # 매니저 쪽 토큰은 남는다
+    assert sims['pinky1'].held_zone is None
+    book.tick(0.3 + book.params['max_hold_sec'] + 1)
+    assert book.owner['A'] is None
+
+
+def test_command_id_and_task_finished(fleet):
+    sims, _ = fleet
+    ev = sims['pinky1'].command('{"command_id": "job-7", "command": "goto:P1"}', 0.0)
+    more, _ = run(sims, 5)
+    all_ev = ev + more['pinky1']
+    task = [e for e in all_ev if 'command_id' in e]
+    assert task and all(e['command_id'] == 'job-7' for e in task)
+    assert [e['state'] for e in task if e['task_finished']] == ['DONE']
+    after = [e for e in all_ev if e['state'] == 'IDLE_WAIT']
+    assert after and 'command_id' not in after[0]
+
+    rejected = sims['pinky1'].command('{"command_id": "job-8", "command": "goto:P99"}', 5.0)
+    assert rejected[0]['task_finished'] is True and rejected[0]['command_id'] == 'job-8'
+
+
+def test_idle_return_goes_home(fleet):
+    sims, _ = fleet
+    sims['pinky1'].idle_return_sec = 5.0
+    sims['pinky1'].command('goto:P1', 0.0)
+    ev, _ = run(sims, 15)
+    seq = states(ev['pinky1'])
+    assert ('RETURNING', 'I1') in seq
+    assert seq[-1] == ('DONE', 'returned home')
+    assert sims['pinky1'].pose == sims['pinky1'].points['I1']
+
+
+def test_battery_drains_and_charges(fleet):
+    sim = fleet[0]['pinky1']
+    sim.battery = 50.0
+    sim.step(1.0, 60.0)
+    assert sim.battery == pytest.approx(50.0 - sim.drain_idle)
+    sim.battery = 10.0
+    sim.step(2.0, 60.0)                           # 홈에서 쉬는 중이면 충전
+    assert sim.battery == pytest.approx(10.0 + sim.charge_per_min)
+
+
+def test_auto_command_is_always_valid(fleet):
+    sims, _ = fleet
+    rng = random.Random(1)
+    sim = sims['pinky1']
+    for _ in range(50):
+        cmd = choose_auto_command(sim, rng)
+        events = sim.command(cmd, 0.0)
+        assert not any(e['state'] == 'FAILED' for e in events), cmd
+        sim.steps.clear()
+        sim.running = False

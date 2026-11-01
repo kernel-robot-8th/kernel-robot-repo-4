@@ -1,0 +1,18 @@
+# 가짜 핑키 파라미터 (격리 도메인 전용. 실물 0·10·12·20·30·100 에서는 시작하지 않는다)
+mock_pinky_node:
+  ros__parameters:
+    robots: [pinky1, pinky2, pinky3]
+    points_dir: ''                   # pinkyN.yaml 폴더. mock_fleet.launch.xml 이 채운다
+    zone_params: ''                  # zone_params.yaml 경로. mock_fleet.launch.xml 이 채운다
+    speed_mps: 0.15                  # 이동 속도 [m/s]
+    idle_return_sec: 40.0            # 명령 뒤 유휴 복귀까지 [s] (실물 120 s, 시연용으로 줄임)
+    auto_patrol: true                # 쉬는 로봇이 스스로 무작위 명령을 낸다
+    auto_interval_sec: 8.0           # 작업이 끝난 뒤 다음 자동 명령까지 [s]
+    auto_pause_after_cmd_sec: 60.0   # 외부 patrol_cmd 를 받은 로봇은 이 시간 자동 명령을 쉰다 [s]
+    drain_moving_per_min: 1.0        # 이동 중 배터리 감소 [%/min]
+    drain_idle_per_min: 0.2          # 대기 중 배터리 감소 [%/min]
+    charge_per_min: 5.0              # 15 % 아래로 떨어진 뒤 홈에서 충전 [%/min]
+    dropout_robot: pinky3            # 주기적으로 끊기는 로봇 ('' 이면 끔)
+    dropout_period_sec: 60.0         # 끊김 주기 [s]
+    dropout_sec: 12.0                # 한 번 끊기는 시간 [s]
+    seed: 0                          # 무작위 재현용

@@ -22,6 +22,7 @@
 │   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
 │   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
+│   ├── cobot_mock/             # [관제] 개발·시험용 가짜 핑키 (격리 도메인 전용, 폴더째 빼도 됨)
 │   └── cobot_gui/              # [GUI] 사용자/관제 화면 (웹 화면 자원은 web/ → 3-7 참고)
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
 │   ├── dev_docker_guide.md     # 도커로 빌드·시험하는 방법 (도커를 처음 쓰는 사람용 설명 포함)
@@ -47,7 +48,7 @@
 | 주행 | `cobot_navigation` | 김진호 |
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
-| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center` | 김지혜 |
+| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_mock` | 김지혜 |
 | 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
 | 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
 
