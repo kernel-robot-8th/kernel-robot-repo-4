@@ -12,10 +12,12 @@
   map_yaml 기본값은 로봇이 쓰는 지도(cobot_navigation/map_view_pc/maps/cobot_map_v9)다.
   colcon 표준 배치(<ws>/install/<pkg>/share/<pkg>)에서 <ws>/src 로 거슬러 올라간다.
   다른 지도나 배치면 map_yaml:=<경로> 로 바꾼다.
+  port 는 실물(8080)과 가짜 핑키(cobot_mock, 8081)를 한 PC 에서 함께 띄울 때 겹치지 않게 나눈다.
   구역 표시(points_dir, zone_params)도 같은 방식으로 주행 설정 파일을 읽기만 한다
   (cobot_navigation 패키지에 의존하지 않으려고 find-pkg-share 대신 src 상대 경로를 쓴다).
 -->
 <launch>
+  <arg name="port" default="8080" description="웹 서버 포트 (실물 8080, 가짜 핑키 8081)"/>
   <arg name="map_yaml"
        default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml"
        description="관제 화면 지도 YAML (로봇 amcl 과 같은 지도)"/>
@@ -28,6 +30,7 @@
 
   <node pkg="cobot_control_center" exec="fleet_api_node" name="fleet_api_node" output="screen">
     <param from="$(find-pkg-share cobot_control_center)/config/fleet_api_node.yaml"/>
+    <param name="port" value="$(var port)"/>
     <param name="map_yaml" value="$(var map_yaml)"/>
     <param name="points_dir" value="$(var points_dir)"/>
     <param name="zone_params" value="$(var zone_params)"/>

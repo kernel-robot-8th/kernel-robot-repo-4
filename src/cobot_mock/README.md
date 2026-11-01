@@ -28,13 +28,14 @@ export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 ros2 launch cobot_mock mock_fleet.launch.xml
 ```
 
-가짜 핑키 3대와 관제 노드(`fleet_status_node`, `fleet_api_node`)가 함께 뜹니다. 화면은 `http://localhost:8080/` 입니다
-(노트북에서는 `ssh -N -L 8080:127.0.0.1:8080 <사용자>@<관제 PC>` 후 같은 주소).
+가짜 핑키 3대와 관제 노드(`fleet_status_node`, `fleet_api_node`)가 함께 뜹니다. 화면은 `http://localhost:8081/` 입니다 (실물 관제 8080 과 겹치지 않게 나눔, `port:=` 로 바꿀 수 있음)
+(노트북에서는 `ssh -N -L 8081:127.0.0.1:8081 <사용자>@<관제 PC>` 후 같은 주소).
 
 | 인자 | 기본값 | 뜻 |
 |---|---|---|
 | `auto_patrol` | `true` | 쉬는 로봇이 스스로 무작위 명령(goto·zone·leave·home)을 냄 |
 | `with_control_center` | `true` | 관제 노드를 함께 띄울지 |
+| `port` | `8081` | 관제 화면 포트. 실물 관제(8080)와 한 PC 에서 함께 띄울 수 있게 나눔 |
 | `points_dir` | `cobot_pinky_patrol/config` (install) | `pinkyN.yaml` 폴더 |
 | `zone_params` | `cobot_zone_traffic_control/config/zone_params.yaml` (install) | 구역 대기 슬롯 설정 |
 

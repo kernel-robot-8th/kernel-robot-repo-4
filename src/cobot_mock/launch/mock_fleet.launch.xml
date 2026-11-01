@@ -7,6 +7,7 @@
   반드시 격리 도메인에서 실행한다 (실물 0·10·12·20·30·100 이면 가짜 핑키가 시작을 거부한다):
     export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
     ros2 launch cobot_mock mock_fleet.launch.xml
+  관제 화면은 http://localhost:8081/ 이다. 실물 관제(8080)와 한 PC 에서 함께 띄워도 포트가 겹치지 않는다.
   지점·구역 좌표는 실제 순찰·zone_manager 설정 파일을 그대로 읽는다.
 -->
 <launch>
@@ -16,6 +17,7 @@
        description="zone_manager 설정 파일"/>
   <arg name="auto_patrol" default="true" description="가짜 핑키가 스스로 돌아다닐지"/>
   <arg name="with_control_center" default="true" description="fleet_status·fleet_api 도 함께 띄울지"/>
+  <arg name="port" default="8081" description="관제 화면 포트 (실물 관제 8080 과 겹치지 않게)"/>
 
   <node pkg="cobot_mock" exec="mock_pinky_node" name="mock_pinky_node" output="screen">
     <param from="$(find-pkg-share cobot_mock)/config/mock_pinky_node.yaml"/>
@@ -26,6 +28,8 @@
 
   <group if="$(var with_control_center)">
     <include file="$(find-pkg-share cobot_control_center)/launch/fleet_status.launch.xml"/>
-    <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml"/>
+    <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
+      <arg name="port" value="$(var port)"/>
+    </include>
   </group>
 </launch>

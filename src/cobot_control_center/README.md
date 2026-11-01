@@ -210,7 +210,7 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | 이름 | 기본값 | 뜻 |
 |---|---|---|
 | `host` | `127.0.0.1` | 바인드 주소. 다른 PC 에서 직접 접속하려면 `0.0.0.0` (로그인 없음 주의) |
-| `port` | `8080` | |
+| `port` | `8080` | launch 인자 `port:=` 로 바꿈. 가짜 핑키(`cobot_mock`)는 8081 을 써서 한 PC 에서 함께 띄울 수 있음 |
 | `source_stale_sec` | `3.0` | `fleet_status` 가 이만큼 끊기면 `source_online=false` [s] |
 | `map_yaml` | launch 인자가 채움 | 지도 YAML. 비거나 읽지 못하면 지도 없이 시작 |
 | `web_dir` | `share/cobot_control_center/web` | 화면 정적 파일 폴더 |
