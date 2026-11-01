@@ -4,3 +4,7 @@ fleet_status_node:
     robots: [pinky1, pinky2, pinky3]   # 관제 PC 쪽 토픽 접두사 (/pinkyN/...)
     stale_timeout_sec: 3.0             # 위치·배터리가 이만큼 끊기면 offline [s]
     publish_period_sec: 1.0            # /control_center/fleet_status 발행 주기 [s]
+    control_domain_id: 100             # 실물 관제 도메인. 이 도메인일 때만 브릿지·zone_manager 를 검사
+    # 관제 PC 쪽 브릿지 노드 이름. cobot_domain_bridge 설정의 name 에 도메인이 붙은 모양
+    bridge_node_format: pinky_bridge_{robot}_only_{domain}
+    mock_node_name: mock_pinky_node    # 이 노드가 보이면 '가짜 핑키' 모드로 표시

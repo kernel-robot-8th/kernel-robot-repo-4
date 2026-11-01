@@ -25,9 +25,20 @@ const STATE_GROUP = {
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const $ = (id) => document.getElementById(id);
 
+// 기반 노드 판정(fleet_status 의 infra) → 점 색과 설명
+const INFRA_STATE = {
+  ok: { dot: "good", text: "정상" },
+  missing: { dot: "bad", text: "없음" },
+  duplicate: { dot: "bad", text: "중복" },
+  unknown: { dot: "warn", text: "확인 불가 (DDS 가 달라 이름이 안 보임)" },
+  "n/a": { dot: "na", text: "해당 없음 (실물 도메인 아님)" },
+};
+const MODE_TEXT = { real: "실물", mock: "가짜 핑키", test: "시험" };
+
 const view = {
   snapshot: null,
   receivedAt: 0,
+  healthDomain: null, // /api/health 의 domain_id (fleet_status 를 받기 전에도 보이게)
   map: null,        // {info, canvas}
   cards: new Map(), // robot_id → card element
 };
@@ -56,6 +67,45 @@ function connect() {
     setTimeout(connect, RECONNECT_MS);
   };
   ws.onerror = () => ws.close();
+}
+
+// ---------- 도메인·기반 노드 ----------
+
+function renderMode(infra) {
+  const el = $("mode");
+  const domain = infra ? infra.domain_id : view.healthDomain;
+  const mode = infra ? infra.mode : "unknown";
+  el.dataset.mode = mode;
+  el.textContent = domain === null || domain === undefined ? "도메인 ?"
+    : MODE_TEXT[mode] ? `도메인 ${domain} · ${MODE_TEXT[mode]}` : `도메인 ${domain}`;
+  el.title = mode === "real" ? "실물 관제 도메인입니다"
+    : mode === "unknown" ? "관제 노드 정보를 기다리는 중"
+    : `실물 관제 도메인(${infra.control_domain_id})이 아닙니다`;
+}
+
+// 관제 노드가 끊기면 마지막 판정이 낡았으므로 회색으로 둔다.
+function renderInfra(infra, fresh) {
+  const zone = $("link-zone");
+  const zoneState = infra && fresh ? infra.zone_manager.state : "n/a";
+  zone.dataset.state = INFRA_STATE[zoneState].dot;
+  zone.querySelector(".label").textContent = zoneState === "duplicate"
+    ? `zone_manager 중복 ${infra.zone_manager.count}` : "zone_manager";
+  zone.title = fresh ? `zone_manager: ${INFRA_STATE[zoneState].text}` : "관제 노드 끊김";
+
+  const box = $("link-bridges");
+  box.querySelectorAll(".dot").forEach((dot) => dot.remove());
+  Object.entries((infra && infra.bridges) || {}).forEach(([robotId, bridge], index) => {
+    const state = fresh ? bridge.state : "n/a";
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.dataset.state = INFRA_STATE[state].dot;
+    dot.appendChild(document.createElement("i"));
+    dot.appendChild(document.createTextNode(String(index + 1)));
+    dot.title = fresh
+      ? `${robotId} (${bridge.node}): ${INFRA_STATE[state].text}${bridge.count > 1 ? ` ${bridge.count}개` : ""}`
+      : "관제 노드 끊김";
+    box.appendChild(dot);
+  });
 }
 
 // ---------- 카드 ----------
@@ -282,6 +332,8 @@ function render() {
   const snap = view.snapshot;
   if (!snap) return;
   setLink("link-source", snap.source_online);
+  renderMode(snap.infra);
+  renderInfra(snap.infra, snap.source_online);
   $("updated").textContent = `갱신 ${new Date(view.receivedAt).toLocaleTimeString()}`;
   Object.entries(snap.robots || {}).forEach(([robotId, robot], index) => {
     renderCard(robotId, robot, index);
@@ -294,9 +346,15 @@ function render() {
 async function pollHealth() {
   try {
     const res = await fetch("/api/health");
-    setLink("link-source", res.ok && (await res.json()).source_online);
+    const health = res.ok ? await res.json() : {};
+    view.healthDomain = health.domain_id ?? null;
+    setLink("link-source", Boolean(health.source_online));
+    const infra = view.snapshot ? view.snapshot.infra : null;
+    if (!infra) renderMode(null);
+    renderInfra(infra, Boolean(health.source_online));
   } catch (err) {
     setLink("link-source", false);
+    renderInfra(view.snapshot ? view.snapshot.infra : null, false);
   }
 }
 

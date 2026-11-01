@@ -69,7 +69,30 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .links { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .link i { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
-.link[data-state="good"] i { background: var(--good); }
+.link[data-state="good"] i, .dot[data-state="good"] i { background: var(--good); }
+.link[data-state="warn"] i, .dot[data-state="warn"] i { background: var(--warn); }
+.link[data-state="na"] i, .dot[data-state="na"] i { background: var(--idle); }
+.dot[data-state="bad"] i { background: var(--bad); }
+.bridges { gap: 8px; }
+.dot { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.dot i { width: 9px; height: 9px; border-radius: 50%; }
+
+.title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* 실물이 아닌 도메인을 볼 때 눈에 띄게 한다 (가짜 로봇을 진짜로 착각하지 않게). */
+.mode {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.mode[data-mode="real"] { color: var(--text); border-color: var(--good); }
+.mode[data-mode="mock"], .mode[data-mode="test"] {
+  color: #fff;
+  background: var(--warn);
+  border-color: var(--warn);
+  font-weight: 600;
+}
 .updated { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .layout {

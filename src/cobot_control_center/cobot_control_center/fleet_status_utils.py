@@ -27,6 +27,9 @@ import math
 
 PATROL_STATUS_KEYS = ('state', 'waypoint', 'detail', 'time')
 
+# 다른 DDS 구현(예: Cyclone ↔ Fast DDS) 사이에서는 노드 이름이 넘어오지 않아 이 값으로 보인다.
+UNKNOWN_NODE_NAME = '_NODE_NAME_UNKNOWN_'
+
 
 def parse_patrol_status(text):
     """
@@ -61,6 +64,59 @@ def parse_zone_status(text):
     if not sep or not zone or not state:
         return None
     return zone, state
+
+
+def count_state(count):
+    """같은 역할 노드 개수를 상태로 바꾼다. 0 이면 missing, 1 이면 ok, 그 이상이면 duplicate."""
+    if count <= 0:
+        return 'missing'
+    if count == 1:
+        return 'ok'
+    return 'duplicate'
+
+
+def judge_infra(domain_id, control_domain_id, node_names, mock_node_name,
+                bridge_names, zone_publishers, pose_publishers):
+    """
+    관제 PC 기반 노드(브릿지, zone_manager)가 떠 있는지 판정한다.
+
+    node_names 는 그래프에서 이름이 보이는 노드 이름 목록(같은 이름도 그대로), bridge_names 는
+    로봇별로 기대하는 브릿지 노드 이름, zone_publishers 는 /zone_manager/status 발행자 수,
+    pose_publishers 는 로봇별 /<robot>/amcl_pose 발행자 노드 이름 목록이다.
+
+    mode: 가짜 핑키가 보이면 'mock', 도메인이 control_domain_id 이면 'real', 그 밖은 'test'.
+    실물이 아닐 때는 브릿지·zone_manager 가 없는 게 정상이므로 'n/a' 로 둔다.
+    zone_manager 는 이름이 아니라 발행자 수로 센다. DDS 가 달라 이름이 안 보여도 개수는 보이기 때문이다.
+    """
+    names = list(node_names)
+    if mock_node_name and mock_node_name in names:
+        mode = 'mock'
+    elif domain_id == control_domain_id:
+        mode = 'real'
+    else:
+        mode = 'test'
+    real = mode == 'real'
+
+    bridges = {}
+    for robot, bridge in bridge_names.items():
+        count = names.count(bridge)
+        if not real:
+            state = 'n/a'
+        elif count == 0 and UNKNOWN_NODE_NAME in pose_publishers.get(robot, []):
+            # 이름 모를 노드가 위치를 내고 있다: 브릿지일 수 있지만 확인할 수 없다.
+            state = 'unknown'
+        else:
+            state = count_state(count)
+        bridges[robot] = {'state': state, 'count': count, 'node': bridge}
+
+    return {
+        'domain_id': domain_id,
+        'control_domain_id': control_domain_id,
+        'mode': mode,
+        'zone_manager': {'state': count_state(zone_publishers) if real else 'n/a',
+                         'count': zone_publishers},
+        'bridges': bridges,
+    }
 
 
 def yaw_from_quaternion(x, y, z, w):

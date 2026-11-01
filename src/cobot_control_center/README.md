@@ -105,6 +105,16 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 화면 상단의 **백엔드**(WebSocket)·**관제 노드**(`fleet_status` 수신) 표시가 빨강이면 해당 연결이 끊긴 것입니다.
 로봇 카드의 배지는 `연결` / `끊김`(3초 이상 수신 없음) / `미수신`(켠 뒤 한 번도 못 받음)입니다.
 
+제목 옆 칩은 지금 보는 도메인과 모드입니다. `도메인 100 · 실물` 이 아니면(가짜 핑키, 시험) 주황으로 표시합니다.
+그 옆 **zone_manager**·**브릿지 1 2 3** 점은 관제 PC 기반 노드 상태입니다 (마우스를 올리면 설명).
+
+| 점 | 뜻 |
+|---|---|
+| 초록 | 정상 (하나 떠 있음) |
+| 빨강 | 없음, 또는 **중복**(같은 도메인에 두 벌. zone_manager 가 둘이면 구역 판단이 갈라짐) |
+| 주황 | 확인 불가. 위치를 내는 노드는 있지만 DDS 구현이 달라(예: Cyclone ↔ Fast DDS) 이름이 안 보임 |
+| 회색 | 해당 없음(실물 도메인이 아님) 또는 관제 노드 끊김 |
+
 ## API
 
 모두 읽기 전용입니다. 쓰기(POST 등) 경로는 없습니다.
@@ -112,7 +122,7 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | 경로 | 응답 |
 |---|---|
 | `GET /` | 관제 화면 |
-| `GET /api/health` | `{"ok": true, "source_online": bool, "source_age": 초 또는 null}` |
+| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "source_online": bool, "source_age": 초 또는 null}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
@@ -134,9 +144,22 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
       "extra": {}
     }
   },
-  "zones": {"A": "free", "B": "occupied_by:pinky1"}
+  "zones": {"A": "free", "B": "occupied_by:pinky1"},
+  "infra": {
+    "domain_id": 100, "control_domain_id": 100, "mode": "real",
+    "zone_manager": {"state": "ok", "count": 1},
+    "bridges": {
+      "pinky1": {"state": "ok", "count": 1, "node": "pinky_bridge_pinky1_only_100"}
+    }
+  }
 }
 ```
+
+- `infra` 는 ROS 그래프 조회로만 만듭니다 (구독·발행 없음). 1초마다 갱신합니다.
+  - `mode`: 가짜 핑키 노드가 보이면 `mock`, 도메인이 `control_domain_id` 이면 `real`, 그 밖은 `test`.
+  - `state`: `ok` / `missing` / `duplicate` / `unknown`(이름이 안 보임) / `n/a`(실물 아님).
+  - zone_manager 는 `/zone_manager/status` **발행자 수**로 셉니다. DDS 구현이 달라 노드 이름이 안 보여도 개수는 보이기 때문입니다.
+  - 브릿지는 노드 이름(`bridge_node_format`)으로 셉니다. 로봇이 꺼져 있으면 브릿지가 위치 토픽을 만들지 않으므로, 이름이 안 보이는 브릿지는 로봇이 켜졌을 때만 `unknown` 으로 드러납니다.
 
 - 단위: `pose.x`·`y` [m], `yaw` [rad], `last_seen_age` [s], `battery_percent` [%]. 모르는 값은 `null`.
 - `state`·`waypoint`·`detail`·`status_time` 은 순찰 노드 `patrol_status` 를 그대로 옮긴 값입니다.
@@ -152,6 +175,9 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | `robots` | `[pinky1, pinky2, pinky3]` | 관제 PC 쪽 토픽 접두사 |
 | `stale_timeout_sec` | `3.0` | 위치·배터리가 이만큼 끊기면 offline [s] |
 | `publish_period_sec` | `1.0` | `fleet_status` 발행 주기 [s] |
+| `control_domain_id` | `100` | 실물 관제 도메인. 이 도메인에서만 브릿지·zone_manager 를 검사 |
+| `bridge_node_format` | `pinky_bridge_{robot}_only_{domain}` | 관제 PC 쪽 브릿지 노드 이름. 브릿지 설정 `name` 에 도메인이 붙은 모양 |
+| `mock_node_name` | `mock_pinky_node` | 이 노드가 보이면 `mock` 모드 |
 
 `fleet_api_node` (`config/fleet_api_node.yaml`)
 

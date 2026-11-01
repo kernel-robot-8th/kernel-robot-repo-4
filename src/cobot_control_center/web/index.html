@@ -15,10 +15,15 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>로봇 관제</h1>
+    <div class="title">
+      <h1>로봇 관제</h1>
+      <span class="mode" id="mode" data-mode="unknown">도메인 ?</span>
+    </div>
     <div class="links">
       <span class="link" id="link-ws" data-state="bad"><i></i>백엔드</span>
       <span class="link" id="link-source" data-state="bad"><i></i>관제 노드</span>
+      <span class="link" id="link-zone" data-state="na"><i></i><span class="label">zone_manager</span></span>
+      <span class="link bridges" id="link-bridges"><span class="label">브릿지</span></span>
       <span class="updated" id="updated">수신 대기</span>
     </div>
   </header>

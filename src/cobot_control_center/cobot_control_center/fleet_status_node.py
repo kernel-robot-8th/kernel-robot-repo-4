@@ -24,7 +24,7 @@ import contextlib
 import json
 import time
 
-from cobot_control_center.fleet_status_utils import FleetState, yaw_from_quaternion
+from cobot_control_center.fleet_status_utils import FleetState, judge_infra, yaw_from_quaternion
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -41,6 +41,9 @@ class FleetStatusNode(Node):
         self.declare_parameter('robots', ['pinky1', 'pinky2', 'pinky3'])
         self.declare_parameter('stale_timeout_sec', 3.0)
         self.declare_parameter('publish_period_sec', 1.0)
+        self.declare_parameter('control_domain_id', 100)
+        self.declare_parameter('bridge_node_format', 'pinky_bridge_{robot}_only_{domain}')
+        self.declare_parameter('mock_node_name', 'mock_pinky_node')
         robots = list(self.get_parameter('robots').value)
         stale = self.get_parameter('stale_timeout_sec').value
         period = self.get_parameter('publish_period_sec').value
@@ -48,6 +51,15 @@ class FleetStatusNode(Node):
         self.fleet = FleetState(robots, stale)
         self._last_online = {name: False for name in robots}
         self._last_state = {name: None for name in robots}
+
+        # 기반 노드 확인용. 도메인은 환경 변수가 아니라 이 노드가 실제로 붙은 값을 쓴다.
+        self._domain_id = self.context.get_domain_id()
+        self._control_domain_id = self.get_parameter('control_domain_id').value
+        self._mock_node_name = self.get_parameter('mock_node_name').value
+        bridge_format = self.get_parameter('bridge_node_format').value
+        self._bridge_names = {name: bridge_format.format(robot=name, domain=self._domain_id)
+                              for name in robots}
+        self._last_infra = None
 
         # zone_manager 와 같은 설정이어야 상태 메시지를 놓치지 않는다.
         reliable = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
@@ -93,6 +105,27 @@ class FleetStatusNode(Node):
         if not self.fleet.update_zone(msg.data):
             self.get_logger().warning(f'zone_manager/status 를 읽지 못함: {msg.data!r}')
 
+    def _check_infra(self):
+        # 그래프 조회만 한다 (구독·발행 없음).
+        infra = judge_infra(
+            self._domain_id, self._control_domain_id,
+            [name for name, _ in self.get_node_names_and_namespaces()],
+            self._mock_node_name, self._bridge_names,
+            self.count_publishers('/zone_manager/status'),
+            {robot: [info.node_name
+                     for info in self.get_publishers_info_by_topic(f'/{robot}/amcl_pose')]
+             for robot in self._bridge_names})
+        summary = (infra['mode'], infra['zone_manager']['state'],
+                   tuple(b['state'] for b in infra['bridges'].values()))
+        if summary != self._last_infra:
+            self._last_infra = summary
+            bridges = ', '.join(f'{r}={b["state"]}' for r, b in infra['bridges'].items())
+            self.get_logger().info(
+                f'기반 노드: domain={self._domain_id} mode={infra["mode"]} '
+                f'zone_manager={infra["zone_manager"]["state"]}'
+                f'({infra["zone_manager"]["count"]}) bridges: {bridges}')
+        return infra
+
     def _publish(self):
         now = time.time()
         snapshot = self.fleet.snapshot(now)
@@ -100,6 +133,7 @@ class FleetStatusNode(Node):
             if robot['online'] != self._last_online[name]:
                 self._last_online[name] = robot['online']
                 self.get_logger().info(f'{name}: {"online" if robot["online"] else "offline"}')
+        snapshot['infra'] = self._check_infra()
         self.pub.publish(String(data=json.dumps(snapshot, ensure_ascii=False)))
 
 

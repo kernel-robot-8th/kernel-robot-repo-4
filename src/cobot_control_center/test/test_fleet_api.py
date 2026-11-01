@@ -103,9 +103,15 @@ def test_api_before_first_snapshot():
     store, _ = make_store()
     client = TestClient(create_app(store))
     assert client.get('/api/health').json() == {
-        'ok': True, 'source_online': False, 'source_age': None}
+        'ok': True, 'domain_id': None, 'source_online': False, 'source_age': None}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
+
+
+def test_api_health_reports_domain():
+    store, _ = make_store()
+    client = TestClient(create_app(store, domain_id=101))
+    assert client.get('/api/health').json()['domain_id'] == 101
 
 
 def test_api_routes():

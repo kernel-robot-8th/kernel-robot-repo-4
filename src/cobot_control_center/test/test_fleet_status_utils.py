@@ -18,8 +18,66 @@ import json
 import math
 
 from cobot_control_center.fleet_status_utils import (
-    FleetState, parse_patrol_status, parse_zone_status, yaw_from_quaternion)
+    count_state, FleetState, judge_infra, parse_patrol_status, parse_zone_status,
+    UNKNOWN_NODE_NAME, yaw_from_quaternion)
 import pytest
+
+BRIDGES = {'pinky1': 'pinky_bridge_pinky1_only_100', 'pinky2': 'pinky_bridge_pinky2_only_100'}
+
+
+def judge(domain_id=100, node_names=(), zone_publishers=1, pose_publishers=None):
+    return judge_infra(domain_id, 100, node_names, 'mock_pinky_node', BRIDGES,
+                       zone_publishers, pose_publishers or {})
+
+
+@pytest.mark.parametrize('count, state', [(0, 'missing'), (1, 'ok'), (2, 'duplicate'),
+                                          (3, 'duplicate')])
+def test_count_state(count, state):
+    assert count_state(count) == state
+
+
+def test_infra_real_all_ok():
+    infra = judge(node_names=['pinky_bridge_pinky1_only_100', 'pinky_bridge_pinky2_only_100',
+                              'zone_manager_node'])
+    assert infra['mode'] == 'real'
+    assert infra['domain_id'] == 100
+    assert infra['zone_manager'] == {'state': 'ok', 'count': 1}
+    assert infra['bridges']['pinky1'] == {'state': 'ok', 'count': 1,
+                                          'node': 'pinky_bridge_pinky1_only_100'}
+    assert infra['bridges']['pinky2']['state'] == 'ok'
+
+
+@pytest.mark.parametrize('zone_publishers, state', [(0, 'missing'), (2, 'duplicate')])
+def test_infra_real_zone_manager_missing_or_duplicate(zone_publishers, state):
+    assert judge(zone_publishers=zone_publishers)['zone_manager']['state'] == state
+
+
+def test_infra_real_bridge_missing_and_duplicate():
+    infra = judge(node_names=['pinky_bridge_pinky2_only_100'] * 2)
+    assert infra['bridges']['pinky1']['state'] == 'missing'
+    assert infra['bridges']['pinky2'] == {'state': 'duplicate', 'count': 2,
+                                          'node': 'pinky_bridge_pinky2_only_100'}
+
+
+def test_infra_real_bridge_unknown_when_names_are_hidden():
+    # DDS 가 다르면 브릿지 이름은 안 보이고, 위치 발행자 이름만 '모름' 으로 보인다.
+    infra = judge(pose_publishers={'pinky1': [UNKNOWN_NODE_NAME]})
+    assert infra['bridges']['pinky1']['state'] == 'unknown'
+    assert infra['bridges']['pinky2']['state'] == 'missing'
+
+
+def test_infra_mock_mode_is_not_applicable():
+    infra = judge(domain_id=101, node_names=['mock_pinky_node'], zone_publishers=1)
+    assert infra['mode'] == 'mock'
+    assert infra['zone_manager'] == {'state': 'n/a', 'count': 1}
+    assert {b['state'] for b in infra['bridges'].values()} == {'n/a'}
+
+
+def test_infra_other_domain_is_test_mode():
+    infra = judge(domain_id=77, zone_publishers=0)
+    assert infra['mode'] == 'test'
+    assert infra['zone_manager']['state'] == 'n/a'
+    assert json.loads(json.dumps(infra)) == infra
 
 
 def test_parse_patrol_status_known_fields():

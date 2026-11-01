@@ -87,7 +87,8 @@ def main(args=None):
     try:
         # 시작·종료 이벤트를 쓰지 않는다. lifespan 을 켜 두면 uvicorn 이 종료 뒤 Ctrl+C 를 다시
         # 일으킬 때 남은 lifespan 작업이 CancelledError 트레이스백을 남긴다.
-        app = create_app(node.store, node.map_data, node.web_dir)
+        app = create_app(node.store, node.map_data, node.web_dir,
+                         node.context.get_domain_id())
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):
