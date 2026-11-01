@@ -15,6 +15,7 @@
 <ws>/
 ├── src/
 │   ├── cobot_interfaces/       # 공용 msg / srv / action (코드 없음)
+│   ├── cobot_patrol_interfaces/ # 순찰 규격 v2 msg 제안 (v1 과 나란히, 합의 뒤 cobot_interfaces 로 합침)
 │   ├── cobot_bringup/          # 전체 launch, 통합 파라미터 YAML
 │   ├── cobot_description/      # URDF/xacro, 메시 (모바일 베이스 + 팔)
 │   ├── cobot_vision/           # [비전] 카메라, 검출/인식, 좌표 변환
@@ -48,7 +49,7 @@
 | 주행 | `cobot_navigation` | 김진호 |
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
-| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_mock` | 김지혜 |
+| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_mock`, `cobot_patrol_interfaces`(합칠 때 공통으로) | 김지혜 |
 | 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
 | 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
 
