@@ -3,13 +3,16 @@
 <package format="3">
   <name>cobot_bringup</name>
   <version>0.0.0</version>
-  <description>전체 시스템 launch 와 팀 공통 설정을 두는 공통 패키지. 지금은 맵 정본(config/maps)과 빈 bringup launch 만 있다. 기능 코드는 넣지 않는다. 공통 패키지라 팀 리뷰가 필요하다.</description>
+  <description>전체 시스템 launch 와 팀 공통 설정을 두는 공통 패키지. 맵 정본(config/maps)과 관제 PC bringup launch(도메인 브릿지 + zone_manager)가 있다. 기능 코드는 넣지 않는다. 공통 패키지라 팀 리뷰가 필요하다.</description>
   <maintainer email="rkd1rjs2@gmail.com">rkd1rjs2</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>ros2launch</exec_depend>
+  <exec_depend>cobot_domain_bridge</exec_depend>
+  <exec_depend>cobot_zone_traffic_control</exec_depend>
+  <exec_depend>cobot_control_center</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_copyright</test_depend>
