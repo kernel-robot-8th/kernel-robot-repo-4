@@ -14,6 +14,7 @@ const BATTERY_CRITICAL = 15;   // [%] 이하 빨강
 const ZONE_RADIUS_M = 0.12;    // 지도 위 구역 지점 원 반지름 [m] (표시용, 실제 구역 넓이 아님)
 const MARK_RADIUS_M = 0.035;   // 출구·대기 슬롯·홈 표시 크기 [m]
 const SHOW_LAYERS_KEY = "cobot_control_center.show_layers";
+const SHOW_POINTS_KEY = "cobot_control_center.show_points";
 
 // 순찰 노드 state → 색 묶음
 const STATE_GROUP = {
@@ -45,6 +46,7 @@ const view = {
   map: null,        // {info, canvas}
   layers: null,     // /api/map/layers (구역 지점·출구·대기 슬롯·홈)
   showLayers: true, // 지도 구역 표시 켜기/끄기 (브라우저에 기억)
+  showPoints: true, // 지도 일반 웨이포인트(P) 표시 켜기/끄기 (브라우저에 기억)
   cards: new Map(), // robot_id → card element
 };
 
@@ -321,24 +323,26 @@ async function loadLayers() {
     view.layers = null;
   }
   $("map-legend").hidden = !view.layers;
+  const hidden = view.layers ? view.layers.hidden_points || 0 : 0;
+  $("points-hidden").textContent = hidden ? `· 미실측 ${hidden}개 숨김` : "";
   drawMap();
 }
 
 // 선택은 이 브라우저에만 기억한다. 저장소를 못 쓰는 환경(사생활 보호 창 등)이면 켜짐으로 시작한다.
-function setupLayerToggle() {
+function setupToggle(boxId, storageKey, viewKey, legendOffClass) {
   try {
-    view.showLayers = localStorage.getItem(SHOW_LAYERS_KEY) !== "0";
+    view[viewKey] = localStorage.getItem(storageKey) !== "0";
   } catch (err) {
-    view.showLayers = true;
+    view[viewKey] = true;
   }
-  const box = $("show-layers");
-  box.checked = view.showLayers;
-  $("map-legend").classList.toggle("off", !view.showLayers);
+  const box = $(boxId);
+  box.checked = view[viewKey];
+  $("map-legend").classList.toggle(legendOffClass, !view[viewKey]);
   box.addEventListener("change", () => {
-    view.showLayers = box.checked;
-    $("map-legend").classList.toggle("off", !view.showLayers);
+    view[viewKey] = box.checked;
+    $("map-legend").classList.toggle(legendOffClass, !view[viewKey]);
     try {
-      localStorage.setItem(SHOW_LAYERS_KEY, view.showLayers ? "1" : "0");
+      localStorage.setItem(storageKey, view[viewKey] ? "1" : "0");
     } catch (err) {
       // 기억하지 못해도 지금 화면에는 반영된다.
     }
@@ -366,7 +370,9 @@ function drawMap() {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(source, 0, 0);
-  if (view.layers && view.showLayers) drawLayers(ctx, info, view.layers, scale);
+  if (view.layers && (view.showLayers || view.showPoints)) {
+    drawLayers(ctx, info, view.layers, scale);
+  }
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   Object.keys(robots).forEach((robotId, index) => {
@@ -416,6 +422,14 @@ function drawMarks(ctx, info, marks, scale) {
       ctx.moveTo(px - r, py - r); ctx.lineTo(px + r, py + r);
       ctx.moveTo(px + r, py - r); ctx.lineTo(px - r, py + r);
       ctx.stroke();
+    } else if (mark.kind === "point") { // 일반 지점: 점 + 도착 방향 화살표
+      ctx.arc(px, py, r * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      const heading = -mark.pose[2]; // 지도 y 는 위가 +, canvas y 는 아래가 +
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.cos(heading) * r * 2.6, py + Math.sin(heading) * r * 2.6);
+      ctx.stroke();
     } else if (mark.kind === "home") { // 홈: 마름모
       ctx.moveTo(px, py - r); ctx.lineTo(px + r, py);
       ctx.lineTo(px, py + r); ctx.lineTo(px - r, py);
@@ -431,37 +445,45 @@ function drawMarks(ctx, info, marks, scale) {
 }
 
 // 구역 지점 원 색은 토큰 상태(fleet_status 의 zones)를 따른다. 원 크기는 표시용이다.
+// 구역 표시(구역·출구·대기 슬롯·홈)와 웨이포인트(P)는 체크박스로 따로 끄고 켠다.
 function drawLayers(ctx, info, layers, scale) {
-  const zoneStates = view.snapshot ? view.snapshot.zones || {} : {};
   const marks = [];
-  for (const [zone, layer] of Object.entries(layers.zones || {})) {
-    const state = zoneStates[zone] || "";
-    const color = state.startsWith("occupied_by:") ? css("--warn")
-      : state === "free" ? css("--good") : css("--idle");
-    for (const pose of Object.values(layer.points || {})) {
-      const [px, py] = toPixel(info, pose[0], pose[1]);
-      ctx.save();
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(px, py, ZONE_RADIUS_M / info.resolution, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 2 / scale;
-      ctx.strokeStyle = color;
-      ctx.stroke();
-      ctx.restore();
-      drawLabel(ctx, zone, px, py + 5 / scale, scale);
+  if (view.showPoints) {
+    for (const [name, pose] of Object.entries(layers.points || {})) {
+      marks.push({ kind: "point", pose, label: name, color: css("--active") });
     }
-    if (layer.exit) {
-      marks.push({ kind: "exit", pose: layer.exit.pose, label: `${zone} 출구`, color: css("--bad") });
-    }
-    (layer.queue || []).forEach((pose, k) => {
-      marks.push({ kind: "queue", pose, label: `${zone}${k}`, color: css("--muted") });
-    });
   }
-  for (const home of Object.values(layers.homes || {})) {
-    marks.push({ kind: "home", pose: home.pose, label: home.name, color: css("--idle") });
+  if (view.showLayers) {
+    const zoneStates = view.snapshot ? view.snapshot.zones || {} : {};
+    for (const [zone, layer] of Object.entries(layers.zones || {})) {
+      const state = zoneStates[zone] || "";
+      const color = state.startsWith("occupied_by:") ? css("--warn")
+        : state === "free" ? css("--good") : css("--idle");
+      for (const pose of Object.values(layer.points || {})) {
+        const [px, py] = toPixel(info, pose[0], pose[1]);
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(px, py, ZONE_RADIUS_M / info.resolution, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 2 / scale;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+        ctx.restore();
+        drawLabel(ctx, zone, px, py + 5 / scale, scale);
+      }
+      if (layer.exit) {
+        marks.push({ kind: "exit", pose: layer.exit.pose, label: `${zone} 출구`, color: css("--bad") });
+      }
+      (layer.queue || []).forEach((pose, k) => {
+        marks.push({ kind: "queue", pose, label: `${zone}${k}`, color: css("--muted") });
+      });
+    }
+    for (const home of Object.values(layers.homes || {})) {
+      marks.push({ kind: "home", pose: home.pose, label: home.name, color: css("--idle") });
+    }
   }
   drawMarks(ctx, info, marks, scale);
 }
@@ -540,7 +562,8 @@ async function pollHealth() {
 
 window.addEventListener("resize", drawMap);
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
-setupLayerToggle();
+setupToggle("show-layers", SHOW_LAYERS_KEY, "showLayers", "off");
+setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 loadMap();
 loadLayers();
 connect();

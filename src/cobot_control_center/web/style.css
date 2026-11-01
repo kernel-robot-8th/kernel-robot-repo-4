@@ -125,12 +125,14 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .side, .panel { min-width: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; }
 .legend .toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--text); cursor: pointer; }
-.legend.off span { opacity: 0.4; }
+.legend.off span:not(.lg-points-item), .legend.points-off .lg-points-item { opacity: 0.4; }
+.legend em { font-style: normal; margin-left: 4px; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { display: inline-block; width: 10px; height: 10px; font-style: normal; line-height: 10px; text-align: center; }
 .lg-zone { border-radius: 50%; border: 2px solid var(--good); background: color-mix(in srgb, var(--good) 25%, transparent); }
 .lg-exit { color: var(--bad); font-weight: 700; }
 .lg-queue { border-radius: 50%; border: 1.5px solid var(--muted); }
+.lg-point { border-radius: 50%; background: var(--active); transform: scale(0.7); }
 .lg-home { background: var(--idle); transform: rotate(45deg) scale(0.75); }
 .map-empty { margin: 40px 0; text-align: center; color: var(--muted); }
 

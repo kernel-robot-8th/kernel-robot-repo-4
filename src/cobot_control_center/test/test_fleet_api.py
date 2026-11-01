@@ -215,7 +215,7 @@ ZONE_PARAMS = """zone_manager_node:
 """
 
 
-def robot_yaml(robot, home, zb=(0.6, -0.15, -1.5)):
+def robot_yaml(robot, home, zb=(0.6, -0.15, -1.5), p2=(0.45, -0.6)):
     return f"""{robot}_patrol:
   ros__parameters:
     home_name: {home}
@@ -228,12 +228,17 @@ def robot_yaml(robot, home, zb=(0.6, -0.15, -1.5)):
       ZA: [0.6, 0.5, -1.5]
       ZB: {list(zb)}
       ZA_EXIT: [0.45, 0.2, -1.5]
+      P10: [0.17, -0.6, 0.0]
+      P2: {list(p2)}
+      P1: [0.17, -0.6, 0.0]
+      P36: [0.0, 0.0, 0.0]
 """
 
 
-def write_layers(tmp_path, zb2=(0.6, -0.15, -1.5)):
+def write_layers(tmp_path, zb2=(0.6, -0.15, -1.5), p2_2=(0.45, -0.6)):
     (tmp_path / 'pinky1.yaml').write_text(robot_yaml('pinky1', 'I1'), encoding='utf-8')
-    (tmp_path / 'pinky2.yaml').write_text(robot_yaml('pinky2', 'I2', zb2), encoding='utf-8')
+    (tmp_path / 'pinky2.yaml').write_text(robot_yaml('pinky2', 'I2', zb2, p2_2),
+                                          encoding='utf-8')
     path = tmp_path / 'zone_params.yaml'
     path.write_text(ZONE_PARAMS, encoding='utf-8')
     return str(tmp_path), str(path)
@@ -250,7 +255,16 @@ def test_load_map_layers(tmp_path):
     assert layers['zones']['B']['exit'] is None
     assert layers['homes'] == {'pinky1': {'name': 'I1', 'pose': [0.0, 0.0, 0.0]},
                                'pinky2': {'name': 'I2', 'pose': [0.0, -0.2, 0.0]}}
+    # 일반 지점: P 만, 번호 순서, (0, 0, 0) 예비값은 빼고 개수만. 홈 I1 (0, 0, 0) 은 남는다.
+    assert list(layers['points']) == ['P1', 'P2', 'P10']
+    assert layers['points']['P2'] == [0.45, -0.6, 0.0]
+    assert layers['hidden_points'] == 1
     json.dumps(layers)
+
+
+def test_load_map_layers_warns_on_point_mismatch(tmp_path):
+    layers = load_map_layers(*write_layers(tmp_path, p2_2=(0.5, -0.6)))
+    assert layers['warnings'] == ['일반 지점 좌표가 pinky1 와 pinky2 에서 다름']
 
 
 def test_load_map_layers_warns_on_mismatch_and_missing_robot(tmp_path):

@@ -123,9 +123,10 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | 빨간 × `A 출구` | `ZA_EXIT`. 구역을 나와 토큰을 반납하는 지점 |
 | 빈 원 `A0`, `A1` .. | 대기 슬롯 (`A0` 이 맨 앞). 같은 자리의 슬롯은 `A0·B0` 처럼 합쳐 표시 |
 | 마름모 `I1` .. | 로봇 홈 |
+| 파란 점 + 선 `P1` .. | 일반 웨이포인트. 선은 도착 방향(yaw). 같은 자리는 `P1·P10` 처럼 합쳐 표시. `(0, 0, 0)` 인 P 지점은 미실측 예비값이라 숨기고 범례에 개수만 표시 |
 
 로봇마다 구역 좌표가 다르면 `fleet_api_node` 가 시작할 때 경고를 남깁니다.
-지도 아래 **구역 표시** 체크박스로 겹쳐 그린 표시를 끄고 켭니다 (선택은 브라우저에 기억).
+지도 아래 **구역 표시**(구역·출구·대기 슬롯·홈)와 **웨이포인트**(P) 체크박스로 따로 끄고 켭니다 (선택은 브라우저에 기억).
 
 로봇 카드의 **위치 복사** 버튼은 웨이포인트 실측을 돕습니다. 사람이 로봇을 원하는 자리에 세운 뒤 누르면
 지금 위치 `[0.123, -0.456, 1.57]` (x, y [m], yaw [rad]) 가 바로 클립보드에 들어가고 버튼이 잠깐 `복사됨 ✓` 으로 바뀝니다.
@@ -148,7 +149,7 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
 | `GET /api/map/info` | `{"image_width", "image_height", "resolution", "origin"}`. 지도 없으면 404 |
 | `GET /api/map/image` | 지도 PGM 원본 바이트 |
-| `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "warnings": [..]}`. 설정이 없으면 404 |
+| `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
 
 ### `/control_center/fleet_status` (= `/api/fleet`) 형식
@@ -213,7 +214,7 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `source_stale_sec` | `3.0` | `fleet_status` 가 이만큼 끊기면 `source_online=false` [s] |
 | `map_yaml` | launch 인자가 채움 | 지도 YAML. 비거나 읽지 못하면 지도 없이 시작 |
 | `web_dir` | `share/cobot_control_center/web` | 화면 정적 파일 폴더 |
-| `points_dir` | launch 인자가 채움 | 순찰 설정 `pinkyN.yaml` 폴더 (구역 지점·출구·홈) |
+| `points_dir` | launch 인자가 채움 | 순찰 설정 `pinkyN.yaml` 폴더 (구역 지점·출구·홈·일반 지점) |
 | `zone_params` | launch 인자가 채움 | zone_manager 설정 (로봇 목록 `robot_ids`, 대기 슬롯). 둘 중 하나라도 비거나 못 읽으면 구역 표시 없이 시작 |
 
 지도 기본값은 로봇이 쓰는 지도 `src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml` 입니다.

@@ -108,9 +108,31 @@ def _pose(value):
     return [x, y, float(value[2]) if len(value) > 2 else 0.0]
 
 
+def _general_points(params):
+    """
+    일반 지점(P 로 시작)과 숨긴 예비 지점 수.
+
+    (0, 0, 0) 인 P 지점은 미실측 예비값이라 뺀다 (가짜 핑키·지도 뷰어와 같은 규칙).
+    홈 I1 도 (0, 0) 이지만 P 가 아니라 해당하지 않는다. P1, P2, .., P10 순서로 정렬한다.
+    """
+    points = {}
+    hidden = 0
+    for name, value in (params.get('points') or {}).items():
+        name = str(name)
+        if not name.startswith('P'):
+            continue
+        pose = _pose(value)
+        if pose == [0.0, 0.0, 0.0]:
+            hidden += 1
+            continue
+        points[name] = pose
+    number = (lambda n: int(n[1:]) if n[1:].isdigit() else math.inf)
+    return dict(sorted(points.items(), key=lambda item: (number(item[0]), item[0]))), hidden
+
+
 def load_map_layers(points_dir, zone_params_path):
     """
-    순찰·zone_manager 설정에서 지도에 겹쳐 그릴 구역 지점·출구·대기 슬롯·홈을 만든다.
+    순찰·zone_manager 설정에서 지도에 겹쳐 그릴 구역 지점·출구·대기 슬롯·홈·일반 지점을 만든다.
 
     주행 설정 파일을 읽기만 한다. 로봇 목록은 zone_params 의 robot_ids, 로봇별 지점은
     <points_dir>/<robot>.yaml 이다. 구역 좌표는 로봇끼리 같아야 하므로 첫 로봇 값을 쓰고,
@@ -171,7 +193,13 @@ def load_map_layers(points_dir, zone_params_path):
         else:
             warnings.append(f'{robot} 의 홈 지점이 points 에 없음: {name}')
 
-    return {'zones': zones, 'homes': homes, 'warnings': warnings}
+    points, hidden_points = _general_points(reference)
+    for robot, params in configs.items():
+        if robot != reference_robot and _general_points(params)[0] != points:
+            warnings.append(f'일반 지점 좌표가 {reference_robot} 와 {robot} 에서 다름')
+
+    return {'zones': zones, 'homes': homes, 'points': points,
+            'hidden_points': hidden_points, 'warnings': warnings}
 
 
 class SnapshotStore:

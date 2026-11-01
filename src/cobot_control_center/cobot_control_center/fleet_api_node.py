@@ -89,7 +89,8 @@ class FleetApiNode(Node):
         for warning in layers['warnings']:
             self.get_logger().warning(f'구역 설정: {warning}')
         self.get_logger().info(f'구역 표시: {", ".join(layers["zones"]) or "없음"} '
-                               f'(홈 {len(layers["homes"])}개)')
+                               f'(홈 {len(layers["homes"])}개, 일반 지점 {len(layers["points"])}개, '
+                               f'예비값 {layers["hidden_points"]}개 숨김)')
         return layers
 
     def _on_fleet(self, msg):
