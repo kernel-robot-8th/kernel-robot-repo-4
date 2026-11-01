@@ -28,8 +28,10 @@ import random
 import sys
 import time
 
-from cobot_mock.mock_pinky_sim import (check_domain, choose_auto_command, load_robot_configs,
-                                       load_zone_params, MockConfigError, RobotSim, ZoneBook)
+from cobot_mock.mock_pinky_sim import (ack_for, check_domain, choose_auto_command,
+                                       load_robot_configs, load_zone_params, MockConfigError,
+                                       RobotSim, v2_to_v1, ZoneBook)
+from cobot_patrol_interfaces.msg import PatrolCommand, PatrolCommandAck, PatrolState
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -42,6 +44,7 @@ TICK_SEC = 0.1
 POSE_PERIOD_SEC = 0.2
 BATTERY_PERIOD_SEC = 1.0
 ZONE_PERIOD_SEC = 1.0
+STATE_PERIOD_SEC = 1.0
 
 
 def battery_voltage(percent):
@@ -61,7 +64,7 @@ class MockPinkyNode(Node):
             'auto_patrol': True, 'auto_interval_sec': 8.0, 'auto_pause_after_cmd_sec': 60.0,
             'drain_moving_per_min': 1.0, 'drain_idle_per_min': 0.2, 'charge_per_min': 5.0,
             'dropout_robot': 'pinky3', 'dropout_period_sec': 60.0, 'dropout_sec': 12.0,
-            'seed': 0,
+            'seed': 0, 'spec_versions': ['v1', 'v2'],
         }
         for name, value in p.items():
             self.declare_parameter(name, value)
@@ -84,22 +87,36 @@ class MockPinkyNode(Node):
         # zone_manager·순찰 노드와 같은 설정이어야 관제 구독과 맞는다.
         reliable = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
                               history=HistoryPolicy.KEEP_LAST)
+        self.v1 = 'v1' in cfg['spec_versions']
+        self.v2 = 'v2' in cfg['spec_versions']
         self.pub = {}
         for name in robots:
             self.pub[name] = {
-                'status': self.create_publisher(String, f'/{name}/patrol_status', 10),
                 'pose': self.create_publisher(
                     PoseWithCovarianceStamped, f'/{name}/amcl_pose', 10),
                 'percent': self.create_publisher(Float32, f'/{name}/battery/percent', 10),
                 'voltage': self.create_publisher(Float32, f'/{name}/battery/voltage', 10),
             }
-            self.create_subscription(String, f'/{name}/patrol_cmd',
-                                     lambda msg, r=name: self._on_cmd(r, msg), 10)
+            # 규격 v1: String 명령·JSON 상태 (지금 주행 코드)
+            if self.v1:
+                self.pub[name]['status'] = self.create_publisher(
+                    String, f'/{name}/patrol_status', 10)
+                self.create_subscription(String, f'/{name}/patrol_cmd',
+                                         lambda msg, r=name: self._on_cmd(r, msg), 10)
+            # 규격 v2: 작업 ID 메시지 (cobot_patrol_interfaces). v1 과 다른 이름이라 겹치지 않는다
+            if self.v2:
+                self.pub[name]['state'] = self.create_publisher(
+                    PatrolState, f'/{name}/patrol_state', reliable)
+                self.pub[name]['ack'] = self.create_publisher(
+                    PatrolCommandAck, f'/{name}/patrol_command_ack', reliable)
+                self.create_subscription(PatrolCommand, f'/{name}/patrol_command',
+                                         lambda msg, r=name: self._on_command_v2(r, msg),
+                                         reliable)
         self.zone_pub = self.create_publisher(String, '/zone_manager/status', reliable)
 
         self.start = time.monotonic()
         self.last = self.start
-        self.next_pose = self.next_battery = self.next_zone = self.start
+        self.next_pose = self.next_battery = self.next_zone = self.next_state = self.start
         self.zone_lines = None
         self.create_timer(TICK_SEC, self._tick)
 
@@ -118,6 +135,27 @@ class MockPinkyNode(Node):
         events = self.sims[robot].command(msg.data, now)
         self.get_logger().info(f'{robot}: 명령 {msg.data!r} -> {len(events)}개 이벤트')
         self._emit(robot, events)
+
+    def _on_command_v2(self, robot, msg):
+        """v2 명령은 v1 명령으로 바꿔 같은 로봇을 움직이고, 받음/거절을 ack 로 알린다."""
+        now = time.monotonic()
+        self.manual_until[robot] = now + self.cfg['auto_pause_after_cmd_sec']
+        raw, reason = v2_to_v1(msg.task_id, msg.operation, list(msg.points))
+        events = []
+        if raw is None:
+            accepted = False
+        else:
+            events = self.sims[robot].command(raw, now)
+            accepted, reason = ack_for(msg.operation, events)
+        self.get_logger().info(f'{robot}: v2 명령 {msg.task_id} {msg.operation} '
+                               f'{list(msg.points)} -> {"받음" if accepted else reason}')
+        if not self._silent(robot, now):
+            ack = PatrolCommandAck(robot_id=robot, task_id=msg.task_id,
+                                   accepted=accepted, reason=reason)
+            ack.header.stamp = self.get_clock().now().to_msg()
+            self.pub[robot]['ack'].publish(ack)
+        # 거절은 v1 처럼 FAILED 상태를 내지 않는다 (ack 가 그 역할). 받은 명령의 상태만 낸다.
+        self._emit(robot, events if accepted else [])
 
     # ---------- 진행 ----------
 
@@ -153,8 +191,16 @@ class MockPinkyNode(Node):
         for ev in events:
             if self._silent(robot, time.monotonic()):
                 continue        # 끊긴 동안의 상태는 실제 네트워크처럼 잃는다
-            payload = dict(ev, time=time.time())
-            self.pub[robot]['status'].publish(String(data=json.dumps(payload)))
+            if self.v1:
+                payload = dict(ev, time=time.time())
+                self.pub[robot]['status'].publish(String(data=json.dumps(payload)))
+            if self.v2:
+                self._publish_state(robot, ev)
+
+    def _publish_state(self, robot, ev=None):
+        msg = PatrolState(robot_id=robot, **self.sims[robot].v2_state(ev))
+        msg.header.stamp = self.get_clock().now().to_msg()
+        self.pub[robot]['state'].publish(msg)
 
     def _publish_periodic(self, now):
         stamp = self.get_clock().now().to_msg()
@@ -180,6 +226,12 @@ class MockPinkyNode(Node):
                 self.pub[name]['percent'].publish(Float32(data=float(sim.battery)))
                 self.pub[name]['voltage'].publish(
                     Float32(data=float(battery_voltage(sim.battery))))
+        if self.v2 and now >= self.next_state:
+            # v2 상태는 바뀔 때 + 1초마다 (수신 간격으로 연결을 판단할 수 있게)
+            self.next_state = now + STATE_PERIOD_SEC
+            for name in self.sims:
+                if not self._silent(name, now):
+                    self._publish_state(name)
         lines = self.book.status_lines()
         if lines != self.zone_lines or now >= self.next_zone:
             # 실제 zone_manager 처럼 바뀔 때 + 1초마다 다시 낸다

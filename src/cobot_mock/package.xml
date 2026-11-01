@@ -11,6 +11,8 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <!-- 순찰 규격 v2 메시지 (v1 String 규격과 함께 낸다) -->
+  <exec_depend>cobot_patrol_interfaces</exec_depend>
   <exec_depend>ros2launch</exec_depend>
   <!-- 지점·구역 설정 파일만 읽는다 (코드는 import 하지 않음) -->
   <exec_depend>cobot_pinky_patrol</exec_depend>

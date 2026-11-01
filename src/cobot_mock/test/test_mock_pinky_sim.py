@@ -21,8 +21,9 @@
 import os
 import random
 
-from cobot_mock.mock_pinky_sim import (check_domain, choose_auto_command, load_robot_configs,
-                                       load_zone_params, parse_command, RobotSim, ZoneBook)
+from cobot_mock.mock_pinky_sim import (ack_for, check_domain, choose_auto_command,
+                                       load_robot_configs, load_zone_params, parse_command,
+                                       RobotSim, v2_to_v1, ZoneBook)
 import pytest
 
 NAV = os.path.join(os.path.dirname(__file__), '..', '..', 'cobot_navigation')
@@ -207,6 +208,47 @@ def test_battery_drains_and_charges(fleet):
     sim.battery = 10.0
     sim.step(2.0, 60.0)                           # 홈에서 쉬는 중이면 충전
     assert sim.battery == pytest.approx(10.0 + sim.charge_per_min)
+
+
+def test_v2_to_v1():
+    raw, reason = v2_to_v1('t1', 'goto', ['P1', 'P2'])
+    assert reason is None and parse_command(raw) == ('goto', ['P1', 'P2'], 't1')
+    assert parse_command(v2_to_v1('t2', 'leave', [])[0]) == ('leave', [], 't2')
+    assert v2_to_v1('', 'goto', ['P1']) == (None, 'bad task_id')
+    assert v2_to_v1('t3', 'start', []) == (None, 'unknown operation')
+
+
+def v2(sim, task_id, operation, points, now):
+    """v2 명령 하나를 가짜 노드와 같은 순서로 처리한다."""
+    raw, reason = v2_to_v1(task_id, operation, points)
+    events = sim.command(raw, now)
+    return ack_for(operation, events), events
+
+
+def test_v2_ack_accept_busy_and_validation(fleet):
+    sim = fleet[0]['pinky1']
+    assert v2(sim, 't1', 'goto', ['P99'], 0.0)[0] == (False, "unknown point: ['P99']")
+    assert v2(sim, 't2', 'goto', ['P3'], 0.0)[0] == (True, '')
+    assert v2(sim, 't3', 'goto', ['P1'], 0.1)[0] == (False, 'busy')
+    assert v2(sim, 't4', 'stop', [], 0.2)[0] == (True, '')
+    assert v2(sim, 't5', 'stop', [], 0.3)[0] == (False, 'not running')
+
+
+def test_v2_state_carries_task(fleet):
+    sims, _ = fleet
+    sim = sims['pinky1']
+    _, events = v2(sim, 't1', 'zone', ['ZA'], 0.0)
+    moving = sim.v2_state(events[-1])
+    assert (moving['task_id'], moving['task_finished']) == ('t1', False)
+    run(sims, 10)
+    last = sim.v2_state()                         # 1초 주기 발행과 같은 호출
+    assert last['task_id'] == 't1' and last['task_finished'] is True
+    assert last['held_zone'] == 'A'
+    # 관제가 보내지 않은 작업(유휴 복귀)은 task_id 가 비어 있다
+    sim.idle_return_sec = 0.5
+    sim.idle_deadline = 10.0
+    run(sims, 1, start=10.0)
+    assert sim.v2_state()['task_id'] == ''
 
 
 def test_auto_command_is_always_valid(fleet):

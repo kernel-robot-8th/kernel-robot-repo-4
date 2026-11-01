@@ -135,6 +135,39 @@ def parse_command(raw):
     return kind, names, command_id
 
 
+V2_OPERATIONS = ('goto', 'zone', 'leave', 'home', 'stop', 'emergency_stop')
+STOP_OPERATIONS = ('stop', 'emergency_stop')
+
+
+def v2_to_v1(task_id, operation, points):
+    """
+    v2 PatrolCommand 를 v1 명령(JSON 봉투)으로 바꾼다. (명령 문자열, 거절 이유) 를 돌려준다.
+
+    로봇 동작은 v1 과 같게 두고 형식만 바꾸려고, v2 명령도 v1 처리기를 그대로 탄다.
+    """
+    if not task_id:
+        return None, 'bad task_id'
+    if operation not in V2_OPERATIONS:
+        return None, 'unknown operation'
+    command = operation + (':' + ','.join(points) if points else '')
+    return json.dumps({'command_id': task_id, 'command': command}), None
+
+
+def ack_for(operation, events):
+    """
+    명령 처리 결과(command() 가 돌려준 이벤트)로 v2 받음/거절을 정한다. (accepted, reason).
+
+    v1 은 바쁠 때 아무것도 내지 않으므로 빈 결과를 'busy'(stop 계열은 'not running')로 읽는다.
+    검증 실패는 첫 이벤트가 FAILED 하나로 바로 온다. 그 detail 을 거절 이유로 쓴다.
+    """
+    if not events:
+        return False, 'not running' if operation in STOP_OPERATIONS else 'busy'
+    first = events[0]
+    if len(events) == 1 and first['state'] == 'FAILED':
+        return False, first['detail']
+    return True, ''
+
+
 def exit_name(zone):
     """구역 출구 이름. 실제 patrol_points_utils.exit_name 과 같다."""
     return f'Z{zone}_EXIT'
@@ -249,6 +282,8 @@ class RobotSim:
         self.running = False
         self.moving = False
         self.command_id = None
+        self.last_task_id = ''       # v2 PatrolState.task_id: 진행 중 또는 마지막 작업 ('' = 관제가 안 보냄)
+        self.last_event = {'state': 'IDLE', 'waypoint': -1, 'detail': ''}
         self.ctx = (-1, '')          # stop 때 낼 (waypoint, detail)
         self.idle_deadline = None
         self.finished_at = 0.0
@@ -269,10 +304,19 @@ class RobotSim:
 
     def _event(self, state, waypoint, detail, final=False):
         ev = {'state': state, 'waypoint': waypoint, 'detail': detail}
+        self.last_event = ev
         if self.command_id is not None:
             ev['command_id'] = self.command_id
             ev['task_finished'] = final
         return ev
+
+    def v2_state(self, ev=None):
+        """v2 PatrolState 에 실을 값. ev 가 없으면 마지막 상태 (1초 주기 발행용)."""
+        ev = ev or self.last_event
+        return {'state': ev['state'], 'waypoint': ev['waypoint'], 'detail': ev['detail'],
+                'task_id': self.last_task_id,
+                'task_finished': ev.get('task_finished', not self.running),
+                'held_zone': self.held_zone or ''}
 
     # ---------- 명령 ----------
 
@@ -323,6 +367,7 @@ class RobotSim:
 
     def _start(self, plan, command_id, now):
         self.command_id = command_id
+        self.last_task_id = command_id or ''
         self.steps = deque(plan)
         self.running = True
         self.idle_deadline = None

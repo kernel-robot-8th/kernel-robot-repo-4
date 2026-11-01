@@ -48,6 +48,17 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 | `/zone_manager/status` | `std_msgs/String` | `A:free` / `A:occupied_by:pinky1`. 바뀔 때 + 1초마다 |
 | 구독 `/pinkyN/patrol_cmd` | `std_msgs/String` | 아래 명령 |
 
+**규격 v2** (`spec_versions: [v1, v2]`, 기본 둘 다): [`cobot_patrol_interfaces`](../cobot_patrol_interfaces/README.md) 메시지도 함께 냅니다.
+
+| 토픽 | 타입 | 내용 |
+|---|---|---|
+| 구독 `/pinkyN/patrol_command` | `PatrolCommand` | `task_id`·`operation`·`points`. v1 명령으로 바꿔 같은 로봇을 움직임 |
+| `/pinkyN/patrol_command_ack` | `PatrolCommandAck` | 명령마다 한 번. 거절 이유 `busy`·`not running`·v1 실패 문구 |
+| `/pinkyN/patrol_state` | `PatrolState` | 바뀔 때 + 1초마다. `task_id`·`task_finished`·`held_zone` 포함 |
+
+v1·v2 어느 쪽 명령이든 같은 가짜 로봇이 움직이고, 상태는 두 규격으로 동시에 나갑니다.
+v2 로 거절된 명령은 v1 `FAILED` 상태를 내지 않습니다 (ack 가 대신함).
+
 - 지점 좌표는 실제 `pinkyN.yaml` 의 `points`·`zone_points`·`home_name` 을 읽습니다. 대기 슬롯은 `zone_params.yaml` 의 앵커·간격으로 계산합니다.
 - 상태 순서는 실제 순찰 노드와 같습니다.
   - goto: `STARTING` → (구역 보유 시 `LEAVING_ZONE`) → 지점마다 `MOVING`·`ARRIVED` → `DONE` → `IDLE_WAIT`

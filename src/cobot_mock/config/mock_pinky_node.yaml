@@ -16,3 +16,4 @@ mock_pinky_node:
     dropout_period_sec: 60.0         # 끊김 주기 [s]
     dropout_sec: 12.0                # 한 번 끊기는 시간 [s]
     seed: 0                          # 무작위 재현용
+    spec_versions: [v1, v2]          # v1 = String 규격(지금 주행), v2 = cobot_patrol_interfaces 메시지
