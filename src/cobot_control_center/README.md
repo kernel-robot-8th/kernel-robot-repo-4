@@ -128,6 +128,13 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 로봇마다 구역 좌표가 다르면 `fleet_api_node` 가 시작할 때 경고를 남깁니다.
 지도 아래 **구역 표시**(구역·출구·대기 슬롯·홈)와 **웨이포인트**(P) 체크박스로 따로 끄고 켭니다 (선택은 브라우저에 기억).
 
+경고가 있으면 상단 바로 아래에 띠로 보입니다 (주황 주의, 빨강 위험). 배터리 부족, 연결 끊김, FAILED/STOPPED,
+이동 중인데 오래 제자리(끼임 의심), 구역을 오래 점유한 경우입니다. 관제 노드가 끊기면 띠를 숨깁니다.
+로봇 카드 맨 아래 `위치 0.4s · 배터리 1.0s · 상태 12s` 는 토픽별 마지막 수신 시간입니다. 어느 토픽이 끊겼는지 보여 줍니다
+(위치는 로봇이 멈춰 있으면 안 오는 게 정상, 상태는 바뀔 때만 옴).
+화면 아래 **이벤트** 패널은 state 변화, 연결·끊김, 구역 점유·해제, 경고 발생·해제를 시간순(최신이 위)으로 보여 주고 로봇별로 거를 수 있습니다.
+백엔드 메모리에 최근 `events_max` 개만 두므로 백엔드를 다시 켜면 지워집니다.
+
 로봇 카드의 **위치 복사** 버튼은 웨이포인트 실측을 돕습니다. 사람이 로봇을 원하는 자리에 세운 뒤 누르면
 지금 위치 `[0.123, -0.456, 1.57]` (x, y [m], yaw [rad]) 가 바로 클립보드에 들어가고 버튼이 잠깐 `복사됨 ✓` 으로 바뀝니다.
 `pinkyN.yaml` 의 `points` 값 형식과 같으므로 `P36: ` 뒤에 붙여 넣으면 됩니다. 서버에 저장하거나 로봇에 보내지 않고, 파일도 고치지 않습니다.
@@ -149,6 +156,7 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
 | `GET /api/map/info` | `{"image_width", "image_height", "resolution", "origin"}`. 지도 없으면 404 |
 | `GET /api/map/image` | 지도 PGM 원본 바이트 |
+| `GET /api/events?after=&robot=&limit=` | 이벤트 로그 (오래된 것부터, `id` 오름차순). `after` 보다 큰 `id` 만, `robot` 을 주면 그 로봇만, `limit` 1~1000 (기본 200) |
 | `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
 
@@ -185,6 +193,9 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
   - 브릿지는 노드 이름(`bridge_node_format`)으로 셉니다. 로봇이 꺼져 있으면 브릿지가 위치 토픽을 만들지 않으므로, 이름이 안 보이는 브릿지는 로봇이 켜졌을 때만 `unknown` 으로 드러납니다.
 
 - 단위: `pose.x`·`y` [m], `yaw` [rad], `last_seen_age` [s], `battery_percent` [%]. 모르는 값은 `null`.
+- `topic_age` [s]: 토픽별 마지막 수신 뒤 지난 시간 `{"pose", "battery", "status"}`. 위치(amcl)는 로봇이 멈춰 있으면 새로 오지 않는 게 정상.
+- `alerts`: 지금 경고 `[{"robot", "code", "level", "text"}]`. `code` 는 `offline`·`battery_low`·`state_bad`(FAILED/STOPPED)·`stuck`(끼임 의심)·`zone_hold`(구역 오래 점유, `zone` 포함). `level` 은 `warn`/`bad`.
+- `events`: 이번 주기에 새로 생긴 이벤트 `[{"id", "time", "robot", "kind", "level", "text", "data"?}]`. `kind` 는 `state`·`link`·`zone`·`alert`·`clear`. `id` 는 백엔드가 붙인다. state 이벤트의 `data.extra` 에 `command_id` 같은 모르는 필드가 그대로 남는다.
 - `pose_age` [s]: 위치를 마지막으로 받은 뒤 지난 시간. `teach`: 위치 복사 판정 `{"ok", "warnings": [..], "std_xy" [m], "std_yaw" [rad]}`.
 - `state`·`waypoint`·`detail`·`status_time` 은 순찰 노드 `patrol_status` 를 그대로 옮긴 값입니다.
 - `patrol_status` 에 그 밖의 필드(예: `command_id`, `task_finished`)가 오면 버리지 않고 `extra` 에 담습니다.
@@ -204,6 +215,10 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `mock_node_name` | `mock_pinky_node` | 이 노드가 보이면 `mock` 모드 |
 | `teach_max_std_xy` | `0.05` | 위치 복사 경고 기준, amcl 위치 표준편차 [m]. 임시값 (현장 실측 뒤 조정) |
 | `teach_max_std_yaw` | `0.1` | 위치 복사 경고 기준, amcl 방향 표준편차 [rad]. 임시값 |
+| `battery_warn_percent` | `20.0` | 이 값 이하면 배터리 경고 [%] |
+| `stuck_sec` | `15.0` | 이동 중 state 인데 이만큼 거의 제자리면 끼임 의심 [s]. 임시값 |
+| `stuck_distance_m` | `0.05` | '거의 제자리' 기준 거리 [m]. 임시값 |
+| `zone_hold_warn_sec` | `200.0` | 구역을 이만큼 점유하면 경고 [s] (zone_manager `max_hold_sec` 240 보다 먼저) |
 
 `fleet_api_node` (`config/fleet_api_node.yaml`)
 
@@ -216,6 +231,7 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `web_dir` | `share/cobot_control_center/web` | 화면 정적 파일 폴더 |
 | `points_dir` | launch 인자가 채움 | 순찰 설정 `pinkyN.yaml` 폴더 (구역 지점·출구·홈·일반 지점) |
 | `zone_params` | launch 인자가 채움 | zone_manager 설정 (로봇 목록 `robot_ids`, 대기 슬롯). 둘 중 하나라도 비거나 못 읽으면 구역 표시 없이 시작 |
+| `events_max` | `500` | 이벤트 로그 보관 개수. 메모리에만 두므로 백엔드를 다시 켜면 지워짐 |
 
 지도 기본값은 로봇이 쓰는 지도 `src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml` 입니다.
 launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/src` 로 거슬러 올라가 찾습니다. 지도를 바꾸면 `map_yaml:=` 로 지정합니다.

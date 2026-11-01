@@ -48,9 +48,11 @@ class FleetApiNode(Node):
         self.declare_parameter('web_dir', '')
         self.declare_parameter('points_dir', '')
         self.declare_parameter('zone_params', '')
+        self.declare_parameter('events_max', 500)
         self.host = self.get_parameter('host').value
         self.port = int(self.get_parameter('port').value)
-        self.store = SnapshotStore(self.get_parameter('source_stale_sec').value)
+        self.store = SnapshotStore(self.get_parameter('source_stale_sec').value,
+                                   events_max=self.get_parameter('events_max').value)
         self.map_data = self._load_map(self.get_parameter('map_yaml').value)
         self.layers = self._load_layers(self.get_parameter('points_dir').value,
                                         self.get_parameter('zone_params').value)

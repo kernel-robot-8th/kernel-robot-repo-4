@@ -12,3 +12,8 @@ fleet_status_node:
     # TODO(실측): 처음 값은 임시. 로봇을 세워 둔 평소 값을 재서 정한다.
     teach_max_std_xy: 0.05             # 위치 [m]
     teach_max_std_yaw: 0.1             # 방향 [rad]
+    # 경고 기준 (화면 상단 배너와 이벤트 로그). TODO(실측): 처음 값은 임시.
+    battery_warn_percent: 20.0         # 이 값 이하면 배터리 경고 [%]
+    stuck_sec: 15.0                    # 이동 중 state 인데 이만큼 거의 제자리면 끼임 의심 [s]
+    stuck_distance_m: 0.05             # '거의 제자리' 기준 거리 [m]
+    zone_hold_warn_sec: 200.0          # 구역을 이만큼 점유하면 경고 [s] (zone_manager max_hold_sec 240 보다 먼저)

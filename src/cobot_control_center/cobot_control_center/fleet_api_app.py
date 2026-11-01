@@ -21,7 +21,7 @@
 
 import asyncio
 
-from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 # WebSocket 이 새 스냅샷을 기다리는 한 번의 최대 시간 [s]. 끊긴 연결을 이 주기로 알아챈다.
@@ -85,6 +85,12 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None):
         if robot_id not in robots:
             raise HTTPException(status_code=404, detail=f'등록되지 않은 로봇: {robot_id}')
         return {'robot_id': robot_id, **robots[robot_id]}
+
+    @app.get('/api/events')
+    def events(after: int = Query(0, ge=0), robot: str | None = None,
+               limit: int = Query(200, ge=1, le=1000)):
+        # 이벤트 로그 (메모리, 백엔드를 다시 켜면 지워짐). 화면은 처음에 이걸 읽고 이후엔 WS 로 받는다.
+        return store.events(after, robot, limit)
 
     @app.websocket('/ws/fleet')
     async def ws_fleet(websocket: WebSocket):

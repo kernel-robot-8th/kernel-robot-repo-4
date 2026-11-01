@@ -18,7 +18,7 @@ import json
 import math
 
 from cobot_control_center.fleet_status_utils import (
-    count_state, FleetState, judge_infra, judge_teach_pose, MOVING_STATES,
+    count_state, diff_events, FleetState, judge_infra, judge_teach_pose, MOVING_STATES,
     parse_patrol_status, parse_zone_status, std_from_covariance, UNKNOWN_NODE_NAME,
     yaw_from_quaternion)
 import pytest
@@ -231,3 +231,120 @@ def test_snapshot_teach_uses_covariance_and_state():
     fleet.update_status('pinky1', json.dumps({'state': 'MOVING'}), 100.0)
     assert fleet.snapshot(100.0)['robots']['pinky1']['teach']['ok'] is False
     json.dumps(fleet.snapshot(100.0))
+
+
+def alert_codes(snapshot):
+    return {(a['robot'], a['code']) for a in snapshot['alerts']}
+
+
+def test_topic_age_per_topic():
+    fleet = FleetState(['pinky1'], 3.0)
+    fleet.update_pose('pinky1', 0.0, 0.0, 0.0, 90.0)
+    fleet.update_battery('pinky1', 80.0, 99.0)
+    robot = fleet.snapshot(100.0)['robots']['pinky1']
+    assert robot['topic_age'] == {'pose': 10.0, 'battery': 1.0, 'status': None}
+
+
+def test_alert_battery_boundary_and_offline():
+    fleet = FleetState(['pinky1'], 3.0, battery_warn_percent=20.0)
+    fleet.update_battery('pinky1', 20.0, 100.0)
+    assert ('pinky1', 'battery_low') in alert_codes(fleet.snapshot(100.0))
+    fleet.update_battery('pinky1', 20.5, 100.0)
+    assert alert_codes(fleet.snapshot(100.0)) == set()
+    # 받은 적 없으면 끊김 경고를 내지 않고, 받았다가 끊기면 낸다.
+    assert alert_codes(FleetState(['pinky1'], 3.0).snapshot(100.0)) == set()
+    assert ('pinky1', 'offline') in alert_codes(fleet.snapshot(104.0))
+
+
+def test_alert_bad_state():
+    fleet = FleetState(['pinky1'], 3.0)
+    fleet.update_battery('pinky1', 80.0, 100.0)
+    fleet.update_status('pinky1', '{"state": "FAILED", "detail": "nav abort"}', 100.0)
+    alerts = fleet.snapshot(100.0)['alerts']
+    assert alerts == [{'robot': 'pinky1', 'code': 'state_bad', 'level': 'bad',
+                       'text': 'FAILED: nav abort'}]
+
+
+def test_alert_stuck_resets_on_start_and_on_move():
+    fleet = FleetState(['pinky1'], 30.0, stuck_sec=15.0, stuck_distance_m=0.05)
+    fleet.update_pose('pinky1', 0.0, 0.0, 0.0, 0.0)
+    # 오래 서 있다가 출발: 출발 순간부터 잰다.
+    fleet.update_status('pinky1', '{"state": "MOVING"}', 100.0)
+    fleet.update_battery('pinky1', 80.0, 110.0)
+    assert ('pinky1', 'stuck') not in alert_codes(fleet.snapshot(110.0))
+    fleet.update_battery('pinky1', 80.0, 115.0)
+    assert ('pinky1', 'stuck') in alert_codes(fleet.snapshot(115.0))
+    # 0.05 m 이하 움직임은 제자리, 넘으면 다시 잰다.
+    fleet.update_pose('pinky1', 0.04, 0.0, 0.0, 116.0)
+    assert ('pinky1', 'stuck') in alert_codes(fleet.snapshot(116.0))
+    fleet.update_pose('pinky1', 0.2, 0.0, 0.0, 117.0)
+    assert ('pinky1', 'stuck') not in alert_codes(fleet.snapshot(117.0))
+
+
+def test_alert_zone_hold():
+    fleet = FleetState(['pinky1'], 3.0, zone_hold_warn_sec=200.0)
+    fleet.update_zone('A:occupied_by:pinky1', 0.0)
+    assert fleet.snapshot(199.0)['alerts'] == []
+    alerts = fleet.snapshot(200.0)['alerts']
+    assert alerts[0]['code'] == 'zone_hold' and alerts[0]['robot'] == 'pinky1'
+    assert alerts[0]['zone'] == 'A'
+    # 같은 값이 다시 와도 점유 시작 시각은 그대로.
+    fleet.update_zone('A:occupied_by:pinky1', 150.0)
+    assert fleet.snapshot(200.0)['alerts'][0]['code'] == 'zone_hold'
+
+
+def snap(time, robots=None, zones=None, alerts=None):
+    base = {'online': True, 'never_seen': False, 'state': None, 'detail': None,
+            'waypoint': None, 'extra': {}}
+    return {'time': time,
+            'robots': {name: dict(base, **values) for name, values in (robots or {}).items()},
+            'zones': zones or {}, 'alerts': alerts or []}
+
+
+def test_diff_events_first_snapshot():
+    events = diff_events(None, snap(1.0, {'pinky1': {'state': 'IDLE'},
+                                          'pinky2': {'online': False, 'never_seen': True}}))
+    assert [(e['robot'], e['kind'], e['text']) for e in events] == [
+        ('pinky1', 'link', '연결됨'), ('pinky1', 'state', '- → IDLE')]
+
+
+def test_diff_events_state_link_zone_alert():
+    prev = snap(1.0, {'pinky1': {'state': 'MOVING', 'detail': 'P1'}}, {'A': 'free'},
+                [{'robot': 'pinky1', 'code': 'battery_low', 'level': 'warn', 'text': '배터리 19%'}])
+    curr = snap(2.0, {'pinky1': {'online': False, 'state': 'FAILED', 'detail': 'abort',
+                                 'extra': {'command_id': 'job-1'}}},
+                {'A': 'occupied_by:pinky1'},
+                [{'robot': 'pinky1', 'code': 'stuck', 'level': 'warn', 'text': '끼임'},
+                 {'robot': 'pinky1', 'code': 'offline', 'level': 'bad', 'text': '끊김'}])
+    events = diff_events(prev, curr)
+    assert [(e['kind'], e['level'], e['text']) for e in events] == [
+        ('link', 'bad', '연결 끊김'),
+        ('state', 'bad', 'MOVING → FAILED (abort)'),
+        ('zone', 'info', '구역 A: 비어 있음 → pinky1'),
+        ('alert', 'warn', '경고: 끼임'),
+        ('clear', 'info', '해제: 배터리 19%')]
+    # 모르는 필드(command_id)도 state 이벤트에 남긴다.
+    assert events[1]['data']['extra'] == {'command_id': 'job-1'}
+    assert events[2]['robot'] == 'pinky1'
+    assert all(e['time'] == 2.0 for e in events)
+
+
+def test_diff_events_zone_release_names_previous_holder():
+    events = diff_events(snap(1.0, zones={'A': 'occupied_by:pinky2'}),
+                         snap(2.0, zones={'A': 'free'}))
+    assert events == [{'time': 2.0, 'robot': 'pinky2', 'kind': 'zone', 'level': 'info',
+                       'text': '구역 A: pinky2 → 비어 있음'}]
+
+
+def test_collect_events_only_new():
+    fleet = FleetState(['pinky1'], 3.0)
+    fleet.update_status('pinky1', '{"state": "IDLE"}', 100.0)
+    assert [e['kind'] for e in fleet.collect_events(fleet.snapshot(100.0))] == ['state']
+    assert fleet.collect_events(fleet.snapshot(101.0)) == []
+
+
+def test_diff_events_detail_only_and_first_zone():
+    events = diff_events(snap(1.0, {'pinky1': {'state': 'MOVING', 'detail': 'P5'}}),
+                         snap(2.0, {'pinky1': {'state': 'MOVING', 'detail': 'P3'}},
+                              {'A': 'free'}))
+    assert [e['text'] for e in events] == ['MOVING (P5 → P3)', '구역 A: 비어 있음']

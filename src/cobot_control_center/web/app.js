@@ -15,6 +15,7 @@ const ZONE_RADIUS_M = 0.12;    // 지도 위 구역 지점 원 반지름 [m] (�
 const MARK_RADIUS_M = 0.035;   // 출구·대기 슬롯·홈 표시 크기 [m]
 const SHOW_LAYERS_KEY = "cobot_control_center.show_layers";
 const SHOW_POINTS_KEY = "cobot_control_center.show_points";
+const EVENTS_MAX = 500;        // 화면에 들고 있을 이벤트 수 (백엔드 events_max 와 같게)
 
 // 순찰 노드 state → 색 묶음
 const STATE_GROUP = {
@@ -48,6 +49,8 @@ const view = {
   showLayers: true, // 지도 구역 표시 켜기/끄기 (브라우저에 기억)
   showPoints: true, // 지도 일반 웨이포인트(P) 표시 켜기/끄기 (브라우저에 기억)
   cards: new Map(), // robot_id → card element
+  events: [],       // 이벤트 로그 (오래된 것부터, id 오름차순)
+  lastEventId: 0,
 };
 
 function robotColorVar(index) {
@@ -63,10 +66,15 @@ function setLink(id, ok) {
 function connect() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws/fleet`);
-  ws.onopen = () => setLink("link-ws", true);
+  // 다시 붙으면 이벤트를 처음부터 다시 받는다 (백엔드가 다시 켜졌으면 id 가 1 부터 다시 시작).
+  ws.onopen = () => {
+    setLink("link-ws", true);
+    loadEvents();
+  };
   ws.onmessage = (event) => {
     view.snapshot = JSON.parse(event.data);
     view.receivedAt = Date.now();
+    addEvents(view.snapshot.events);
     render();
   };
   ws.onclose = () => {
@@ -128,6 +136,13 @@ function ensureCard(robotId, index) {
   return card;
 }
 
+function formatShortAge(sec) {
+  if (sec === null || sec === undefined) return "—";
+  if (sec < 10) return `${sec.toFixed(1)}s`;
+  if (sec < 60) return `${Math.round(sec)}s`;
+  return `${Math.floor(sec / 60)}m`;
+}
+
 function formatAge(sec) {
   if (sec === null || sec === undefined) return "-";
   if (sec < 1) return "방금";
@@ -177,6 +192,9 @@ function renderCard(robotId, robot, index) {
   }
   meta.push(`수신 ${formatAge(robot.last_seen_age)}`);
   card.querySelector(".meta").textContent = meta.join(" · ");
+  const ages = robot.topic_age || {};
+  card.querySelector(".topics").textContent =
+    `위치 ${formatShortAge(ages.pose)} · 배터리 ${formatShortAge(ages.battery)} · 상태 ${formatShortAge(ages.status)}`;
   renderTeach(card, robotId, robot);
 }
 
@@ -227,6 +245,99 @@ async function copyTeach(card) {
     selection.addRange(range);
     button.textContent = "Ctrl+C 로 복사";
     setTimeout(() => { button.textContent = "위치 복사"; }, COPIED_MS);
+  }
+}
+
+// ---------- 경고·이벤트 ----------
+
+function robotIndex(robotId) {
+  const robots = view.snapshot ? Object.keys(view.snapshot.robots || {}) : [];
+  return robots.indexOf(robotId);
+}
+
+function renderAlerts(alerts, fresh) {
+  const box = $("alerts");
+  // 관제 노드가 끊기면 마지막 경고가 남아 있어 헷갈리므로 숨긴다 (끊김은 상단 점이 알려 준다).
+  const list = fresh ? alerts || [] : [];
+  box.hidden = list.length === 0;
+  box.replaceChildren();
+  for (const alert of list) {
+    const item = document.createElement("li");
+    item.dataset.level = alert.level;
+    if (alert.robot) {
+      const who = document.createElement("strong");
+      who.textContent = alert.robot;
+      item.appendChild(who);
+    }
+    item.appendChild(document.createTextNode(alert.text));
+    box.appendChild(item);
+  }
+}
+
+async function loadEvents() {
+  try {
+    const res = await fetch(`/api/events?limit=${EVENTS_MAX}`);
+    if (!res.ok) return;
+    view.events = [];
+    view.lastEventId = 0;
+    addEvents(await res.json());
+  } catch (err) {
+    // 다음 연결 때 다시 읽는다.
+  }
+}
+
+function addEvents(events) {
+  let added = false;
+  for (const event of events || []) {
+    if (typeof event.id !== "number" || event.id <= view.lastEventId) continue;
+    view.events.push(event);
+    view.lastEventId = event.id;
+    added = true;
+  }
+  if (view.events.length > EVENTS_MAX) view.events.splice(0, view.events.length - EVENTS_MAX);
+  if (added) renderEvents();
+}
+
+function renderEventFilter() {
+  const select = $("event-robot");
+  const robots = view.snapshot ? Object.keys(view.snapshot.robots || {}) : [];
+  const have = new Set([...select.options].map((o) => o.value));
+  for (const robotId of robots) {
+    if (have.has(robotId)) continue;
+    const option = document.createElement("option");
+    option.value = robotId;
+    option.textContent = robotId;
+    select.appendChild(option);
+  }
+}
+
+function renderEvents() {
+  const box = $("events");
+  const filter = $("event-robot").value;
+  const shown = view.events.filter((e) => !filter || e.robot === filter).slice().reverse();
+  box.replaceChildren();
+  if (shown.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "muted";
+    empty.textContent = "이벤트 없음";
+    box.appendChild(empty);
+    return;
+  }
+  for (const event of shown) {
+    const item = document.createElement("li");
+    item.dataset.level = event.level;
+    const time = document.createElement("time");
+    time.textContent = new Date(event.time * 1000).toLocaleTimeString();
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = event.robot || "구역";
+    const index = event.robot ? robotIndex(event.robot) : -1;
+    if (index >= 0) who.style.setProperty("--robot-color", `var(${robotColorVar(index)})`);
+    const text = document.createElement("span");
+    text.className = "text";
+    text.textContent = event.text;
+    item.append(time, who, text);
+    box.appendChild(item);
   }
 }
 
@@ -355,8 +466,13 @@ function drawMap() {
   const { info, canvas: source } = view.map;
   const canvas = $("map");
   const wrap = $("map-wrap");
-  // 가로는 칸에 맞추되, 세로가 창을 넘지 않게 줄인다 (스크롤 없이 지도 전체가 보이게).
-  const availHeight = Math.max(240, window.innerHeight - wrap.getBoundingClientRect().top - 32);
+  // 가로는 칸에 맞추되, 세로는 아래 범례·이벤트 패널까지 창 안에 들어오게 줄인다.
+  const legend = $("map-legend");
+  const events = $("events-panel");
+  const gap = 16;
+  // 13 = 지도 패널 아래 padding 12 + 테두리 1
+  const below = (legend.hidden ? 0 : legend.offsetHeight + 8) + 13 + gap + events.offsetHeight + gap;
+  const availHeight = Math.max(240, window.innerHeight - wrap.getBoundingClientRect().top - below);
   const scale = Math.min(wrap.clientWidth / info.image_width, availHeight / info.image_height);
   const cssWidth = info.image_width * scale;
   const cssHeight = info.image_height * scale;
@@ -541,6 +657,8 @@ function render() {
     renderCard(robotId, robot, index);
   });
   renderZones(snap.zones);
+  renderAlerts(snap.alerts, snap.source_online);
+  renderEventFilter();
   drawMap();
 }
 
@@ -554,14 +672,17 @@ async function pollHealth() {
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
     renderInfra(infra, Boolean(health.source_online));
+    if (!health.source_online) renderAlerts(null, false);
   } catch (err) {
     setLink("link-source", false);
+    renderAlerts(null, false);
     renderInfra(view.snapshot ? view.snapshot.infra : null, false);
   }
 }
 
 window.addEventListener("resize", drawMap);
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
+$("event-robot").addEventListener("change", renderEvents);
 setupToggle("show-layers", SHOW_LAYERS_KEY, "showLayers", "off");
 setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 loadMap();

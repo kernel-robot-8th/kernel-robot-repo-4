@@ -46,13 +46,21 @@ class FleetStatusNode(Node):
         self.declare_parameter('mock_node_name', 'mock_pinky_node')
         self.declare_parameter('teach_max_std_xy', 0.05)
         self.declare_parameter('teach_max_std_yaw', 0.1)
+        self.declare_parameter('battery_warn_percent', 20.0)
+        self.declare_parameter('stuck_sec', 15.0)
+        self.declare_parameter('stuck_distance_m', 0.05)
+        self.declare_parameter('zone_hold_warn_sec', 200.0)
         robots = list(self.get_parameter('robots').value)
         stale = self.get_parameter('stale_timeout_sec').value
         period = self.get_parameter('publish_period_sec').value
 
         self.fleet = FleetState(robots, stale,
                                 self.get_parameter('teach_max_std_xy').value,
-                                self.get_parameter('teach_max_std_yaw').value)
+                                self.get_parameter('teach_max_std_yaw').value,
+                                self.get_parameter('battery_warn_percent').value,
+                                self.get_parameter('stuck_sec').value,
+                                self.get_parameter('stuck_distance_m').value,
+                                self.get_parameter('zone_hold_warn_sec').value)
         self._last_online = {name: False for name in robots}
         self._last_state = {name: None for name in robots}
 
@@ -106,7 +114,7 @@ class FleetStatusNode(Node):
         self.fleet.update_battery(robot, msg.data, time.time())
 
     def _on_zone(self, msg):
-        if not self.fleet.update_zone(msg.data):
+        if not self.fleet.update_zone(msg.data, time.time()):
             self.get_logger().warning(f'zone_manager/status 를 읽지 못함: {msg.data!r}')
 
     def _check_infra(self):
@@ -137,6 +145,11 @@ class FleetStatusNode(Node):
             if robot['online'] != self._last_online[name]:
                 self._last_online[name] = robot['online']
                 self.get_logger().info(f'{name}: {"online" if robot["online"] else "offline"}')
+        # 이번 주기에 새로 생긴 이벤트만 싣는다. 쌓아 두는 것은 백엔드(fleet_api_node)가 한다.
+        snapshot['events'] = self.fleet.collect_events(snapshot)
+        for event in snapshot['events']:
+            if event['kind'] in ('alert', 'clear', 'zone'):
+                self.get_logger().info(f'{event["robot"] or "-"}: {event["text"]}')
         snapshot['infra'] = self._check_infra()
         self.pub.publish(String(data=json.dumps(snapshot, ensure_ascii=False)))
 

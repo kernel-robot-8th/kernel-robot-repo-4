@@ -32,6 +32,10 @@ UNKNOWN_NODE_NAME = '_NODE_NAME_UNKNOWN_'
 
 # 순찰 노드 state 중 로봇이 움직이는 중인 것. 이때 위치를 웨이포인트로 복사하면 안 된다.
 MOVING_STATES = frozenset({'MOVING', 'STARTING', 'RETURNING', 'LEAVING_ZONE', 'RETREATING'})
+# 사람이 봐야 하는 state. 화면·이벤트에서 빨강으로 표시한다.
+BAD_STATES = frozenset({'FAILED', 'STOPPED'})
+# 이벤트로 따로 남기지 않는 경고. 연결·state 이벤트가 같은 내용을 이미 남긴다.
+ALERTS_WITHOUT_EVENT = frozenset({'offline', 'state_bad'})
 
 
 def parse_patrol_status(text):
@@ -179,17 +183,141 @@ class RobotState:
         self.pose_received = None  # 위치를 마지막으로 받은 시각 [s]
         self.pose_std = (None, None)  # amcl 공분산에서 구한 (위치 [m], yaw [rad]) 표준편차
         self.battery_percent = None
+        self.battery_received = None
+        # 끼임 의심 판단용: 마지막으로 stuck_distance_m 넘게 움직인 위치와 시각.
+        # amcl 은 멈춰 있으면 위치를 새로 내지 않으므로 '새 위치가 안 옴'도 제자리로 본다.
+        self.moved_pose = None
+        self.moved_at = None
+
+
+def _age(now, received):
+    return None if received is None else round(now - received, 3)
+
+
+def judge_alerts(robots, zones, zone_since, now, battery_warn_percent, stuck_sec,
+                 zone_hold_warn_sec):
+    """
+    지금 사람이 봐야 하는 경고 목록. 각 경고는 {'robot', 'code', 'level', 'text'} (+ 'zone').
+
+    robots 는 snapshot 의 robots 에 '_moved_at' 을 더한 dict, zones 는 구역 상태, zone_since 는
+    구역 상태가 마지막으로 바뀐 시각이다. level 은 'warn'(주황) 또는 'bad'(빨강).
+    """
+    alerts = []
+    for name, robot in robots.items():
+        if not robot['online'] and not robot['never_seen']:
+            alerts.append({'robot': name, 'code': 'offline', 'level': 'bad',
+                           'text': f'연결 끊김 ({robot["last_seen_age"]:.0f}초)'})
+        battery = robot['battery_percent']
+        if battery is not None and battery <= battery_warn_percent:
+            alerts.append({'robot': name, 'code': 'battery_low', 'level': 'warn',
+                           'text': f'배터리 {battery:.0f}%'})
+        state = robot['state']
+        if state in BAD_STATES:
+            detail = f': {robot["detail"]}' if robot['detail'] else ''
+            alerts.append({'robot': name, 'code': 'state_bad', 'level': 'bad',
+                           'text': f'{state}{detail}'})
+        moved_at = robot.get('_moved_at')
+        if (robot['online'] and state in MOVING_STATES and moved_at is not None
+                and now - moved_at >= stuck_sec):
+            alerts.append({'robot': name, 'code': 'stuck', 'level': 'warn',
+                           'text': f'{state} 인데 {now - moved_at:.0f}초째 거의 제자리 (끼임 의심)'})
+    for zone, value in zones.items():
+        since = zone_since.get(zone)
+        if value.startswith('occupied_by:') and since is not None \
+                and now - since >= zone_hold_warn_sec:
+            alerts.append({'robot': value[len('occupied_by:'):], 'code': 'zone_hold',
+                           'level': 'warn', 'zone': zone,
+                           'text': f'구역 {zone} 을 {now - since:.0f}초째 점유'})
+    return alerts
+
+
+def _zone_label(value):
+    if value is None:
+        return '?'
+    if value.startswith('occupied_by:'):
+        return value[len('occupied_by:'):]
+    return '비어 있음' if value == 'free' else value
+
+
+def diff_events(prev, curr):
+    """
+    이전·지금 스냅샷을 비교해 이벤트 목록을 만든다 (state 변화, 연결·끊김, 구역, 경고).
+
+    prev 가 None 이면(처음) 받은 적 있는 값만 이벤트로 남긴다. 이벤트는
+    {'time', 'robot', 'kind', 'level', 'text'} 이고 state 이벤트는 'data' 를 더 갖는다.
+    level 은 'info' / 'warn' / 'bad'.
+    """
+    events = []
+    now = curr['time']
+    prev_robots = (prev or {}).get('robots', {})
+
+    def add(robot, kind, level, text, data=None):
+        event = {'time': now, 'robot': robot, 'kind': kind, 'level': level, 'text': text}
+        if data is not None:
+            event['data'] = data
+        events.append(event)
+
+    for name, robot in curr['robots'].items():
+        before = prev_robots.get(name, {})
+        if robot['online'] != before.get('online', False):
+            if robot['online']:
+                add(name, 'link', 'info', '연결됨')
+            elif not robot['never_seen']:
+                add(name, 'link', 'bad', '연결 끊김')
+        state, detail = robot['state'], robot['detail']
+        if state is not None and (state, detail) != (before.get('state'), before.get('detail')):
+            if state == before.get('state'):
+                # 같은 state 에서 목표만 바뀜 (예: MOVING P5 → P3)
+                text = f'{state} ({before.get("detail") or "-"} → {detail or "-"})'
+            else:
+                text = f'{before.get("state") or "-"} → {state}'
+                if detail:
+                    text += f' ({detail})'
+            add(name, 'state', 'bad' if state in BAD_STATES else 'info', text,
+                {'state': state, 'detail': detail, 'waypoint': robot['waypoint'],
+                 'extra': robot['extra']})
+
+    prev_zones = (prev or {}).get('zones', {})
+    for zone, value in curr['zones'].items():
+        old = prev_zones.get(zone)
+        if value != old:
+            occupier = value if value.startswith('occupied_by:') else (old or '')
+            robot = occupier[len('occupied_by:'):] if occupier.startswith('occupied_by:') else None
+            text = (f'구역 {zone}: {_zone_label(value)}' if old is None
+                    else f'구역 {zone}: {_zone_label(old)} → {_zone_label(value)}')
+            add(robot, 'zone', 'info', text)
+
+    def key(alert):
+        return (alert['robot'], alert['code'], alert.get('zone'))
+
+    prev_alerts = {key(a): a for a in (prev or {}).get('alerts', [])}
+    curr_alerts = {key(a): a for a in curr.get('alerts', [])}
+    for k, alert in curr_alerts.items():
+        if k not in prev_alerts and alert['code'] not in ALERTS_WITHOUT_EVENT:
+            add(alert['robot'], 'alert', alert['level'], f'경고: {alert["text"]}')
+    for k, alert in prev_alerts.items():
+        if k not in curr_alerts and alert['code'] not in ALERTS_WITHOUT_EVENT:
+            add(alert['robot'], 'clear', 'info', f'해제: {alert["text"]}')
+    return events
 
 
 class FleetState:
     """여러 로봇과 구역 상태를 모아 두고, 발행할 dict 를 만든다."""
 
-    def __init__(self, robots, stale_timeout_sec, teach_max_std_xy=0.05, teach_max_std_yaw=0.1):
+    def __init__(self, robots, stale_timeout_sec, teach_max_std_xy=0.05, teach_max_std_yaw=0.1,
+                 battery_warn_percent=20.0, stuck_sec=15.0, stuck_distance_m=0.05,
+                 zone_hold_warn_sec=200.0):
         self.stale_timeout_sec = float(stale_timeout_sec)
         self.teach_max_std_xy = float(teach_max_std_xy)
         self.teach_max_std_yaw = float(teach_max_std_yaw)
+        self.battery_warn_percent = float(battery_warn_percent)
+        self.stuck_sec = float(stuck_sec)
+        self.stuck_distance_m = float(stuck_distance_m)
+        self.zone_hold_warn_sec = float(zone_hold_warn_sec)
         self.robots = {name: RobotState() for name in robots}
         self.zones = {}
+        self.zone_since = {}       # 구역 상태가 마지막으로 바뀐 시각 [s]
+        self._prev_snapshot = None
 
     def update_status(self, robot, text, now):
         """patrol_status 를 반영한다. 깨진 값이면 False."""
@@ -197,8 +325,12 @@ class FleetState:
         if parsed is None or robot not in self.robots:
             return False
         state = self.robots[robot]
+        was_moving = (state.status or {}).get('state') in MOVING_STATES
         state.status = parsed
         state.status_received = now
+        # 오래 서 있다가 출발했을 때 곧바로 끼임으로 보지 않도록, 출발 순간부터 다시 잰다.
+        if parsed.get('state') in MOVING_STATES and not was_moving:
+            state.moved_at = now
         return True
 
     def update_pose(self, robot, x, y, yaw, now, covariance=None):
@@ -210,6 +342,10 @@ class FleetState:
         state.pose_received = now
         state.pose_std = std_from_covariance(covariance)
         state.last_seen = now
+        moved = state.moved_pose
+        if moved is None or math.hypot(x - moved[0], y - moved[1]) > self.stuck_distance_m:
+            state.moved_pose = (float(x), float(y))
+            state.moved_at = now
 
     def update_battery(self, robot, percent, now):
         """배터리를 반영하고 연결 시각을 갱신한다. NaN 은 '모름'(None)으로 둔다."""
@@ -218,14 +354,17 @@ class FleetState:
         state = self.robots[robot]
         value = float(percent)
         state.battery_percent = None if math.isnan(value) else value
+        state.battery_received = now
         state.last_seen = now
 
-    def update_zone(self, text):
-        """구역 상태를 반영한다. 깨진 값이면 False."""
+    def update_zone(self, text, now=None):
+        """구역 상태를 반영한다. 깨진 값이면 False. now 는 점유 시간 경고에 쓴다."""
         parsed = parse_zone_status(text)
         if parsed is None:
             return False
         zone, zone_state = parsed
+        if self.zones.get(zone) != zone_state:
+            self.zone_since[zone] = now
         self.zones[zone] = zone_state
         return True
 
@@ -258,6 +397,22 @@ class FleetState:
                                           status.get('state'), self.teach_max_std_xy,
                                           self.teach_max_std_yaw),
                 'battery_percent': state.battery_percent,
+                # 어느 토픽이 끊겼는지 보려고 따로 낸다 (브릿지 문제인지 로봇 노드 문제인지).
+                'topic_age': {'pose': _age(now, state.pose_received),
+                              'battery': _age(now, state.battery_received),
+                              'status': _age(now, state.status_received)},
                 'extra': status.get('extra', {}),
             }
-        return {'time': now, 'robots': robots, 'zones': dict(sorted(self.zones.items()))}
+        zones = dict(sorted(self.zones.items()))
+        alerts = judge_alerts(
+            {name: dict(robot, _moved_at=self.robots[name].moved_at)
+             for name, robot in robots.items()},
+            zones, self.zone_since, now, self.battery_warn_percent, self.stuck_sec,
+            self.zone_hold_warn_sec)
+        return {'time': now, 'robots': robots, 'zones': zones, 'alerts': alerts}
+
+    def collect_events(self, snapshot):
+        """직전에 넘긴 스냅샷과 비교해 새 이벤트를 돌려준다. 발행 주기마다 한 번 부른다."""
+        events = diff_events(self._prev_snapshot, snapshot)
+        self._prev_snapshot = snapshot
+        return events

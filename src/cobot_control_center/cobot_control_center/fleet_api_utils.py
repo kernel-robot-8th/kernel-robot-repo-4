@@ -19,6 +19,7 @@ ROS 콜백 스레드가 put() 으로 넣고, 웹 서버 스레드가 get()·wait
 그래서 모든 접근을 lock 으로 감싼다. 시각은 clock 인자로 받아 시험에서 바꿔 끼운다.
 """
 
+import collections
 import json
 import math
 import os
@@ -205,13 +206,17 @@ def load_map_layers(points_dir, zone_params_path):
 class SnapshotStore:
     """fleet_status JSON 의 최신 값과 받은 시각, 순번을 보관한다."""
 
-    def __init__(self, stale_sec, clock=time.monotonic):
+    def __init__(self, stale_sec, clock=time.monotonic, events_max=500):
         self.stale_sec = float(stale_sec)
         self.clock = clock
         self._cond = threading.Condition()
         self._snapshot = None
         self._received = None
         self._seq = 0
+        # 스냅샷의 'events' 는 그 주기에 새로 생긴 것만 담겨 온다. 여기서 번호를 붙여 쌓는다.
+        # 메모리에만 두므로 백엔드를 다시 켜면 지워진다.
+        self._events = collections.deque(maxlen=int(events_max))
+        self._event_id = 0
 
     def put(self, text):
         """JSON 문자열을 넣는다. dict 가 아니거나 깨진 값이면 False 이고 기존 값을 유지한다."""
@@ -221,7 +226,18 @@ class SnapshotStore:
             return False
         if not isinstance(data, dict):
             return False
+        new_events = data.get('events')
+        if not isinstance(new_events, list):
+            new_events = []
         with self._cond:
+            numbered = []
+            for event in new_events:
+                if isinstance(event, dict):
+                    self._event_id += 1
+                    numbered.append(dict(event, id=self._event_id))
+            self._events.extend(numbered)
+            # 화면은 id 로 중복을 거른다 (처음엔 /api/events, 그 뒤엔 스냅샷의 events).
+            data['events'] = numbered
             self._snapshot = data
             self._received = self.clock()
             self._seq += 1
@@ -244,6 +260,13 @@ class SnapshotStore:
             seq, snapshot = self._seq, dict(self._snapshot)
         snapshot.update(self.health())
         return seq, snapshot
+
+    def events(self, after=0, robot=None, limit=200):
+        """번호가 after 보다 큰 이벤트를 오래된 것부터 최대 limit 개. robot 을 주면 그 로봇만."""
+        with self._cond:
+            items = [e for e in self._events
+                     if e['id'] > after and (robot is None or e.get('robot') == robot)]
+        return items[-limit:] if limit > 0 else []
 
     def wait_newer(self, seq, timeout):
         """순번이 seq 보다 큰 값이 들어올 때까지 최대 timeout 초 기다린다. 새 값이 있으면 True."""

@@ -291,3 +291,36 @@ def test_map_layers_route(tmp_path):
     layers = load_map_layers(*write_layers(tmp_path))
     client = TestClient(create_app(store, layers=layers))
     assert client.get('/api/map/layers').json()['zones']['A']['points']['ZA'] == [0.6, 0.5, -1.5]
+
+
+def test_store_numbers_events_and_filters():
+    store, _ = make_store()
+    store.put(json.dumps(dict(SNAPSHOT, events=[
+        {'robot': 'pinky1', 'kind': 'state', 'text': 'a'},
+        {'robot': None, 'kind': 'zone', 'text': 'b'}, 'broken'])))
+    store.put(json.dumps(dict(SNAPSHOT, events=[{'robot': 'pinky2', 'text': 'c'}])))
+    # 스냅샷에는 그 주기의 새 이벤트만 번호가 붙어 남는다.
+    assert store.get()[1]['events'] == [{'robot': 'pinky2', 'text': 'c', 'id': 3}]
+    assert [e['id'] for e in store.events()] == [1, 2, 3]
+    assert [e['text'] for e in store.events(after=1)] == ['b', 'c']
+    assert [e['text'] for e in store.events(robot='pinky1')] == ['a']
+    assert [e['id'] for e in store.events(limit=1)] == [3]
+    store.put(json.dumps(SNAPSHOT))
+    assert store.get()[1]['events'] == []
+
+
+def test_store_events_max():
+    store = SnapshotStore(3.0, events_max=2)
+    store.put(json.dumps(dict(SNAPSHOT, events=[{'text': t} for t in 'abc'])))
+    assert [e['text'] for e in store.events()] == ['b', 'c']
+
+
+def test_events_route():
+    store, _ = make_store()
+    store.put(json.dumps(dict(SNAPSHOT, events=[{'robot': 'pinky1', 'text': 'a'},
+                                                {'robot': 'pinky2', 'text': 'b'}])))
+    client = TestClient(create_app(store))
+    assert [e['id'] for e in client.get('/api/events').json()] == [1, 2]
+    assert client.get('/api/events', params={'after': 1}).json()[0]['text'] == 'b'
+    assert client.get('/api/events', params={'robot': 'pinky1'}).json()[0]['text'] == 'a'
+    assert client.get('/api/events', params={'limit': 0}).status_code == 422

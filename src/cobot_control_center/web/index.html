@@ -28,7 +28,11 @@
     </div>
   </header>
 
+  <ul class="alerts" id="alerts" aria-label="경고" hidden></ul>
+
   <main class="layout">
+    <!-- 지도와 이벤트를 한 칸에 두어 스크롤 없이 함께 보이게 한다 -->
+    <div class="main-col">
     <section class="panel map-panel" aria-label="지도">
       <div class="panel-head">
         <h2>지도</h2>
@@ -48,6 +52,17 @@
         <span class="lg-points-item"><i class="lg-point"></i>웨이포인트 P (화살표 = 도착 방향)<em id="points-hidden"></em></span>
       </div>
     </section>
+
+    <section class="panel events-panel" id="events-panel" aria-label="이벤트">
+      <div class="panel-head">
+        <h2>이벤트</h2>
+        <label class="muted">로봇
+          <select id="event-robot"><option value="">전체</option></select>
+        </label>
+      </div>
+      <ol class="events" id="events"><li class="muted">이벤트 없음</li></ol>
+    </section>
+    </div>
 
     <aside class="side">
       <section class="panel" aria-label="로봇">
@@ -78,6 +93,7 @@
         <span class="battery-text"></span>
       </div>
       <div class="meta muted"></div>
+      <div class="topics muted" title="토픽별로 마지막으로 받은 뒤 지난 시간. 위치(amcl)는 로봇이 멈춰 있으면 새로 오지 않는 게 정상"></div>
       <div class="card-actions">
         <span class="teach-warn"></span>
         <button type="button" class="teach-btn"
