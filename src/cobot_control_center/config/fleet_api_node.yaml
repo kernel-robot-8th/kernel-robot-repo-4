@@ -6,3 +6,5 @@ fleet_api_node:
     source_stale_sec: 3.0     # fleet_status 가 이만큼 끊기면 source_online=false [s]
     map_yaml: ''              # 지도 YAML 경로. fleet_api.launch.xml 의 map_yaml 인자가 채운다. 비면 지도 없이
     web_dir: ''               # 화면 정적 파일 폴더. 비면 share/cobot_control_center/web
+    points_dir: ''            # 순찰 설정 pinkyN.yaml 폴더 (구역 지점·출구·홈). fleet_api.launch.xml 이 채운다
+    zone_params: ''           # zone_manager 설정 (로봇 목록·대기 슬롯). fleet_api.launch.xml 이 채운다. 둘 중 하나라도 비면 구역 표시 없이

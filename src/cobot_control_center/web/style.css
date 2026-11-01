@@ -123,6 +123,13 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .map-wrap { position: relative; width: 100%; min-width: 0; }
 #map { display: block; margin: 0 auto; max-width: 100%; border-radius: 6px; }
 .side, .panel { min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { display: inline-block; width: 10px; height: 10px; font-style: normal; line-height: 10px; text-align: center; }
+.lg-zone { border-radius: 50%; border: 2px solid var(--good); background: color-mix(in srgb, var(--good) 25%, transparent); }
+.lg-exit { color: var(--bad); font-weight: 700; }
+.lg-queue { border-radius: 50%; border: 1.5px solid var(--muted); }
+.lg-home { background: var(--idle); transform: rotate(45deg) scale(0.75); }
 .map-empty { margin: 40px 0; text-align: center; color: var(--muted); }
 
 .cards { display: flex; flex-direction: column; gap: 10px; }

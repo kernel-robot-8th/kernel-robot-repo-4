@@ -26,7 +26,8 @@ import threading
 
 from ament_index_python.packages import get_package_share_directory
 from cobot_control_center.fleet_api_app import create_app
-from cobot_control_center.fleet_api_utils import load_map, MapError, SnapshotStore
+from cobot_control_center.fleet_api_utils import (
+    LayerError, load_map, load_map_layers, MapError, SnapshotStore)
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
@@ -45,10 +46,14 @@ class FleetApiNode(Node):
         self.declare_parameter('source_stale_sec', 3.0)
         self.declare_parameter('map_yaml', '')
         self.declare_parameter('web_dir', '')
+        self.declare_parameter('points_dir', '')
+        self.declare_parameter('zone_params', '')
         self.host = self.get_parameter('host').value
         self.port = int(self.get_parameter('port').value)
         self.store = SnapshotStore(self.get_parameter('source_stale_sec').value)
         self.map_data = self._load_map(self.get_parameter('map_yaml').value)
+        self.layers = self._load_layers(self.get_parameter('points_dir').value,
+                                        self.get_parameter('zone_params').value)
         self.web_dir = (self.get_parameter('web_dir').value
                         or os.path.join(get_package_share_directory('cobot_control_center'),
                                         'web'))
@@ -71,6 +76,22 @@ class FleetApiNode(Node):
                                f'{info["resolution"]} m/px)')
         return data
 
+    def _load_layers(self, points_dir, zone_params):
+        # 구역 표시는 덧그림이라 없어도 화면은 쓸 수 있다. 경고만 하고 계속한다.
+        if not points_dir or not zone_params:
+            self.get_logger().warning('points_dir·zone_params 가 비어 있음: 구역 표시 없이 시작')
+            return None
+        try:
+            layers = load_map_layers(points_dir, zone_params)
+        except LayerError as error:
+            self.get_logger().warning(f'{error}: 구역 표시 없이 시작')
+            return None
+        for warning in layers['warnings']:
+            self.get_logger().warning(f'구역 설정: {warning}')
+        self.get_logger().info(f'구역 표시: {", ".join(layers["zones"]) or "없음"} '
+                               f'(홈 {len(layers["homes"])}개)')
+        return layers
+
     def _on_fleet(self, msg):
         if not self.store.put(msg.data):
             self.get_logger().warning('fleet_status 를 읽지 못함 (JSON 객체가 아님)')
@@ -88,7 +109,7 @@ def main(args=None):
         # 시작·종료 이벤트를 쓰지 않는다. lifespan 을 켜 두면 uvicorn 이 종료 뒤 Ctrl+C 를 다시
         # 일으킬 때 남은 lifespan 작업이 CancelledError 트레이스백을 남긴다.
         app = create_app(node.store, node.map_data, node.web_dir,
-                         node.context.get_domain_id())
+                         node.context.get_domain_id(), node.layers)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

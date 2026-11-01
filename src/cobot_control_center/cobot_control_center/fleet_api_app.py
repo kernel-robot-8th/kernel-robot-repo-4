@@ -28,13 +28,14 @@ from fastapi.staticfiles import StaticFiles
 WS_WAIT_SEC = 1.0
 
 
-def create_app(store, map_data=None, web_dir=None, domain_id=None):
+def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
     map_data 는 load_map() 결과 (info, pgm 바이트) 또는 None, web_dir 은 화면 정적 파일 폴더다.
     domain_id 는 이 백엔드가 붙은 ROS_DOMAIN_ID 다. fleet_status 를 받기 전에도 화면이
     실물·시험 중 어디를 보는지 알 수 있게 health 에 싣는다.
+    layers 는 load_map_layers() 결과(구역 지점·출구·대기 슬롯·홈) 또는 None 이다.
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -50,6 +51,13 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None):
     @app.get('/api/map/image')
     def map_image():
         return Response(content=map_or_404()[1], media_type='image/x-portable-graymap')
+
+    @app.get('/api/map/layers')
+    def map_layers():
+        if layers is None:
+            raise HTTPException(status_code=404,
+                                detail='구역·지점 설정이 없음 (points_dir, zone_params)')
+        return layers
 
     def latest():
         _, snapshot = store.get()

@@ -115,6 +115,17 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | 주황 | 확인 불가. 위치를 내는 노드는 있지만 DDS 구현이 달라(예: Cyclone ↔ Fast DDS) 이름이 안 보임 |
 | 회색 | 해당 없음(실물 도메인이 아님) 또는 관제 노드 끊김 |
 
+지도에는 위험구역을 겹쳐 그립니다. 주행 설정 파일(`pinkyN.yaml`, `zone_params.yaml`)을 읽기만 합니다.
+
+| 표시 | 뜻 |
+|---|---|
+| 큰 원 + `A` | 구역 지점(`ZA` 등). 초록 비어 있음, 주황 점유, 회색 상태 모름. 원 크기는 표시용이며 실제 구역 넓이가 아님 |
+| 빨간 × `A 출구` | `ZA_EXIT`. 구역을 나와 토큰을 반납하는 지점 |
+| 빈 원 `A0`, `A1` .. | 대기 슬롯 (`A0` 이 맨 앞). 같은 자리의 슬롯은 `A0·B0` 처럼 합쳐 표시 |
+| 마름모 `I1` .. | 로봇 홈 |
+
+로봇마다 구역 좌표가 다르면 `fleet_api_node` 가 시작할 때 경고를 남깁니다.
+
 ## API
 
 모두 읽기 전용입니다. 쓰기(POST 등) 경로는 없습니다.
@@ -128,6 +139,7 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
 | `GET /api/map/info` | `{"image_width", "image_height", "resolution", "origin"}`. 지도 없으면 404 |
 | `GET /api/map/image` | 지도 PGM 원본 바이트 |
+| `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "warnings": [..]}`. 설정이 없으면 404 |
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
 
 ### `/control_center/fleet_status` (= `/api/fleet`) 형식
@@ -188,9 +200,12 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | `source_stale_sec` | `3.0` | `fleet_status` 가 이만큼 끊기면 `source_online=false` [s] |
 | `map_yaml` | launch 인자가 채움 | 지도 YAML. 비거나 읽지 못하면 지도 없이 시작 |
 | `web_dir` | `share/cobot_control_center/web` | 화면 정적 파일 폴더 |
+| `points_dir` | launch 인자가 채움 | 순찰 설정 `pinkyN.yaml` 폴더 (구역 지점·출구·홈) |
+| `zone_params` | launch 인자가 채움 | zone_manager 설정 (로봇 목록 `robot_ids`, 대기 슬롯). 둘 중 하나라도 비거나 못 읽으면 구역 표시 없이 시작 |
 
 지도 기본값은 로봇이 쓰는 지도 `src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml` 입니다.
 launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/src` 로 거슬러 올라가 찾습니다. 지도를 바꾸면 `map_yaml:=` 로 지정합니다.
+구역 표시 기본값도 같은 방식으로 `src/cobot_navigation/cobot_pinky_patrol/config`, `src/cobot_navigation/cobot_zone_traffic_control/config/zone_params.yaml` 을 가리킵니다 (`points_dir:=`, `zone_params:=`).
 
 ## 로봇 없이 시험하기
 

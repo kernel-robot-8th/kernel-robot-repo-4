@@ -11,6 +11,8 @@ const HEALTH_POLL_MS = 2000;
 const ROBOT_RADIUS_M = 0.06;   // 지도 위 로봇 원 반지름 [m]
 const BATTERY_LOW = 30;        // [%] 이하 주황
 const BATTERY_CRITICAL = 15;   // [%] 이하 빨강
+const ZONE_RADIUS_M = 0.12;    // 지도 위 구역 지점 원 반지름 [m] (표시용, 실제 구역 넓이 아님)
+const MARK_RADIUS_M = 0.035;   // 출구·대기 슬롯·홈 표시 크기 [m]
 
 // 순찰 노드 state → 색 묶음
 const STATE_GROUP = {
@@ -40,6 +42,7 @@ const view = {
   receivedAt: 0,
   healthDomain: null, // /api/health 의 domain_id (fleet_status 를 받기 전에도 보이게)
   map: null,        // {info, canvas}
+  layers: null,     // /api/map/layers (구역 지점·출구·대기 슬롯·홈)
   cards: new Map(), // robot_id → card element
 };
 
@@ -256,6 +259,17 @@ async function loadMap() {
   drawMap();
 }
 
+async function loadLayers() {
+  try {
+    const res = await fetch("/api/map/layers");
+    view.layers = res.ok ? await res.json() : null;
+  } catch (err) {
+    view.layers = null;
+  }
+  $("map-legend").hidden = !view.layers;
+  drawMap();
+}
+
 function drawMap() {
   if (!view.map) return;
   const { info, canvas: source } = view.map;
@@ -276,6 +290,7 @@ function drawMap() {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(source, 0, 0);
+  if (view.layers) drawLayers(ctx, info, view.layers, scale);
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   Object.keys(robots).forEach((robotId, index) => {
@@ -284,6 +299,95 @@ function drawMap() {
     const color = robot.online ? css(robotColorVar(index)) : css("--offline");
     drawRobot(ctx, info, robot.pose, robotId, color, scale);
   });
+}
+
+function toPixel(info, x, y) {
+  const [ox, oy] = info.origin;
+  return [(x - ox) / info.resolution, info.image_height - (y - oy) / info.resolution];
+}
+
+function drawLabel(ctx, text, px, py, scale) {
+  ctx.save();
+  ctx.font = `600 ${11 / scale}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.lineWidth = 3 / scale;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.fillStyle = "#1c2129";
+  ctx.strokeText(text, px, py);
+  ctx.fillText(text, px, py);
+  ctx.restore();
+}
+
+// 작은 표시(출구·대기 슬롯·홈). 같은 좌표의 표시는 하나로 합치고 이름을 이어 붙인다
+// (예: 구역 A·B 는 대기 위치가 같다).
+function drawMarks(ctx, info, marks, scale) {
+  const merged = new Map();
+  for (const mark of marks) {
+    const key = `${mark.kind}:${mark.pose[0].toFixed(3)},${mark.pose[1].toFixed(3)}`;
+    if (merged.has(key)) merged.get(key).labels.push(mark.label);
+    else merged.set(key, { ...mark, labels: [mark.label] });
+  }
+  const r = Math.max(MARK_RADIUS_M / info.resolution, 3 / scale);
+  for (const mark of merged.values()) {
+    const [px, py] = toPixel(info, mark.pose[0], mark.pose[1]);
+    ctx.save();
+    ctx.lineWidth = 1.5 / scale;
+    ctx.strokeStyle = mark.color;
+    ctx.fillStyle = mark.color;
+    ctx.beginPath();
+    if (mark.kind === "exit") {        // 출구: X
+      ctx.moveTo(px - r, py - r); ctx.lineTo(px + r, py + r);
+      ctx.moveTo(px + r, py - r); ctx.lineTo(px - r, py + r);
+      ctx.stroke();
+    } else if (mark.kind === "home") { // 홈: 마름모
+      ctx.moveTo(px, py - r); ctx.lineTo(px + r, py);
+      ctx.lineTo(px, py + r); ctx.lineTo(px - r, py);
+      ctx.closePath();
+      ctx.fill();
+    } else {                           // 대기 슬롯: 빈 원
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    drawLabel(ctx, mark.labels.join("·"), px, py - r - 1 / scale, scale);
+  }
+}
+
+// 구역 지점 원 색은 토큰 상태(fleet_status 의 zones)를 따른다. 원 크기는 표시용이다.
+function drawLayers(ctx, info, layers, scale) {
+  const zoneStates = view.snapshot ? view.snapshot.zones || {} : {};
+  const marks = [];
+  for (const [zone, layer] of Object.entries(layers.zones || {})) {
+    const state = zoneStates[zone] || "";
+    const color = state.startsWith("occupied_by:") ? css("--warn")
+      : state === "free" ? css("--good") : css("--idle");
+    for (const pose of Object.values(layer.points || {})) {
+      const [px, py] = toPixel(info, pose[0], pose[1]);
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(px, py, ZONE_RADIUS_M / info.resolution, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2 / scale;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+      ctx.restore();
+      drawLabel(ctx, zone, px, py + 5 / scale, scale);
+    }
+    if (layer.exit) {
+      marks.push({ kind: "exit", pose: layer.exit.pose, label: `${zone} 출구`, color: css("--bad") });
+    }
+    (layer.queue || []).forEach((pose, k) => {
+      marks.push({ kind: "queue", pose, label: `${zone}${k}`, color: css("--muted") });
+    });
+  }
+  for (const home of Object.values(layers.homes || {})) {
+    marks.push({ kind: "home", pose: home.pose, label: home.name, color: css("--idle") });
+  }
+  drawMarks(ctx, info, marks, scale);
 }
 
 function drawRobot(ctx, info, pose, label, color, scale) {
@@ -361,5 +465,6 @@ async function pollHealth() {
 window.addEventListener("resize", drawMap);
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
 loadMap();
+loadLayers();
 connect();
 setInterval(pollHealth, HEALTH_POLL_MS);

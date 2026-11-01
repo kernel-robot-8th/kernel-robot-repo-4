@@ -20,6 +20,7 @@ ROS 콜백 스레드가 put() 으로 넣고, 웹 서버 스레드가 get()·wait
 """
 
 import json
+import math
 import os
 import threading
 import time
@@ -82,6 +83,95 @@ def load_map(yaml_path):
     info = {'image_width': width, 'image_height': height,
             'resolution': float(meta['resolution']), 'origin': origin}
     return info, data
+
+
+class LayerError(Exception):
+    """구역·지점 설정 파일을 찾거나 읽지 못함."""
+
+
+def _ros_params(path):
+    """ROS 파라미터 YAML 의 첫 노드 아래 ros__parameters 를 돌려준다."""
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        params = next(iter(data.values()))['ros__parameters']
+    except (OSError, yaml.YAMLError, AttributeError, KeyError, StopIteration, TypeError) as error:
+        raise LayerError(f'설정을 읽지 못함: {path}') from error
+    if not isinstance(params, dict):
+        raise LayerError(f'ros__parameters 가 없음: {path}')
+    return params
+
+
+def _pose(value):
+    """[x, y] 또는 [x, y, yaw] → [x, y, yaw] (float)."""
+    x, y = float(value[0]), float(value[1])
+    return [x, y, float(value[2]) if len(value) > 2 else 0.0]
+
+
+def load_map_layers(points_dir, zone_params_path):
+    """
+    순찰·zone_manager 설정에서 지도에 겹쳐 그릴 구역 지점·출구·대기 슬롯·홈을 만든다.
+
+    주행 설정 파일을 읽기만 한다. 로봇 목록은 zone_params 의 robot_ids, 로봇별 지점은
+    <points_dir>/<robot>.yaml 이다. 구역 좌표는 로봇끼리 같아야 하므로 첫 로봇 값을 쓰고,
+    다른 로봇의 값이 다르면 warnings 에 남긴다. 대기 슬롯 k = 앵커 + k * 간격 * 방향
+    (zone_manager 와 같은 식). 좌표는 map 좌표계 [m], yaw [rad].
+    """
+    zone_params = _ros_params(zone_params_path)
+    robots = [str(r) for r in zone_params.get('robot_ids') or []]
+    spacing = float(zone_params.get('queue_spacing', 0.3))
+    queue_max = int(zone_params.get('queue_max', 3))
+    warnings = []
+
+    configs = {}
+    for robot in robots:
+        try:
+            configs[robot] = _ros_params(os.path.join(points_dir, f'{robot}.yaml'))
+        except LayerError as error:
+            warnings.append(str(error))
+    if not configs:
+        raise LayerError(f'로봇 설정을 하나도 읽지 못함: {points_dir}')
+
+    def zone_poses(params, zone):
+        points = params.get('points') or {}
+        names = list((params.get('zone_points') or {}).get(zone) or [])
+        exit_name = f'Z{zone}_EXIT'
+        poses = {n: _pose(points[n]) for n in names if n in points}
+        if exit_name in points:
+            poses[exit_name] = _pose(points[exit_name])
+        return poses
+
+    reference_robot = next(iter(configs))
+    reference = configs[reference_robot]
+    zones = {}
+    for zone in [str(z) for z in zone_params.get('zone_names') or []]:
+        poses = zone_poses(reference, zone)
+        for robot, params in configs.items():
+            if robot != reference_robot and zone_poses(params, zone) != poses:
+                warnings.append(f'구역 {zone} 좌표가 {reference_robot} 와 {robot} 에서 다름')
+        exit_name = f'Z{zone}_EXIT'
+        exit_pose = poses.pop(exit_name, None)
+        settings = zone_params.get(f'zone_{zone}') or {}
+        anchor = _pose(settings.get('queue_anchor', [0.0, 0.0, 0.0]))
+        back = [float(v) for v in settings.get('queue_back_dir', [0.0, -1.0])]
+        norm = math.hypot(back[0], back[1]) or 1.0
+        queue = [[round(anchor[0] + k * spacing * back[0] / norm, 4),
+                  round(anchor[1] + k * spacing * back[1] / norm, 4), anchor[2]]
+                 for k in range(queue_max)]
+        zones[zone] = {'points': poses,
+                       'exit': {'name': exit_name, 'pose': exit_pose} if exit_pose else None,
+                       'queue': queue}
+
+    homes = {}
+    for robot, params in configs.items():
+        name = params.get('home_name')
+        points = params.get('points') or {}
+        if name in points:
+            homes[robot] = {'name': str(name), 'pose': _pose(points[name])}
+        else:
+            warnings.append(f'{robot} 의 홈 지점이 points 에 없음: {name}')
+
+    return {'zones': zones, 'homes': homes, 'warnings': warnings}
 
 
 class SnapshotStore:

@@ -23,7 +23,8 @@ import os
 import threading
 
 from cobot_control_center.fleet_api_app import create_app
-from cobot_control_center.fleet_api_utils import load_map, MapError, SnapshotStore
+from cobot_control_center.fleet_api_utils import (
+    LayerError, load_map, load_map_layers, MapError, SnapshotStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -197,3 +198,82 @@ def test_websocket_sends_latest_then_pushes_new():
         updated = dict(SNAPSHOT, zones={'A': 'occupied_by:pinky1'})
         store.put(json.dumps(updated))
         assert ws.receive_json()['zones'] == {'A': 'occupied_by:pinky1'}
+
+
+ZONE_PARAMS = """zone_manager_node:
+  ros__parameters:
+    robot_ids: ["pinky1", "pinky2"]
+    zone_names: ["A", "B"]
+    zone_A:
+      queue_anchor: [0.15, 0.5, 0.0]
+      queue_back_dir: [0.0, -2.0]
+    zone_B:
+      queue_anchor: [0.15, 0.5, 0.0]
+      queue_back_dir: [0.0, -1.0]
+    queue_spacing: 0.30
+    queue_max: 3
+"""
+
+
+def robot_yaml(robot, home, zb=(0.6, -0.15, -1.5)):
+    return f"""{robot}_patrol:
+  ros__parameters:
+    home_name: {home}
+    zone_points:
+      A: [ZA]
+      B: [ZB]
+    points:
+      I1: [0.0, 0.0, 0.0]
+      I2: [0.0, -0.2]
+      ZA: [0.6, 0.5, -1.5]
+      ZB: {list(zb)}
+      ZA_EXIT: [0.45, 0.2, -1.5]
+"""
+
+
+def write_layers(tmp_path, zb2=(0.6, -0.15, -1.5)):
+    (tmp_path / 'pinky1.yaml').write_text(robot_yaml('pinky1', 'I1'), encoding='utf-8')
+    (tmp_path / 'pinky2.yaml').write_text(robot_yaml('pinky2', 'I2', zb2), encoding='utf-8')
+    path = tmp_path / 'zone_params.yaml'
+    path.write_text(ZONE_PARAMS, encoding='utf-8')
+    return str(tmp_path), str(path)
+
+
+def test_load_map_layers(tmp_path):
+    layers = load_map_layers(*write_layers(tmp_path))
+    assert layers['warnings'] == []
+    zone_a = layers['zones']['A']
+    assert zone_a['points'] == {'ZA': [0.6, 0.5, -1.5]}
+    assert zone_a['exit'] == {'name': 'ZA_EXIT', 'pose': [0.45, 0.2, -1.5]}
+    # back_dir 는 단위벡터로 바꾼 뒤 간격을 곱한다 (zone_manager 와 같은 식).
+    assert zone_a['queue'] == [[0.15, 0.5, 0.0], [0.15, 0.2, 0.0], [0.15, -0.1, 0.0]]
+    assert layers['zones']['B']['exit'] is None
+    assert layers['homes'] == {'pinky1': {'name': 'I1', 'pose': [0.0, 0.0, 0.0]},
+                               'pinky2': {'name': 'I2', 'pose': [0.0, -0.2, 0.0]}}
+    json.dumps(layers)
+
+
+def test_load_map_layers_warns_on_mismatch_and_missing_robot(tmp_path):
+    points_dir, zone_params = write_layers(tmp_path, zb2=(0.7, -0.15, -1.5))
+    layers = load_map_layers(points_dir, zone_params)
+    assert layers['warnings'] == ['구역 B 좌표가 pinky1 와 pinky2 에서 다름']
+    os.remove(os.path.join(points_dir, 'pinky2.yaml'))
+    layers = load_map_layers(points_dir, zone_params)
+    assert 'pinky2' not in layers['homes']
+    assert any('pinky2.yaml' in w for w in layers['warnings'])
+
+
+def test_load_map_layers_errors(tmp_path):
+    points_dir, zone_params = write_layers(tmp_path)
+    with pytest.raises(LayerError):
+        load_map_layers(points_dir, str(tmp_path / 'missing.yaml'))
+    with pytest.raises(LayerError):
+        load_map_layers(str(tmp_path / 'nowhere'), zone_params)
+
+
+def test_map_layers_route(tmp_path):
+    store, _ = make_store()
+    assert TestClient(create_app(store)).get('/api/map/layers').status_code == 404
+    layers = load_map_layers(*write_layers(tmp_path))
+    client = TestClient(create_app(store, layers=layers))
+    assert client.get('/api/map/layers').json()['zones']['A']['points']['ZA'] == [0.6, 0.5, -1.5]
