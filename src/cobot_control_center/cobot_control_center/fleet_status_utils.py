@@ -30,6 +30,9 @@ PATROL_STATUS_KEYS = ('state', 'waypoint', 'detail', 'time')
 # 다른 DDS 구현(예: Cyclone ↔ Fast DDS) 사이에서는 노드 이름이 넘어오지 않아 이 값으로 보인다.
 UNKNOWN_NODE_NAME = '_NODE_NAME_UNKNOWN_'
 
+# 순찰 노드 state 중 로봇이 움직이는 중인 것. 이때 위치를 웨이포인트로 복사하면 안 된다.
+MOVING_STATES = frozenset({'MOVING', 'STARTING', 'RETURNING', 'LEAVING_ZONE', 'RETREATING'})
+
 
 def parse_patrol_status(text):
     """
@@ -124,6 +127,47 @@ def yaw_from_quaternion(x, y, z, w):
     return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 
 
+def std_from_covariance(covariance):
+    """
+    위치(amcl PoseWithCovariance)의 6x6 공분산(36개, 행 우선)에서 (위치 표준편차 [m], yaw 표준편차 [rad]).
+
+    위치는 x·y 중 큰 쪽을 쓴다. 공분산이 없거나 깨졌으면 (None, None).
+    """
+    try:
+        values = [float(v) for v in covariance]
+    except (TypeError, ValueError):
+        return None, None
+    if len(values) != 36 or any(math.isnan(v) for v in (values[0], values[7], values[35])):
+        return None, None
+    return (math.sqrt(max(values[0], values[7], 0.0)), math.sqrt(max(values[35], 0.0)))
+
+
+def judge_teach_pose(online, pose, std_xy, std_yaw, state, max_std_xy, max_std_yaw):
+    """
+    지금 위치를 웨이포인트로 복사해도 되는지 판단한다. 막지는 않고 경고만 돌려준다.
+
+    amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(update_min_d·a), 평균 대신 마지막
+    추정값과 그 불확실성(공분산)으로 본다.
+    """
+    warnings = []
+    if pose is None:
+        warnings.append('위치를 받은 적 없음')
+    if not online:
+        warnings.append('로봇 연결 끊김')
+    if state in MOVING_STATES:
+        warnings.append(f'이동 중 ({state}). 멈춘 뒤 복사')
+    if std_xy is None or std_yaw is None:
+        warnings.append('위치 불확실성 모름 (공분산 없음)')
+    else:
+        if std_xy > max_std_xy:
+            warnings.append(f'위치 불확실성 큼 (±{std_xy:.3f} m > {max_std_xy} m)')
+        if std_yaw > max_std_yaw:
+            warnings.append(f'방향 불확실성 큼 (±{std_yaw:.3f} rad > {max_std_yaw} rad)')
+    return {'ok': not warnings, 'warnings': warnings,
+            'std_xy': None if std_xy is None else round(std_xy, 4),
+            'std_yaw': None if std_yaw is None else round(std_yaw, 4)}
+
+
 class RobotState:
     """로봇 한 대의 최신 값."""
 
@@ -132,14 +176,18 @@ class RobotState:
         self.status = None         # parse_patrol_status 결과
         self.status_received = None
         self.pose = None           # {'x', 'y', 'yaw'} [m], [m], [rad]
+        self.pose_received = None  # 위치를 마지막으로 받은 시각 [s]
+        self.pose_std = (None, None)  # amcl 공분산에서 구한 (위치 [m], yaw [rad]) 표준편차
         self.battery_percent = None
 
 
 class FleetState:
     """여러 로봇과 구역 상태를 모아 두고, 발행할 dict 를 만든다."""
 
-    def __init__(self, robots, stale_timeout_sec):
+    def __init__(self, robots, stale_timeout_sec, teach_max_std_xy=0.05, teach_max_std_yaw=0.1):
         self.stale_timeout_sec = float(stale_timeout_sec)
+        self.teach_max_std_xy = float(teach_max_std_xy)
+        self.teach_max_std_yaw = float(teach_max_std_yaw)
         self.robots = {name: RobotState() for name in robots}
         self.zones = {}
 
@@ -153,12 +201,14 @@ class FleetState:
         state.status_received = now
         return True
 
-    def update_pose(self, robot, x, y, yaw, now):
-        """위치를 반영하고 연결 시각을 갱신한다."""
+    def update_pose(self, robot, x, y, yaw, now, covariance=None):
+        """위치를 반영하고 연결 시각을 갱신한다. covariance 는 amcl 의 6x6 공분산(36개)."""
         if robot not in self.robots:
             return
         state = self.robots[robot]
         state.pose = {'x': float(x), 'y': float(y), 'yaw': float(yaw)}
+        state.pose_received = now
+        state.pose_std = std_from_covariance(covariance)
         state.last_seen = now
 
     def update_battery(self, robot, percent, now):
@@ -191,8 +241,9 @@ class FleetState:
         robots = {}
         for name, state in self.robots.items():
             status = state.status or {}
+            online = self.is_online(name, now)
             robots[name] = {
-                'online': self.is_online(name, now),
+                'online': online,
                 'never_seen': state.last_seen is None,
                 'last_seen_age': (None if state.last_seen is None
                                   else round(now - state.last_seen, 3)),
@@ -201,6 +252,11 @@ class FleetState:
                 'detail': status.get('detail'),
                 'status_time': status.get('time'),
                 'pose': state.pose,
+                'pose_age': (None if state.pose_received is None
+                             else round(now - state.pose_received, 3)),
+                'teach': judge_teach_pose(online, state.pose, *state.pose_std,
+                                          status.get('state'), self.teach_max_std_xy,
+                                          self.teach_max_std_yaw),
                 'battery_percent': state.battery_percent,
                 'extra': status.get('extra', {}),
             }

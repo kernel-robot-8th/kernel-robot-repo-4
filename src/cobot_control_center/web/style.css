@@ -124,6 +124,8 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 #map { display: block; margin: 0 auto; max-width: 100%; border-radius: 6px; }
 .side, .panel { min-width: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; }
+.legend .toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--text); cursor: pointer; }
+.legend.off span { opacity: 0.4; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { display: inline-block; width: 10px; height: 10px; font-style: normal; line-height: 10px; text-align: center; }
 .lg-zone { border-radius: 50%; border: 2px solid var(--good); background: color-mix(in srgb, var(--good) 25%, transparent); }
@@ -181,6 +183,22 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .battery-text { font-size: 12px; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
 
 .meta { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.card-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.card button {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.card button:hover:not(:disabled) { border-color: var(--active); }
+.card button:disabled { opacity: 0.5; cursor: default; }
+.teach-warn { font-size: 12px; color: var(--warn); }
+.teach-line { font-size: 12px; overflow-wrap: anywhere; user-select: all; }
 
 .zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .zones .muted { grid-column: 1 / -1; margin: 0; }

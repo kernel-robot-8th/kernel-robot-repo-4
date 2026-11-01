@@ -125,6 +125,15 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | 마름모 `I1` .. | 로봇 홈 |
 
 로봇마다 구역 좌표가 다르면 `fleet_api_node` 가 시작할 때 경고를 남깁니다.
+지도 아래 **구역 표시** 체크박스로 겹쳐 그린 표시를 끄고 켭니다 (선택은 브라우저에 기억).
+
+로봇 카드의 **위치 복사** 버튼은 웨이포인트 실측을 돕습니다. 사람이 로봇을 원하는 자리에 세운 뒤 누르면
+지금 위치 `[0.123, -0.456, 1.57]` (x, y [m], yaw [rad]) 가 바로 클립보드에 들어가고 버튼이 잠깐 `복사됨 ✓` 으로 바뀝니다.
+`pinkyN.yaml` 의 `points` 값 형식과 같으므로 `P36: ` 뒤에 붙여 넣으면 됩니다. 서버에 저장하거나 로봇에 보내지 않고, 파일도 고치지 않습니다.
+클립보드를 못 쓰는 환경이면 그 줄을 카드에 띄워 선택해 두므로 Ctrl+C 로 복사합니다.
+다음이면 버튼 옆에 주황 경고가 뜹니다 (마우스를 올리면 전체 문장, 복사는 막지 않음): 이동 중 상태, 연결 끊김, 위치를 받은 적 없음,
+amcl 공분산의 표준편차가 `teach_max_std_xy`·`teach_max_std_yaw` 초과.
+amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update_min_d`·`update_min_a`) 평균 대신 마지막 추정값을 씁니다.
 
 ## API
 
@@ -151,7 +160,8 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
     "pinky1": {
       "online": true, "never_seen": false, "last_seen_age": 0.4,
       "state": "MOVING", "waypoint": 2, "detail": "ZB", "status_time": 1793517870.9,
-      "pose": {"x": 0.30, "y": 0.40, "yaw": 1.57},
+      "pose": {"x": 0.30, "y": 0.40, "yaw": 1.57}, "pose_age": 0.4,
+      "teach": {"ok": false, "warnings": ["이동 중 (MOVING). 멈춘 뒤 복사"], "std_xy": 0.021, "std_yaw": 0.05},
       "battery_percent": 87.0,
       "extra": {}
     }
@@ -174,6 +184,7 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
   - 브릿지는 노드 이름(`bridge_node_format`)으로 셉니다. 로봇이 꺼져 있으면 브릿지가 위치 토픽을 만들지 않으므로, 이름이 안 보이는 브릿지는 로봇이 켜졌을 때만 `unknown` 으로 드러납니다.
 
 - 단위: `pose.x`·`y` [m], `yaw` [rad], `last_seen_age` [s], `battery_percent` [%]. 모르는 값은 `null`.
+- `pose_age` [s]: 위치를 마지막으로 받은 뒤 지난 시간. `teach`: 위치 복사 판정 `{"ok", "warnings": [..], "std_xy" [m], "std_yaw" [rad]}`.
 - `state`·`waypoint`·`detail`·`status_time` 은 순찰 노드 `patrol_status` 를 그대로 옮긴 값입니다.
 - `patrol_status` 에 그 밖의 필드(예: `command_id`, `task_finished`)가 오면 버리지 않고 `extra` 에 담습니다.
 - 지금은 `std_msgs/String` JSON 입니다. 필드가 정해지면 `cobot_interfaces` 메시지로 바꿀 예정입니다 (팀 공지·리뷰 필요).
@@ -190,6 +201,8 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 | `control_domain_id` | `100` | 실물 관제 도메인. 이 도메인에서만 브릿지·zone_manager 를 검사 |
 | `bridge_node_format` | `pinky_bridge_{robot}_only_{domain}` | 관제 PC 쪽 브릿지 노드 이름. 브릿지 설정 `name` 에 도메인이 붙은 모양 |
 | `mock_node_name` | `mock_pinky_node` | 이 노드가 보이면 `mock` 모드 |
+| `teach_max_std_xy` | `0.05` | 위치 복사 경고 기준, amcl 위치 표준편차 [m]. 임시값 (현장 실측 뒤 조정) |
+| `teach_max_std_yaw` | `0.1` | 위치 복사 경고 기준, amcl 방향 표준편차 [rad]. 임시값 |
 
 `fleet_api_node` (`config/fleet_api_node.yaml`)
 

@@ -18,8 +18,9 @@ import json
 import math
 
 from cobot_control_center.fleet_status_utils import (
-    count_state, FleetState, judge_infra, parse_patrol_status, parse_zone_status,
-    UNKNOWN_NODE_NAME, yaw_from_quaternion)
+    count_state, FleetState, judge_infra, judge_teach_pose, MOVING_STATES,
+    parse_patrol_status, parse_zone_status, std_from_covariance, UNKNOWN_NODE_NAME,
+    yaw_from_quaternion)
 import pytest
 
 BRIDGES = {'pinky1': 'pinky_bridge_pinky1_only_100', 'pinky2': 'pinky_bridge_pinky2_only_100'}
@@ -172,3 +173,61 @@ def test_snapshot_is_json_serializable():
     assert pinky1['battery_percent'] == 87.0
     assert data['robots']['pinky2']['never_seen'] is True
     assert data['zones'] == {'A': 'free', 'B': 'occupied_by:pinky1'}
+
+
+def cov(var_x, var_y, var_yaw):
+    values = [0.0] * 36
+    values[0], values[7], values[35] = var_x, var_y, var_yaw
+    return values
+
+
+def test_std_from_covariance():
+    std_xy, std_yaw = std_from_covariance(cov(0.0004, 0.0009, 0.01))
+    assert std_xy == pytest.approx(0.03)
+    assert std_yaw == pytest.approx(0.1)
+    assert std_from_covariance(None) == (None, None)
+    assert std_from_covariance([0.0] * 6) == (None, None)
+    assert std_from_covariance(cov(float('nan'), 0.0, 0.0)) == (None, None)
+    # 음수(수치 오차)는 0 으로 본다.
+    assert std_from_covariance(cov(-1e-9, 0.0, 0.0)) == (0.0, 0.0)
+
+
+POSE = {'x': 0.1, 'y': 0.2, 'yaw': 0.3}
+
+
+def test_judge_teach_pose_ok_and_boundary():
+    # 기준값과 같으면 통과, 넘으면 경고.
+    ok = judge_teach_pose(True, POSE, 0.05, 0.1, 'ARRIVED', 0.05, 0.1)
+    assert ok == {'ok': True, 'warnings': [], 'std_xy': 0.05, 'std_yaw': 0.1}
+    over = judge_teach_pose(True, POSE, 0.0501, 0.1001, 'IDLE', 0.05, 0.1)
+    assert over['ok'] is False
+    assert len(over['warnings']) == 2
+
+
+@pytest.mark.parametrize('state', sorted(MOVING_STATES))
+def test_judge_teach_pose_warns_while_moving(state):
+    result = judge_teach_pose(True, POSE, 0.01, 0.01, state, 0.05, 0.1)
+    assert result['ok'] is False
+    assert state in result['warnings'][0]
+
+
+def test_judge_teach_pose_missing_values():
+    result = judge_teach_pose(False, None, None, None, None, 0.05, 0.1)
+    assert result['warnings'] == ['위치를 받은 적 없음', '로봇 연결 끊김',
+                                  '위치 불확실성 모름 (공분산 없음)']
+
+
+def test_snapshot_teach_uses_covariance_and_state():
+    fleet = FleetState(['pinky1'], 3.0, teach_max_std_xy=0.05, teach_max_std_yaw=0.1)
+    robot = fleet.snapshot(100.0)['robots']['pinky1']
+    assert robot['pose_age'] is None
+    assert robot['teach']['ok'] is False
+
+    fleet.update_pose('pinky1', 1.0, 2.0, 0.5, 99.0, cov(0.0001, 0.0001, 0.0001))
+    robot = fleet.snapshot(100.0)['robots']['pinky1']
+    assert robot['pose_age'] == 1.0
+    assert robot['teach'] == {'ok': True, 'warnings': [], 'std_xy': 0.01, 'std_yaw': 0.01}
+
+    fleet.update_status('pinky1', json.dumps({'state': 'MOVING'}), 100.0)
+    assert fleet.snapshot(100.0)['robots']['pinky1']['teach']['ok'] is False
+    json.dumps(fleet.snapshot(100.0))

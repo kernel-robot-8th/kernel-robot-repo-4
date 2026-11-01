@@ -44,11 +44,15 @@ class FleetStatusNode(Node):
         self.declare_parameter('control_domain_id', 100)
         self.declare_parameter('bridge_node_format', 'pinky_bridge_{robot}_only_{domain}')
         self.declare_parameter('mock_node_name', 'mock_pinky_node')
+        self.declare_parameter('teach_max_std_xy', 0.05)
+        self.declare_parameter('teach_max_std_yaw', 0.1)
         robots = list(self.get_parameter('robots').value)
         stale = self.get_parameter('stale_timeout_sec').value
         period = self.get_parameter('publish_period_sec').value
 
-        self.fleet = FleetState(robots, stale)
+        self.fleet = FleetState(robots, stale,
+                                self.get_parameter('teach_max_std_xy').value,
+                                self.get_parameter('teach_max_std_yaw').value)
         self._last_online = {name: False for name in robots}
         self._last_state = {name: None for name in robots}
 
@@ -96,7 +100,7 @@ class FleetStatusNode(Node):
         p = msg.pose.pose.position
         q = msg.pose.pose.orientation
         self.fleet.update_pose(robot, p.x, p.y, yaw_from_quaternion(q.x, q.y, q.z, q.w),
-                               time.time())
+                               time.time(), msg.pose.covariance)
 
     def _on_battery(self, robot, msg):
         self.fleet.update_battery(robot, msg.data, time.time())

@@ -39,6 +39,7 @@
         <p class="map-empty" id="map-empty" hidden>지도 없음</p>
       </div>
       <div class="legend muted" id="map-legend" hidden>
+        <label class="toggle"><input type="checkbox" id="show-layers" checked>구역 표시</label>
         <span><i class="lg-zone"></i>구역 지점 (초록 비어 있음 · 주황 점유)</span>
         <span><i class="lg-exit">×</i>구역 출구</span>
         <span><i class="lg-queue"></i>대기 슬롯 (A0 = 맨 앞)</span>
@@ -75,6 +76,12 @@
         <span class="battery-text"></span>
       </div>
       <div class="meta muted"></div>
+      <div class="card-actions">
+        <span class="teach-warn"></span>
+        <button type="button" class="teach-btn"
+                title="지금 위치 [x, y, yaw] 를 클립보드에 넣는다 (파일은 고치지 않음)">위치 복사</button>
+      </div>
+      <code class="teach-line" hidden></code>
     </article>
   </template>
 

@@ -8,3 +8,7 @@ fleet_status_node:
     # 관제 PC 쪽 브릿지 노드 이름. cobot_domain_bridge 설정의 name 에 도메인이 붙은 모양
     bridge_node_format: pinky_bridge_{robot}_only_{domain}
     mock_node_name: mock_pinky_node    # 이 노드가 보이면 '가짜 핑키' 모드로 표시
+    # '위치 복사'(웨이포인트 티칭) 경고 기준. amcl 공분산의 표준편차가 넘으면 경고만 한다 (막지 않음).
+    # TODO(실측): 처음 값은 임시. 로봇을 세워 둔 평소 값을 재서 정한다.
+    teach_max_std_xy: 0.05             # 위치 [m]
+    teach_max_std_yaw: 0.1             # 방향 [rad]

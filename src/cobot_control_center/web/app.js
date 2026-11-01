@@ -13,6 +13,7 @@ const BATTERY_LOW = 30;        // [%] 이하 주황
 const BATTERY_CRITICAL = 15;   // [%] 이하 빨강
 const ZONE_RADIUS_M = 0.12;    // 지도 위 구역 지점 원 반지름 [m] (표시용, 실제 구역 넓이 아님)
 const MARK_RADIUS_M = 0.035;   // 출구·대기 슬롯·홈 표시 크기 [m]
+const SHOW_LAYERS_KEY = "cobot_control_center.show_layers";
 
 // 순찰 노드 state → 색 묶음
 const STATE_GROUP = {
@@ -43,6 +44,7 @@ const view = {
   healthDomain: null, // /api/health 의 domain_id (fleet_status 를 받기 전에도 보이게)
   map: null,        // {info, canvas}
   layers: null,     // /api/map/layers (구역 지점·출구·대기 슬롯·홈)
+  showLayers: true, // 지도 구역 표시 켜기/끄기 (브라우저에 기억)
   cards: new Map(), // robot_id → card element
 };
 
@@ -118,6 +120,7 @@ function ensureCard(robotId, index) {
   const card = $("card-template").content.firstElementChild.cloneNode(true);
   card.style.setProperty("--robot-color", `var(${robotColorVar(index)})`);
   card.querySelector(".name").textContent = robotId;
+  setupTeach(card);
   $("cards").appendChild(card);
   view.cards.set(robotId, card);
   return card;
@@ -172,6 +175,57 @@ function renderCard(robotId, robot, index) {
   }
   meta.push(`수신 ${formatAge(robot.last_seen_age)}`);
   card.querySelector(".meta").textContent = meta.join(" · ");
+  renderTeach(card, robotId, robot);
+}
+
+// ---------- 위치 복사 (웨이포인트 티칭) ----------
+// 로봇을 사람이 세운 뒤 버튼을 누르면 지금 위치를 [x, y, yaw] 로 클립보드에 넣는다
+// (pinkyN.yaml points 의 값 형식). 서버에 저장하거나 로봇에 보내지 않는다.
+
+const COPIED_MS = 2000; // '복사됨' 표시 시간 [ms]
+
+function teachLine(robot) {
+  const p = robot.pose;
+  return `[${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.yaw.toFixed(2)}]`;
+}
+
+function setupTeach(card) {
+  card.querySelector(".teach-btn").addEventListener("click", () => copyTeach(card));
+}
+
+// 경고는 버튼 옆에 짧게 보이고, 전체 문장은 마우스를 올리면 보인다. 복사는 막지 않는다.
+function renderTeach(card, robotId, robot) {
+  const warnings = (robot.teach && robot.teach.warnings) || [];
+  const warn = card.querySelector(".teach-warn");
+  warn.textContent = warnings.length ? `⚠ ${warnings[0].split(" (")[0]}` : "";
+  warn.title = warnings.join("\n");
+  card.querySelector(".teach-btn").disabled = !robot.pose;
+}
+
+async function copyTeach(card) {
+  const robotId = card.querySelector(".name").textContent;
+  const robot = view.snapshot && view.snapshot.robots ? view.snapshot.robots[robotId] : null;
+  if (!robot || !robot.pose) return;
+  const text = teachLine(robot);
+  const button = card.querySelector(".teach-btn");
+  const line = card.querySelector(".teach-line");
+  try {
+    await navigator.clipboard.writeText(text);
+    line.hidden = true;
+    button.textContent = "복사됨 ✓";
+    setTimeout(() => { button.textContent = "위치 복사"; }, COPIED_MS);
+  } catch (err) {
+    // 클립보드를 못 쓰는 환경(http://localhost 가 아닌 주소 등): 줄을 보여 주고 선택해 둔다.
+    line.textContent = text;
+    line.hidden = false;
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    button.textContent = "Ctrl+C 로 복사";
+    setTimeout(() => { button.textContent = "위치 복사"; }, COPIED_MS);
+  }
 }
 
 // ---------- 구역 ----------
@@ -270,6 +324,28 @@ async function loadLayers() {
   drawMap();
 }
 
+// 선택은 이 브라우저에만 기억한다. 저장소를 못 쓰는 환경(사생활 보호 창 등)이면 켜짐으로 시작한다.
+function setupLayerToggle() {
+  try {
+    view.showLayers = localStorage.getItem(SHOW_LAYERS_KEY) !== "0";
+  } catch (err) {
+    view.showLayers = true;
+  }
+  const box = $("show-layers");
+  box.checked = view.showLayers;
+  $("map-legend").classList.toggle("off", !view.showLayers);
+  box.addEventListener("change", () => {
+    view.showLayers = box.checked;
+    $("map-legend").classList.toggle("off", !view.showLayers);
+    try {
+      localStorage.setItem(SHOW_LAYERS_KEY, view.showLayers ? "1" : "0");
+    } catch (err) {
+      // 기억하지 못해도 지금 화면에는 반영된다.
+    }
+    drawMap();
+  });
+}
+
 function drawMap() {
   if (!view.map) return;
   const { info, canvas: source } = view.map;
@@ -290,7 +366,7 @@ function drawMap() {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(source, 0, 0);
-  if (view.layers) drawLayers(ctx, info, view.layers, scale);
+  if (view.layers && view.showLayers) drawLayers(ctx, info, view.layers, scale);
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   Object.keys(robots).forEach((robotId, index) => {
@@ -464,6 +540,7 @@ async function pollHealth() {
 
 window.addEventListener("resize", drawMap);
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
+setupLayerToggle();
 loadMap();
 loadLayers();
 connect();
