@@ -3,7 +3,7 @@
   Copyright 2026 Pinky_Team4
   Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 
-  가짜 핑키 + 관제(fleet_status, fleet_api) 를 함께 띄운다. 로봇 없이 관제 화면을 시험할 때 쓴다.
+  가짜 핑키 + 관제(fleet_status, fleet_api, task_manager) 를 함께 띄운다. 로봇 없이 관제 화면을 시험할 때 쓴다.
   반드시 격리 도메인에서 실행한다 (실물 0·10·12·20·30·100 이면 가짜 핑키가 시작을 거부한다):
     export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
     ros2 launch cobot_mock mock_fleet.launch.xml
@@ -16,8 +16,9 @@
   <arg name="zone_params" default="$(find-pkg-share cobot_zone_traffic_control)/config/zone_params.yaml"
        description="zone_manager 설정 파일"/>
   <arg name="auto_patrol" default="true" description="가짜 핑키가 스스로 돌아다닐지"/>
-  <arg name="with_control_center" default="true" description="fleet_status·fleet_api 도 함께 띄울지"/>
+  <arg name="with_control_center" default="true" description="fleet_status·fleet_api·task_manager 도 함께 띄울지"/>
   <arg name="port" default="8081" description="관제 화면 포트 (실물 관제 8080 과 겹치지 않게)"/>
+  <arg name="spec_mode" default="auto" description="관제 명령 규격 (auto: v2 상태가 오면 v2, v1, v2)"/>
 
   <node pkg="cobot_mock" exec="mock_pinky_node" name="mock_pinky_node" output="screen">
     <param from="$(find-pkg-share cobot_mock)/config/mock_pinky_node.yaml"/>
@@ -30,6 +31,12 @@
     <include file="$(find-pkg-share cobot_control_center)/launch/fleet_status.launch.xml"/>
     <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
       <arg name="port" value="$(var port)"/>
+    </include>
+    <!-- 명령 기록은 실물과 다른 파일에 둔다 -->
+    <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml">
+      <arg name="points_dir" value="$(var points_dir)"/>
+      <arg name="db_path" value="~/.ros/cobot_control_center/tasks_mock.db"/>
+      <arg name="spec_mode" value="$(var spec_mode)"/>
     </include>
   </group>
 </launch>

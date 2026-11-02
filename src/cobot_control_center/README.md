@@ -1,7 +1,10 @@
 # cobot_control_center
 
-관제 PC에서 로봇 3대(pinky1~3)의 상태를 모아 웹 화면으로 보여 주는 **읽기 전용 관제** 패키지입니다.
-로봇 토픽(`/pinkyN/*`, `/zone_manager/*`)에는 아무것도 발행하지 않으므로 **로봇을 움직이지 않습니다.**
+관제 PC에서 로봇 3대(pinky1~3)의 상태를 모아 웹 화면으로 보여 주고, 화면에서 순찰 명령(이동·구역·나가기·홈·정지)을 보내는 관제 패키지입니다.
+
+- 로봇 명령 토픽(`/pinkyN/patrol_cmd`, v2 `/pinkyN/patrol_command`)에 발행하는 것은 **`task_manager_node` 하나**입니다. 이 노드를 켜지 않으면 관제는 읽기 전용입니다.
+- **`task_manager_node` 는 bringup 에 들어 있지 않습니다.** 실물 도메인(100)에서 켜면 실물 로봇이 움직이므로 따로 켭니다 ([명령 보내기](#명령-보내기)).
+- `/pinkyN/cmd_vel`·`goal_pose`·`initialpose` 는 쓰지 않습니다.
 
 담당: 김지혜 (로봇 수행 관제)
 환경: Ubuntu 24.04 / ROS 2 Jazzy / Python 3.12
@@ -16,13 +19,18 @@
                                         fleet_status_node ── /control_center/fleet_status (JSON, 1 Hz)
                                                  ▼
                                         fleet_api_node (FastAPI) ── HTTP·WebSocket ──▶ 브라우저 (web/)
+                                                 │ ▲ /control_center/task_request · task_events · tasks (JSON)
+                                                 ▼ │
+                                        task_manager_node ── /pinkyN/patrol_cmd (v1) · patrol_command (v2) ──▶ 로봇
+                                          (검증·SQLite 기록)  ◀── patrol_status (v1) · patrol_state·_ack (v2) ──┘
 ```
 
 | 구성 | 파일 | 하는 일 |
 |---|---|---|
 | `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 3초 끊기면 offline |
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 위 JSON 을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
-| 화면 | `web/index.html`, `app.js`, `style.css` | 로봇 카드, 위험구역 A/B/C, 지도 위 로봇 위치·방향. 외부 라이브러리·CDN 없음 |
+| `task_manager_node` | `task_manager_node.py`, `task_manager_utils.py` | 명령 요청을 검증·기록(SQLite)한 뒤 로봇에 보내고, 로봇 상태로 작업 결과를 추적 |
+| 화면 | `web/index.html`, `app.js`, `style.css` | 로봇 카드(명령 버튼), 작업 목록, 위험구역 A/B/C, 지도 위 로봇 위치·방향. 외부 라이브러리·CDN 없음 |
 | `map_hash`, `map_lint` | `map_contract.py` | 맵 계약 도구 (기존, 이 문서 범위 밖) |
 
 `patrol_status` 는 순찰 노드가 **상태가 바뀔 때만** 보내므로 연결 판단에 쓰지 않습니다. 연결 여부는 위치·배터리 수신 시각으로 봅니다.
@@ -143,9 +151,60 @@ tmux attach -t fms         # 다시 보기 (끄려면 들어가서 Ctrl+C)
 amcl 공분산의 표준편차가 `teach_max_std_xy`·`teach_max_std_yaw` 초과.
 amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update_min_d`·`update_min_a`) 평균 대신 마지막 추정값을 씁니다.
 
+## 명령 보내기
+
+설계 근거는 개인 초안 `draft/control_api_spec.md` 입니다.
+
+### 켜기
+
+**로봇 없이 (권장, 먼저 이것으로)**: 가짜 핑키 launch 가 `task_manager_node` 까지 함께 띄웁니다. 기록은 `~/.ros/cobot_control_center/tasks_mock.db`.
+
+```bash
+export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+ros2 launch cobot_mock mock_fleet.launch.xml auto_patrol:=false        # 화면 http://localhost:8081/
+```
+
+**실물 (도메인 100)**: bringup 을 띄운 뒤 **현장·사용자 확인 후** 따로 켭니다. 기록은 `~/.ros/cobot_control_center/tasks.db`.
+
+```bash
+export ROS_DOMAIN_ID=100
+ros2 launch cobot_control_center task_manager.launch.xml
+```
+
+### 화면
+
+- 로봇 카드 아래 **이동 · 구역 · 나가기 · 홈** 버튼은 확인 창을 띄웁니다. 이동은 지점을 차례로 눌러 경로를 만들고(`P1 → P2`), 구역은 구역 지점 하나를 고릅니다. 실물 도메인이면 창에 경고가 뜹니다.
+  - 누를 수 있는 때: 작업 노드가 살아 있고, 로봇이 연결돼 있고, 진행 중·결과 모름 작업이 없고, 로봇이 스스로 움직이는 중(유휴 복귀 등)이 아닐 때. 막힌 이유는 버튼에 마우스를 올리면 보입니다.
+- **정지 · 비상정지**는 확인 창 없이 바로 보냅니다. 작업 노드가 살아 있으면 언제나 누를 수 있습니다. 비상정지는 구역 토큰을 쥔 채 멈춥니다.
+- 오른쪽 **작업** 칸은 최근 작업과 상태입니다. **결과 모름(UNKNOWN)** 은 맨 위에 빨갛게 보이고, 현장에서 로봇이 멈춘 것을 확인한 뒤 **현장 확인 후 해제**를 누릅니다(실패로 기록).
+- 상단 **작업 노드** 점이 빨강이면 `task_manager_node` 가 꺼진 것입니다 (명령 버튼이 모두 막힘).
+
+### 작업 상태
+
+```
+ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
+   └─ 검증 실패 ─▶ REJECTED      └─ 응답 없음·시간 초과 ─▶ UNKNOWN ─(사람이 해제)─▶ FAILED 등
+```
+
+- **기록이 먼저**: `ACCEPTED` 를 SQLite 에 적은 뒤에만 로봇에 보냅니다.
+- **거절(REJECTED)**: 없는 지점(`unknown point: ['P99']`), 구역 지점을 goto 로(`use zone`), 미실측 `(0,0,0)` 지점(`unmeasured point` — 로봇은 받지만 원점으로 감), 연결 끊김, 진행 중 작업, 결과 모름 작업. v2 로봇이 ack 로 거절해도 `REJECTED`(`robot: <이유>`).
+- **결과 모름(UNKNOWN)**: 보낸 뒤 `ack_timeout_sec` 안에 시작 응답이 없거나(v1 로봇은 바쁠 때 아무 응답 없이 무시함), 시작 뒤 `task_timeout_sec` 를 넘김. 실제로는 움직이고 있을 수 있으므로 해제 전에는 그 로봇에 새 작업을 보내지 않습니다.
+- **재시작**: `task_manager_node` 를 켤 때 끝나지 않은 작업은 다시 보내지 않고 `UNKNOWN`(관제 재시작: 현장 확인 필요)으로 바꿉니다.
+- 같은 `client_request_id` 로 다시 오면 새로 보내지 않고 기존 작업을 돌려줍니다 (두 번 눌러도 한 번만 움직임).
+
+### v1 / v2
+
+`spec_mode: auto`(기본)이면 그 로봇의 v2 `patrol_state` 가 최근 `v2_fresh_sec` 안에 왔을 때만 v2 로 보냅니다. 실물은 v2 토픽이 브릿지되지 않아 v1 로 갑니다.
+
+| | v1 (실물 순찰 노드) | v2 (`cobot_patrol_interfaces`, 지금은 가짜 핑키만) |
+|---|---|---|
+| 명령 | `patrol_cmd` 문자열 `goto:P1,P2` | `PatrolCommand(task_id, operation, points)` |
+| 시작 | 보낸 뒤 첫 `STARTING`(유휴 복귀 `idle return` 제외) 또는 이동 상태 | `PatrolCommandAck.accepted` |
+| 끝 | 다음 `DONE`/`FAILED`/`STOPPED` 를 그 작업 것으로 **추정** | `task_id` 가 같고 `task_finished` 인 상태 |
+
 ## API
 
-모두 읽기 전용입니다. 쓰기(POST 등) 경로는 없습니다.
+`/api/tasks`·정지·해제 외에는 읽기 전용입니다. 명령 경로는 `task_manager_node` 에 넘기기만 하고, 작업 노드가 없으면 503 입니다.
 
 | 경로 | 응답 |
 |---|---|
@@ -159,6 +218,14 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `GET /api/events?after=&robot=&limit=` | 이벤트 로그 (오래된 것부터, `id` 오름차순). `after` 보다 큰 `id` 만, `robot` 을 주면 그 로봇만, `limit` 1~1000 (기본 200) |
 | `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
+| `POST /api/tasks` | `{"client_request_id", "robot_id", "operation": "goto"\|"zone"\|"leave"\|"home", "points": [..]}` → `202` 작업 / `200` 같은 요청 재전송 / `400` 형식·지점 / `404` 없는 로봇 / `409` 작업 중·결과 모름 / `503` 끊김·작업 노드 없음. 거절은 `{"detail", "task"}` |
+| `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202 {"robot_id", "operation", "spec", "task_id"(멈출 작업), "warning"}`. 바쁨과 무관하게 항상 보냄 |
+| `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
+| `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
+| `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"}`. `UNKNOWN` 만 해제 (그 밖은 409) |
+| `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
+
+`/api/health` 에는 `task_manager_online`, `task_manager_age`, `spec`(로봇별 v1/v2)도 실립니다.
 
 ### `/control_center/fleet_status` (= `/api/fleet`) 형식
 
@@ -232,6 +299,22 @@ amcl 은 로봇이 멈춰 있으면 위치를 새로 내지 않으므로(`update
 | `points_dir` | launch 인자가 채움 | 순찰 설정 `pinkyN.yaml` 폴더 (구역 지점·출구·홈·일반 지점) |
 | `zone_params` | launch 인자가 채움 | zone_manager 설정 (로봇 목록 `robot_ids`, 대기 슬롯). 둘 중 하나라도 비거나 못 읽으면 구역 표시 없이 시작 |
 | `events_max` | `500` | 이벤트 로그 보관 개수. 메모리에만 두므로 백엔드를 다시 켜면 지워짐 |
+| `task_stale_sec` | `3.0` | 작업 노드 목록이 이만큼 끊기면 명령을 받지 않음 (503) [s] |
+| `reply_timeout_sec` | `2.0` | 명령 요청에 작업 노드가 답하기를 기다리는 시간 [s] |
+
+`task_manager_node` (`config/task_manager_node.yaml`)
+
+| 이름 | 기본값 | 뜻 |
+|---|---|---|
+| `robots` | `[pinky1, pinky2, pinky3]` | 관제 PC 쪽 토픽 접두사 |
+| `db_path` | `~/.ros/cobot_control_center/tasks.db` | 작업·사건 기록 (SQLite, WAL). 가짜 핑키는 `tasks_mock.db` |
+| `points_dir` | launch 인자가 채움 | `pinkyN.yaml` 폴더 (지점 검사). 비면 검사를 로봇에만 맡기고 경고 |
+| `ack_timeout_sec` | `3.0` | 보낸 뒤 시작 응답 기다림 [s]. 실측 필요 |
+| `task_timeout_sec` | `300.0` | 시작 뒤 끝 기다림 [s]. 실측 필요 |
+| `fleet_stale_sec` | `3.0` | `fleet_status` 가 끊기면 새 작업을 받지 않음 [s] |
+| `retention_days` | `30.0` | 켤 때 이보다 오래된 사건을 지움. 작업 표는 남김 |
+| `spec_mode` | `auto` | `auto` / `v1` / `v2` (launch 인자 `spec_mode:=`) |
+| `v2_fresh_sec` | `3.0` | auto 에서 v2 로봇으로 보는 기준 [s] |
 
 지도 기본값은 로봇이 쓰는 지도 `src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml` 입니다.
 launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/src` 로 거슬러 올라가 찾습니다. 지도를 바꾸면 `map_yaml:=` 로 지정합니다.
@@ -260,4 +343,6 @@ curl http://127.0.0.1:8080/api/robots/pinky1
 
 - **새 의존성**: fastapi·uvicorn(·websockets·httpx)은 팀 허락을 PR 에서 받습니다. `.venv` 없이 빌드하면 `fleet_api_node` 와 그 시험이 실패합니다.
 - **`web/` 위치**: CLAUDE.md §3-7 은 웹 자원을 `cobot_gui/web/` 에만 두게 하지만, 관제 전용 화면이라 이 패키지에 두었습니다. 규칙 개정 합의가 필요합니다.
-- **명령 기능 없음**: 이 패키지는 아직 로봇에 명령(`/pinkyN/patrol_cmd`)을 보내지 않습니다. 명령 기능을 넣을 때는 실물 로봇이 움직이므로 시험마다 확인을 받습니다. `/pinkyN/cmd_vel`·`goal_pose` 는 관제에서 쓰지 않습니다.
+- **명령 기능은 실물을 움직입니다**: `task_manager_node` 는 가짜 핑키로만 시험했습니다. 실물 시험은 매번 사용자·현장 확인 뒤, 한 대씩 합니다. `ack_timeout_sec`·`task_timeout_sec` 는 실물 응답 시간을 재 보고 정합니다.
+- **로그인 없음**: 명령을 보낼 수 있으므로 `host` 를 `127.0.0.1` 로 유지하고 SSH 터널로만 접속합니다. 여러 사람이 쓰게 되면 로그인·권한을 먼저 넣습니다.
+- **`cobot_patrol_interfaces` 의존**: `task_manager_node` 가 v2 메시지를 쓰므로 함께 빌드해야 합니다 (`--packages-up-to cobot_control_center`).

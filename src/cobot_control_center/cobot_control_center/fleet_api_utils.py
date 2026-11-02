@@ -13,9 +13,9 @@
 # limitations under the License.
 
 """
-관제 백엔드: 최신 fleet_status 스냅샷 보관 (ROS·fastapi 없는 순수 로직).
+관제 백엔드: 최신 fleet_status 스냅샷·작업 목록 보관 (ROS·fastapi 없는 순수 로직).
 
-ROS 콜백 스레드가 put() 으로 넣고, 웹 서버 스레드가 get()·wait_newer() 로 읽는다.
+ROS 콜백 스레드가 put() 으로 넣고, 웹 서버 스레드가 get()·wait_newer() 로 읽는다 (TaskStore 도 같다).
 그래서 모든 접근을 lock 으로 감싼다. 시각은 clock 인자로 받아 시험에서 바꿔 끼운다.
 """
 
@@ -25,6 +25,7 @@ import math
 import os
 import threading
 import time
+import uuid
 
 import yaml
 
@@ -270,5 +271,139 @@ class SnapshotStore:
 
     def wait_newer(self, seq, timeout):
         """순번이 seq 보다 큰 값이 들어올 때까지 최대 timeout 초 기다린다. 새 값이 있으면 True."""
+        with self._cond:
+            return self._cond.wait_for(lambda: self._seq > seq, timeout)
+
+
+class TaskStore:
+    """
+    task_manager_node 와 주고받는 값 보관: 작업 목록 캐시, 요청 응답 기다리기, 바뀐 작업 순번.
+
+    ROS 콜백 스레드가 put_*() 로 넣고, 웹 서버 스레드가 request()·tasks()·changes_since() 로 읽는다.
+    request() 는 발행 함수를 받아 요청을 낸 뒤, 같은 request_id 의 응답을 timeout 초까지 기다린다.
+    """
+
+    # 바뀐 작업을 이만큼만 기억한다. 더 밀린 WebSocket 은 전체 목록을 다시 받는다.
+    CHANGE_LOG = 200
+
+    def __init__(self, stale_sec, reply_timeout_sec, clock=time.monotonic):
+        self.stale_sec = float(stale_sec)
+        self.reply_timeout_sec = float(reply_timeout_sec)
+        self.clock = clock
+        self._cond = threading.Condition()
+        self._tasks = {}
+        self._snapshot = None
+        self._received = None
+        self._replies = {}
+        self._waiting = set()
+        self._seq = 0
+        self._log = []
+
+    def _upsert(self, task):
+        """작업 하나를 반영한다. 바뀌었으면 순번을 올린다. lock 안에서 부른다."""
+        if not isinstance(task, dict) or 'task_id' not in task:
+            return
+        if self._tasks.get(task['task_id']) == task:
+            return
+        self._tasks[task['task_id']] = task
+        self._seq += 1
+        self._log.append((self._seq, task))
+        del self._log[:-self.CHANGE_LOG]
+        self._cond.notify_all()
+
+    def put_snapshot(self, text):
+        """/control_center/tasks JSON. 깨진 값이면 False."""
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(data, dict) or not isinstance(data.get('tasks'), list):
+            return False
+        with self._cond:
+            self._snapshot = data
+            self._received = self.clock()
+            for task in reversed(data['tasks']):
+                self._upsert(task)
+            # 목록에서 밀려난 오래된 작업은 캐시에서도 뺀다 (진행 중이면 목록에 남아 있다).
+            keep = {t.get('task_id') for t in data['tasks']}
+            self._tasks = {k: v for k, v in self._tasks.items() if k in keep}
+        return True
+
+    def put_event(self, text):
+        """/control_center/task_events JSON. 응답이면 기다리는 요청에 넘기고, 작업이면 반영한다."""
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(data, dict):
+            return False
+        with self._cond:
+            if data.get('type') == 'reply' and data.get('request_id') in self._waiting:
+                self._replies[data['request_id']] = data
+                self._cond.notify_all()
+            elif data.get('type') == 'task':
+                self._upsert(data.get('task'))
+        return True
+
+    def online(self):
+        """task_manager_node 가 살아 있는지 (목록을 stale_sec 안에 받았는지)."""
+        with self._cond:
+            return self._received is not None and self.clock() - self._received <= self.stale_sec
+
+    def health(self):
+        with self._cond:
+            age = None if self._received is None else round(self.clock() - self._received, 3)
+            spec = (self._snapshot or {}).get('spec')
+        return {'task_manager_online': age is not None and age <= self.stale_sec,
+                'task_manager_age': age, 'spec': spec}
+
+    def request(self, payload, publish):
+        """
+        요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None.
+
+        payload 에 request_id 를 붙여 publish(JSON 문자열) 로 낸다. 기다리는 동안 lock 을 놓는다.
+        """
+        request_id = uuid.uuid4().hex
+        with self._cond:
+            self._waiting.add(request_id)
+        try:
+            publish(json.dumps(dict(payload, request_id=request_id), ensure_ascii=False))
+            with self._cond:
+                if not self._cond.wait_for(lambda: request_id in self._replies,
+                                           self.reply_timeout_sec):
+                    return None
+                reply = self._replies.pop(request_id)
+        finally:
+            with self._cond:
+                self._waiting.discard(request_id)
+                self._replies.pop(request_id, None)
+        return reply.get('status'), reply.get('body')
+
+    def tasks(self, robot_id=None, state=None, limit=50):
+        """최근 작업 (최신순)."""
+        with self._cond:
+            tasks = list(self._tasks.values())
+        tasks.sort(key=lambda t: (t.get('created_at') or 0, t.get('task_id')), reverse=True)
+        tasks = [t for t in tasks
+                 if (robot_id is None or t.get('robot_id') == robot_id)
+                 and (state is None or t.get('state') == state)]
+        return tasks[:max(0, int(limit))]
+
+    def task(self, task_id):
+        with self._cond:
+            return self._tasks.get(task_id)
+
+    def seq(self):
+        with self._cond:
+            return self._seq
+
+    def changes_since(self, seq):
+        """(지금 순번, seq 뒤에 바뀐 작업 목록). 기록이 밀렸으면 목록 대신 None."""
+        with self._cond:
+            if self._log and self._log[0][0] > seq + 1:
+                return self._seq, None
+            return self._seq, [task for s, task in self._log if s > seq]
+
+    def wait_newer(self, seq, timeout):
         with self._cond:
             return self._cond.wait_for(lambda: self._seq > seq, timeout)

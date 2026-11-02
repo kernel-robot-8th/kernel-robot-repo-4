@@ -3,7 +3,8 @@
   Copyright 2026 Pinky_Team4
   Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 
-  관제 화면 (읽기 전용). fleet_api_node 가 이 폴더를 / 로 서빙한다.
+  관제 화면. fleet_api_node 가 이 폴더를 / 로 서빙한다.
+  명령 버튼은 /api/tasks 로만 요청한다 (로봇 토픽을 직접 만지지 않음).
   외부 라이브러리·CDN 없이 동작한다 (현장은 인터넷이 없을 수 있다).
 -->
 <html lang="ko">
@@ -22,6 +23,7 @@
     <div class="links">
       <span class="link" id="link-ws" data-state="bad"><i></i>백엔드</span>
       <span class="link" id="link-source" data-state="bad"><i></i>관제 노드</span>
+      <span class="link" id="link-tasks" data-state="bad" title="task_manager_node (명령)"><i></i>작업 노드</span>
       <span class="link" id="link-zone" data-state="na"><i></i><span class="label">zone_manager</span></span>
       <span class="link bridges" id="link-bridges"><span class="label">브릿지</span></span>
       <span class="updated" id="updated">수신 대기</span>
@@ -70,6 +72,12 @@
         <div class="cards" id="cards"></div>
       </section>
 
+      <section class="panel" aria-label="작업">
+        <div class="panel-head"><h2>작업</h2><span class="muted" id="tasks-meta"></span></div>
+        <p class="cmd-msg" id="cmd-msg" hidden></p>
+        <ol class="tasks" id="tasks"><li class="muted">작업 없음</li></ol>
+      </section>
+
       <section class="panel" aria-label="위험구역">
         <div class="panel-head"><h2>위험구역</h2></div>
         <div class="zones" id="zones"><p class="muted">구역 상태 수신 대기</p></div>
@@ -100,8 +108,45 @@
                 title="지금 위치 [x, y, yaw] 를 클립보드에 넣는다 (파일은 고치지 않음)">위치 복사</button>
       </div>
       <code class="teach-line" hidden></code>
+      <div class="cmd-row">
+        <button type="button" data-cmd="goto">이동</button>
+        <button type="button" data-cmd="zone">구역</button>
+        <button type="button" data-cmd="leave">나가기</button>
+        <button type="button" data-cmd="home">홈</button>
+        <button type="button" class="stop-btn" data-cmd="stop" title="지금 작업 중단 (구역 안이면 출구로 나와 반납)">정지</button>
+        <button type="button" class="stop-btn" data-cmd="emergency_stop"
+                title="그 자리 정지, 구역 토큰 유지 (zone_manager 가 max_hold_sec 뒤 해제)">비상정지</button>
+      </div>
+      <div class="cmd-task muted"></div>
     </article>
   </template>
+
+  <template id="task-template">
+    <li class="task">
+      <div class="task-top">
+        <strong class="task-robot"></strong>
+        <span class="task-command"></span>
+        <span class="task-state"></span>
+      </div>
+      <div class="task-detail muted"></div>
+      <div class="task-meta muted"></div>
+      <button type="button" class="resolve-btn" hidden>현장 확인 후 해제</button>
+    </li>
+  </template>
+
+  <dialog id="cmd-dialog">
+    <form method="dialog" class="cmd-form">
+      <h3 id="cmd-title"></h3>
+      <div class="cmd-pick" id="cmd-pick"></div>
+      <p class="cmd-route" id="cmd-route"></p>
+      <p class="cmd-warn" id="cmd-warn"></p>
+      <div class="cmd-buttons">
+        <button type="button" id="cmd-clear">지우기</button>
+        <button value="cancel">취소</button>
+        <button value="ok" id="cmd-ok" class="primary">보내기</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

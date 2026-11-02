@@ -264,6 +264,68 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .events li[data-level="warn"] .text { color: var(--warn); }
 .events li[data-level="bad"] .text { color: var(--bad); font-weight: 600; }
 
+/* ---------- 명령 ---------- */
+.cmd-row { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.card .stop-btn { border-color: var(--bad); color: var(--bad); font-weight: 600; }
+.cmd-row [data-cmd="stop"] { margin-left: auto; }
+.card .stop-btn:hover:not(:disabled) { background: var(--bad); color: #fff; border-color: var(--bad); }
+.cmd-task { font-size: 12px; overflow-wrap: anywhere; }
+.cmd-task:empty { display: none; }
+.cmd-task[data-state="UNKNOWN"] { color: var(--bad); font-weight: 600; }
+
+.cmd-msg {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--good) 15%, transparent);
+  overflow-wrap: anywhere;
+}
+.cmd-msg[data-bad="1"] { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+
+.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tasks > .muted { font-size: 12px; }
+.task { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.task[data-state="UNKNOWN"] { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.task-top { display: flex; gap: 6px; align-items: baseline; }
+.task-command { overflow-wrap: anywhere; }
+.task-state { margin-left: auto; font-weight: 600; color: var(--state-color, var(--idle)); white-space: nowrap; }
+.task-detail { overflow-wrap: anywhere; }
+.task-detail:empty { display: none; }
+.task-meta { font-size: 11px; font-variant-numeric: tabular-nums; }
+.resolve-btn, .cmd-form button, .cmd-form input {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.resolve-btn { margin-top: 4px; border-color: var(--bad); color: var(--bad); }
+
+#cmd-dialog {
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 14px;
+}
+#cmd-dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+.cmd-form h3 { margin: 0 0 10px; font-size: 15px; }
+.cmd-pick { display: flex; flex-wrap: wrap; gap: 5px; max-height: 40vh; overflow-y: auto; }
+.cmd-pick:empty { display: none; }
+.cmd-pick input { cursor: text; width: 100%; }
+.cmd-route { font-weight: 600; overflow-wrap: anywhere; }
+.cmd-warn { color: var(--bad); font-weight: 600; margin: 0 0 8px; }
+.cmd-warn:empty { display: none; }
+.cmd-buttons { display: flex; justify-content: flex-end; gap: 6px; }
+.cmd-buttons #cmd-clear { margin-right: auto; }
+.cmd-form .primary { background: var(--active); border-color: var(--active); color: #fff; }
+.cmd-form button:disabled { opacity: 0.5; cursor: default; }
+
 @media (max-width: 900px) {
   /* minmax(0, …) 여야 canvas 너비가 칸을 밀어 넓히지 않는다 */
   .layout { grid-template-columns: minmax(0, 1fr); }

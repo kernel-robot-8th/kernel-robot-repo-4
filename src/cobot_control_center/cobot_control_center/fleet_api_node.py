@@ -15,7 +15,9 @@
 """
 관제 백엔드 노드: /control_center/fleet_status 를 받아 웹 API(HTTP·WebSocket)로 내보낸다.
 
-로봇 토픽은 구독하지도 발행하지도 않는다. 받는 것은 fleet_status_node 가 낸 스냅샷 하나다.
+로봇 토픽은 구독하지도 발행하지도 않는다. 받는 것은 fleet_status_node 가 낸 스냅샷과
+task_manager_node 의 작업 목록·응답이다. 명령은 /control_center/task_request 로 task_manager_node 에
+넘길 뿐이고, 로봇 명령 토픽에 내는 것은 task_manager_node 다.
 rclpy 는 백그라운드 스레드에서, uvicorn 은 메인 스레드에서 돈다. uvicorn 이 Ctrl+C 를 받아
 웹 서버를 먼저 닫고, 그 뒤 ROS 를 정리한다.
 """
@@ -27,10 +29,11 @@ import threading
 from ament_index_python.packages import get_package_share_directory
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    LayerError, load_map, load_map_layers, MapError, SnapshotStore)
+    LayerError, load_map, load_map_layers, MapError, SnapshotStore, TaskStore)
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String
 import uvicorn
@@ -49,6 +52,8 @@ class FleetApiNode(Node):
         self.declare_parameter('points_dir', '')
         self.declare_parameter('zone_params', '')
         self.declare_parameter('events_max', 500)
+        self.declare_parameter('task_stale_sec', 3.0)
+        self.declare_parameter('reply_timeout_sec', 2.0)
         self.host = self.get_parameter('host').value
         self.port = int(self.get_parameter('port').value)
         self.store = SnapshotStore(self.get_parameter('source_stale_sec').value,
@@ -60,9 +65,22 @@ class FleetApiNode(Node):
                         or os.path.join(get_package_share_directory('cobot_control_center'),
                                         'web'))
         self.create_subscription(String, '/control_center/fleet_status', self._on_fleet, 10)
+
+        # task_manager_node 와 같은 QoS. 목록은 transient_local 이라 늦게 켜져도 마지막 값을 받는다.
+        self.tasks = TaskStore(self.get_parameter('task_stale_sec').value,
+                               self.get_parameter('reply_timeout_sec').value)
+        command_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
+        self.request_pub = self.create_publisher(String, '/control_center/task_request',
+                                                 command_qos)
+        self.create_subscription(String, '/control_center/task_events', self._on_task_event,
+                                 command_qos)
+        self.create_subscription(
+            String, '/control_center/tasks', self._on_tasks,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
-            f'(읽기 전용, 로봇 토픽에 발행하지 않음)')
+            f'(로봇 토픽에 발행하지 않음. 명령은 task_manager_node 로 넘김)')
 
     def _load_map(self, path):
         # 지도가 없어도 카드·구역 화면은 쓸 수 있으므로 경고만 하고 계속한다.
@@ -99,6 +117,18 @@ class FleetApiNode(Node):
         if not self.store.put(msg.data):
             self.get_logger().warning('fleet_status 를 읽지 못함 (JSON 객체가 아님)')
 
+    def _on_tasks(self, msg):
+        if not self.tasks.put_snapshot(msg.data):
+            self.get_logger().warning('작업 목록(/control_center/tasks)을 읽지 못함')
+
+    def _on_task_event(self, msg):
+        if not self.tasks.put_event(msg.data):
+            self.get_logger().warning('작업 이벤트(/control_center/task_events)를 읽지 못함')
+
+    def publish_request(self, text):
+        """웹 서버 스레드에서 부른다. 요청 JSON 을 task_manager_node 에 넘긴다."""
+        self.request_pub.publish(String(data=text))
+
 
 def main(args=None):
     # Ctrl+C 는 uvicorn 이 받아 서버를 닫게 하고, rclpy 의 신호 처리기는 쓰지 않는다.
@@ -112,7 +142,8 @@ def main(args=None):
         # 시작·종료 이벤트를 쓰지 않는다. lifespan 을 켜 두면 uvicorn 이 종료 뒤 Ctrl+C 를 다시
         # 일으킬 때 남은 lifespan 작업이 CancelledError 트레이스백을 남긴다.
         app = create_app(node.store, node.map_data, node.web_dir,
-                         node.context.get_domain_id(), node.layers)
+                         node.context.get_domain_id(), node.layers,
+                         node.tasks, node.publish_request)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

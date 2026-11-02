@@ -24,7 +24,7 @@ import threading
 
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    LayerError, load_map, load_map_layers, MapError, SnapshotStore)
+    LayerError, load_map, load_map_layers, MapError, SnapshotStore, TaskStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -104,7 +104,8 @@ def test_api_before_first_snapshot():
     store, _ = make_store()
     client = TestClient(create_app(store))
     assert client.get('/api/health').json() == {
-        'ok': True, 'domain_id': None, 'source_online': False, 'source_age': None}
+        'ok': True, 'domain_id': None, 'source_online': False, 'source_age': None,
+        'task_manager_online': False}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 
@@ -135,12 +136,15 @@ def test_api_routes():
     assert client.get('/api/robots/pinky9').status_code == 404
 
 
-def test_api_has_no_command_routes():
-    # 읽기 전용: 쓰기 메서드를 받는 경로가 없어야 한다.
+def test_api_without_task_manager_is_read_only():
+    # 작업 노드를 넘기지 않으면 명령 경로는 503 이고 아무것도 발행하지 않는다.
     store, _ = make_store()
-    app = create_app(store)
-    methods = {m for route in app.routes for m in (getattr(route, 'methods', None) or ())}
-    assert methods <= {'GET', 'HEAD'}
+    client = TestClient(create_app(store))
+    body = {'client_request_id': 'r1', 'robot_id': 'pinky1', 'operation': 'home'}
+    assert client.post('/api/tasks', json=body).status_code == 503
+    assert client.post('/api/robots/pinky1/stop', json={}).status_code == 503
+    assert client.get('/api/tasks').status_code == 503
+    assert client.get('/api/health').json()['task_manager_online'] is False
 
 
 def test_load_map(tmp_path):
@@ -324,3 +328,118 @@ def test_events_route():
     assert client.get('/api/events', params={'after': 1}).json()[0]['text'] == 'b'
     assert client.get('/api/events', params={'robot': 'pinky1'}).json()[0]['text'] == 'a'
     assert client.get('/api/events', params={'limit': 0}).status_code == 422
+
+
+# ---------- 명령 (TaskStore, /api/tasks) ----------
+
+TASK = {'task_id': 't-1', 'robot_id': 'pinky1', 'operation': 'goto', 'points': ['P1'],
+        'command': 'goto:P1', 'spec': 'v1', 'state': 'SENT', 'detail': '',
+        'created_at': 10.0, 'updated_at': 10.0, 'history': []}
+
+
+def make_task_store():
+    clock = FakeClock()
+    return TaskStore(3.0, 0.5, clock=clock), clock
+
+
+def fake_task_manager(tasks, status, body):
+    """요청을 받으면 곧바로 정해진 응답을 돌려주는 task_manager 대역. 받은 요청을 모은다."""
+    sent = []
+
+    def publish(text):
+        request = json.loads(text)
+        sent.append(request)
+        reply = {'type': 'reply', 'request_id': request['request_id'],
+                 'status': status, 'body': body}
+        threading.Thread(target=tasks.put_event, args=(json.dumps(reply),)).start()
+    return publish, sent
+
+
+def test_task_store_snapshot_and_changes():
+    tasks, clock = make_task_store()
+    assert tasks.online() is False
+    assert tasks.put_snapshot('not json') is False
+    assert tasks.put_snapshot(json.dumps({'tasks': [TASK]})) is True
+    assert tasks.online() is True
+    seq = tasks.seq()
+    assert tasks.changes_since(0) == (seq, [TASK])
+    # 같은 값은 변화가 아니다
+    tasks.put_snapshot(json.dumps({'tasks': [TASK]}))
+    assert tasks.seq() == seq
+    running = dict(TASK, state='RUNNING')
+    assert tasks.put_event(json.dumps({'type': 'task', 'task': running}))
+    assert tasks.changes_since(seq) == (seq + 1, [running])
+    assert tasks.tasks(state='RUNNING') == [running]
+    assert tasks.tasks(robot_id='pinky2') == []
+    clock.now = 3.5
+    assert tasks.online() is False
+
+
+def test_task_store_request_times_out_without_reply():
+    tasks, _ = make_task_store()
+    assert tasks.request({'type': 'create'}, lambda text: None) is None
+
+
+def test_api_create_task_passes_through():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': []}))
+    publish, sent = fake_task_manager(tasks, 202, TASK)
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/tasks', json={'client_request_id': 'r1', 'robot_id': 'pinky1',
+                                          'operation': 'goto', 'points': ['P1']})
+    assert res.status_code == 202
+    assert res.json()['task_id'] == 't-1'
+    assert sent[0]['type'] == 'create' and sent[0]['points'] == ['P1']
+    assert client.get('/api/health').json()['task_manager_online'] is True
+
+
+def test_api_rejected_task_returns_reason_and_task():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': []}))
+    rejected = dict(TASK, state='REJECTED', detail="unknown point: ['P99']")
+    publish, _ = fake_task_manager(tasks, 400, rejected)
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/tasks', json={'client_request_id': 'r1', 'robot_id': 'pinky1',
+                                          'operation': 'goto', 'points': ['P99']})
+    assert res.status_code == 400
+    assert res.json()['detail'] == "unknown point: ['P99']"
+    assert res.json()['task']['state'] == 'REJECTED'
+
+
+def test_api_stop_and_resolve_and_list():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': [TASK]}))
+    publish, sent = fake_task_manager(tasks, 202, {'robot_id': 'pinky1', 'operation': 'stop'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    assert client.post('/api/robots/pinky1/stop', json={'emergency': True}).status_code == 202
+    assert sent[0] == dict(sent[0], type='stop', robot_id='pinky1', emergency=True)
+    client.post('/api/tasks/t-1/resolve', json={'note': '확인'})
+    assert sent[1]['type'] == 'resolve' and sent[1]['task_id'] == 't-1'
+    assert [t['task_id'] for t in client.get('/api/tasks').json()] == ['t-1']
+    assert client.get('/api/tasks/t-1').json()['command'] == 'goto:P1'
+    assert client.get('/api/tasks/t-9').status_code == 404
+
+
+def test_api_task_manager_offline_is_503():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    publish, sent = fake_task_manager(tasks, 202, TASK)
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    body = {'client_request_id': 'r1', 'robot_id': 'pinky1', 'operation': 'home'}
+    assert client.post('/api/tasks', json=body).status_code == 503
+    assert sent == []
+
+
+def test_websocket_tasks_sends_list_then_changes():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': [TASK]}))
+    client = TestClient(create_app(store, tasks=tasks, publish_request=lambda text: None))
+    with client.websocket_connect('/ws/tasks') as ws:
+        assert ws.receive_json() == {'type': 'tasks', 'tasks': [TASK]}
+        done = dict(TASK, state='SUCCEEDED')
+        tasks.put_event(json.dumps({'type': 'task', 'task': done}))
+        assert ws.receive_json() == {'type': 'task', 'task': done}
