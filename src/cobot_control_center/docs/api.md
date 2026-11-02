@@ -107,7 +107,7 @@ ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
 | 이름 | 기본값 | 뜻 |
 |---|---|---|
 | `robots` | `[pinky1, pinky2, pinky3]` | 관제 PC 쪽 토픽 접두사 |
-| `stale_timeout_sec` | `3.0` | 위치·배터리가 이만큼 끊기면 offline [s] |
+| `stale_timeout_sec` | `8.0` | 위치·배터리가 이만큼 끊기면 offline [s]. 실물 배터리 토픽이 5초 주기라 그보다 길게 |
 | `publish_period_sec` | `1.0` | `fleet_status` 발행 주기 [s] |
 | `control_domain_id` | `100` | 실물 관제 도메인. 이 도메인에서만 브릿지·zone_manager 를 검사 |
 | `bridge_node_format` | `pinky_bridge_{robot}_only_{domain}` | 관제 PC 쪽 브릿지 노드 이름. 브릿지 설정 `name` 에 도메인이 붙은 모양 |
