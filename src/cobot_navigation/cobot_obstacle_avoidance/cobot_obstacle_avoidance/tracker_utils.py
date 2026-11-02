@@ -1,4 +1,5 @@
-"""움직이는 장애물 추적과 충돌 예상 시간(TTC) 계산 (ROS 의존 없음).
+"""
+움직이는 장애물 추적과 충돌 예상 시간(TTC) 계산 (ROS 의존 없음).
 
 추적은 odom(세계) 좌표에서 한다. 로봇 기준 좌표로 추적하면 로봇이 움직일 때
 멈춰 있는 물체도 움직이는 것처럼 보이기 때문이다.
@@ -47,7 +48,8 @@ class ObstacleTracker:
     """가장 가까운 이웃 매칭으로 덩어리 중심을 프레임 간 이어 붙이고 속도를 추정한다."""
 
     def __init__(self, match_dist, max_age, alpha, min_hits):
-        """match_dist[m] 안에서만 같은 물체로 보고, max_age[s] 동안 안 보이면 지운다.
+        """
+        match_dist[m] 안에서만 같은 물체로 보고, max_age[s] 동안 안 보이면 지운다.
 
         alpha 는 속도 저역통과 계수(0~1, 클수록 새 측정 비중↑),
         min_hits 번 이상 이어진 track 만 속도를 믿는다.
@@ -99,7 +101,8 @@ class ObstacleTracker:
 
 
 def time_to_collision(rel_x, rel_y, rel_vx, rel_vy, radius):
-    """상대 위치·속도가 일정할 때 거리가 radius 이하가 되는 가장 이른 시간 [s].
+    """
+    상대 위치·속도가 일정할 때 거리가 radius 이하가 되는 가장 이른 시간 [s].
 
     이미 radius 안이면 0, 영영 가까워지지 않으면 inf.
     |p + v t| = radius 를 t 에 대해 푼다.

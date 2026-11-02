@@ -46,6 +46,8 @@ obstacle_avoidance_node:
     ttc_stop: 2.0                 # [s] 움직이는 장애물 TTC 대기 기준
     ttc_slow: 4.0                 # [s] 감속 기준
     wait_timeout: 5.0             # [s] 대기가 길어지면 회피로 전환
+    wait_confirm_time: 0.3        # [s] TTC 위험이 이만큼 이어져야 대기 (순간 오검출 무시)
+    wait_release_time: 0.5        # [s] TTC 위험이 이만큼 사라져야 대기 해제 (깜박임 방지)
     avoid_clearance: 0.35         # [m] 빈 방향 판단 거리
     robot_radius: 0.10            # [m] 빈 방향 폭 검사 반경
     avoid_max_angle: 1.75         # [rad] 회피 방향 탐색 범위 ±100°

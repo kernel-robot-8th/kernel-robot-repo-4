@@ -1,4 +1,5 @@
-"""LaserScan 가공 순수 로직 (ROS 의존 없음).
+"""
+LaserScan 가공 순수 로직 (ROS 의존 없음).
 
 좌표는 모두 로봇 기준(base_footprint): x 앞(+), y 왼쪽(+), 각도는 x축에서 반시계(+).
 """
@@ -7,7 +8,8 @@ import math
 
 def scan_to_points(ranges, angle_min, angle_increment, range_min, range_max,
                    tx=0.0, ty=0.0, yaw=0.0):
-    """스캔 거리 배열을 로봇 기준 (x, y) 점 목록으로 바꾼다.
+    """
+    스캔 거리 배열을 로봇 기준 (x, y) 점 목록으로 바꾼다.
 
     tx, ty, yaw 는 라이다 frame 이 로봇 frame 에서 놓인 위치·방향.
     핑키의 rplidar_link 는 yaw=pi 로 뒤집혀 달려 있으므로 TF 값을 그대로 넘겨야 한다.
@@ -27,7 +29,8 @@ def scan_to_points(ranges, angle_min, angle_increment, range_min, range_max,
 
 
 def corridor_clearance(points, half_width, front_x, forward=True):
-    """진행 방향 통로(|y| <= half_width) 안 가장 가까운 점까지의 여유 거리 [m].
+    """
+    진행 방향 통로(|y| <= half_width) 안 가장 가까운 점까지의 여유 거리 [m].
 
     forward=True 이면 앞쪽(x > front_x)에서 (x - front_x),
     False 이면 뒤쪽(x < -front_x)에서 (-x - front_x) 를 본다. 통로가 비면 inf.
@@ -43,7 +46,8 @@ def corridor_clearance(points, half_width, front_x, forward=True):
 
 
 def cluster_points(points, gap):
-    """스캔 순서상 이웃 점 간 거리가 gap 이하인 점들을 한 덩어리로 묶는다.
+    """
+    스캔 순서상 이웃 점 간 거리가 gap 이하인 점들을 한 덩어리로 묶는다.
 
     360° 스캔은 처음과 끝이 이어지므로 양 끝 덩어리가 가까우면 합친다.
     """
@@ -76,7 +80,8 @@ def cluster_extent(cluster):
 
 
 def polar_histogram(points, n_sectors, max_range):
-    """로봇 둘레를 n_sectors 칸으로 나눠 칸마다 가장 가까운 점 거리를 담는다 (없으면 max_range).
+    """
+    로봇 둘레를 n_sectors 칸으로 나눠 칸마다 가장 가까운 점 거리를 담는다 (없으면 max_range).
 
     칸 i 의 중심 각도는 sector_angle(i, n_sectors).
     """
@@ -99,7 +104,8 @@ def sector_angle(i, n_sectors):
 
 
 def choose_free_direction(hist, clearance, robot_radius, max_angle, prefer_sign=0.0):
-    """빈 방향(VFH 방식)을 골라 각도 [rad] 를 돌려준다. 없으면 None.
+    """
+    빈 방향(VFH 방식)을 골라 각도 [rad] 를 돌려준다. 없으면 None.
 
     - 칸 거리가 clearance 이상이어야 '빈 칸'.
     - 로봇 폭만큼 옆 칸도 비어 있어야 통과 가능: 거리 d 에서 로봇 반경이 차지하는 각도

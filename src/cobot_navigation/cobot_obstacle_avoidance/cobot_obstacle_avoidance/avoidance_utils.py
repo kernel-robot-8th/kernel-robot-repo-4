@@ -1,4 +1,5 @@
-"""장애물 회피 상태 머신 (ROS 의존 없음).
+"""
+장애물 회피 상태 머신 (ROS 의존 없음).
 
 Nav2 가 낸 속도(nav_v, nav_w)와 센서 판단 결과를 받아 실제로 낼 속도를 정한다.
 
@@ -37,6 +38,8 @@ class AvoidanceParams:
     ttc_stop: float = 2.0             # [s] 움직이는 장애물 TTC 가 이보다 작으면 대기
     ttc_slow: float = 4.0             # [s] 이보다 작으면 감속
     wait_timeout: float = 5.0         # [s] 대기가 이만큼 이어지면 회피로 전환
+    wait_confirm_time: float = 0.3    # [s] TTC 위험이 이만큼 이어져야 대기 (순간 오검출 무시)
+    wait_release_time: float = 0.5    # [s] TTC 위험이 이만큼 사라져야 대기 해제 (깜박임 방지)
     avoid_clearance: float = 0.35     # [m] 이 거리 안에 점이 없는 방향만 '빈 방향'
     robot_radius: float = 0.10        # [m] 빈 방향 폭 검사에 쓰는 로봇 반경(여유 포함)
     avoid_max_angle: float = 1.75     # [rad] 회피 방향 탐색 범위 (정면 기준 ±)
@@ -74,12 +77,16 @@ class AvoidanceController:
         self.state = PASS
         self.state_t = 0.0
         self.maneuver_t = 0.0   # STOP/WAIT 에서 회피를 시작한 시각 (AVOID<->BACKUP 반복 포함)
+        self.danger_t = None    # TTC 위험이 시작된 시각
+        self.safe_t = None      # TTC 위험이 사라진 시각
 
     def reset(self):
         """회피를 끌 때 상태를 초기화한다."""
         self.state = PASS
         self.state_t = 0.0
         self.maneuver_t = 0.0
+        self.danger_t = None
+        self.safe_t = None
 
     def _enter(self, state, t):
         if self.state != state:
@@ -112,6 +119,18 @@ class AvoidanceController:
             return self._avoid(nav_w, per, t)
 
         if per.ttc < p.ttc_stop:
+            self.safe_t = None
+            if self.danger_t is None:
+                self.danger_t = t
+        else:
+            self.danger_t = None
+            if self.safe_t is None:
+                self.safe_t = t
+        if self.state == WAIT:
+            hold = self.danger_t is not None or t - self.safe_t < p.wait_release_time
+        else:
+            hold = self.danger_t is not None and t - self.danger_t >= p.wait_confirm_time
+        if hold:
             self._enter(WAIT, t)
             if t - self.state_t < p.wait_timeout:
                 return WAIT, 0.0, 0.0

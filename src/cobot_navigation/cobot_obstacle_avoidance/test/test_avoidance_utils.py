@@ -99,15 +99,29 @@ def test_avoid_timeout_hands_back_to_nav2():
 def test_wait_for_moving_obstacle_then_avoid():
     c = _ctrl()
     per = Perception(front=1.0, ttc=1.0, hist=_hist())
-    assert c.step(True, 0.1, 0.0, per, 0.0) == (WAIT, 0.0, 0.0)
+    assert c.step(True, 0.1, 0.0, per, 0.0)[0] == SLOW      # 확인 시간 전에는 감속만
+    assert c.step(True, 0.1, 0.0, per, 0.3) == (WAIT, 0.0, 0.0)
     assert c.step(True, 0.1, 0.0, per, 4.0)[0] == WAIT
     assert c.step(True, 0.1, 0.0, per, 5.5)[0] == AVOID
 
 
-def test_wait_ends_when_obstacle_passes():
+def test_short_ttc_blip_does_not_wait():
     c = _ctrl()
     c.step(True, 0.1, 0.0, Perception(ttc=1.0, hist=_hist()), 0.0)
-    assert c.step(True, 0.1, 0.0, Perception(hist=_hist()), 1.0)[0] == PASS
+    assert c.step(True, 0.1, 0.0, Perception(hist=_hist()), 0.1)[0] == PASS
+    assert c.step(True, 0.1, 0.0, Perception(ttc=1.0, hist=_hist()), 0.2)[0] == SLOW
+
+
+def test_wait_release_hysteresis():
+    c = _ctrl()
+    danger = Perception(ttc=1.0, hist=_hist())
+    clear = Perception(hist=_hist())
+    c.step(True, 0.1, 0.0, danger, 0.0)
+    assert c.step(True, 0.1, 0.0, danger, 0.3)[0] == WAIT
+    assert c.step(True, 0.1, 0.0, clear, 0.4)[0] == WAIT     # 해제 시간 전
+    assert c.step(True, 0.1, 0.0, danger, 0.5)[0] == WAIT
+    assert c.step(True, 0.1, 0.0, clear, 0.6)[0] == WAIT
+    assert c.step(True, 0.1, 0.0, clear, 1.2)[0] == PASS
 
 
 def test_nav2_reverse_checks_rear_only():

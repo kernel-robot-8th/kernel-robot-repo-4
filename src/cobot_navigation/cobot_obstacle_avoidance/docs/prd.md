@@ -54,7 +54,7 @@ behavior_server (Spin/BackUp) ────────────────�
 | PASS | 앞 여유 ≥ `slow_dist`, TTC ≥ `ttc_slow` | Nav2 속도 |
 | SLOW | 앞 여유 < `slow_dist` 또는 TTC < `ttc_slow` | 선속도 × 배율(≥ `min_slow_scale`) |
 | STOP | 앞 여유 < `stop_dist` (해제는 `resume_dist` 이상) | 0 |
-| WAIT | 움직이는 장애물 TTC < `ttc_stop` | 0, `wait_timeout` 지나면 AVOID |
+| WAIT | 움직이는 장애물 TTC < `ttc_stop` 이 `wait_confirm_time` 이상 지속 (해제는 TTC 위험이 `wait_release_time` 이상 사라진 뒤) | 0, `wait_timeout` 지나면 AVOID |
 | AVOID | STOP 이 `block_time` 이상 지속, 또는 WAIT 시간 초과 | 빈 방향으로 회전, 정렬되면 `avoid_linear_speed` 로 전진 |
 | BACKUP | AVOID 중 빈 방향 없음 + 뒤 여유 ≥ `rear_stop_dist` | `-backup_speed` 로 `backup_time` 동안 후진 후 AVOID |
 
@@ -99,3 +99,29 @@ ros2 launch cobot_obstacle_avoidance bringup.launch.xml map:=<지도.yaml> \
 - 정지 판단은 Nav2 가 아닌 이 노드가 하므로 Nav2 progress checker(20 s / 0.25 m)보다 회피가 길면 Nav2 가 목표를 실패 처리할 수 있다.
 - 군집 중심 기반 추적이라 큰 물체 일부만 보이면 속도가 튈 수 있다(`moving_min_speed`, `track_min_hits` 로 조정).
 - Gazebo 에는 초음파가 없어 초음파 결합은 실물에서만 확인 가능하다.
+
+## 11. 시뮬레이션 결과 (2026-11-02, MuJoCo)
+환경: `pinky_mujoco` (pinky_pro `014a09f`, GPU 없음), `room.yaml` 방 + 시나리오 장애물(지도에 없음),
+Nav2 파라미터는 `pinky_navigation/params/nav2_params.yaml`, 출발 (0, 0) → 목표 (2.4, 0).
+최소 거리 = 로봇 몸체(반경 0.06 m 근사) 표면과 장애물 표면 사이의 실제(ground truth) 거리.
+
+| 시나리오 | Nav2 결과 | 회피 상태 변화 | 최소 거리 |
+|---|---|---|---|
+| S1 장애물 없음 | 성공 12.0 s | PASS 만 | - |
+| S2 경로 옆 상자 | 성공 14.0 s | 개입 없음 | 0.15 m |
+| S3 경로 정면 상자(미리 보임) | 성공 18.7 s | 개입 없음 (Nav2 재계획으로 우회) | 0.08 m |
+| S4 막다른 곳 (ㄷ자 안에서 출발) | 성공 47~53 s | SLOW → STOP → AVOID → PASS | 0.04~0.07 m |
+| S5 정면에서 다가오는 물체 | 성공 23.4 s | SLOW → WAIT(3 s) → STOP → PASS | 0.11 m |
+| S6 경로를 가로지르는 물체 | 성공 17.6 s | SLOW → WAIT → PASS | 0.19 m |
+| S9 0.5 m 앞에 갑자기 나타난 상자 | 성공 28.8 s | SLOW 반복 (Nav2 재계획과 함께) | 0.06 m |
+| S10 좁은 통로가 갑자기 막힘 | 아래 참고 | SLOW → STOP → BACKUP → AVOID (→ BACKUP 반복) → PASS | 0.09~0.10 m |
+| S7 순찰 `QUEUEING` + 정면 상자 | 성공 13.4 s | 꺼짐 (상태 발행 없음) | 0.18 m |
+| S8 순찰 `MOVING` + 정면 상자 | 성공 14.5 s | SLOW (켜짐 확인) | 0.10 m |
+
+- 모든 시나리오에서 충돌(거리 0 이하)은 없었다.
+- S10 은 후진·회피 동작은 의도대로 나왔지만, 지도에 없는 긴 통로 벽 때문에 AMCL 위치가 0.7~2.7 m 틀어져
+  Nav2 결과(성공/실패)를 믿을 수 없다. 회피를 끈 같은 장면(S10, `QUEUEING`)에서도 같은 위치 오차가 나서 회피 노드 원인은 아니다.
+- 1차 실행에서 정지 물체가 움직이는 것으로 0.1 s 오검출되거나(S4, S8), 가로지르는 물체에서 WAIT/PASS 가 0.2 s 간격으로
+  깜박였다(S6). `wait_confirm_time`(0.3 s)·`wait_release_time`(0.5 s) 추가 후 S8 오검출과 S6 깜박임은 사라졌고,
+  S4 막다른 벽 근처에서는 0.5 s 짜리 WAIT 가 남아 있다.
+- SLOW/PASS 는 경계 거리 근처에서 0.1~0.2 s 간격으로 바뀐다. 출력 속도는 연속적으로 변해 주행에는 영향이 작다.
