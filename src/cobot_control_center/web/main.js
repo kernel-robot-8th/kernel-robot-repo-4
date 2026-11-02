@@ -51,6 +51,11 @@ async function pollHealth() {
     renderInfra(infra, Boolean(health.source_online));
     if (!health.source_online) renderAlerts(null, false);
   } catch (err) {
+    // 백엔드가 꺼지면 마지막 스냅샷이 남으므로, 카드 명령 버튼이 켜진 채로 남지 않게 다시 그린다.
+    if (view.taskManagerOnline) {
+      view.taskManagerOnline = false;
+      render();
+    }
     setLink("link-source", false);
     renderAlerts(null, false);
     setLink("link-tasks", false);
