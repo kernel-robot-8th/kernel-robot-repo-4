@@ -46,6 +46,9 @@ BUSY_ROBOT_STATES = frozenset({'STARTING', 'MOVING', 'QUEUEING', 'WAITING_ZONE',
 IDLE_RETURN_DETAIL = 'idle return'
 RESTART_DETAIL = '관제 재시작: 현장 확인 필요'
 SPEC_MODES = ('auto', 'v1', 'v2')
+RAW_CMD_MAX_LEN = 200   # 수동 명령 최대 길이 [글자]
+RAW_CMD_WARNING = '작업 관리를 거치지 않는 1회성 직접 명령: 검사·결과 추적 없음'
+RAW_CMD_MSG_TYPE = 'std_msgs/msg/String'   # v1 patrol_cmd 메시지 타입 (노드가 실제로 내는 것)
 
 
 class TaskError(Exception):
@@ -286,7 +289,7 @@ class TaskManager:
 
     def __init__(self, db, robots, rules=None, ack_timeout_sec=3.0, task_timeout_sec=300.0,
                  fleet_stale_sec=3.0, spec_mode='auto', v2_fresh_sec=3.0,
-                 clock=time.time):
+                 allow_raw_cmd=False, clock=time.time):
         if spec_mode not in SPEC_MODES:
             raise ValueError(f'spec_mode 는 {SPEC_MODES} 중 하나: {spec_mode}')
         self.db = db
@@ -297,6 +300,7 @@ class TaskManager:
         self.fleet_stale_sec = float(fleet_stale_sec)
         self.spec_mode = spec_mode
         self.v2_fresh_sec = float(v2_fresh_sec)
+        self.allow_raw_cmd = bool(allow_raw_cmd)
         self.clock = clock
         self.fleet = None
         self.fleet_received = None
@@ -466,6 +470,41 @@ class TaskManager:
                   'task_id': stop_id, 'command': operation}
         return (202, result), [action]
 
+    def raw(self, request):
+        """
+        수동 명령 (개발용). 검사·작업 기록 없이 v1 patrol_cmd 에 문자열을 한 번 보낸다.
+
+        v2 는 구조화된 메시지라 자유 문자열을 실을 수 없어 v1 토픽으로만 보낸다.
+        allow_raw_cmd 가 꺼져 있으면 거절한다. 사건(operator_raw)으로만 남긴다.
+        관제 작업이 진행 중이거나 결과를 모르면 막는다 (끼어들면 작업 결과를 잘못 판단한다).
+        """
+        if not self.allow_raw_cmd:
+            raise TaskError(403, '수동 명령이 꺼져 있음 (task_manager_node 파라미터 allow_raw_cmd)')
+        robot = request.get('robot_id')
+        if robot not in self.robots:
+            raise TaskError(404, f'등록되지 않은 로봇: {robot}')
+        command = request.get('command')
+        command = command.strip() if isinstance(command, str) else ''
+        if (not command or len(command) > RAW_CMD_MAX_LEN or not command.isprintable()):
+            raise TaskError(400, f'명령은 한 줄 문자열 (1~{RAW_CMD_MAX_LEN}자)')
+        unknown = [t['task_id'] for t in self.db.in_states(('UNKNOWN',))
+                   if t['robot_id'] == robot]
+        if unknown:
+            raise TaskError(409, f'결과를 모르는 작업이 있음 (현장 확인 후 해제): {unknown}')
+        active = self._active(robot)
+        if active is not None:
+            raise TaskError(409, f'진행 중인 관제 작업이 있음: {active["task_id"]} (먼저 정지)')
+        raw_id = f'm-{uuid.uuid4().hex[:12]}'
+        # 화면이 실제로 나간 메시지 그대로 보여 주도록 토픽·타입을 함께 돌려준다.
+        result = {'robot_id': robot, 'command': command, 'raw_id': raw_id, 'spec': 'v1',
+                  'topic': f'/{robot}/patrol_cmd', 'msg_type': RAW_CMD_MSG_TYPE,
+                  'client_request_id': request.get('client_request_id'),
+                  'warning': RAW_CMD_WARNING}
+        self.db.add_event(robot, None, 'operator_raw', result)
+        action = {'robot': robot, 'spec': 'v1', 'operation': 'raw', 'points': [],
+                  'task_id': raw_id, 'command': command}
+        return (202, result), [action]
+
     def resolve(self, request):
         """UNKNOWN 작업을 사람이 확인하고 끝낸다. 기록은 지우지 않는다."""
         task = self.db.get(str(request.get('task_id')))
@@ -507,4 +546,5 @@ class TaskManager:
         """백엔드가 캐시할 작업 목록."""
         return {'time': self.clock(), 'robots': self.robots,
                 'spec': {r: self.spec_for(r) for r in self.robots},
+                'allow_raw_cmd': self.allow_raw_cmd,
                 'tasks': self.db.recent(limit)}

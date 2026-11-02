@@ -26,6 +26,9 @@ spec_mode=auto 이면 v2 상태가 오는 로봇에만 v2 로 보낸다.
 
 실물 로봇이 움직이는 노드다. bringup 에 넣지 않았고 따로 켜야 한다.
 cmd_vel·goal_pose·initialpose 는 쓰지 않는다.
+
+allow_raw_cmd(기본 꺼짐)를 켜면 화면의 개발용 수동 명령(type=raw)을 받아
+검사·작업 기록 없이 /pinkyN/patrol_cmd 에 그대로 한 번 보낸다. 가짜 핑키 launch 만 켠다.
 """
 
 import json
@@ -53,7 +56,7 @@ class TaskManagerNode(Node):
             'points_dir': '', 'ack_timeout_sec': 3.0, 'task_timeout_sec': 300.0,
             'fleet_stale_sec': 3.0, 'retention_days': 30.0, 'spec_mode': 'auto',
             'v2_fresh_sec': 3.0, 'tick_period_sec': 0.2, 'publish_period_sec': 1.0,
-            'list_limit': 50,
+            'list_limit': 50, 'allow_raw_cmd': False,
         }
         for name, value in p.items():
             self.declare_parameter(name, value)
@@ -68,7 +71,7 @@ class TaskManagerNode(Node):
             self.db, robots, self._load_rules(cfg['points_dir'], robots),
             ack_timeout_sec=cfg['ack_timeout_sec'], task_timeout_sec=cfg['task_timeout_sec'],
             fleet_stale_sec=cfg['fleet_stale_sec'], spec_mode=cfg['spec_mode'],
-            v2_fresh_sec=cfg['v2_fresh_sec'])
+            v2_fresh_sec=cfg['v2_fresh_sec'], allow_raw_cmd=cfg['allow_raw_cmd'])
         # 재시작 규칙: 끝나지 않은 작업은 다시 보내지 않고 UNKNOWN 으로 둔다.
         for task in self.db.recover():
             self.tm.changed.append(task)
@@ -107,6 +110,9 @@ class TaskManagerNode(Node):
             f'task_manager_node 시작 (robots={robots}, spec_mode={cfg["spec_mode"]}, '
             f'db={db_path}, 오래된 사건 {pruned}줄 정리). '
             f'도메인 {self.context.get_domain_id()} 의 로봇 명령 토픽에 발행한다')
+        if cfg['allow_raw_cmd']:
+            self.get_logger().warning(
+                '수동 명령(allow_raw_cmd) 켜짐: 화면에서 검사 없이 patrol_cmd 에 문자열을 보낼 수 있다 (개발용)')
         self._flush()
 
     def _load_rules(self, points_dir, robots):
@@ -162,7 +168,8 @@ class TaskManagerNode(Node):
         if request is None:
             self.get_logger().warning('task_request 를 읽지 못함 (JSON 객체가 아님)')
             return
-        handlers = {'create': self.tm.create, 'stop': self.tm.stop, 'resolve': self.tm.resolve}
+        handlers = {'create': self.tm.create, 'stop': self.tm.stop, 'resolve': self.tm.resolve,
+                    'raw': self.tm.raw}
         kind = request.get('type')
         reply = {'type': 'reply', 'request_id': request.get('request_id')}
         try:

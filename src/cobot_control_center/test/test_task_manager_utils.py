@@ -283,6 +283,57 @@ def test_stop_ends_running_task_as_stopped(rules):
     assert tm.db.get(task['task_id'])['state'] == 'STOPPED'
 
 
+# ---------- 수동 명령 (개발용) ----------
+
+def test_raw_is_refused_when_off(rules):
+    tm, _ = make_tm(rules)
+    with pytest.raises(TaskError) as err:
+        tm.raw({'robot_id': 'pinky1', 'command': 'goto:P1'})
+    assert err.value.status == 403
+    assert tm.snapshot()['allow_raw_cmd'] is False
+
+
+def test_raw_sends_once_to_v1_without_task(rules):
+    tm, _ = make_tm(rules, allow_raw_cmd=True)
+    (status, result), actions = tm.raw({'robot_id': 'pinky1', 'command': '  goto:P1,P2 ',
+                                        'client_request_id': 'r9'})
+    assert status == 202 and result['command'] == 'goto:P1,P2' and result['warning']
+    assert (result['topic'], result['msg_type']) == ('/pinky1/patrol_cmd', 'std_msgs/msg/String')
+    assert actions == [{'robot': 'pinky1', 'spec': 'v1', 'operation': 'raw', 'points': [],
+                        'task_id': result['raw_id'], 'command': 'goto:P1,P2'}]
+    assert result['raw_id'].startswith('m-')
+    # 작업 표에는 남지 않는다 (사건으로만)
+    assert tm.db.recent() == [] and tm.take_changed() == []
+    assert tm.snapshot()['allow_raw_cmd'] is True
+
+
+@pytest.mark.parametrize('command', ['', '   ', 'goto:P1\nhome', 'x' * 201, None, 3])
+def test_raw_rejects_bad_text(rules, command):
+    tm, _ = make_tm(rules, allow_raw_cmd=True)
+    with pytest.raises(TaskError) as err:
+        tm.raw({'robot_id': 'pinky1', 'command': command})
+    assert err.value.status == 400
+
+
+def test_raw_blocked_by_task_and_unknown_robot(rules):
+    tm, clock = make_tm(rules, allow_raw_cmd=True)
+    with pytest.raises(TaskError) as err:
+        tm.raw({'robot_id': 'pinky9', 'command': 'home'})
+    assert err.value.status == 404
+    create(tm)
+    with pytest.raises(TaskError) as err:
+        tm.raw({'robot_id': 'pinky1', 'command': 'home'})
+    assert err.value.status == 409 and '진행 중' in err.value.detail
+    # 응답이 없어 결과 모름이 되어도 막는다
+    clock.now += 10.0
+    tm.tick()
+    with pytest.raises(TaskError) as err:
+        tm.raw({'robot_id': 'pinky1', 'command': 'home'})
+    assert err.value.status == 409 and '결과를 모르는' in err.value.detail
+    # 다른 로봇은 보낼 수 있다
+    assert tm.raw({'robot_id': 'pinky2', 'command': 'home'})[0][0] == 202
+
+
 # ---------- 기록 ----------
 
 def test_restart_marks_unfinished_unknown(rules, tmp_path):

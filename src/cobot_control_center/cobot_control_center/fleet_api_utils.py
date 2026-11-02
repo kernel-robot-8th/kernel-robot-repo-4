@@ -354,8 +354,11 @@ class TaskStore:
         with self._cond:
             age = None if self._received is None else round(self.clock() - self._received, 3)
             spec = (self._snapshot or {}).get('spec')
-        return {'task_manager_online': age is not None and age <= self.stale_sec,
-                'task_manager_age': age, 'spec': spec}
+            raw = bool((self._snapshot or {}).get('allow_raw_cmd'))
+        online = age is not None and age <= self.stale_sec
+        # 수동 명령 칸은 작업 노드가 켜져 있고 allow_raw_cmd 가 켜져 있을 때만 화면에 보인다.
+        return {'task_manager_online': online, 'task_manager_age': age, 'spec': spec,
+                'raw_cmd_enabled': online and raw}
 
     def request(self, payload, publish):
         """

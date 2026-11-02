@@ -31,7 +31,7 @@
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 위 JSON 을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
 | `task_manager_node` | `task_manager_node.py`, `task_manager_utils.py` | 명령 요청을 검증·기록(SQLite)한 뒤 로봇에 보내고, 로봇 상태로 작업 결과를 추적 |
 | 화면 | `web/index.html`, `style.css`, 스크립트 7개 | 로봇 카드(명령 버튼), 작업 목록, 이벤트 로그, 위험구역 A/B/C, 지도 위 로봇 위치·방향. 외부 라이브러리·CDN·빌드 단계 없음 |
-| └ 스크립트 | `core.js` 공통·연결, `cards.js` 로봇 카드·구역, `events.js` 경고·이벤트, `commands.js` 명령·지점 고르기, `tasks.js` 작업 목록, `map.js` 지도, `main.js` 시작 | `index.html` 에 적은 순서로 읽히고 전역 이름을 함께 쓴다 (core.js 먼저, main.js 마지막). 파일을 새로 만들면 다시 빌드 |
+| └ 스크립트 | `core.js` 공통·연결, `cards.js` 로봇 카드·구역, `events.js` 경고·이벤트, `commands.js` 명령·지점 고르기, `tasks.js` 작업 목록, `map.js` 지도, `raw.js` 개발용 수동 명령, `main.js` 시작 | `index.html` 에 적은 순서로 읽히고 전역 이름을 함께 쓴다 (core.js 먼저, main.js 마지막). 파일을 새로 만들면 다시 빌드 |
 | `map_hash`, `map_lint` | `map_contract.py` | 맵 계약 도구 (기존, 이 문서 범위 밖) |
 
 `patrol_status` 는 순찰 노드가 **상태가 바뀔 때만** 보내므로 연결 판단에 쓰지 않습니다. 연결 여부는 위치·배터리 수신 시각으로 봅니다.
@@ -203,6 +203,17 @@ ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
 | 시작 | 보낸 뒤 첫 `STARTING`(유휴 복귀 `idle return` 제외) 또는 이동 상태 | `PatrolCommandAck.accepted` |
 | 끝 | 다음 `DONE`/`FAILED`/`STOPPED` 를 그 작업 것으로 **추정** | `task_id` 가 같고 `task_finished` 인 상태 |
 
+### 개발용 수동 명령
+
+개발할 때 순찰 노드에 문자열을 그대로 보내 보는 칸입니다. 오른쪽 칸 맨 아래 **"개발: 수동 명령"** 을 펼쳐 로봇을 고르고 `goto:P3,P7`, `home` 처럼 적어 보냅니다.
+
+- **작업 관리를 거치지 않는 1회성 직접 명령**입니다. 지점·바쁨 검사, 작업 기록, 결과 추적(UNKNOWN)이 없습니다. 작업 목록에도 나오지 않고 `task_manager_node` 의 사건 기록(`operator_raw`)에만 남습니다.
+- 보내는 곳은 v1 `/pinkyN/patrol_cmd` 하나입니다 (v2 는 구조화된 메시지라 자유 문자열을 싣지 않음). `cmd_vel`·`goal_pose` 등 다른 토픽은 고를 수 없습니다.
+- `task_manager_node` 파라미터 `allow_raw_cmd` 가 켜져 있을 때만 화면에 보이고 받습니다. **기본은 꺼짐**이고, 가짜 핑키 launch(`mock_fleet.launch.xml`)만 켭니다. 실물에서 켜려면 `allow_raw_cmd:=true` 를 직접 줘야 합니다.
+- 그 로봇에 진행 중이거나 결과를 모르는 관제 작업이 있으면 거절합니다 (끼어들면 작업 결과를 잘못 판단함). 먼저 정지하거나 해제합니다.
+- 실물 도메인이면 보내기 전에 로봇 이름을 한 번 더 입력해야 합니다.
+- 패널 아래 로그는 실제로 나간 메시지 그대로 보여 줍니다: `/pinky1/patrol_cmd  std_msgs/msg/String  {data: "goto:P3,P7"}`. 줄에 마우스를 올리면 같은 메시지를 터미널에서 보내는 `ros2 topic pub --once …` 명령이 보입니다.
+
 ## API
 
 `/api/tasks`·정지·해제 외에는 읽기 전용입니다. 명령 경로는 `task_manager_node` 에 넘기기만 하고, 작업 노드가 없으면 503 입니다.
@@ -223,6 +234,7 @@ ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202 {"robot_id", "operation", "spec", "task_id"(멈출 작업), "warning"}`. 바쁨과 무관하게 항상 보냄 |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
+| `POST /api/robots/{robot_id}/raw_cmd` | 개발용. `{"client_request_id", "command": "goto:P3,P7"}` → `202 {"robot_id", "command", "raw_id", "spec": "v1", "topic": "/pinky1/patrol_cmd", "msg_type": "std_msgs/msg/String", "warning"}` / `403` allow_raw_cmd 꺼짐 / `400` 빈 명령·여러 줄·200자 넘음 / `409` 진행 중·결과 모름 작업. 검사 없이 `patrol_cmd` 에 그대로. `GET /api/health` 의 `raw_cmd_enabled` 로 켜졌는지 안다 |
 | `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"}`. `UNKNOWN` 만 해제 (그 밖은 409) |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
 
@@ -316,6 +328,7 @@ ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
 | `retention_days` | `30.0` | 켤 때 이보다 오래된 사건을 지움. 작업 표는 남김 |
 | `spec_mode` | `auto` | `auto` / `v1` / `v2` (launch 인자 `spec_mode:=`) |
 | `v2_fresh_sec` | `3.0` | auto 에서 v2 로봇으로 보는 기준 [s] |
+| `allow_raw_cmd` | `false` | 개발용 수동 명령 (launch 인자 `allow_raw_cmd:=`). 가짜 핑키 launch 만 `true` |
 
 지도 기본값은 로봇이 쓰는 지도 `src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml` 입니다.
 launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/src` 로 거슬러 올라가 찾습니다. 지도를 바꾸면 `map_yaml:=` 로 지정합니다.

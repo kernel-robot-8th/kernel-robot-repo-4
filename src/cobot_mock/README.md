@@ -35,6 +35,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 |---|---|---|
 | `auto_patrol` | `true` | 쉬는 로봇이 스스로 무작위 명령(goto·zone·leave·home)을 냄 |
 | `with_control_center` | `true` | 관제 노드를 함께 띄울지 |
+| `allow_raw_cmd` | `true` | 관제 화면의 개발용 수동 명령 칸 (검사 없이 `patrol_cmd` 에 문자열). 실물 관제는 기본 꺼짐 |
 | `port` | `8081` | 관제 화면 포트. 실물 관제(8080)와 한 PC 에서 함께 띄울 수 있게 나눔 |
 | `points_dir` | `cobot_pinky_patrol/config` (install) | `pinkyN.yaml` 폴더 |
 | `zone_params` | `cobot_zone_traffic_control/config/zone_params.yaml` (install) | 구역 대기 슬롯 설정 |

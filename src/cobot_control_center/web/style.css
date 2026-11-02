@@ -519,6 +519,44 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .zone.occupied { border-color: var(--warn); }
 .zone.occupied span { color: var(--warn); font-weight: 600; }
 
+/* ---------- 개발: 수동 명령 ---------- */
+
+.raw-panel summary { cursor: pointer; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
+.raw-panel details[open] summary { margin-bottom: 8px; }
+.raw-warn {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.raw-warn code { font-size: 11px; }
+.raw-form { display: flex; gap: 6px; }
+.raw-form select, .raw-form input, .raw-form button {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+.raw-form input { flex: 1; min-width: 0; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.raw-form button { flex: none; font-weight: 600; cursor: pointer; border-color: var(--warn); color: var(--warn); }
+.raw-form button:disabled { opacity: 0.5; cursor: default; }
+.raw-log { list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.raw-log:empty { display: none; }
+.raw-log li { display: flex; align-items: baseline; gap: 10px; padding: 2px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.raw-log time { flex: none; color: var(--muted); }
+/* 실제로 나간 메시지: 토픽 · 타입 · 내용 (ros2 topic 과 같은 모양) */
+.raw-log code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+.raw-topic { flex: none; color: var(--active); font-weight: 600; }
+.raw-type { flex: none; color: var(--muted); }
+.raw-data { color: var(--text); }
+.raw-log li[data-bad="1"] .raw-text { color: var(--bad); }
+
 /* ---------- 좁은 화면 ---------- */
 
 @media (max-width: 900px) {

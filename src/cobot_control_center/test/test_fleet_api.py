@@ -189,7 +189,7 @@ def test_installed_web_files_exist():
     # 화면 파일이 패키지 소스에 있는지 본다 (setup.py data_files 가 web/* 를 설치한다).
     web = os.path.join(os.path.dirname(__file__), '..', 'web')
     for name in ('index.html', 'style.css', 'core.js', 'cards.js', 'events.js',
-                 'commands.js', 'tasks.js', 'map.js', 'main.js'):
+                 'commands.js', 'tasks.js', 'map.js', 'raw.js', 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
 
 
@@ -422,6 +422,25 @@ def test_api_stop_and_resolve_and_list():
     assert [t['task_id'] for t in client.get('/api/tasks').json()] == ['t-1']
     assert client.get('/api/tasks/t-1').json()['command'] == 'goto:P1'
     assert client.get('/api/tasks/t-9').status_code == 404
+
+
+def test_api_raw_cmd_passes_through_and_health_flag():
+    store, _ = make_store()
+    tasks, clock = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': []}))
+    publish, sent = fake_task_manager(tasks, 202, {'robot_id': 'pinky1', 'command': 'home'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    # 작업 노드가 allow_raw_cmd 를 알리지 않으면 수동 명령 칸을 숨긴다
+    assert client.get('/api/health').json()['raw_cmd_enabled'] is False
+    tasks.put_snapshot(json.dumps({'tasks': [], 'allow_raw_cmd': True}))
+    assert client.get('/api/health').json()['raw_cmd_enabled'] is True
+    res = client.post('/api/robots/pinky1/raw_cmd',
+                      json={'client_request_id': 'r1', 'command': 'home'})
+    assert res.status_code == 202
+    assert sent[0] == dict(sent[0], type='raw', robot_id='pinky1', command='home')
+    # 작업 노드가 끊기면 켜져 있어도 숨긴다
+    clock.now = 3.5
+    assert client.get('/api/health').json()['raw_cmd_enabled'] is False
 
 
 def test_api_task_manager_offline_is_503():

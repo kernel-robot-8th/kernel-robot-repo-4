@@ -18,7 +18,7 @@
 브라우저는 ROS 토픽 이름을 모르고 이 API 만 본다. 안쪽(ROS 토픽, 나중의 MQTT·DB)이 바뀌어도
 여기 경로와 응답 모양을 유지한다.
 
-명령(/api/tasks, 정지, 해제)은 직접 로봇에 보내지 않는다. task_manager_node 에 요청 토픽으로 넘기고
+명령(/api/tasks, 정지, 해제, 개발용 수동 명령)은 직접 로봇에 보내지 않는다. task_manager_node 에 요청 토픽으로 넘기고
 그 응답을 HTTP 로 바꾸기만 한다. 검증·기록·발행은 task_manager_node 가 한다.
 """
 
@@ -163,6 +163,14 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'type': 'stop', 'robot_id': robot_id,
             'client_request_id': body.get('client_request_id'),
             'emergency': bool(body.get('emergency', False))})
+
+    @app.post('/api/robots/{robot_id}/raw_cmd')
+    def raw_command(robot_id: str, body: dict = Body(default={})):
+        # 개발용 수동 명령. 검사·기록은 task_manager_node 가 정한다 (allow_raw_cmd 꺼지면 403).
+        return call_task_manager({
+            'type': 'raw', 'robot_id': robot_id,
+            'client_request_id': body.get('client_request_id'),
+            'command': body.get('command')})
 
     @app.post('/api/tasks/{task_id}/resolve')
     def resolve_task(task_id: str, body: dict = Body(default={})):

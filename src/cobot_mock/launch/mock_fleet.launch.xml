@@ -19,6 +19,7 @@
   <arg name="with_control_center" default="true" description="fleet_status·fleet_api·task_manager 도 함께 띄울지"/>
   <arg name="port" default="8081" description="관제 화면 포트 (실물 관제 8080 과 겹치지 않게)"/>
   <arg name="spec_mode" default="auto" description="관제 명령 규격 (auto: v2 상태가 오면 v2, v1, v2)"/>
+  <arg name="allow_raw_cmd" default="true" description="관제 화면의 개발용 수동 명령 칸 (가짜 핑키라 기본 켬)"/>
 
   <node pkg="cobot_mock" exec="mock_pinky_node" name="mock_pinky_node" output="screen">
     <param from="$(find-pkg-share cobot_mock)/config/mock_pinky_node.yaml"/>
@@ -37,6 +38,7 @@
       <arg name="points_dir" value="$(var points_dir)"/>
       <arg name="db_path" value="~/.ros/cobot_control_center/tasks_mock.db"/>
       <arg name="spec_mode" value="$(var spec_mode)"/>
+      <arg name="allow_raw_cmd" value="$(var allow_raw_cmd)"/>
     </include>
   </group>
 </launch>

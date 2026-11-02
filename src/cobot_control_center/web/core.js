@@ -40,6 +40,7 @@ const view = {
   lastEventId: 0,
   tasks: new Map(), // task_id → 작업 (/ws/tasks)
   taskManagerOnline: false,
+  rawEnabled: false, // 개발용 수동 명령 칸을 보일지 (/api/health)
   pick: null,       // 명령 지점 고르는 중 {robotId, cmd, choices, route, ...}
   mapScale: 0,      // 지도 1 px 의 화면 크기 (layoutMap 이 정함)
   laidOut: false,   // 첫 상태를 받은 뒤 한 번 다시 쟀는지

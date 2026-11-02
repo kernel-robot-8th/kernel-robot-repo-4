@@ -16,11 +16,14 @@
   <arg name="db_path" default="~/.ros/cobot_control_center/tasks.db"
        description="작업 기록 SQLite 파일 (가짜 핑키는 다른 파일)"/>
   <arg name="spec_mode" default="auto" description="auto / v1 / v2"/>
+  <arg name="allow_raw_cmd" default="false"
+       description="개발용 수동 명령 (검사 없이 patrol_cmd 에 문자열). 실물에서는 켜지 않는다"/>
 
   <node pkg="cobot_control_center" exec="task_manager_node" name="task_manager_node" output="screen">
     <param from="$(find-pkg-share cobot_control_center)/config/task_manager_node.yaml"/>
     <param name="points_dir" value="$(var points_dir)"/>
     <param name="db_path" value="$(var db_path)"/>
     <param name="spec_mode" value="$(var spec_mode)"/>
+    <param name="allow_raw_cmd" value="$(var allow_raw_cmd)"/>
   </node>
 </launch>

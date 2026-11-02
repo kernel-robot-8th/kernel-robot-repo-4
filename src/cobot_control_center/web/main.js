@@ -22,6 +22,7 @@ function render() {
   renderZones(snap.zones);
   renderAlerts(snap.alerts, snap.source_online);
   renderEventFilter();
+  renderRawPanel();
   // 첫 상태가 오면 상단 바(브릿지 점 등)가 채워져 높이가 바뀔 수 있어 한 번 다시 잰다.
   if (!view.laidOut) {
     view.laidOut = true;
@@ -43,6 +44,8 @@ async function pollHealth() {
     }
     setLink("link-tasks", view.taskManagerOnline);
     $("stop-all").disabled = !view.taskManagerOnline;
+    view.rawEnabled = Boolean(health.raw_cmd_enabled);
+    renderRawPanel();
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
     renderInfra(infra, Boolean(health.source_online));
@@ -52,6 +55,8 @@ async function pollHealth() {
     renderAlerts(null, false);
     setLink("link-tasks", false);
     $("stop-all").disabled = true;
+    view.rawEnabled = false;
+    renderRawPanel();
     renderInfra(view.snapshot ? view.snapshot.infra : null, false);
   }
 }
@@ -66,6 +71,7 @@ $("task-robot").addEventListener("change", renderTasks);
 setupToggle("show-layers", SHOW_LAYERS_KEY, "showLayers", "off");
 setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 setupPick();
+setupRaw();
 loadMap();
 loadLayers();
 connect();
