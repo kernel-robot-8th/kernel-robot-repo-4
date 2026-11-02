@@ -1,0 +1,74 @@
+<?xml version='1.0'?>
+<!--
+pinky_pro/pinky_navigation/launch/bringup_launch.xml(gz_bringup_launch.xml) 대체용.
+localization 은 pinky_navigation 원본을 쓰고, navigation 만 이 패키지 사본(cmd_vel_avoid_in 출력)으로 바꾼 뒤
+obstacle_avoidance_node 를 함께 띄운다.
+
+  실물 : ros2 launch cobot_obstacle_avoidance bringup.launch.xml map:=<지도.yaml> params_file:=<nav2_params.yaml> use_ultrasonic:=true
+  Gazebo: ros2 launch cobot_obstacle_avoidance bringup.launch.xml use_sim_time:=True map:=<지도.yaml> use_patrol_gate:=false
+-->
+<launch>
+    <set_env name="RCUTILS_LOGGING_BUFFERED_STREAM" value="1"/>
+
+    <arg name="namespace" default=""/>
+    <arg name="map" default="$(find-pkg-share pinky_navigation)/map/my_map.yaml"/>
+    <arg name="use_sim_time" default="False"/>
+    <arg name="params_file" default="$(find-pkg-share pinky_navigation)/params/nav2_params.yaml"/>
+    <arg name="avoidance_params_file" default="$(find-pkg-share cobot_obstacle_avoidance)/config/obstacle_avoidance.yaml"/>
+    <arg name="use_patrol_gate" default="true"/>
+    <arg name="use_ultrasonic" default="false"/>
+    <arg name="autostart" default="True"/>
+    <arg name="container_name" default="nav2_container"/>
+    <arg name="use_composition" default="True"/>
+    <arg name="use_respawn" default="False"/>
+    <arg name="log_level" default="info"/>
+    <arg name="lifecycle_nodes_local" default="['map_server', 'amcl']"/>
+    <arg name="lifecycle_nodes_nav" default="['controller_server',
+                       'planner_server',
+                       'behavior_server',
+                       'bt_navigator',
+                       'waypoint_follower',
+                       'velocity_smoother']"/>
+
+    <group>
+        <push-ros-namespace namespace="$(var namespace)"/>
+        <node pkg="rclcpp_components" exec="component_container_isolated" name='$(var container_name)' output="screen" args="--ros-args --log-level $(var log_level)">
+            <param from="$(var params_file)"/>
+            <param name='map' value="$(var map)"/>
+            <param name='autostart' value="$(var autostart)"/>
+            <param name='use_sim_time' value="$(var use_sim_time)"/>
+
+            <remap from="/tf" to="tf"/>
+            <remap from="/tf_static" to="tf_static"/>
+        </node>
+
+        <include file="$(find-pkg-share pinky_navigation)/launch/localization_launch.xml">
+            <arg name="params_file" value="$(var params_file)"/>
+            <arg name="map" value="$(var map)"/>
+            <arg name="use_sim_time" value="$(var use_sim_time)"/>
+            <arg name="autostart" value="$(var autostart)"/>
+            <arg name="use_composition" value="$(var use_composition)"/>
+            <arg name="use_respawn" value="$(var use_respawn)"/>
+            <arg name="container_name" value="$(var container_name)"/>
+            <arg name='lifecycle_nodes' value="$(var lifecycle_nodes_local)"/>
+        </include>
+
+        <include file="$(find-pkg-share cobot_obstacle_avoidance)/launch/navigation.launch.xml">
+            <arg name="params_file" value="$(var params_file)"/>
+            <arg name="use_sim_time" value="$(var use_sim_time)"/>
+            <arg name="autostart" value="$(var autostart)"/>
+            <arg name="use_composition" value="$(var use_composition)"/>
+            <arg name="use_respawn" value="$(var use_respawn)"/>
+            <arg name="container_name" value="$(var container_name)"/>
+            <arg name='lifecycle_nodes' value="$(var lifecycle_nodes_nav)"/>
+        </include>
+    </group>
+
+    <include file="$(find-pkg-share cobot_obstacle_avoidance)/launch/obstacle_avoidance.launch.xml">
+        <arg name="namespace" value="$(var namespace)"/>
+        <arg name="use_sim_time" value="$(var use_sim_time)"/>
+        <arg name="params_file" value="$(var avoidance_params_file)"/>
+        <arg name="use_patrol_gate" value="$(var use_patrol_gate)"/>
+        <arg name="use_ultrasonic" value="$(var use_ultrasonic)"/>
+    </include>
+</launch>

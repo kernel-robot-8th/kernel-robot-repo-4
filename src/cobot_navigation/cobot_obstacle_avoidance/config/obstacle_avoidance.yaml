@@ -1,0 +1,60 @@
+# 핑키 장애물 회피 노드 파라미터 (단위는 주석 참고)
+obstacle_avoidance_node:
+  ros__parameters:
+    base_frame: base_footprint
+    control_rate: 20.0            # [Hz] Nav2 controller_frequency 와 맞춤
+    cmd_timeout: 0.5              # [s] Nav2 명령이 이만큼 없으면 이 노드는 발행을 멈춤
+    scan_timeout: 0.5             # [s] 회피 중 scan 이 끊기면 정지
+
+    # 회피를 켜는 조건: 순찰 노드 patrol_status 의 state 가 아래 목록일 때만 회피.
+    # 그 외(QUEUEING, HOLDING_ZONE, ARRIVED, IDLE ...)는 Nav2 속도를 그대로 전달.
+    use_patrol_gate: true         # 시뮬에서 순찰 노드 없이 시험하려면 false (항상 회피)
+    active_states: [STARTING, MOVING, RETURNING, RETREATING, LEAVING_ZONE]
+
+    # 로봇 형상 (pinky footprint 0.12 m 정사각형)
+    robot_front_x: 0.06           # [m]
+    robot_rear_x: 0.06            # [m]
+    corridor_half_width: 0.10     # [m] 앞·뒤 통로 반폭 (반폭 0.06 + 여유 0.04)
+
+    # 초음파 (pinky_sensor_adc 의 us_sensor/range). Gazebo 에는 없으므로 실물에서만 true.
+    use_ultrasonic: false
+    ultrasonic_x: 0.0267          # [m] pinky.urdf.xacro 의 ultrasonic_link
+    ultrasonic_timeout: 0.5       # [s]
+
+    # 움직이는 장애물 추적
+    track_range: 1.5              # [m]
+    cluster_gap: 0.08             # [m]
+    cluster_min_points: 3
+    cluster_max_extent: 0.5       # [m] 이보다 긴 덩어리(벽)는 추적하지 않음
+    track_match_dist: 0.25        # [m]
+    track_max_age: 0.5            # [s]
+    track_alpha: 0.4              # 속도 저역통과 계수
+    track_min_hits: 3
+    moving_min_speed: 0.08        # [m/s]
+    collision_radius: 0.25        # [m] TTC 계산용 (로봇 + 물체 반경)
+
+    # 회피 판단 (VFH 극좌표 히스토그램)
+    histogram_sectors: 72         # 5° 간격
+    histogram_range: 1.5          # [m]
+
+    stop_dist: 0.12               # [m] 앞 여유가 이보다 작으면 정지
+    resume_dist: 0.20             # [m] 정지 후 다시 출발하는 여유
+    slow_dist: 0.40               # [m] 감속 시작 거리
+    min_slow_scale: 0.3
+    block_time: 2.0               # [s] 정지가 이어지면 회피 시작
+    rear_stop_dist: 0.10          # [m] 뒤 여유가 이보다 작으면 후진 금지
+    ttc_stop: 2.0                 # [s] 움직이는 장애물 TTC 대기 기준
+    ttc_slow: 4.0                 # [s] 감속 기준
+    wait_timeout: 5.0             # [s] 대기가 길어지면 회피로 전환
+    avoid_clearance: 0.35         # [m] 빈 방향 판단 거리
+    robot_radius: 0.10            # [m] 빈 방향 폭 검사 반경
+    avoid_max_angle: 1.75         # [rad] 회피 방향 탐색 범위 ±100°
+    avoid_linear_speed: 0.06      # [m/s]
+    avoid_angular_gain: 1.5
+    max_angular_speed: 1.0        # [rad/s]
+    align_tol: 0.35               # [rad]
+    avoid_clear_dist: 0.40        # [m] 회피 중 앞 여유가 이 이상이면 Nav2 로 복귀
+    avoid_min_time: 1.0           # [s]
+    avoid_timeout: 8.0            # [s] 회피가 길어지면 Nav2 재계획에 맡김
+    backup_speed: 0.05            # [m/s]
+    backup_time: 2.0              # [s]

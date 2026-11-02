@@ -1,0 +1,21 @@
+<?xml version='1.0'?>
+<!-- 장애물 회피 노드만 실행. Nav2 는 같은 패키지의 navigation.launch.xml(cmd_vel_avoid_in 출력)로 띄워야 한다. -->
+<launch>
+    <arg name="namespace" default=""/>
+    <arg name="use_sim_time" default="false"/>
+    <arg name="params_file" default="$(find-pkg-share cobot_obstacle_avoidance)/config/obstacle_avoidance.yaml"/>
+    <arg name="use_patrol_gate" default="true" description="false 면 순찰 상태와 상관없이 항상 회피 (시뮬 시험용)"/>
+    <arg name="use_ultrasonic" default="false" description="실물에서 pinky_sensor_adc 를 띄웠을 때 true"/>
+
+    <group>
+        <push-ros-namespace namespace="$(var namespace)"/>
+        <node pkg="cobot_obstacle_avoidance" exec="obstacle_avoidance_node" name="obstacle_avoidance_node" output="screen">
+            <param from="$(var params_file)"/>
+            <param name="use_sim_time" value="$(var use_sim_time)"/>
+            <param name="use_patrol_gate" value="$(var use_patrol_gate)"/>
+            <param name="use_ultrasonic" value="$(var use_ultrasonic)"/>
+            <remap from="/tf" to="tf"/>
+            <remap from="/tf_static" to="tf_static"/>
+        </node>
+    </group>
+</launch>
