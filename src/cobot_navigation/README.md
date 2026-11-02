@@ -42,7 +42,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 | `cobot_zone_traffic_control` | ROS 2 패키지 | 관제 PC(매니저) / 로봇(클라이언트 import) | 위험구역에 한 대만 들어가도록 허가·대기열 슬롯 관리 | [README](cobot_zone_traffic_control/README.md) |
 | `cobot_pinky_patrol` | ROS 2 패키지 | 각 로봇 | Nav2 순찰 노드 (`pinky_patrol_node_pinky1/2/3`) | [README](cobot_pinky_patrol/README.md) |
 | `cobot_pinky_patrol_cmd` | 스크립트 | 관제 PC | 터미널에서 순찰 명령 전송·상태 모니터 | [README](cobot_pinky_patrol_cmd/README.md) |
-| `cobot_obstacle_avoidance` | ROS 2 패키지 | 각 로봇 | 주행 중 장애물 회피 (Nav2 와 `cmd_vel` 사이, 라이다·초음파) | [PRD](cobot_obstacle_avoidance/docs/prd.md) |
+| `cobot_obstacle_avoidance` | ROS 2 패키지 | 각 로봇 | 주행 중 장애물 회피 (Nav2 와 `cmd_vel` 사이, 라이다·초음파), 사람 앞 정지(YOLO 연동) | [PRD](cobot_obstacle_avoidance/docs/prd.md) |
 | `map_view_pc` | 웹 뷰어 | 아무 PC | 지도 위에서 map 좌표 확인 (현재 지도 v9) | [README](map_view_pc/README.md) |
 | `ros2_network_test` | 진단 도구 | 관제 PC | ROS 2 네트워크 진단·이상 이력 대시보드 | [README](ros2_network_test/README.md) |
 | `docs/` | 자료 | - | 이전 지도 v6(`cobot_map/`), Nav2·SLAM 파라미터(`cobot_slam_nav_param/`) | [param_changes.md](docs/cobot_slam_nav_param/param_changes.md) |

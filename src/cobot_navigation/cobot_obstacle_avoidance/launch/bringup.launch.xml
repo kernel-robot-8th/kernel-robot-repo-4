@@ -6,6 +6,11 @@ obstacle_avoidance_node 를 함께 띄운다.
 
   실물 : ros2 launch cobot_obstacle_avoidance bringup.launch.xml map:=<지도.yaml> params_file:=<nav2_params.yaml> use_ultrasonic:=true
   Gazebo: ros2 launch cobot_obstacle_avoidance bringup.launch.xml use_sim_time:=True map:=<지도.yaml> use_patrol_gate:=false
+
+사람 정지(YOLO):
+  use_person_detection:=true  사람 bbox(person_detections)를 받아 사람 앞에서 정지 후 재출발
+  run_person_detector:=true model_path:=<best.pt>  YOLO 노드도 이 launch 에서 함께 실행 (한 PC 에서 다 돌릴 때)
+  YOLO 를 다른 PC 에서 돌리면 run_person_detector 는 false 로 두고 그 PC 에서 cobot_person_detector 를 따로 실행한다.
 -->
 <launch>
     <set_env name="RCUTILS_LOGGING_BUFFERED_STREAM" value="1"/>
@@ -17,6 +22,10 @@ obstacle_avoidance_node 를 함께 띄운다.
     <arg name="avoidance_params_file" default="$(find-pkg-share cobot_obstacle_avoidance)/config/obstacle_avoidance.yaml"/>
     <arg name="use_patrol_gate" default="true"/>
     <arg name="use_ultrasonic" default="false"/>
+    <arg name="use_person_detection" default="false"/>
+    <arg name="run_person_detector" default="false"/>
+    <arg name="model_path" default=""/>
+    <arg name="device" default="cpu"/>
     <arg name="autostart" default="True"/>
     <arg name="container_name" default="nav2_container"/>
     <arg name="use_composition" default="True"/>
@@ -70,5 +79,13 @@ obstacle_avoidance_node 를 함께 띄운다.
         <arg name="params_file" value="$(var avoidance_params_file)"/>
         <arg name="use_patrol_gate" value="$(var use_patrol_gate)"/>
         <arg name="use_ultrasonic" value="$(var use_ultrasonic)"/>
+        <arg name="use_person_detection" value="$(var use_person_detection)"/>
+    </include>
+
+    <include file="$(find-pkg-share cobot_person_detector)/launch/person_detector.launch.xml" if="$(var run_person_detector)">
+        <arg name="namespace" value="$(var namespace)"/>
+        <arg name="use_sim_time" value="$(var use_sim_time)"/>
+        <arg name="model_path" value="$(var model_path)"/>
+        <arg name="device" value="$(var device)"/>
     </include>
 </launch>

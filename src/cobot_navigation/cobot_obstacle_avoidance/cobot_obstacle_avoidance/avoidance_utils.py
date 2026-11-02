@@ -11,6 +11,8 @@ Nav2 가 낸 속도(nav_v, nav_w)와 센서 판단 결과를 받아 실제로 �
            wait_timeout 넘게 안 비키면 AVOID
   AVOID  : 빈 방향(VFH)으로 돌아 나간다. 앞이 트이면 PASS 로 Nav2 에 넘긴다
   BACKUP : 빈 방향이 없으면 뒤로 물러난 뒤 다시 AVOID
+  PERSON_WAIT : 카메라(YOLO)로 사람이라고 판별된 물체가 앞 구역에 있음 -> 피하지 않고 정지.
+                사람이 구역을 벗어나 person_release_time 이 지나면 PASS 로 재출발 (다른 상태보다 우선)
 """
 from dataclasses import dataclass, field
 import math
@@ -23,6 +25,7 @@ STOP = 'STOP'
 WAIT = 'WAIT'
 AVOID = 'AVOID'
 BACKUP = 'BACKUP'
+PERSON_WAIT = 'PERSON_WAIT'
 
 
 @dataclass
@@ -52,6 +55,8 @@ class AvoidanceParams:
     avoid_timeout: float = 8.0        # [s] 회피가 이보다 길면 Nav2 로 넘긴다(재계획 맡김)
     backup_speed: float = 0.05        # [m/s] 후진 속도
     backup_time: float = 2.0          # [s] 한 번 후진하는 시간
+    person_stop_dist: float = 0.6     # [m] 사람이 앞 구역 이 거리 안이면 정지
+    person_release_time: float = 1.0  # [s] 사람이 벗어난 뒤 이만큼 지나야 재출발
 
 
 @dataclass
@@ -62,6 +67,7 @@ class Perception:
     rear: float = math.inf            # [m] 뒤 통로 여유
     ttc: float = math.inf             # [s] 움직이는 장애물과의 최소 TTC
     hist: list = field(default_factory=list)  # 극좌표 히스토그램 (scan_utils.polar_histogram)
+    person_front: float = math.inf    # [m] 앞 사람 구역 안 '사람' 점까지의 여유
 
 
 def _clamp(x, lo, hi):
@@ -79,6 +85,7 @@ class AvoidanceController:
         self.maneuver_t = 0.0   # STOP/WAIT 에서 회피를 시작한 시각 (AVOID<->BACKUP 반복 포함)
         self.danger_t = None    # TTC 위험이 시작된 시각
         self.safe_t = None      # TTC 위험이 사라진 시각
+        self.person_clear_t = None  # 사람이 앞 구역을 벗어난 시각
 
     def reset(self):
         """회피를 끌 때 상태를 초기화한다."""
@@ -87,6 +94,7 @@ class AvoidanceController:
         self.maneuver_t = 0.0
         self.danger_t = None
         self.safe_t = None
+        self.person_clear_t = None
 
     def _enter(self, state, t):
         if self.state != state:
@@ -101,6 +109,19 @@ class AvoidanceController:
         if not enabled:
             self.reset()
             return PASS, nav_v, nav_w
+
+        # 사람은 피해 가지 않고 지나갈 때까지 기다린다 (회피·후진보다 우선).
+        if per.person_front < p.person_stop_dist:
+            self.person_clear_t = None
+            self._enter(PERSON_WAIT, t)
+            return PERSON_WAIT, 0.0, 0.0
+        if self.state == PERSON_WAIT:
+            if self.person_clear_t is None:
+                self.person_clear_t = t
+            if t - self.person_clear_t < p.person_release_time:
+                return PERSON_WAIT, 0.0, 0.0
+            self.person_clear_t = None
+            self._enter(PASS, t)
 
         # Nav2 가 직접 후진 중(복구 동작 등)이면 뒤만 본다.
         if nav_v < 0.0 and self.state not in (AVOID, BACKUP):

@@ -128,3 +128,40 @@ def test_nav2_reverse_checks_rear_only():
     c = _ctrl()
     assert c.step(True, -0.05, 0.0, Perception(front=0.0, rear=1.0), 0.0)[0] == PASS
     assert c.step(True, -0.05, 0.0, Perception(front=1.0, rear=0.05), 0.1)[0] == STOP
+
+
+def test_person_in_front_waits_without_avoiding():
+    c = _ctrl()
+    per = Perception(front=0.05, person_front=0.05, hist=_hist(30))
+    for t in (0.0, 3.0, 10.0, 60.0):   # 오래 막혀도 AVOID/BACKUP 으로 가지 않는다
+        assert c.step(True, 0.1, 0.0, per, t) == ('PERSON_WAIT', 0.0, 0.0)
+
+
+def test_person_leaves_then_restart_after_release_time():
+    c = _ctrl()
+    c.step(True, 0.1, 0.0, Perception(front=0.3, person_front=0.3, hist=_hist()), 0.0)
+    clear = Perception(hist=_hist())
+    assert c.step(True, 0.1, 0.0, clear, 0.5)[0] == 'PERSON_WAIT'
+    assert c.step(True, 0.1, 0.0, clear, 1.2)[0] == 'PERSON_WAIT'
+    assert c.step(True, 0.1, 0.0, clear, 1.6) == (PASS, 0.1, 0.0)
+
+
+def test_person_far_does_not_stop():
+    c = _ctrl()
+    per = Perception(front=1.0, person_front=1.0, hist=_hist())
+    assert c.step(True, 0.1, 0.0, per, 0.0) == (PASS, 0.1, 0.0)
+
+
+def test_person_overrides_avoid():
+    c = _ctrl()
+    blocked = Perception(front=0.05, hist=_hist(30))
+    c.step(True, 0.1, 0.0, blocked, 0.0)
+    assert c.step(True, 0.1, 0.0, blocked, 2.5)[0] == AVOID
+    per = Perception(front=0.05, person_front=0.05, hist=_hist(30))
+    assert c.step(True, 0.1, 0.0, per, 2.6)[0] == 'PERSON_WAIT'
+
+
+def test_person_ignored_when_disabled():
+    c = _ctrl()
+    per = Perception(person_front=0.05)
+    assert c.step(False, 0.1, 0.0, per, 0.0) == (PASS, 0.1, 0.0)

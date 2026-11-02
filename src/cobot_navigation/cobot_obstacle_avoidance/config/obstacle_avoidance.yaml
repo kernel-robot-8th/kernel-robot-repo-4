@@ -60,3 +60,18 @@ obstacle_avoidance_node:
     avoid_timeout: 8.0            # [s] 회피가 길어지면 Nav2 재계획에 맡김
     backup_speed: 0.05            # [m/s]
     backup_time: 2.0              # [s]
+
+    # 사람 인식(YOLO, cobot_person_detector) 연동. 사람이면 피하지 않고 정지 후 재출발.
+    use_person_detection: false
+    person_topic: person_detections        # vision_msgs/Detection2DArray
+    camera_info_topic: camera/camera_info
+    camera_frame: front_camera_link        # pinky.urdf.xacro 의 정면 카메라
+    camera_hfov: 1.1519                    # [rad] camera_info 가 없을 때 사용
+    camera_image_width: 640                # [px] camera_info 가 없을 때 사용
+    person_min_score: 0.5
+    person_timeout: 1.0                    # [s] 인식 결과가 이보다 오래되면 사람 없음으로 봄
+    person_bearing_margin: 0.05            # [rad] bbox 방향 구간 여유
+    person_max_range: 3.0                  # [m]
+    person_half_width: 0.30                # [m] 사람 정지 구역 반폭 (일반 통로보다 넓게)
+    person_stop_dist: 0.6                  # [m] 사람이 앞 이 거리 안이면 정지
+    person_release_time: 1.0               # [s] 사람이 벗어난 뒤 재출발까지 대기

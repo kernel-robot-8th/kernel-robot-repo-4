@@ -11,7 +11,8 @@
 | 라이다 기반 정지·감속 | 구역 대기열(`QUEUEING`)·구역 점유(`HOLDING_ZONE`) 등 주행 외 상태의 회피 |
 | 정지 장애물 우회(VFH), 후진 | 회피가 꺼진 상태의 비상 정지 (사용자 결정: 넣지 않음) |
 | 움직이는 장애물 추적·TTC 대기 | Nav2 파라미터·`pinky_pro` 코드 수정 |
-| 초음파 정면 보조(실물) | 카메라 기반 인식 |
+| 초음파 정면 보조(실물) | YOLO 추론 자체 (`cobot_person_detector` 담당) |
+| 사람(YOLO bbox) 앞 정지 후 재출발 | |
 
 ## 3. 구조
 ```
@@ -38,6 +39,8 @@ behavior_server (Spin/BackUp) ────────────────�
 | 입력 | `us_sensor/range` | `sensor_msgs/Range` | `use_ultrasonic: true` 일 때만 사용 |
 | 입력 | `odom` | `nav_msgs/Odometry` | 이동 장애물 추적용 |
 | 입력 | `patrol_status` | `std_msgs/String`(JSON) | `state` 로 회피 켜기/끄기 |
+| 입력 | `person_detections` | `vision_msgs/Detection2DArray` | `use_person_detection: true` 일 때. 다른 PC 의 YOLO 결과 |
+| 입력 | `camera/camera_info` | `sensor_msgs/CameraInfo` | 있으면 fx·cx 사용, 없으면 `camera_hfov`·`camera_image_width` 로 근사 |
 | 출력 | `cmd_vel` | `geometry_msgs/Twist` | 구동부 |
 | 출력 | `obstacle_avoidance/state` | `std_msgs/String` | 상태 바뀔 때 발행 (디버깅) |
 
@@ -62,7 +65,26 @@ behavior_server (Spin/BackUp) ────────────────�
 - Nav2 가 스스로 후진 명령(v < 0)을 내면 뒤 여유만 검사한다.
 - 앞 여유 = 로봇 앞면에서 통로(`|y| ≤ corridor_half_width`) 안 가장 가까운 점까지. 초음파를 켜면 둘 중 작은 값.
 
-## 7. 움직이는 장애물
+## 7. 사람 정지 (YOLO 연동)
+- 사람 bbox 좌우 끝을 카메라(`camera_frame`, TF 로 위치·방향 조회) 기준 방향 각도로 바꾸고
+  (`bbox_bearing_interval`, 양쪽 `person_bearing_margin` 여유), 그 각도 안의 라이다 점을 '사람 점'으로 본다.
+- 사람 점이 앞 구역(반폭 `person_half_width`) 안 `person_stop_dist` 이내면 **PERSON_WAIT**: 정지만 하고 회피·후진은 하지 않는다.
+  다른 상태(STOP/WAIT/AVOID/BACKUP)보다 우선한다. 시간 제한 없이 사람이 비킬 때까지 기다린다.
+- 사람이 구역을 벗어나고 `person_release_time` 이 지나면 PASS 로 돌아가 Nav2 가 다시 출발시킨다.
+- 인식 결과는 받은 시각 기준 `person_timeout` 이 지나면 버린다(다른 PC 와 시계가 달라서 영상 시각은 쓰지 않음).
+- 사람이 아닌 장애물은 기존과 같이 STOP → AVOID / BACKUP.
+- 카메라는 정면(화각 약 66°)만 보므로 후진 중 뒤의 사람은 일반 장애물로 처리된다.
+
+| 파라미터 | 기본값 | 설명 |
+|---|---|---|
+| `use_person_detection` | false | 켜면 `person_detections`·`camera/camera_info` 구독 |
+| `person_stop_dist` | 0.6 m | 사람 정지 거리 |
+| `person_half_width` | 0.30 m | 사람 정지 구역 반폭 |
+| `person_release_time` | 1.0 s | 사람이 벗어난 뒤 재출발 대기 |
+| `person_timeout` | 1.0 s | 인식 결과 유효 시간 |
+| `person_min_score` | 0.5 | 이 점수 미만 bbox 무시 |
+
+## 7-1. 움직이는 장애물
 1. `track_range` 안 점을 `cluster_gap` 으로 군집화하고, 점 `cluster_min_points` 개 이상·길이 `cluster_max_extent` 이하만 남긴다(벽 제외).
 2. 군집 중심을 odom 좌표로 바꿔 최근접 매칭(`track_match_dist`)으로 이어 붙이고 속도를 저역통과(`track_alpha`)로 추정한다.
 3. `track_min_hits` 이상 이어지고 `moving_min_speed` 이상인 것만 움직이는 물체로 보고,
@@ -83,6 +105,18 @@ ros2 launch cobot_obstacle_avoidance bringup.launch.xml map:=<지도.yaml> \
   params_file:=<핑키별 nav2_params.yaml> use_ultrasonic:=true
 ```
 상태 확인: `ros2 topic echo /obstacle_avoidance/state`
+
+사람 정지 사용 (YOLO 는 핑키와 연결된 PC 에서 실행):
+```bash
+# PC (관제, 도메인 100): YOLO
+ros2 launch cobot_person_detector person_detector.launch.xml model_path:=<best.pt> \
+  image_topic:=/pinky1/camera/image_raw/compressed use_compressed:=true output_topic:=/pinky1/person_detections
+# 로봇: 회피 + 사람 정지
+ros2 launch cobot_obstacle_avoidance bringup.launch.xml map:=<지도.yaml> use_person_detection:=true
+# 한 PC 에서 모두 (시뮬): run_person_detector:=true model_path:=<best.pt> 추가
+```
+도메인 브릿지(`cobot_domain_bridge/config/pinky_bridge_pinkyN.yaml`)에 카메라 압축 영상(로봇→PC)과
+`person_detections`(PC→로봇)를 추가했다. 브릿지 PC 에도 `vision_msgs` 가 설치돼 있어야 한다.
 
 ## 9. 시험 시나리오 (Gazebo)
 | # | 상황 | 기대 |
@@ -125,3 +159,17 @@ Nav2 파라미터는 `pinky_navigation/params/nav2_params.yaml`, 출발 (0, 0) �
   깜박였다(S6). `wait_confirm_time`(0.3 s)·`wait_release_time`(0.5 s) 추가 후 S8 오검출과 S6 깜박임은 사라졌고,
   S4 막다른 벽 근처에서는 0.5 s 짜리 WAIT 가 남아 있다.
 - SLOW/PASS 는 경계 거리 근처에서 0.1~0.2 s 간격으로 바뀐다. 출력 속도는 연속적으로 변해 주행에는 영향이 작다.
+
+## 12. 사람 정지 시뮬레이션 결과 (2026-11-02, MuJoCo)
+MuJoCo 에는 사람 모델이 없어, 시뮬 안 상자 하나를 '사람'으로 정하고 실제 위치로 YOLO 와 같은 형식의 bbox
+(`person_detections`, 5 Hz, 화각 1.1519 rad·폭 640 px 투영)를 발행했다. YOLO 노드는 별도로 시험했다(아래).
+
+| 시나리오 | Nav2 결과 | 회피 상태 변화 | 최소 거리 |
+|---|---|---|---|
+| P1 사람이 경로로 들어와 5 s 서 있다가 비킴 | 성공 23.0 s | SLOW → PERSON_WAIT(7.8 s) → PASS | 0.28 m |
+| P2 0.5 m 앞에 사람이 갑자기 나타나 6 s 뒤 사라짐 | 성공 18.9 s | SLOW → PERSON_WAIT(6.7 s) → PASS | 0.23 m |
+| P3 같은 위치에 사람이 아닌 상자 (인식 켬) | 성공 20.0 s | PERSON_WAIT 없음, 기존 회피 | 0.10 m |
+
+- 사람 앞에서는 AVOID/BACKUP 없이 정지했고, 사람이 사라진 뒤 약 1 s(`person_release_time`) 후 재출발했다.
+- YOLO 노드(`best.pt`, 클래스 `{0: 'human'}`)를 `cobot_vision/pinky_camera.zip` 샘플 영상 50장으로 10 Hz 입력해
+  `person_detections` 41건 모두 사람 bbox 포함(점수 0.97 예시)을 확인했다. CPU(4 코어) 추론 0.13 s/장.

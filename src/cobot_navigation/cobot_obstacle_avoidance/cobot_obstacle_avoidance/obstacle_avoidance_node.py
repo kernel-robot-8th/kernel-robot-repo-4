@@ -9,6 +9,8 @@ Nav2(velocity_smoother) 출력과 구동부(cmd_vel) 사이에 끼어 속도를 
 - 순찰 노드(cobot_pinky_patrol)의 patrol_status 가 주행 상태(MOVING 등)일 때만 회피한다.
   그 밖의 상태(대기열 QUEUEING, 구역 점유 HOLDING_ZONE 등)에서는 Nav2 속도를 그대로 넘긴다.
 - 센서: 라이다(scan) 주 센서, 초음파(us_sensor/range) 정면 보조.
+- use_person_detection 이 켜져 있으면 cobot_person_detector 의 사람 bbox(person_detections)를
+  라이다 점과 이어 붙여, 앞 구역의 사람에게는 회피 대신 정지(PERSON_WAIT) 후 재출발한다.
 - 판단 로직은 scan_utils / tracker_utils / avoidance_utils 에 있고 이 파일은 입출력만 맡는다.
 """
 import json
@@ -20,11 +22,13 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
-from sensor_msgs.msg import LaserScan, Range
+from sensor_msgs.msg import CameraInfo, LaserScan, Range
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
+from vision_msgs.msg import Detection2DArray
 
 from .avoidance_utils import AvoidanceController, AvoidanceParams, PASS, Perception
+from .person_utils import bbox_bearing_interval, camera_intrinsics, person_points
 from .scan_utils import (centroid, cluster_extent, cluster_points, corridor_clearance,
                          polar_histogram, scan_to_points)
 from .tracker_utils import min_ttc, ObstacleTracker, to_world
@@ -77,6 +81,19 @@ class ObstacleAvoidanceNode(Node):
         # --- 회피 판단 ---
         self.declare_parameter('histogram_sectors', 72)
         self.declare_parameter('histogram_range', 1.5)            # [m]
+
+        # --- 사람 인식(YOLO) 연동 ---
+        self.declare_parameter('use_person_detection', False)
+        self.declare_parameter('person_topic', 'person_detections')
+        self.declare_parameter('camera_info_topic', 'camera/camera_info')
+        self.declare_parameter('camera_frame', 'front_camera_link')
+        self.declare_parameter('camera_hfov', 1.1519)             # [rad] camera_info 없을 때
+        self.declare_parameter('camera_image_width', 640)         # [px] camera_info 없을 때
+        self.declare_parameter('person_min_score', 0.5)
+        self.declare_parameter('person_timeout', 1.0)             # [s] 인식 결과 유효 시간
+        self.declare_parameter('person_bearing_margin', 0.05)     # [rad] bbox 방향 여유
+        self.declare_parameter('person_max_range', 3.0)           # [m]
+        self.declare_parameter('person_half_width', 0.30)         # [m] 사람 정지 구역 반폭
         defaults = AvoidanceParams()
         for name in AvoidanceParams.__dataclass_fields__:
             self.declare_parameter(name, float(getattr(defaults, name)))
@@ -101,6 +118,15 @@ class ObstacleAvoidanceNode(Node):
         self.collision_radius = gp('collision_radius').value
         self.n_sectors = gp('histogram_sectors').value
         self.hist_range = gp('histogram_range').value
+        self.use_person = gp('use_person_detection').value
+        self.camera_frame = gp('camera_frame').value
+        self.camera_hfov = gp('camera_hfov').value
+        self.camera_width = gp('camera_image_width').value
+        self.person_min_score = gp('person_min_score').value
+        self.person_timeout = gp('person_timeout').value
+        self.person_margin = gp('person_bearing_margin').value
+        self.person_max_range = gp('person_max_range').value
+        self.person_half_width = gp('person_half_width').value
 
         params = AvoidanceParams(**{n: gp(n).value
                                     for n in AvoidanceParams.__dataclass_fields__})
@@ -121,6 +147,11 @@ class ObstacleAvoidanceNode(Node):
         self.pose = None
         self.robot_vel = (0.0, 0.0)
         self.lidar_tf = None
+        self.camera_tf = None
+        self.cam_fx = 0.0
+        self.cam_cx = 0.0
+        self.person_boxes = []      # [(u_center, width), ...] 마지막 인식 결과
+        self.person_t = None        # 마지막 인식 결과 수신 시각
         self.last_out_zero = True
         self.last_state = None
 
@@ -133,12 +164,17 @@ class ObstacleAvoidanceNode(Node):
         self.create_subscription(LaserScan, 'scan', self._scan_cb, qos_profile_sensor_data)
         self.create_subscription(Range, 'us_sensor/range', self._us_cb, qos_profile_sensor_data)
         self.create_subscription(Odometry, 'odom', self._odom_cb, 10)
+        if self.use_person:
+            self.create_subscription(Detection2DArray, gp('person_topic').value,
+                                     self._person_cb, 10)
+            self.create_subscription(CameraInfo, gp('camera_info_topic').value,
+                                     self._camera_info_cb, qos_profile_sensor_data)
         self.create_subscription(String, 'patrol_status', self._status_cb, 10)
         self.create_timer(1.0 / gp('control_rate').value, self._control_tick)
 
         self.get_logger().info(
             f'obstacle_avoidance 시작 (patrol_gate={self.use_patrol_gate}, '
-            f'ultrasonic={self.use_us})')
+            f'ultrasonic={self.use_us}, person_detection={self.use_person})')
 
     # ------------------------------------------------------------------ 입력
     def _now(self):
@@ -181,7 +217,37 @@ class ObstacleAvoidanceNode(Node):
             self.us_clearance = msg.range - (self.front_x - self.us_x)
         self.us_t = self._now()
 
-    def _lookup_lidar_tf(self, frame):
+    def _person_cb(self, msg):
+        boxes = []
+        for det in msg.detections:
+            score = max((r.hypothesis.score for r in det.results), default=1.0)
+            if score >= self.person_min_score:
+                boxes.append((det.bbox.center.position.x, det.bbox.size_x))
+        self.person_boxes = boxes
+        # 다른 PC 에서 오므로 영상 시각이 아니라 받은 시각으로 유효 시간을 잰다.
+        self.person_t = self._now()
+
+    def _camera_info_cb(self, msg):
+        self.cam_fx = msg.k[0]
+        self.cam_cx = msg.k[2]
+        if msg.width:
+            self.camera_width = msg.width
+
+    def _person_points(self, points, t):
+        """이번 scan 점 중 사람 bbox 방향에 있는 점. 인식 결과가 없거나 오래됐으면 빈 목록."""
+        if (not self.use_person or not self.person_boxes or self.person_t is None
+                or t - self.person_t > self.person_timeout):
+            return []
+        if self.camera_tf is None:
+            self.camera_tf = self._lookup_tf(self.camera_frame)
+            if self.camera_tf is None:
+                return []
+        fx, cx = camera_intrinsics(self.cam_fx, self.cam_cx, self.camera_width, self.camera_hfov)
+        intervals = [bbox_bearing_interval(u, w, fx, cx, self.person_margin)
+                     for u, w in self.person_boxes]
+        return person_points(points, intervals, self.camera_tf, self.person_max_range)
+
+    def _lookup_tf(self, frame):
         try:
             tf = self.tf_buffer.lookup_transform(self.base_frame, frame, Time())
         except TransformException as e:
@@ -194,7 +260,7 @@ class ObstacleAvoidanceNode(Node):
     def _scan_cb(self, msg):
         if self.lidar_tf is None:
             # 라이다는 로봇에 고정이라 한 번만 조회한다.
-            self.lidar_tf = self._lookup_lidar_tf(msg.header.frame_id)
+            self.lidar_tf = self._lookup_tf(msg.header.frame_id)
             if self.lidar_tf is None:
                 return
         t = self._now()
@@ -217,7 +283,9 @@ class ObstacleAvoidanceNode(Node):
 
         self.perception = Perception(
             front=self.lidar_front, rear=rear, ttc=ttc,
-            hist=polar_histogram(points, self.n_sectors, self.hist_range))
+            hist=polar_histogram(points, self.n_sectors, self.hist_range),
+            person_front=corridor_clearance(self._person_points(points, t),
+                                            self.person_half_width, self.front_x, True))
         self.scan_t = t
 
     # ------------------------------------------------------------------ 제어
@@ -256,7 +324,8 @@ class ObstacleAvoidanceNode(Node):
         front = per.front
         if self.use_us and self.us_t is not None and t - self.us_t <= self.us_timeout:
             front = min(front, self.us_clearance)
-        per = Perception(front=front, rear=per.rear, ttc=per.ttc, hist=per.hist)
+        per = Perception(front=front, rear=per.rear, ttc=per.ttc, hist=per.hist,
+                         person_front=per.person_front)
 
         state, v, w = self.controller.step(True, self.nav_cmd[0], self.nav_cmd[1], per, t)
         self._publish(v, w)

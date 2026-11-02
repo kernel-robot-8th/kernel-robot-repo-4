@@ -141,3 +141,22 @@ topics:
     from_domain: 100
     to_domain: 10
   # === ZONE-QUEUE END =====================================================
+
+  # === PERSON-STOP ADDED ==================================================
+  # YOLO 사람 인식(cobot_person_detector)을 관제 PC(100)에서 돌리고, 결과를 로봇의 회피 노드로 보낸다.
+  # [확인 필요] 로봇의 카메라 발행 토픽 이름. pinky_pro 에는 실물 카메라 노드가 없어
+  # image_transport 압축 토픽(/camera/image_raw/compressed)으로 가정했다. 다르면 이 이름을 바꾼다.
+
+  # 로봇(10) -> 관제 PC(100): 정면 카메라 압축 영상
+  /camera/image_raw/compressed:
+    type: sensor_msgs/msg/CompressedImage
+    from_domain: 10
+    to_domain: 100
+    remap: /pinky1/camera/image_raw/compressed
+
+  # 관제 PC(100) -> 로봇(10): 사람 bbox
+  /pinky1/person_detections:
+    type: vision_msgs/msg/Detection2DArray
+    from_domain: 100
+    to_domain: 10
+    remap: /person_detections
