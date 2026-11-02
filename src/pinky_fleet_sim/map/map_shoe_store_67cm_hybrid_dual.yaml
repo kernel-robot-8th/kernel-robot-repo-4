@@ -1,0 +1,17 @@
+# Shared native MuJoCo world projection; ASM store station/shelves/poses; not field map acceptance.
+image: map_shoe_store_67cm_hybrid_dual.pgm
+mode: trinary
+resolution: 0.01
+origin: [-0.02, -0.02, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+waypoints:
+  WP_WAREHOUSE_1: [1.4, 1.0, 180]
+  WP_WAREHOUSE_2: [1.4, 1.5, 180]
+  WP_WAREHOUSE_3: [1.4, 2.0, 180]
+  INIT_CHARGE_1: [1.0, 1.0, 0]
+  INIT_CHARGE_2: [1.0, 1.5, 0]
+  INIT_CHARGE_3: [0.98, 1.9, 0]
+  DOCK_LOAD_PROBE: [1.75, 1.375, 90]
+  DOCK_STORE_PROBE: [0.545, 1.1, 180]

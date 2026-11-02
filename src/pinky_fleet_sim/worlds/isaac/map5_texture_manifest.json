@@ -1,0 +1,61 @@
+{
+  "profile": "team11_map5",
+  "arena_dimensions_m": {
+    "width_x": 2.36,
+    "height_y": 1.28,
+    "wall_height": 0.1,
+    "wall_thickness": 0.015
+  },
+  "texture": {
+    "resolution_px": [
+      2360,
+      1280
+    ],
+    "meters_per_pixel": 0.001,
+    "raw_ortho_file": "map5_ground_truth_ortho.png",
+    "clean_albedo_file": "map5_arena_texture.png"
+  },
+  "reference_markers_m": {
+    "40": {
+      "x": -1.0,
+      "y": -0.5,
+      "pixel": [
+        180,
+        140
+      ]
+    },
+    "41": {
+      "x": 1.0,
+      "y": -0.5,
+      "pixel": [
+        2180,
+        140
+      ]
+    },
+    "42": {
+      "x": 1.0,
+      "y": 0.5,
+      "pixel": [
+        2180,
+        1140
+      ]
+    },
+    "43": {
+      "x": -1.0,
+      "y": 0.5,
+      "pixel": [
+        180,
+        1140
+      ]
+    }
+  },
+  "ros2_frame_alignment": {
+    "map_origin_m": [
+      -1.18,
+      -0.64,
+      0.0
+    ],
+    "image_top_edge": "+y",
+    "image_right_edge": "+x"
+  }
+}
