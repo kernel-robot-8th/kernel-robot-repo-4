@@ -1,0 +1,325 @@
+// Copyright 2026 Pinky_Team4
+// Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+//
+// 명령 버튼·정지·지점 고르기 오버레이.
+// 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
+// 파일끼리 함수·상수를 전역 이름으로 함께 쓴다 (빌드 단계 없이 브라우저가 바로 읽게).
+
+"use strict";
+
+const PICK_HIT_PX = 14;        // 지도에서 지점을 누른 것으로 볼 거리 [화면 px]
+
+// ---------- 명령 ----------
+// 화면은 요청만 한다. 검증·기록·발행은 task_manager_node 가 하고, 결과는 /ws/tasks 로 온다.
+// 정지는 항상 누를 수 있다. 다른 명령은 연결돼 있고, 작업 중이 아니고, 작업 노드가 살아 있을 때만.
+
+const ACTIVE_TASK = new Set(["ACCEPTED", "SENT", "RUNNING"]);
+// 로봇이 이 상태면 관제 작업이 없어도 움직이는 중이다 (유휴 복귀 등). task_manager 와 같은 목록.
+const BUSY_ROBOT = new Set(["STARTING", "MOVING", "QUEUEING", "WAITING_ZONE", "ARRIVED",
+  "LEAVING_ZONE", "RETREATING", "RETURNING", "RETRY"]);
+const TASK_GROUP = {
+  ACCEPTED: "active", SENT: "active", RUNNING: "active",
+  SUCCEEDED: "good", FAILED: "bad", STOPPED: "bad", REJECTED: "warn", UNKNOWN: "bad",
+};
+const TASK_TEXT = {
+  ACCEPTED: "받음", SENT: "보냄", RUNNING: "진행", SUCCEEDED: "성공", FAILED: "실패",
+  STOPPED: "중단", REJECTED: "거절", UNKNOWN: "결과 모름",
+};
+const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈" };
+const TASK_LIST_MAX = 50;   // 작업 목록에 보이는 최대 줄 수 (목록은 높이 고정, 스크롤)
+const MSG_MS = 6000;
+
+const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID()
+  : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+// 이 로봇의 진행 중·결과 모름 작업 (최신 하나)
+function robotTask(robotId, states) {
+  let found = null;
+  for (const task of view.tasks.values()) {
+    if (task.robot_id === robotId && states.has(task.state)
+        && (!found || task.created_at > found.created_at)) found = task;
+  }
+  return found;
+}
+
+function setupCommands(card, robotId) {
+  card.querySelectorAll(".cmd-row button, .stop-row button").forEach((button) => {
+    button.addEventListener("click", () => onCommand(robotId, button.dataset.cmd));
+  });
+}
+
+// 이 로봇이 잡고 있는 구역 이름 목록. 구역 상태를 못 받았으면 null (모름).
+function heldZones(robotId) {
+  const zones = view.snapshot ? view.snapshot.zones || {} : {};
+  if (Object.keys(zones).length === 0) return null;
+  return Object.keys(zones).filter((name) => zones[name] === `occupied_by:${robotId}`);
+}
+
+function renderCommands(card, robotId, robot) {
+  const active = robotTask(robotId, ACTIVE_TASK);
+  const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
+  const reason = !view.taskManagerOnline ? "작업 노드 꺼짐"
+    : !robot.online ? "연결 끊김"
+    : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 해제`
+    : active ? `작업 중 ${active.task_id}`
+    : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
+  // 구역·나가기는 보유 구역에 맞춰 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
+  const held = heldZones(robotId);
+  const holding = Boolean(held && held.length);
+  const only = {
+    zone: holding ? `${held.join(", ")} 보유 중: 먼저 나가기` : "",
+    leave: held && !holding ? "보유 구역 없음" : "",
+  };
+  card.querySelectorAll(".cmd-row button").forEach((button) => {
+    const why = reason || only[button.dataset.cmd] || "";
+    button.disabled = Boolean(why);
+    button.title = why;
+    button.classList.toggle("picking", Boolean(view.pick && view.pick.robotId === robotId
+      && view.pick.cmd === button.dataset.cmd));
+  });
+  card.querySelectorAll(".stop-row button").forEach((button) => {
+    button.disabled = !view.taskManagerOnline;
+  });
+  // 아이콘 옆 한 줄: 명령을 보낼 수 있는지, 관제 작업이 있으면 그 내용 (마우스를 올리지 않아도 보이게).
+  const why = card.querySelector(".cmd-reason");
+  let text;
+  let level;
+  if (!view.taskManagerOnline || !robot.online) {
+    text = `명령 잠김: ${reason}`;
+    level = "warn";
+  } else if (unknown) {
+    text = `결과 모름: ${unknown.command} · 현장 확인 후 해제`;
+    level = "bad";
+  } else if (active) {
+    text = `작업 중: ${active.command} · ${TASK_TEXT[active.state] || active.state}`
+      + (active.detail ? ` · ${active.detail}` : "");
+    level = "busy";
+  } else if (reason) {
+    text = `명령 잠김: ${reason}`;
+    level = "warn";
+  } else {
+    text = holding ? `명령 가능 · ${held.join(", ")} 보유 중` : "명령 가능";
+    level = "ok";
+  }
+  const task = unknown || active;
+  why.textContent = text;
+  why.title = task ? `${text} (${task.task_id})` : text;
+  card.querySelector(".cmd-head").dataset.level = level;
+}
+
+function showMessage(text, bad) {
+  const el = $("cmd-msg");
+  el.textContent = text;
+  el.dataset.bad = bad ? "1" : "";
+  el.hidden = false;
+  clearTimeout(showMessage.timer);
+  showMessage.timer = setTimeout(() => { el.hidden = true; }, MSG_MS);
+}
+
+async function postJson(url, body) {
+  try {
+    const res = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    return { ok: false, status: 0, data: { detail: "백엔드에 연결하지 못함" } };
+  }
+}
+
+function errorText(result) {
+  const detail = result.data && result.data.detail;
+  return typeof detail === "string" ? detail : JSON.stringify(detail || result.data);
+}
+
+function sendStop(robotId, emergency) {
+  return postJson(`/api/robots/${encodeURIComponent(robotId)}/stop`,
+    { client_request_id: newRequestId(), emergency });
+}
+
+// 전체 비상정지: 모든 로봇을 그 자리에 세운다. 확인 창 없이 한꺼번에 보낸다.
+async function stopAll() {
+  const robots = Object.keys((view.snapshot && view.snapshot.robots) || {});
+  if (robots.length === 0) {
+    showMessage("전체 비상정지 실패: 로봇 목록을 아직 받지 못함", true);
+    return;
+  }
+  cancelPick();
+  const results = await Promise.all(robots.map((robotId) => sendStop(robotId, true)));
+  const failed = robots.map((robotId, i) => [robotId, results[i]]).filter(([, r]) => !r.ok);
+  if (failed.length === 0) {
+    showMessage(`전체 비상정지 보냄 (${robots.join(", ")})`, false);
+  } else {
+    showMessage(`전체 비상정지 일부 실패: ${failed.map(([robotId, r]) =>
+      `${robotId} (${r.status}) ${errorText(r)}`).join(" · ")}`, true);
+  }
+}
+
+async function onCommand(robotId, cmd) {
+  if (cmd === "stop" || cmd === "emergency_stop") {
+    // 정지는 확인 창 없이 바로 보낸다 (늦으면 안 되는 명령). 그 로봇 지점 고르기는 접는다.
+    if (view.pick && view.pick.robotId === robotId) cancelPick();
+    const result = await sendStop(robotId, cmd === "emergency_stop");
+    if (result.ok) {
+      showMessage(`${robotId} ${cmd === "stop" ? "정지" : "비상정지"} 보냄`
+        + (result.data.warning ? ` · ${result.data.warning}` : ""), false);
+    } else {
+      showMessage(`${robotId} 정지 실패 (${result.status}): ${errorText(result)}`, true);
+    }
+    return;
+  }
+  const points = await choosePoints(robotId, cmd);
+  if (points === null) return;
+  const result = await postJson("/api/tasks", {
+    client_request_id: newRequestId(), robot_id: robotId, operation: cmd, points,
+  });
+  if (result.data && result.data.task_id) upsertTask(result.data);
+  if (result.data && result.data.task) upsertTask(result.data.task);
+  if (result.ok) {
+    showMessage(`${robotId} ${result.data.command} 보냄 (${result.data.task_id})`, false);
+  } else {
+    showMessage(`${robotId} ${OP_TEXT[cmd]} 거절 (${result.status}): ${errorText(result)}`, true);
+  }
+}
+
+// 고를 수 있는 지점: 이름 → [x, y, yaw]. 지점 목록(/api/map/layers)이 없으면 null.
+function pointChoices(robotId, cmd) {
+  const layers = view.layers;
+  if (!layers) return null;
+  const choices = new Map();
+  if (cmd === "goto") {
+    for (const [name, pose] of Object.entries(layers.points || {})) choices.set(name, pose);
+    const home = layers.homes && layers.homes[robotId];
+    if (home) choices.set(home.name, home.pose);
+  } else if (cmd === "zone") {
+    for (const zone of Object.values(layers.zones || {})) {
+      for (const [name, pose] of Object.entries(zone.points || {})) choices.set(name, pose);
+    }
+  }
+  return choices;
+}
+
+// 지점 고르기 + 확인. 누른 로봇 카드 안의 막대에서 하고, 지점은 지도를 누르거나 이름 버튼으로 고른다.
+// 창(dialog)을 쓰지 않는 것은 고르는 동안 지도를 보고 눌러야 하기 때문이다.
+// 고른 지점 목록을 돌려주고, 취소하면 null.
+function choosePoints(robotId, cmd) {
+  cancelPick();
+  const needsPoints = cmd === "goto" || cmd === "zone";
+  const choices = needsPoints ? pointChoices(robotId, cmd) : null;
+  const box = $("cmd-pick");
+  const pick = { robotId, cmd, choices, route: [], input: null };
+  pick.names = () => (pick.input
+    ? pick.input.value.toUpperCase().split(/[\s,]+/).filter(Boolean) : pick.route);
+  pick.update = () => {
+    const names = pick.names();
+    const route = $("cmd-route");
+    route.textContent = cmd === "goto" ? (names.length ? names.join(" → ") : "지점 선택")
+      : cmd === "zone" ? (names[0] || "구역 지점 선택")
+      : cmd === "home" ? "홈으로 복귀" : "구역 출구로 나가기";
+    route.title = route.textContent;
+    route.dataset.empty = needsPoints && names.length === 0 ? "1" : "";
+    // 고른 지점 버튼은 채우고, 이동은 순번을 붙인다.
+    box.querySelectorAll("button").forEach((button) => {
+      const order = names.indexOf(button.textContent);
+      button.classList.toggle("chosen", order >= 0);
+      button.dataset.order = order >= 0 && cmd === "goto" ? String(order + 1) : "";
+    });
+    $("cmd-ok").disabled = needsPoints && names.length === 0;
+    drawMap();
+  };
+  pick.add = (name) => {
+    if (cmd === "zone") pick.route.length = 0;
+    pick.route.push(name);
+    pick.update();
+  };
+
+  // 막대가 카드 머리(로봇 이름)를 덮으므로 제목에 로봇 이름을 다시 쓴다.
+  $("cmd-title").textContent = `${robotId} · ${OP_TEXT[cmd]}`;
+  box.replaceChildren();
+  $("cmd-clear").hidden = cmd !== "goto";
+  $("cmd-warn").textContent = view.snapshot && view.snapshot.infra
+    && view.snapshot.infra.mode === "real" ? "⚠ 실물 로봇이 움직입니다. 주변을 확인하세요." : "";
+  if (needsPoints && choices === null) {
+    // 지점 목록이 없으면 직접 적는다. 로봇·작업 노드가 다시 검사한다.
+    pick.input = document.createElement("input");
+    pick.input.placeholder = cmd === "goto" ? "P1, P2" : "ZA";
+    pick.input.addEventListener("input", pick.update);
+    box.appendChild(pick.input);
+  } else if (needsPoints) {
+    for (const name of choices.keys()) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = name;
+      button.addEventListener("click", () => pick.add(name));
+      box.appendChild(button);
+    }
+  }
+
+  view.pick = pick;
+  view.cards.get(robotId).querySelector(".card-body").appendChild($("pick-bar"));
+  $("pick-bar").hidden = false;
+  $("map").classList.toggle("picking", Boolean(choices));
+  render();
+  pick.update();
+  if (pick.input) pick.input.focus();
+  return new Promise((resolve) => { pick.resolve = resolve; });
+}
+
+function finishPick(ok) {
+  const pick = view.pick;
+  if (!pick) return;
+  view.pick = null;
+  $("pick-bar").hidden = true;
+  $("map").classList.remove("picking");
+  $("map").style.cursor = "";
+  pick.resolve(ok ? pick.names() : null);
+  render();
+  drawMap();
+}
+
+function cancelPick() {
+  finishPick(false);
+}
+
+// 지도에서 누른 곳에 가장 가까운 고를 수 있는 지점 (PICK_HIT_PX 안). 없으면 null.
+function pickAt(event) {
+  const pick = view.pick;
+  if (!pick || !pick.choices || !view.map || !view.mapScale) return null;
+  const rect = $("map").getBoundingClientRect();
+  const x = (event.clientX - rect.left) / view.mapScale;
+  const y = (event.clientY - rect.top) / view.mapScale;
+  let best = null;
+  let bestDist = PICK_HIT_PX / view.mapScale;
+  for (const [name, pose] of pick.choices) {
+    const [px, py] = toPixel(view.map.info, pose[0], pose[1]);
+    const dist = Math.hypot(px - x, py - y);
+    if (dist <= bestDist) {
+      best = name;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+function setupPick() {
+  const canvas = $("map");
+  canvas.addEventListener("click", (event) => {
+    const name = pickAt(event);
+    if (name) view.pick.add(name);
+  });
+  canvas.addEventListener("mousemove", (event) => {
+    if (view.pick && view.pick.choices) canvas.style.cursor = pickAt(event) ? "pointer" : "";
+  });
+  $("cmd-ok").addEventListener("click", () => finishPick(true));
+  $("cmd-cancel").addEventListener("click", cancelPick);
+  $("cmd-clear").addEventListener("click", () => {
+    if (!view.pick) return;
+    view.pick.route.length = 0;
+    view.pick.update();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && view.pick) cancelPick();
+  });
+  $("stop-all").addEventListener("click", stopAll);
+}

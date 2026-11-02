@@ -27,6 +27,8 @@
       <span class="link" id="link-zone" data-state="na"><i></i><span class="label">zone_manager</span></span>
       <span class="link bridges" id="link-bridges"><span class="label">브릿지</span></span>
       <span class="updated" id="updated">수신 대기</span>
+      <button type="button" class="estop-all" id="stop-all" disabled
+              title="모든 로봇을 그 자리에 세운다 (비상정지, 확인 창 없음)">전체 비상정지</button>
     </div>
   </header>
 
@@ -45,13 +47,22 @@
         <p class="map-empty" id="map-empty" hidden>지도 없음</p>
       </div>
       <div class="legend muted" id="map-legend" hidden>
-        <label class="toggle"><input type="checkbox" id="show-layers" checked>구역 표시</label>
-        <label class="toggle"><input type="checkbox" id="show-points" checked>웨이포인트</label>
-        <span><i class="lg-zone"></i>구역 지점 (초록 비어 있음 · 주황 점유)</span>
-        <span><i class="lg-exit">×</i>구역 출구</span>
-        <span><i class="lg-queue"></i>대기 슬롯 (A0 = 맨 앞)</span>
-        <span><i class="lg-home"></i>홈</span>
-        <span class="lg-points-item"><i class="lg-point"></i>웨이포인트 P (화살표 = 도착 방향)<em id="points-hidden"></em></span>
+        <!-- 체크박스마다 한 줄: 그 체크박스가 켜고 끄는 표시의 설명을 같은 줄에 둔다 -->
+        <div class="legend-row">
+          <label class="toggle"><input type="checkbox" id="show-layers" checked>구역 표시</label>
+          <div class="legend-items">
+            <span><i class="lg-zone"></i>구역 지점 (초록 비어 있음 · 주황 점유)</span>
+            <span><i class="lg-exit">×</i>구역 출구</span>
+            <span><i class="lg-queue"></i>대기 슬롯 (A0 = 맨 앞)</span>
+            <span><i class="lg-home"></i>홈</span>
+          </div>
+        </div>
+        <div class="legend-row">
+          <label class="toggle"><input type="checkbox" id="show-points" checked>웨이포인트</label>
+          <div class="legend-items">
+            <span class="lg-points-item"><i class="lg-point"></i>웨이포인트 P (화살표 = 도착 방향)<em id="points-hidden"></em></span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -73,7 +84,12 @@
       </section>
 
       <section class="panel" aria-label="작업">
-        <div class="panel-head"><h2>작업</h2><span class="muted" id="tasks-meta"></span></div>
+        <div class="panel-head">
+          <h2>작업 <span class="muted" id="tasks-meta"></span></h2>
+          <label class="muted">로봇
+            <select id="task-robot"><option value="">전체</option></select>
+          </label>
+        </div>
         <p class="cmd-msg" id="cmd-msg" hidden></p>
         <ol class="tasks" id="tasks"><li class="muted">작업 없음</li></ol>
       </section>
@@ -85,69 +101,99 @@
     </aside>
   </main>
 
+  <!-- 명령 지점 고르기. 열 때 누른 로봇 카드 위에 덮어 띄운다 (정지 줄은 가리지 않음).
+       지도 칸이나 카드 안에 끼우면 지도·카드 크기가 바뀌기 때문이다. 지점은 지도를 눌러서도 고른다. -->
+  <div class="pick-bar" id="pick-bar" hidden>
+    <div class="pick-head">
+      <strong id="cmd-title"></strong>
+      <span class="cmd-route" id="cmd-route"></span>
+    </div>
+    <div class="cmd-pick" id="cmd-pick"></div>
+    <p class="cmd-warn" id="cmd-warn"></p>
+    <div class="cmd-buttons">
+      <button type="button" id="cmd-clear">지우기</button>
+      <button type="button" id="cmd-cancel" title="Esc 로도 닫힌다">취소</button>
+      <button type="button" id="cmd-ok" class="primary">보내기</button>
+    </div>
+  </div>
+
   <template id="card-template">
     <article class="card">
+      <!-- 상태·명령 부분. 지점 고르기는 이 위를 덮고, 아래 정지 줄은 늘 보인다. -->
+      <div class="card-body">
       <div class="card-top">
         <span class="swatch"></span>
         <strong class="name"></strong>
+        <span class="battery" title="배터리">
+          <span class="battery-icon"><span class="battery-fill"></span></span>
+          <span class="battery-text"></span>
+        </span>
         <span class="badge"></span>
       </div>
       <div class="state-row">
         <span class="state"></span>
+        <span class="state-code muted"></span>
         <span class="detail muted"></span>
       </div>
-      <div class="battery" title="배터리">
-        <div class="battery-bar"><div class="battery-fill"></div></div>
-        <span class="battery-text"></span>
+      <div class="meta-row">
+        <span class="meta muted"></span>
+        <button type="button" class="teach-btn">위치 복사</button>
       </div>
-      <div class="meta muted"></div>
+      <!-- 토픽별 수신 시각 (위치·배터리·상태). 화면이 복잡해 잠시 뺀다. 다시 쓰려면 이 줄과 cards.js renderCard 의 주석을 푼다.
       <div class="topics muted" title="토픽별로 마지막으로 받은 뒤 지난 시간. 위치(amcl)는 로봇이 멈춰 있으면 새로 오지 않는 게 정상"></div>
-      <div class="card-actions">
-        <span class="teach-warn"></span>
-        <button type="button" class="teach-btn"
-                title="지금 위치 [x, y, yaw] 를 클립보드에 넣는다 (파일은 고치지 않음)">위치 복사</button>
-      </div>
+      -->
       <code class="teach-line" hidden></code>
-      <div class="cmd-row">
-        <button type="button" data-cmd="goto">이동</button>
-        <button type="button" data-cmd="zone">구역</button>
-        <button type="button" data-cmd="leave">나가기</button>
-        <button type="button" data-cmd="home">홈</button>
+      <!-- 아래 회색 바닥판 = 누르는 곳 (위 흰 바탕은 보기만 하는 곳). 바닥판은 정지 줄까지 이어진다. -->
+      <div class="card-cmds">
+        <!-- 아이콘 + 지금 명령을 보낼 수 있는지 (먼저 읽고 아래 버튼을 누르게) -->
+        <div class="cmd-head">
+          <span class="cmd-label" title="명령 (로봇 조종)" aria-label="명령">
+            <!-- 조이스틱 아이콘 (외부 파일 없이, 색은 글자색을 따른다) -->
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="5" r="2.5"/>
+              <path d="M12 7.5v7"/>
+              <path d="M4 17.5c0-1.4 1.1-2.5 2.5-2.5h11c1.4 0 2.5 1.1 2.5 2.5v1c0 .8-.7 1.5-1.5 1.5h-13C4.7 20 4 19.3 4 18.5z"/>
+            </svg>
+          </span>
+          <span class="cmd-reason"></span>
+        </div>
+        <div class="cmd-row">
+          <button type="button" data-cmd="goto">이동</button>
+          <button type="button" data-cmd="zone">구역</button>
+          <button type="button" data-cmd="leave">나가기</button>
+          <button type="button" data-cmd="home">홈</button>
+        </div>
+      </div>
+      </div>
+      <!-- 정지는 일반 명령과 줄을 나눠 잘못 누르지 않게 한다 -->
+      <div class="stop-row">
         <button type="button" class="stop-btn" data-cmd="stop" title="지금 작업 중단 (구역 안이면 출구로 나와 반납)">정지</button>
-        <button type="button" class="stop-btn" data-cmd="emergency_stop"
+        <button type="button" class="estop-btn" data-cmd="emergency_stop"
                 title="그 자리 정지, 구역 토큰 유지 (zone_manager 가 max_hold_sec 뒤 해제)">비상정지</button>
       </div>
-      <div class="cmd-task muted"></div>
     </article>
   </template>
 
+  <!-- 작업 한 줄: 시각 · 로봇 · 명령 · 결과 · 이유/걸린 시간. 작업 번호·규격은 마우스를 올리면 -->
   <template id="task-template">
     <li class="task">
-      <div class="task-top">
-        <strong class="task-robot"></strong>
-        <span class="task-command"></span>
-        <span class="task-state"></span>
-      </div>
-      <div class="task-detail muted"></div>
-      <div class="task-meta muted"></div>
+      <time class="task-time"></time>
+      <strong class="task-robot"></strong>
+      <span class="task-command"></span>
+      <span class="task-state"></span>
+      <span class="task-detail muted"></span>
       <button type="button" class="resolve-btn" hidden>현장 확인 후 해제</button>
     </li>
   </template>
 
-  <dialog id="cmd-dialog">
-    <form method="dialog" class="cmd-form">
-      <h3 id="cmd-title"></h3>
-      <div class="cmd-pick" id="cmd-pick"></div>
-      <p class="cmd-route" id="cmd-route"></p>
-      <p class="cmd-warn" id="cmd-warn"></p>
-      <div class="cmd-buttons">
-        <button type="button" id="cmd-clear">지우기</button>
-        <button value="cancel">취소</button>
-        <button value="ok" id="cmd-ok" class="primary">보내기</button>
-      </div>
-    </form>
-  </dialog>
-
-  <script src="app.js"></script>
+  <!-- 순서가 중요하다: core.js 가 공통 이름을 만들고, main.js 가 마지막에 시작한다 -->
+  <script src="core.js"></script>
+  <script src="cards.js"></script>
+  <script src="events.js"></script>
+  <script src="commands.js"></script>
+  <script src="tasks.js"></script>
+  <script src="map.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>

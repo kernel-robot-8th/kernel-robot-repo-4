@@ -188,7 +188,8 @@ def test_web_dir_is_served_without_hiding_api(tmp_path):
 def test_installed_web_files_exist():
     # 화면 파일이 패키지 소스에 있는지 본다 (setup.py data_files 가 web/* 를 설치한다).
     web = os.path.join(os.path.dirname(__file__), '..', 'web')
-    for name in ('index.html', 'app.js', 'style.css'):
+    for name in ('index.html', 'style.css', 'core.js', 'cards.js', 'events.js',
+                 'commands.js', 'tasks.js', 'map.js', 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
 
 

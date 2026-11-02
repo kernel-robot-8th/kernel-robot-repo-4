@@ -30,7 +30,8 @@
 | `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 3초 끊기면 offline |
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 위 JSON 을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
 | `task_manager_node` | `task_manager_node.py`, `task_manager_utils.py` | 명령 요청을 검증·기록(SQLite)한 뒤 로봇에 보내고, 로봇 상태로 작업 결과를 추적 |
-| 화면 | `web/index.html`, `app.js`, `style.css` | 로봇 카드(명령 버튼), 작업 목록, 위험구역 A/B/C, 지도 위 로봇 위치·방향. 외부 라이브러리·CDN 없음 |
+| 화면 | `web/index.html`, `style.css`, 스크립트 7개 | 로봇 카드(명령 버튼), 작업 목록, 이벤트 로그, 위험구역 A/B/C, 지도 위 로봇 위치·방향. 외부 라이브러리·CDN·빌드 단계 없음 |
+| └ 스크립트 | `core.js` 공통·연결, `cards.js` 로봇 카드·구역, `events.js` 경고·이벤트, `commands.js` 명령·지점 고르기, `tasks.js` 작업 목록, `map.js` 지도, `main.js` 시작 | `index.html` 에 적은 순서로 읽히고 전역 이름을 함께 쓴다 (core.js 먼저, main.js 마지막). 파일을 새로 만들면 다시 빌드 |
 | `map_hash`, `map_lint` | `map_contract.py` | 맵 계약 도구 (기존, 이 문서 범위 밖) |
 
 `patrol_status` 는 순찰 노드가 **상태가 바뀔 때만** 보내므로 연결 판단에 쓰지 않습니다. 연결 여부는 위치·배터리 수신 시각으로 봅니다.
