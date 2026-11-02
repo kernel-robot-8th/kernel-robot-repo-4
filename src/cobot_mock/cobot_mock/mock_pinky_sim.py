@@ -247,6 +247,15 @@ class ZoneBook:
         self.owner[zone] = q.pop(0) if q else None
         self.granted_at[zone] = now if self.owner[zone] else None
 
+    def slot_lines(self):
+        """'/zone_manager/queue_slot' 로 낼 문자열 목록 (zone_manager 와 같은 형식, 대기 로봇마다)."""
+        lines = []
+        for zone, q in sorted(self.queue.items()):
+            for k, robot in enumerate(q):
+                x, y, yaw = self.slot_pose(zone, k)
+                lines.append(f'{zone}:{robot}:{k}:{x:.3f},{y:.3f},{yaw:.3f}')
+        return lines
+
     def status_lines(self):
         """'/zone_manager/status' 로 낼 문자열 목록."""
         return [f'{z}:free' if o is None else f'{z}:occupied_by:{o}'

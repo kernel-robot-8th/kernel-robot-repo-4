@@ -15,11 +15,11 @@ function render() {
   setLink("link-source", snap.source_online);
   renderMode(snap.infra);
   renderInfra(snap.infra, snap.source_online);
-  $("updated").textContent = `갱신 ${new Date(view.receivedAt).toLocaleTimeString()}`;
+  $("updated").textContent = `갱신 ${formatTime(view.receivedAt / 1000)}`;
   Object.entries(snap.robots || {}).forEach(([robotId, robot], index) => {
     renderCard(robotId, robot, index);
   });
-  renderZones(snap.zones);
+  renderZones(snap.zones, snap.queues);
   renderAlerts(snap.alerts, snap.source_online);
   renderEventFilter();
   renderRawPanel();
@@ -72,6 +72,7 @@ setupToggle("show-layers", SHOW_LAYERS_KEY, "showLayers", "off");
 setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 setupPick();
 setupRaw();
+setupResolve();
 loadMap();
 loadLayers();
 connect();

@@ -48,6 +48,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 | `/pinkyN/amcl_pose` | `PoseWithCovarianceStamped` | 5 Hz, `frame_id=map` |
 | `/pinkyN/battery/percent`, `/pinkyN/battery/voltage` | `std_msgs/Float32` | 1 Hz. 이동 중 1 %/분, 대기 0.2 %/분 감소, 15 % 아래면 홈에서 충전 |
 | `/zone_manager/status` | `std_msgs/String` | `A:free` / `A:occupied_by:pinky1`. 바뀔 때 + 1초마다 |
+| `/zone_manager/queue_slot` | `std_msgs/String` | `A:pinky2:0:<x>,<y>,<yaw>` (대기 로봇마다, k=0 이 맨 앞). 바뀔 때 + 1초마다 (zone_manager 와 같은 형식) |
 | 구독 `/pinkyN/patrol_cmd` | `std_msgs/String` | 아래 명령 |
 
 **규격 v2** (`spec_versions: [v1, v2]`, 기본 둘 다): [`cobot_patrol_interfaces`](../cobot_patrol_interfaces/README.md) 메시지도 함께 냅니다.

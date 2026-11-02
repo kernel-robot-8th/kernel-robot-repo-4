@@ -46,6 +46,11 @@ function setupCommands(card, robotId) {
   card.querySelectorAll(".cmd-row button, .stop-row button").forEach((button) => {
     button.addEventListener("click", () => onCommand(robotId, button.dataset.cmd));
   });
+  // 빨간 '결과 모름' 줄을 누르면 해제 확인을 연다.
+  card.querySelector(".cmd-head").addEventListener("click", () => {
+    const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
+    if (unknown) openResolve(unknown);
+  });
 }
 
 // 이 로봇이 잡고 있는 구역 이름 목록. 구역 상태를 못 받았으면 null (모름).
@@ -88,7 +93,7 @@ function renderCommands(card, robotId, robot) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
   } else if (unknown) {
-    text = `결과 모름: ${unknown.command} · 현장 확인 후 해제`;
+    text = `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`;
     level = "bad";
   } else if (active) {
     text = `작업 중: ${active.command} · ${TASK_TEXT[active.state] || active.state}`
@@ -102,18 +107,23 @@ function renderCommands(card, robotId, robot) {
     level = "ok";
   }
   const task = unknown || active;
+  const msg = view.cardMsg.get(robotId);
+  if (msg && msg.until > Date.now()) {
+    text = msg.text;
+    level = msg.bad ? "bad" : "ok";
+  } else if (msg) {
+    view.cardMsg.delete(robotId);
+  }
   why.textContent = text;
   why.title = task ? `${text} (${task.task_id})` : text;
   card.querySelector(".cmd-head").dataset.level = level;
 }
 
-function showMessage(text, bad) {
-  const el = $("cmd-msg");
-  el.textContent = text;
-  el.dataset.bad = bad ? "1" : "";
-  el.hidden = false;
-  clearTimeout(showMessage.timer);
-  showMessage.timer = setTimeout(() => { el.hidden = true; }, MSG_MS);
+// 명령 결과는 누른 로봇 카드의 상태 줄에 MSG_MS 동안 보인다 (누른 곳에서 바로 보이게).
+function showMessage(robotId, text, bad) {
+  view.cardMsg.set(robotId, { text, bad, until: Date.now() + MSG_MS });
+  render();
+  setTimeout(render, MSG_MS + 50);
 }
 
 async function postJson(url, body) {
@@ -142,18 +152,16 @@ function sendStop(robotId, emergency) {
 async function stopAll() {
   const robots = Object.keys((view.snapshot && view.snapshot.robots) || {});
   if (robots.length === 0) {
-    showMessage("전체 비상정지 실패: 로봇 목록을 아직 받지 못함", true);
+    alert("전체 비상정지 실패: 로봇 목록을 아직 받지 못함");
     return;
   }
   cancelPick();
   const results = await Promise.all(robots.map((robotId) => sendStop(robotId, true)));
-  const failed = robots.map((robotId, i) => [robotId, results[i]]).filter(([, r]) => !r.ok);
-  if (failed.length === 0) {
-    showMessage(`전체 비상정지 보냄 (${robots.join(", ")})`, false);
-  } else {
-    showMessage(`전체 비상정지 일부 실패: ${failed.map(([robotId, r]) =>
-      `${robotId} (${r.status}) ${errorText(r)}`).join(" · ")}`, true);
-  }
+  robots.forEach((robotId, i) => {
+    const r = results[i];
+    showMessage(robotId, r.ok ? "전체 비상정지 보냄"
+      : `전체 비상정지 실패 (${r.status}): ${errorText(r)}`, !r.ok);
+  });
 }
 
 async function onCommand(robotId, cmd) {
@@ -162,10 +170,10 @@ async function onCommand(robotId, cmd) {
     if (view.pick && view.pick.robotId === robotId) cancelPick();
     const result = await sendStop(robotId, cmd === "emergency_stop");
     if (result.ok) {
-      showMessage(`${robotId} ${cmd === "stop" ? "정지" : "비상정지"} 보냄`
+      showMessage(robotId, `${cmd === "stop" ? "정지" : "비상정지"} 보냄`
         + (result.data.warning ? ` · ${result.data.warning}` : ""), false);
     } else {
-      showMessage(`${robotId} 정지 실패 (${result.status}): ${errorText(result)}`, true);
+      showMessage(robotId, `정지 실패 (${result.status}): ${errorText(result)}`, true);
     }
     return;
   }
@@ -177,9 +185,9 @@ async function onCommand(robotId, cmd) {
   if (result.data && result.data.task_id) upsertTask(result.data);
   if (result.data && result.data.task) upsertTask(result.data.task);
   if (result.ok) {
-    showMessage(`${robotId} ${result.data.command} 보냄 (${result.data.task_id})`, false);
+    showMessage(robotId, `보냄: ${result.data.command} (${result.data.task_id})`, false);
   } else {
-    showMessage(`${robotId} ${OP_TEXT[cmd]} 거절 (${result.status}): ${errorText(result)}`, true);
+    showMessage(robotId, `${OP_TEXT[cmd]} 거절 (${result.status}): ${errorText(result)}`, true);
   }
 }
 
@@ -205,6 +213,7 @@ function pointChoices(robotId, cmd) {
 // 고른 지점 목록을 돌려주고, 취소하면 null.
 function choosePoints(robotId, cmd) {
   cancelPick();
+  closeResolve();
   const needsPoints = cmd === "goto" || cmd === "zone";
   const choices = needsPoints ? pointChoices(robotId, cmd) : null;
   const box = $("cmd-pick");
@@ -272,7 +281,6 @@ function finishPick(ok) {
   view.pick = null;
   $("pick-bar").hidden = true;
   $("map").classList.remove("picking");
-  $("map").style.cursor = "";
   pick.resolve(ok ? pick.names() : null);
   render();
   drawMap();
@@ -304,12 +312,18 @@ function pickAt(event) {
 
 function setupPick() {
   const canvas = $("map");
+  // 지점을 고르는 중이면 지점을, 아니면(또는 지점이 아니면) 로봇을 누른 것으로 본다.
   canvas.addEventListener("click", (event) => {
     const name = pickAt(event);
-    if (name) view.pick.add(name);
+    if (name) {
+      view.pick.add(name);
+      return;
+    }
+    const robotId = robotAt(event);
+    if (robotId) focusCard(robotId);
   });
   canvas.addEventListener("mousemove", (event) => {
-    if (view.pick && view.pick.choices) canvas.style.cursor = pickAt(event) ? "pointer" : "";
+    canvas.style.cursor = pickAt(event) || robotAt(event) ? "pointer" : "";
   });
   $("cmd-ok").addEventListener("click", () => finishPick(true));
   $("cmd-cancel").addEventListener("click", cancelPick);

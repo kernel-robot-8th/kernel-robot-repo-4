@@ -56,6 +56,25 @@ def parse_patrol_status(text):
     return parsed
 
 
+def parse_queue_slot(text):
+    """
+    '/zone_manager/queue_slot' 문자열을 (구역, 로봇, 순번 k) 로 나눈다.
+
+    'A:pinky2:0:1.20,0.40,3.14' -> ('A', 'pinky2', 0). k 는 0 이 맨 앞, -1 은 대기열이 가득 차 거절.
+    좌표는 쓰지 않는다 (대기 슬롯 위치는 지도 설정에서 그린다). 형식이 틀리면 None.
+    """
+    if not isinstance(text, str):
+        return None
+    parts = text.strip().split(':')
+    if len(parts) != 4 or not parts[0] or not parts[1]:
+        return None
+    try:
+        k = int(parts[2])
+    except ValueError:
+        return None
+    return parts[0], parts[1], k
+
+
 def parse_zone_status(text):
     """
     '/zone_manager/status' 문자열을 (구역, 상태) 로 나눈다.
@@ -306,7 +325,7 @@ class FleetState:
 
     def __init__(self, robots, stale_timeout_sec, teach_max_std_xy=0.05, teach_max_std_yaw=0.1,
                  battery_warn_percent=20.0, stuck_sec=15.0, stuck_distance_m=0.05,
-                 zone_hold_warn_sec=200.0):
+                 zone_hold_warn_sec=200.0, queue_stale_sec=2.5):
         self.stale_timeout_sec = float(stale_timeout_sec)
         self.teach_max_std_xy = float(teach_max_std_xy)
         self.teach_max_std_yaw = float(teach_max_std_yaw)
@@ -317,6 +336,10 @@ class FleetState:
         self.robots = {name: RobotState() for name in robots}
         self.zones = {}
         self.zone_since = {}       # 구역 상태가 마지막으로 바뀐 시각 [s]
+        # 대기열: (구역, 로봇) -> (순번 k, 받은 시각). zone_manager 가 1초마다 다시 내므로
+        # queue_stale_sec 동안 안 오면 대기열을 떠난 것(진입 허가·취소)으로 본다.
+        self.queue_stale_sec = float(queue_stale_sec)
+        self.queue_slots = {}
         self._prev_snapshot = None
 
     def update_status(self, robot, text, now):
@@ -368,6 +391,30 @@ class FleetState:
         self.zones[zone] = zone_state
         return True
 
+    def update_queue_slot(self, text, now):
+        """대기 슬롯 알림을 반영한다. 깨진 값이면 False. k=-1(가득 참)은 대기열에 넣지 않는다."""
+        parsed = parse_queue_slot(text)
+        if parsed is None:
+            return False
+        zone, robot, k = parsed
+        if k < 0:
+            self.queue_slots.pop((zone, robot), None)
+        else:
+            self.queue_slots[(zone, robot)] = (k, now)
+        return True
+
+    def queues(self, now):
+        """구역별 대기 로봇 (앞 순번부터). 오래된 알림과 이미 그 구역을 점유한 로봇은 뺀다."""
+        result = {}
+        for (zone, robot), (k, received) in sorted(self.queue_slots.items()):
+            if now - received > self.queue_stale_sec:
+                continue
+            if self.zones.get(zone) == f'occupied_by:{robot}':
+                continue
+            result.setdefault(zone, []).append((k, robot))
+        return {zone: [robot for _, robot in sorted(items)]
+                for zone, items in sorted(result.items())}
+
     def is_online(self, robot, now):
         """마지막 수신 뒤 stale_timeout_sec 안이면 True. 받은 적이 없으면 False."""
         last_seen = self.robots[robot].last_seen
@@ -409,7 +456,8 @@ class FleetState:
              for name, robot in robots.items()},
             zones, self.zone_since, now, self.battery_warn_percent, self.stuck_sec,
             self.zone_hold_warn_sec)
-        return {'time': now, 'robots': robots, 'zones': zones, 'alerts': alerts}
+        return {'time': now, 'robots': robots, 'zones': zones, 'queues': self.queues(now),
+                'alerts': alerts}
 
     def collect_events(self, snapshot):
         """직전에 넘긴 스냅샷과 비교해 새 이벤트를 돌려준다. 발행 주기마다 한 번 부른다."""

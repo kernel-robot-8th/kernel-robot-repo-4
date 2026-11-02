@@ -113,6 +113,7 @@ class MockPinkyNode(Node):
                                          lambda msg, r=name: self._on_command_v2(r, msg),
                                          reliable)
         self.zone_pub = self.create_publisher(String, '/zone_manager/status', reliable)
+        self.slot_pub = self.create_publisher(String, '/zone_manager/queue_slot', reliable)
 
         self.start = time.monotonic()
         self.last = self.start
@@ -233,12 +234,15 @@ class MockPinkyNode(Node):
                 if not self._silent(name, now):
                     self._publish_state(name)
         lines = self.book.status_lines()
-        if lines != self.zone_lines or now >= self.next_zone:
-            # 실제 zone_manager 처럼 바뀔 때 + 1초마다 다시 낸다
+        slots = self.book.slot_lines()
+        if (lines, slots) != self.zone_lines or now >= self.next_zone:
+            # 실제 zone_manager 처럼 바뀔 때 + 1초마다 다시 낸다 (상태와 대기 슬롯 모두)
             self.next_zone = now + ZONE_PERIOD_SEC
-            self.zone_lines = lines
+            self.zone_lines = (lines, slots)
             for line in lines:
                 self.zone_pub.publish(String(data=line))
+            for line in slots:
+                self.slot_pub.publish(String(data=line))
 
 
 def main(args=None):

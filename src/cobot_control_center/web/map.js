@@ -174,18 +174,22 @@ function drawMap() {
     points: view.showPoints || (picking && view.pick.cmd === "goto"),
     layers: view.showLayers || picking,
   };
+  // 이름표는 모양을 다 그린 뒤 맨 위에 한꺼번에 놓는다 (겹치지 않게 자리를 고르려고).
+  const labels = [];
   if (view.layers && (show.layers || show.points)) {
-    drawLayers(ctx, info, view.layers, scale, show);
+    drawLayers(ctx, info, view.layers, scale, show, labels);
   }
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   if (picking) drawPick(ctx, info, scale, robots);
+  view.robotHits = [];
   Object.keys(robots).forEach((robotId, index) => {
     const robot = robots[robotId];
     if (!robot.pose) return;
     const color = robot.online ? css(robotColorVar(index)) : css("--offline");
-    drawRobot(ctx, info, robot.pose, robotId, color, scale);
+    drawRobot(ctx, info, robot.pose, robotId, color, scale, labels);
   });
+  placeLabels(ctx, labels, scale);
 }
 
 function toPixel(info, x, y) {
@@ -193,22 +197,94 @@ function toPixel(info, x, y) {
   return [(x - ox) / info.resolution, info.image_height - (y - oy) / info.resolution];
 }
 
-function drawLabel(ctx, text, px, py, scale) {
+// ---------- 이름표 ----------
+// label: {text, x, y, r, kind, color}. x, y 는 점 위치, r 은 점 반지름 (모두 지도 px).
+// kind: "robot"(로봇 색 알약, 먼저 놓음), "zone"(구역 원 가운데 고정), "mark"(지점·출구·슬롯·홈).
+// 지점 이름표는 이미 놓인 이름표·로봇과 겹치지 않는 자리(위·아래·오른쪽·왼쪽 …)를 찾고,
+// 빈 자리가 없으면 가장 덜 겹치는 곳에 둔다.
+
+function overlapArea(rect, others) {
+  let area = 0;
+  for (const o of others) {
+    const w = Math.min(rect.x + rect.w, o.x + o.w) - Math.max(rect.x, o.x);
+    const h = Math.min(rect.y + rect.h, o.y + o.h) - Math.max(rect.y, o.y);
+    if (w > 0 && h > 0) area += w * h;
+  }
+  return area;
+}
+
+function placeLabels(ctx, labels, scale) {
+  const rank = { zone: 0, robot: 1, mark: 2 };
+  const order = [...labels].sort((a, b) => rank[a.kind] - rank[b.kind]);
+  // 로봇 몸통은 지점 이름표가 가리지 않게 미리 막아 둔다.
+  const robotBodies = labels.filter((l) => l.kind === "robot")
+    .map((l) => ({ x: l.x - l.r, y: l.y - l.r, w: l.r * 2, h: l.r * 2 }));
+  const placed = [];
+  for (const label of order) {
+    const robot = label.kind === "robot";
+    const size = (robot ? 12 : 11) / scale;
+    ctx.font = `${robot ? 700 : 600} ${size}px system-ui, sans-serif`;
+    const padX = (robot ? 5 : 1) / scale;
+    const padY = (robot ? 2 : 0) / scale;
+    const w = ctx.measureText(label.text).width + padX * 2;
+    const h = size * 1.25 + padY * 2;
+    const gap = label.r + 2 / scale;
+    const below = [label.x - w / 2, label.y + gap];
+    const above = [label.x - w / 2, label.y - gap - h];
+    const right = [label.x + gap, label.y - h / 2];
+    const left = [label.x - gap - w, label.y - h / 2];
+    const candidates = label.kind === "zone" ? [[label.x - w / 2, label.y - h / 2]]
+      : robot ? [below, above, right, left] : [above, right, left, below];
+    let best = null;
+    let bestCost = Infinity;
+    for (const [x, y] of candidates) {
+      const rect = { x, y, w, h };
+      const cost = overlapArea(rect, placed) + (robot ? 0 : overlapArea(rect, robotBodies) * 4);
+      if (cost < bestCost) {
+        best = rect;
+        bestCost = cost;
+        if (cost === 0) break;
+      }
+    }
+    placed.push(best);
+    drawLabelBox(ctx, label, best, size, padX, padY, robot);
+  }
+}
+
+function drawLabelBox(ctx, label, rect, size, padX, padY, robot) {
   ctx.save();
-  ctx.font = `600 ${11 / scale}px system-ui, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
-  ctx.lineWidth = 3 / scale;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-  ctx.fillStyle = "#1c2129";
-  ctx.strokeText(text, px, py);
-  ctx.fillText(text, px, py);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  if (robot) {
+    // 로봇: 로봇 색 알약에 흰 글자 (지점 이름과 한눈에 구분되게)
+    ctx.fillStyle = label.color;
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, rect.h / 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+  } else {
+    ctx.lineWidth = 3 / view.mapScale;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.fillStyle = "#1c2129";
+    ctx.strokeText(label.text, rect.x + padX, rect.y + padY + size * 0.1);
+  }
+  ctx.fillText(label.text, rect.x + padX, rect.y + padY + size * 0.1);
   ctx.restore();
+}
+
+// 지도에서 누른 곳의 로봇 (몸통 반지름 + 여유 안). 없으면 null.
+function robotAt(event) {
+  if (!view.robotHits || !view.mapScale) return null;
+  const rect = $("map").getBoundingClientRect();
+  const x = (event.clientX - rect.left) / view.mapScale;
+  const y = (event.clientY - rect.top) / view.mapScale;
+  const hit = view.robotHits.find((h) => Math.hypot(h.x - x, h.y - y) <= h.r + 4 / view.mapScale);
+  return hit ? hit.robotId : null;
 }
 
 // 작은 표시(출구·대기 슬롯·홈). 같은 좌표의 표시는 하나로 합치고 이름을 이어 붙인다
 // (예: 구역 A·B 는 대기 위치가 같다).
-function drawMarks(ctx, info, marks, scale) {
+function drawMarks(ctx, info, marks, scale, labels) {
   const merged = new Map();
   for (const mark of marks) {
     const key = `${mark.kind}:${mark.pose[0].toFixed(3)},${mark.pose[1].toFixed(3)}`;
@@ -245,13 +321,13 @@ function drawMarks(ctx, info, marks, scale) {
       ctx.stroke();
     }
     ctx.restore();
-    drawLabel(ctx, mark.labels.join("·"), px, py - r - 1 / scale, scale);
+    labels.push({ text: mark.labels.join("·"), x: px, y: py, r, kind: "mark" });
   }
 }
 
 // 구역 지점 원 색은 토큰 상태(fleet_status 의 zones)를 따른다. 원 크기는 표시용이다.
 // 구역 표시(구역·출구·대기 슬롯·홈)와 웨이포인트(P)는 체크박스로 따로 끄고 켠다.
-function drawLayers(ctx, info, layers, scale, show) {
+function drawLayers(ctx, info, layers, scale, show, labels) {
   const marks = [];
   if (show.points) {
     for (const [name, pose] of Object.entries(layers.points || {})) {
@@ -277,7 +353,7 @@ function drawLayers(ctx, info, layers, scale, show) {
         ctx.strokeStyle = color;
         ctx.stroke();
         ctx.restore();
-        drawLabel(ctx, zone, px, py + 5 / scale, scale);
+        labels.push({ text: zone, x: px, y: py, r: 0, kind: "zone" });
       }
       if (layer.exit) {
         marks.push({ kind: "exit", pose: layer.exit.pose, label: `${zone} 출구`, color: css("--bad") });
@@ -290,7 +366,7 @@ function drawLayers(ctx, info, layers, scale, show) {
       marks.push({ kind: "home", pose: home.pose, label: home.name, color: css("--idle") });
     }
   }
-  drawMarks(ctx, info, marks, scale);
+  drawMarks(ctx, info, marks, scale, labels);
 }
 
 // 지점 고르는 중: 고를 수 있는 지점은 고리로, 고른 경로는 로봇 위치부터 점선과 순번으로 그린다.
@@ -334,7 +410,7 @@ function drawPick(ctx, info, scale, robots) {
   ctx.restore();
 }
 
-function drawRobot(ctx, info, pose, label, color, scale) {
+function drawRobot(ctx, info, pose, robotId, color, scale, labels) {
   const [ox, oy] = info.origin;
   const px = (pose.x - ox) / info.resolution;
   const py = info.image_height - (pose.y - oy) / info.resolution;
@@ -360,16 +436,7 @@ function drawRobot(ctx, info, pose, label, color, scale) {
   ctx.fill();
   ctx.restore();
 
-  // 이름은 원 아래에 둔다. 화살표가 어느 쪽을 보든 원 반지름의 2배 밖이라 겹치지 않는다.
-  ctx.save();
-  ctx.font = `600 ${12 / scale}px system-ui, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.lineWidth = 3 / scale;
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
-  ctx.fillStyle = "#ffffff";
-  const labelY = py + r * 2 + 2 / scale;
-  ctx.strokeText(label, px, labelY);
-  ctx.fillText(label, px, labelY);
-  ctx.restore();
+  // 이름표 자리는 화살표 끝(반지름 1.9배) 밖에서 찾는다. 지도 클릭으로 로봇을 고를 수 있게 위치도 남긴다.
+  labels.push({ text: robotId, x: px, y: py, r: r * 1.9, kind: "robot", color });
+  view.robotHits.push({ robotId, x: px, y: py, r });
 }

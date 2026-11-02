@@ -90,7 +90,6 @@
             <select id="task-robot"><option value="">전체</option></select>
           </label>
         </div>
-        <p class="cmd-msg" id="cmd-msg" hidden></p>
         <ol class="tasks" id="tasks"><li class="muted">작업 없음</li></ol>
       </section>
 
@@ -130,6 +129,18 @@
       <button type="button" id="cmd-clear">지우기</button>
       <button type="button" id="cmd-cancel" title="Esc 로도 닫힌다">취소</button>
       <button type="button" id="cmd-ok" class="primary">보내기</button>
+    </div>
+  </div>
+
+  <!-- 결과 모름 해제 확인. 열 때 그 로봇 카드 위에 덮어 띄운다 (정지 줄은 가리지 않음). -->
+  <div class="pick-bar resolve-bar" id="resolve-bar" hidden>
+    <div class="pick-head"><strong id="resolve-title"></strong><span class="cmd-route" id="resolve-what"></span></div>
+    <p class="resolve-warn">로봇이 멈춘 것을 <strong>현장에서 직접 확인했을 때만</strong> 해제하세요.
+      실패로 기록하고, 그 로봇에 다시 명령을 보낼 수 있게 됩니다.</p>
+    <input id="resolve-note" maxlength="200" aria-label="확인 내용" placeholder="확인 내용 (기록에 남음)">
+    <div class="cmd-buttons">
+      <button type="button" id="resolve-cancel" title="Esc 로도 닫힌다">취소</button>
+      <button type="button" id="resolve-ok" class="danger">현장 확인함 · 해제</button>
     </div>
   </div>
 

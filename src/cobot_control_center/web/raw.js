@@ -35,7 +35,7 @@ function addRawLog(parts, bad, title) {
   item.dataset.bad = bad ? "1" : "";
   if (title) item.title = title;
   const time = document.createElement("time");
-  time.textContent = new Date().toLocaleTimeString([], { hour12: false });
+  time.textContent = formatTime();
   item.appendChild(time);
   for (const [text, cls] of parts) {
     const el = document.createElement(cls === "text" ? "span" : "code");

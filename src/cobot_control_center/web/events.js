@@ -90,7 +90,7 @@ function renderEvents() {
     const item = document.createElement("li");
     item.dataset.level = event.level;
     const time = document.createElement("time");
-    time.textContent = new Date(event.time * 1000).toLocaleTimeString();
+    time.textContent = formatTime(event.time);
     const who = document.createElement("span");
     who.className = "who";
     who.textContent = event.robot || "구역";

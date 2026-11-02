@@ -126,6 +126,9 @@ def test_zone_hold_queue_and_leave(fleet):
         ('STARTING', 'ZA'), ('MOVING', 'slot'), ('QUEUEING', 'slot0')]
     assert sims['pinky2'].pose[:2] == pytest.approx(book.slot_pose('A', 0)[:2])
     assert sims['pinky2'].running
+    # 대기 슬롯도 zone_manager 와 같은 형식으로 낸다: "<zone>:<robot>:<k>:<x>,<y>,<yaw>"
+    x, y, yaw = book.slot_pose('A', 0)
+    assert book.slot_lines() == [f'A:pinky2:0:{x:.3f},{y:.3f},{yaw:.3f}']
 
     # 점유자가 나가면 대기자가 들어간다
     leave = sims['pinky1'].command('leave', t)
@@ -134,6 +137,7 @@ def test_zone_hold_queue_and_leave(fleet):
     assert ('DONE', 'left zone') in states(ev['pinky1'])
     assert ('HOLDING_ZONE', 'A') in states(ev['pinky2'])
     assert book.owner['A'] == 'pinky2'
+    assert book.slot_lines() == []
 
 
 def test_queue_full(fleet):

@@ -41,6 +41,16 @@ function ensureCard(robotId, index) {
   return card;
 }
 
+// 지도에서 로봇을 누르면 그 카드로 스크롤하고 잠깐 강조한다.
+function focusCard(robotId) {
+  const card = view.cards.get(robotId);
+  if (!card) return;
+  card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  card.classList.remove("flash");
+  void card.offsetWidth; // 같은 로봇을 다시 눌러도 강조가 다시 시작되게
+  card.classList.add("flash");
+}
+
 function formatShortAge(sec) {
   if (sec === null || sec === undefined) return "—";
   if (sec < 10) return `${sec.toFixed(1)}s`;
@@ -164,7 +174,8 @@ async function copyTeach(card) {
 
 // ---------- 구역 ----------
 
-function renderZones(zones) {
+// 구역 칸: 점유 로봇과 대기열 (queues: 구역 → 앞 순번부터 대기 로봇, zone_manager queue_slot)
+function renderZones(zones, queues) {
   const box = $("zones");
   const names = Object.keys(zones || {}).sort();
   if (names.length === 0) return;
@@ -182,7 +193,12 @@ function renderZones(zones) {
     } else {
       label.textContent = value === "free" ? "비어 있음" : value;
     }
-    el.append(title, label);
+    const queue = document.createElement("small");
+    queue.className = "zone-queue";
+    const waiting = (queues && queues[name]) || [];
+    queue.textContent = waiting.length ? `대기 ${waiting.join(" → ")}` : "대기 없음";
+    queue.dataset.waiting = waiting.length ? "1" : "";
+    el.append(title, label, queue);
     box.appendChild(el);
   }
 }

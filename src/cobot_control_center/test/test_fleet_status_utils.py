@@ -19,7 +19,8 @@ import math
 
 from cobot_control_center.fleet_status_utils import (
     count_state, diff_events, FleetState, judge_infra, judge_teach_pose, MOVING_STATES,
-    parse_patrol_status, parse_zone_status, std_from_covariance, UNKNOWN_NODE_NAME,
+    parse_patrol_status, parse_queue_slot, parse_zone_status, std_from_covariance,
+    UNKNOWN_NODE_NAME,
     yaw_from_quaternion)
 import pytest
 
@@ -109,6 +110,35 @@ def test_parse_zone_status():
 @pytest.mark.parametrize('text', ['', 'A', 'A:', ':free', None])
 def test_parse_zone_status_rejects_bad_input(text):
     assert parse_zone_status(text) is None
+
+
+def test_parse_queue_slot():
+    assert parse_queue_slot('A:pinky2:0:1.200,0.400,3.140') == ('A', 'pinky2', 0)
+    assert parse_queue_slot('B:pinky3:-1:0,0,0') == ('B', 'pinky3', -1)
+
+
+@pytest.mark.parametrize('text', ['', 'A:pinky2:0', 'A:pinky2:x:0,0,0', ':pinky2:0:0,0,0', None])
+def test_parse_queue_slot_rejects_bad_input(text):
+    assert parse_queue_slot(text) is None
+
+
+def test_queues_order_stale_and_occupant():
+    fleet = FleetState(['pinky1', 'pinky2', 'pinky3'], 3.0, queue_stale_sec=2.5)
+    fleet.update_zone('A:occupied_by:pinky1')
+    assert fleet.update_queue_slot('A:pinky3:1:0,0,0', 10.0) is True
+    assert fleet.update_queue_slot('A:pinky2:0:0,0,0', 10.0) is True
+    assert fleet.update_queue_slot('broken', 10.0) is False
+    # 앞 순번부터
+    assert fleet.snapshot(11.0)['queues'] == {'A': ['pinky2', 'pinky3']}
+    # 다시 안 오면 대기열을 떠난 것으로 본다 (pinky3 만 새로 옴)
+    fleet.update_queue_slot('A:pinky3:0:0,0,0', 12.0)
+    assert fleet.snapshot(13.0)['queues'] == {'A': ['pinky3']}
+    # 진입 허가를 받아 점유자가 되면 대기열에서 뺀다
+    fleet.update_zone('A:occupied_by:pinky3')
+    assert fleet.snapshot(13.0)['queues'] == {}
+    # 가득 차 거절(k=-1)은 대기열에 넣지 않는다
+    fleet.update_queue_slot('B:pinky2:-1:0,0,0', 13.0)
+    assert fleet.snapshot(13.0)['queues'] == {}
 
 
 def test_yaw_from_quaternion():

@@ -40,11 +40,22 @@ const view = {
   lastEventId: 0,
   tasks: new Map(), // task_id → 작업 (/ws/tasks)
   taskManagerOnline: false,
+  cardMsg: new Map(), // robot_id → {text, bad, until}: 명령 결과를 카드 상태 줄에 잠깐
   rawEnabled: false, // 개발용 수동 명령 칸을 보일지 (/api/health)
+  resolving: null,  // 결과 모름 해제 확인 중인 작업
   pick: null,       // 명령 지점 고르는 중 {robotId, cmd, choices, route, ...}
+  robotHits: [],    // 지도 위 로봇 위치 {robotId, x, y, r} (지도 클릭으로 카드 찾기)
   mapScale: 0,      // 지도 1 px 의 화면 크기 (layoutMap 이 정함)
   laidOut: false,   // 첫 상태를 받은 뒤 한 번 다시 쟀는지
 };
+
+// 화면의 시각은 모두 24시간 HH:MM:SS 로 쓴다. sec 는 UNIX 시각 [s], 없으면 지금.
+// (toLocaleTimeString 의 hour12:false 는 브라우저에 따라 자정을 24:00 으로 써서 직접 만든다)
+function formatTime(sec) {
+  const d = sec === undefined ? new Date() : new Date(sec * 1000);
+  if (Number.isNaN(d.getTime())) return "";
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
+}
 
 function robotColorVar(index) {
   return `--robot-${(index % 3) + 1}`;

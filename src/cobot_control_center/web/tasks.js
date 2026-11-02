@@ -31,14 +31,6 @@ function connectTasks() {
   ws.onerror = () => ws.close();
 }
 
-function formatClock(sec) {
-  return sec ? new Date(sec * 1000).toLocaleTimeString() : "";
-}
-
-// 작업 목록 시각: 24시간 HH:MM:SS (한 줄에 넣으려고 짧게)
-function formatTaskTime(sec) {
-  return sec ? new Date(sec * 1000).toLocaleTimeString([], { hour12: false }) : "";
-}
 
 function formatDuration(sec) {
   if (!(sec >= 0)) return "";
@@ -77,7 +69,7 @@ function renderTasks() {
     const el = $("task-template").content.firstElementChild.cloneNode(true);
     el.dataset.state = task.state;
     el.dataset.pin = rank(task) < 2 ? "1" : "";
-    el.querySelector(".task-time").textContent = formatTaskTime(task.created_at);
+    el.querySelector(".task-time").textContent = (task.created_at ? formatTime(task.created_at) : "");
     const robot = el.querySelector(".task-robot");
     robot.textContent = task.robot_id;
     const index = robotIndex(task.robot_id);
@@ -92,29 +84,66 @@ function renderTasks() {
     const detail = task.state === "SUCCEEDED" ? took
       : [task.detail, took].filter(Boolean).join(" · ");
     el.querySelector(".task-detail").textContent = detail;
-    el.title = `${task.task_id} · ${task.spec} · ${task.command} · 보냄 ${formatClock(task.created_at)}`
+    el.title = `${task.task_id} · ${task.spec} · ${task.command} · 보냄 ${formatTime(task.created_at)}`
       + (task.detail ? `\n${task.detail}` : "");
     const resolve = el.querySelector(".resolve-btn");
     resolve.hidden = task.state !== "UNKNOWN";
-    resolve.addEventListener("click", () => resolveTask(task));
+    resolve.addEventListener("click", () => openResolve(task));
     return el;
   }));
 }
 
-async function resolveTask(task) {
-  const note = prompt(
-    `${task.robot_id} ${task.command} (${task.task_id})\n`
-    + "로봇이 멈춘 것을 현장에서 확인했습니까? 확인 내용을 적으면 해제합니다 (실패로 기록).",
-    "현장에서 정지 확인");
-  if (note === null) return;
+// ---------- 결과 모름 해제 ----------
+// 작업 목록의 해제 버튼이나 카드의 빨간 '결과 모름' 줄을 누르면 그 로봇 카드 위에 확인 막대를 띄운다.
+// 현장 확인 내용을 적어 해제하면 실패로 기록된다 (기록은 지우지 않는다).
+
+const RESOLVE_NOTE = "현장에서 정지 확인";
+
+function openResolve(task) {
+  const card = view.cards.get(task.robot_id);
+  if (!card) return;
+  cancelPick();
+  view.resolving = task;
+  $("resolve-title").textContent = `${task.robot_id} · 결과 모름 해제`;
+  $("resolve-what").textContent = task.command;
+  $("resolve-what").title = `${task.command} (${task.task_id})`;
+  $("resolve-note").value = RESOLVE_NOTE;
+  card.querySelector(".card-body").appendChild($("resolve-bar"));
+  $("resolve-bar").hidden = false;
+  focusCard(task.robot_id);
+  $("resolve-note").select();
+}
+
+function closeResolve() {
+  view.resolving = null;
+  $("resolve-bar").hidden = true;
+}
+
+async function resolveTask() {
+  const task = view.resolving;
+  if (!task) return;
+  const note = $("resolve-note").value.trim() || RESOLVE_NOTE;
+  $("resolve-ok").disabled = true;
   const result = await postJson(`/api/tasks/${encodeURIComponent(task.task_id)}/resolve`,
     { client_request_id: newRequestId(), result: "FAILED", note });
+  $("resolve-ok").disabled = false;
+  closeResolve();
   if (result.ok) {
     upsertTask(result.data);
     renderTasks();
-    render();
-    showMessage(`${task.task_id} 해제함`, false);
+    showMessage(task.robot_id, `해제함: ${task.command} (실패로 기록)`, false);
   } else {
-    showMessage(`${task.task_id} 해제 실패 (${result.status}): ${errorText(result)}`, true);
+    showMessage(task.robot_id, `해제 실패 (${result.status}): ${errorText(result)}`, true);
   }
+}
+
+function setupResolve() {
+  $("resolve-ok").addEventListener("click", resolveTask);
+  $("resolve-cancel").addEventListener("click", closeResolve);
+  $("resolve-note").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") resolveTask();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && view.resolving) closeResolve();
+  });
 }

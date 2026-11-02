@@ -50,6 +50,7 @@ class FleetStatusNode(Node):
         self.declare_parameter('stuck_sec', 15.0)
         self.declare_parameter('stuck_distance_m', 0.05)
         self.declare_parameter('zone_hold_warn_sec', 200.0)
+        self.declare_parameter('queue_stale_sec', 2.5)
         robots = list(self.get_parameter('robots').value)
         stale = self.get_parameter('stale_timeout_sec').value
         period = self.get_parameter('publish_period_sec').value
@@ -60,7 +61,8 @@ class FleetStatusNode(Node):
                                 self.get_parameter('battery_warn_percent').value,
                                 self.get_parameter('stuck_sec').value,
                                 self.get_parameter('stuck_distance_m').value,
-                                self.get_parameter('zone_hold_warn_sec').value)
+                                self.get_parameter('zone_hold_warn_sec').value,
+                                self.get_parameter('queue_stale_sec').value)
         self._last_online = {name: False for name in robots}
         self._last_state = {name: None for name in robots}
 
@@ -88,6 +90,7 @@ class FleetStatusNode(Node):
                 Float32, f'/{name}/battery/percent',
                 lambda msg, r=name: self._on_battery(r, msg), qos_profile_sensor_data)
         self.create_subscription(String, '/zone_manager/status', self._on_zone, reliable)
+        self.create_subscription(String, '/zone_manager/queue_slot', self._on_queue_slot, reliable)
 
         self.pub = self.create_publisher(String, '/control_center/fleet_status', 10)
         self.create_timer(period, self._publish)
@@ -112,6 +115,10 @@ class FleetStatusNode(Node):
 
     def _on_battery(self, robot, msg):
         self.fleet.update_battery(robot, msg.data, time.time())
+
+    def _on_queue_slot(self, msg):
+        if not self.fleet.update_queue_slot(msg.data, time.time()):
+            self.get_logger().warning(f'zone_manager/queue_slot 를 읽지 못함: {msg.data!r}')
 
     def _on_zone(self, msg):
         if not self.fleet.update_zone(msg.data, time.time()):

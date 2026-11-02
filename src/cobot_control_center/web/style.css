@@ -238,6 +238,12 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
   overflow: hidden; /* 바닥판 아래 모서리를 카드 둥근 모서리에 맞춘다 */
 }
 .card.offline { opacity: 0.55; border-left-color: var(--offline); }
+/* 지도에서 로봇을 눌렀을 때 그 카드를 잠깐 강조 */
+.card.flash { animation: card-flash 1.4s ease-out; }
+@keyframes card-flash {
+  0%, 40% { box-shadow: 0 0 0 3px var(--robot-color, var(--active)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
 
 .card button {
   font: inherit;
@@ -405,6 +411,14 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
   cursor: pointer;
 }
 .pick-bar button:disabled { opacity: 0.45; cursor: default; }
+/* 결과 모름 해제 확인: 빨강 테두리 */
+.resolve-bar { border-color: var(--bad); }
+.resolve-bar .cmd-route { color: var(--bad); }
+.resolve-warn { margin: 0; font-size: 12px; color: var(--text); }
+.resolve-bar input { cursor: text; width: 100%; font-size: 13px; padding: 5px 8px; }
+.pick-bar .danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.pick-bar .danger:hover:not(:disabled) { filter: brightness(1.1); }
+.cmd-head[data-level="bad"] { cursor: pointer; }
 
 .pick-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .pick-head strong { flex: none; font-size: 14px; }
@@ -452,7 +466,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 /* 지점 목록이 없어도(홈·나가기) 버튼은 아래에 */
 .pick-bar .cmd-buttons { display: flex; gap: 6px; margin-top: auto; }
 .pick-bar .cmd-buttons button { flex: 1; padding: 6px 8px; font-size: 13px; font-weight: 600; }
-.pick-bar .cmd-buttons #cmd-ok { flex: 2; }
+.pick-bar .cmd-buttons #cmd-ok, .pick-bar .cmd-buttons #resolve-ok { flex: 2; }
 .pick-bar .primary { background: var(--active); border-color: var(--active); color: #fff; }
 .pick-bar .primary:hover:not(:disabled) { filter: brightness(1.1); }
 
@@ -461,16 +475,6 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 #tasks-meta { font-weight: 600; letter-spacing: 0; margin-left: 6px; }
 #tasks-meta[data-bad="1"] { color: var(--bad); }
 
-/* 명령 결과 알림 (보냄/거절/해제) */
-.cmd-msg {
-  margin: 0 0 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  background: color-mix(in srgb, var(--good) 15%, transparent);
-  overflow-wrap: anywhere;
-}
-.cmd-msg[data-bad="1"] { background: color-mix(in srgb, var(--bad) 15%, transparent); }
 
 /* 한 줄에 한 작업, 높이 고정 + 스크롤 (작업이 쌓여도 오른쪽 칸이 길어지지 않게) */
 .tasks { list-style: none; margin: 0; padding: 0; height: 220px; overflow-y: auto; font-size: 12px; }
@@ -518,6 +522,9 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .zone span { font-size: 12px; color: var(--good); }
 .zone.occupied { border-color: var(--warn); }
 .zone.occupied span { color: var(--warn); font-weight: 600; }
+/* 대기열: 앞 순번부터 (대기 없음은 흐리게) */
+.zone-queue { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.zone-queue[data-waiting="1"] { color: var(--text); font-weight: 600; }
 
 /* ---------- 개발: 수동 명령 ---------- */
 
