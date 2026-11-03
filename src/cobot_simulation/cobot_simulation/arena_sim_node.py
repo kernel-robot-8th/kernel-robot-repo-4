@@ -76,7 +76,7 @@ class ArenaSimNode(Node):
 
         # QoS profiles
         sensor_qos = QoSProfile(
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            reliability=QoSReliabilityPolicy.RELIABLE,
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=10,
         )
@@ -287,6 +287,26 @@ class ArenaSimNode(Node):
                 t_base.transform.translation.z = 0.0
                 t_base.transform.rotation = q
                 self.tf_broadcaster.sendTransform(t_base)
+
+                t_laser = TransformStamped()
+                t_laser.header.stamp = now
+                t_laser.header.frame_id = f'{rid}/base_footprint'
+                t_laser.child_frame_id = f'{rid}/rplidar_link'
+                t_laser.transform.translation.x = 0.0
+                t_laser.transform.translation.y = 0.0
+                t_laser.transform.translation.z = 0.06
+                t_laser.transform.rotation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                self.tf_broadcaster.sendTransform(t_laser)
+
+                t_link = TransformStamped()
+                t_link.header.stamp = now
+                t_link.header.frame_id = f'{rid}/base_footprint'
+                t_link.child_frame_id = f'{rid}/base_link'
+                t_link.transform.translation.x = 0.0
+                t_link.transform.translation.y = 0.0
+                t_link.transform.translation.z = 0.025
+                t_link.transform.rotation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                self.tf_broadcaster.sendTransform(t_link)
 
             # 2. Publish Odometry
             odom_msg = Odometry()
