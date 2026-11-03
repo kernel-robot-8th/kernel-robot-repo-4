@@ -99,12 +99,13 @@ class ShoeStoreArena:
             'ZA_EXIT': (1.865, 1.839, 274.1),
             'ZB_EXIT': (1.865, 2.089, 274.1),
             'ZC_EXIT': (1.215, 1.239, 85.9),
+            # Synchronized navigation_v9 queue slots (safe spacing d=0.38m, unified T = [+1.415, +1.639])
             'WA_slot0': (1.565, 2.139, 0.0),
-            'WA_slot1': (1.565, 1.839, 0.0),
-            'WA_slot2': (1.565, 1.539, 0.0),
-            'WC_slot0': (1.215, 2.089, 85.9),
-            'WC_slot1': (1.215, 1.789, 85.9),
-            'WC_slot2': (1.215, 1.489, 85.9),
+            'WA_slot1': (1.565, 1.759, 0.0),
+            'WB_slot0': (1.765, 1.439, 0.0),
+            'WB_slot1': (1.765, 1.059, 0.0),
+            'WC_slot0': (1.065, 1.639, 85.9),
+            'WC_slot1': (1.065, 1.259, 85.9),
 
             # Transformed 실측 Waypoints P1~P35 (from pinky1.yaml via T = [+1.415, +1.639])
             'P1': (1.585, 1.039, 0.0),
