@@ -28,14 +28,44 @@ import glob
 import threading
 import subprocess
 
-# 1. ROS 2 환경 자동 로드 (Re-exec)
-WORKSPACE_INSTALL = os.path.expanduser('~/kernel-robot-repo-4/install/setup.bash')
+# 1. 워크스페이스 패스 우선 등록
+WORKSPACE_DIR = os.path.expanduser('~/kernel-robot-repo-4')
+WORKSPACE_INSTALL = os.path.join(WORKSPACE_DIR, 'install', 'setup.bash')
 ROS_SETUP = '/opt/ros/jazzy/setup.bash'
 
-if 'AMENT_PREFIX_PATH' not in os.environ:
+EXTRA_PATHS = [
+    os.path.join(WORKSPACE_DIR, 'src', 'cobot_simulation'),
+    os.path.join(WORKSPACE_DIR, 'install', 'cobot_simulation', 'lib', 'python3.12', 'site-packages'),
+    os.path.join(WORKSPACE_DIR, 'install', 'cobot_interfaces', 'lib', 'python3.12', 'site-packages'),
+    os.path.join(WORKSPACE_DIR, 'install', 'pinky_fleet_sim', 'lib', 'python3.12', 'site-packages'),
+]
+for p in EXTRA_PATHS:
+    if os.path.exists(p) and p not in sys.path:
+        sys.path.insert(0, p)
+
+# 2. ROS 2 및 워크스페이스 환경 자동 로드 (Re-exec)
+needs_reexec = False
+if not os.environ.get('_SIM_TELEOP_REEXEC'):
+    try:
+        import rclpy
+    except ImportError:
+        needs_reexec = True
+    if 'cobot_interfaces' not in os.environ.get('AMENT_PREFIX_PATH', ''):
+        needs_reexec = True
+    try:
+        import cobot_simulation
+    except ImportError:
+        needs_reexec = True
+
+if needs_reexec:
     script_path = os.path.abspath(__file__)
     args = ' '.join(f'"{a}"' for a in sys.argv[1:])
-    cmd = f'source {ROS_SETUP} && if [ -f {WORKSPACE_INSTALL} ]; then source {WORKSPACE_INSTALL}; fi && exec python3 "{script_path}" {args}'
+    cmd = (
+        f'export _SIM_TELEOP_REEXEC=1 && '
+        f'if [ -f "{ROS_SETUP}" ]; then source "{ROS_SETUP}"; fi && '
+        f'if [ -f "{WORKSPACE_INSTALL}" ]; then source "{WORKSPACE_INSTALL}"; fi && '
+        f'exec python3 "{script_path}" {args}'
+    )
     sys.exit(subprocess.call(['bash', '-c', cmd]))
 
 import rclpy
@@ -285,11 +315,29 @@ def main():
 
     finally:
         if rviz_proc:
-            rviz_proc.terminate()
-        controller.destroy_node()
+            try:
+                rviz_proc.terminate()
+                rviz_proc.wait(timeout=1.0)
+            except Exception:
+                pass
+        try:
+            executor.shutdown()
+        except Exception:
+            pass
+        try:
+            controller.destroy_node()
+        except Exception:
+            pass
         if embedded_sim:
-            embedded_sim.destroy_node()
-        rclpy.shutdown()
+            try:
+                embedded_sim.destroy_node()
+            except Exception:
+                pass
+        if rclpy.ok():
+            try:
+                rclpy.shutdown()
+            except Exception:
+                pass
         print('[*] 정상적으로 종료되었습니다.\n')
 
 if __name__ == '__main__':
