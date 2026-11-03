@@ -48,6 +48,8 @@ function taskCommandText(task) {
 const TASK_FINAL_TIMED = new Set(["SUCCEEDED", "FAILED", "STOPPED"]);
 
 function renderTasks() {
+  // 상세 화면의 요약·타임라인도 작업 목록으로 그린다.
+  renderDetail();
   const list = $("tasks");
   const filter = $("task-robot").value;
   const all = [...view.tasks.values()];
@@ -100,17 +102,17 @@ function renderTasks() {
 const RESOLVE_NOTE = "현장에서 정지 확인";
 
 function openResolve(task) {
-  const card = view.cards.get(task.robot_id);
-  if (!card) return;
+  const host = barHost(task.robot_id);
+  if (!host) return;
   cancelPick();
   view.resolving = task;
   $("resolve-title").textContent = `${task.robot_id} · 결과 모름 해제`;
   $("resolve-what").textContent = task.command;
   $("resolve-what").title = `${task.command} (${task.task_id})`;
   $("resolve-note").value = RESOLVE_NOTE;
-  card.querySelector(".card-body").appendChild($("resolve-bar"));
+  host.appendChild($("resolve-bar"));
   $("resolve-bar").hidden = false;
-  focusCard(task.robot_id);
+  if (view.detailRobot !== task.robot_id) focusCard(task.robot_id);
   $("resolve-note").select();
 }
 

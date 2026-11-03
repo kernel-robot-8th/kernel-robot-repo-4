@@ -54,6 +54,13 @@ function setupCommands(card, robotId) {
   });
 }
 
+// 지점 고르기·결과 모름 해제 띠를 붙일 자리. 상세 화면이면 상태줄 아래, 아니면 그 로봇 카드 위.
+function barHost(robotId) {
+  if (view.detailRobot === robotId) return $("detail-bar-host");
+  const card = view.cards.get(robotId);
+  return card ? card.querySelector(".card-body") : null;
+}
+
 // 이 로봇이 잡고 있는 구역 이름 목록. 구역 상태를 못 받았으면 null (모름).
 function heldZones(robotId) {
   const zones = view.snapshot ? view.snapshot.zones || {} : {};
@@ -274,6 +281,7 @@ function choosePoints(robotId, cmd) {
     });
     $("cmd-ok").disabled = needsPoints && names.length === 0;
     drawMap();
+    drawDetailMap();
   };
   pick.add = (name) => {
     if (cmd === "zone") pick.route.length = 0;
@@ -304,7 +312,7 @@ function choosePoints(robotId, cmd) {
   }
 
   view.pick = pick;
-  view.cards.get(robotId).querySelector(".card-body").appendChild($("pick-bar"));
+  barHost(robotId).appendChild($("pick-bar"));
   $("pick-bar").hidden = false;
   $("map").classList.toggle("picking", Boolean(choices));
   render();

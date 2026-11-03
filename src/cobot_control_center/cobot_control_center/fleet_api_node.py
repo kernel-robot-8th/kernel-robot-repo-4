@@ -15,9 +15,11 @@
 """
 관제 백엔드 노드: /control_center/fleet_status 를 받아 웹 API(HTTP·WebSocket)로 내보낸다.
 
-로봇 토픽은 구독하지도 발행하지도 않는다. 받는 것은 fleet_status_node 가 낸 스냅샷과
-task_manager_node 의 작업 목록·응답이다. 명령은 /control_center/task_request 로 task_manager_node 에
-넘길 뿐이고, 로봇 명령 토픽에 내는 것은 task_manager_node 다.
+로봇 토픽에는 발행하지 않는다. 구독하는 로봇 토픽은 카메라 영상(sensor_msgs/CompressedImage)뿐이다.
+영상은 커서 fleet_status JSON 에 싣지 않고, 받은 JPEG 를 풀지 않은 채 웹으로 바로 넘긴다.
+그 밖에 받는 것은 fleet_status_node 가 낸 스냅샷과 task_manager_node 의 작업 목록·응답이다.
+명령은 /control_center/task_request 로 task_manager_node 에 넘길 뿐이고,
+로봇 명령 토픽에 내는 것은 task_manager_node 다.
 rclpy 는 백그라운드 스레드에서, uvicorn 은 메인 스레드에서 돈다. uvicorn 이 Ctrl+C 를 받아
 웹 서버를 먼저 닫고, 그 뒤 ROS 를 정리한다.
 """
@@ -29,12 +31,13 @@ import threading
 from ament_index_python.packages import get_package_share_directory
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    LayerError, load_map, load_map_layers, MapError, SnapshotStore, TaskStore)
+    CameraStore, LayerError, load_map, load_map_layers, MapError, SnapshotStore, TaskStore)
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
+from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 import uvicorn
 
@@ -54,6 +57,8 @@ class FleetApiNode(Node):
         self.declare_parameter('events_max', 500)
         self.declare_parameter('task_stale_sec', 3.0)
         self.declare_parameter('reply_timeout_sec', 2.0)
+        self.declare_parameter('camera_robots', ['pinky1', 'pinky2', 'pinky3'])
+        self.declare_parameter('camera_topic_format', '/{robot}/camera/image_raw/compressed')
         # 개발용(fleet_api_dev.launch.xml): 실물을 보면서 화면을 고칠 때 명령이 나가지 않게 한다.
         self.declare_parameter('read_only', False)
         self.read_only = bool(self.get_parameter('read_only').value)
@@ -82,10 +87,30 @@ class FleetApiNode(Node):
             String, '/control_center/tasks', self._on_tasks,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.cameras = self._subscribe_cameras()
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
             + ('(읽기 전용: 명령 경로 503, task_request 를 내지 않음)' if self.read_only
                else '(로봇 토픽에 발행하지 않음. 명령은 task_manager_node 로 넘김)'))
+
+    def _subscribe_cameras(self):
+        # 비전 시험 발행기(cobot_camera_topic_test)와 같은 QoS. 지난 프레임은 다시 받지 않고 최신 1장만 본다.
+        # BEST_EFFORT 구독은 RELIABLE 발행자와도 연결된다.
+        robots = [r for r in self.get_parameter('camera_robots').value if r]
+        topic_format = self.get_parameter('camera_topic_format').value
+        qos = QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=1,
+                         reliability=ReliabilityPolicy.BEST_EFFORT,
+                         durability=DurabilityPolicy.VOLATILE)
+        cameras = CameraStore(robots)
+        topics = []
+        for robot in robots:
+            topic = topic_format.format(robot=robot)
+            self.create_subscription(
+                CompressedImage, topic,
+                lambda msg, robot=robot: cameras.put(robot, msg.data), qos)
+            topics.append(topic)
+        self.get_logger().info(f'카메라 구독: {", ".join(topics) or "없음"}')
+        return cameras
 
     def _load_map(self, path):
         # 지도가 없어도 카드·구역 화면은 쓸 수 있으므로 경고만 하고 계속한다.
@@ -148,7 +173,8 @@ def main(args=None):
         # 일으킬 때 남은 lifespan 작업이 CancelledError 트레이스백을 남긴다.
         app = create_app(node.store, node.map_data, node.web_dir,
                          node.context.get_domain_id(), node.layers,
-                         node.tasks, None if node.read_only else node.publish_request)
+                         node.tasks, None if node.read_only else node.publish_request,
+                         node.cameras)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

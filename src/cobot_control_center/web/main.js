@@ -23,6 +23,7 @@ function render() {
   renderAlerts(snap.alerts, snap.source_online);
   renderEventFilter();
   renderRawPanel();
+  renderDetail();
   // 첫 상태가 오면 상단 바(브릿지 점 등)가 채워져 높이가 바뀔 수 있어 한 번 다시 잰다.
   if (!view.laidOut) {
     view.laidOut = true;
@@ -53,6 +54,9 @@ async function pollHealth() {
     $("stop-all").disabled = !view.taskManagerOnline || view.readOnly;
     view.rawEnabled = Boolean(health.raw_cmd_enabled) && !view.readOnly;
     renderRawPanel();
+    view.cameras = health.cameras || {};
+    view.spec = health.spec ?? null;
+    updateCamera();
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
     renderInfra(infra, Boolean(health.source_online));
@@ -71,6 +75,8 @@ async function pollHealth() {
     $("stop-all").disabled = true;
     view.rawEnabled = false;
     renderRawPanel();
+    view.cameras = {};
+    updateCamera();
     renderInfra(view.snapshot ? view.snapshot.infra : null, false);
   }
 }
@@ -87,6 +93,7 @@ setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 setupPick();
 setupRaw();
 setupResolve();
+setupDetail();
 loadMap();
 loadLayers();
 connect();

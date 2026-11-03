@@ -24,9 +24,10 @@
 
 import asyncio
 
+from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 # WebSocket 이 새 스냅샷을 기다리는 한 번의 최대 시간 [s]. 끊긴 연결을 이 주기로 알아챈다.
@@ -36,8 +37,19 @@ WS_WAIT_SEC = 1.0
 READ_ONLY_DETAIL = '읽기 전용 백엔드: 명령은 실물 관제 화면(bringup, 8080)에서'
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """화면 파일을 고치면 새로 고침만으로 반영되게, 브라우저가 매번 바뀌었는지 묻게 한다."""
+
+    async def get_response(self, path, scope):
+        # 캐시 지시가 없으면 브라우저가 예전 index.html·js 를 그대로 써서 새 버튼이 안 보인다.
+        # 안 바뀌었으면 ETag 로 304 만 오가므로 부담이 없다.
+        response = await super().get_response(path, scope)
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
+
+
 def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
-               tasks=None, publish_request=None):
+               tasks=None, publish_request=None, cameras=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -47,6 +59,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     layers 는 load_map_layers() 결과(구역 지점·출구·대기 슬롯·홈) 또는 None 이다.
     tasks 는 TaskStore, publish_request 는 요청 JSON 문자열을 task_request 토픽에 내는 함수다.
     둘 중 하나라도 None 이면 명령 경로는 503 이다 (읽기 전용).
+    cameras 는 CameraStore 또는 None 이다. None 이면 카메라 경로는 모든 로봇에 404 다.
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -79,9 +92,11 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.get('/api/health')
     def health():
         task_health = tasks.health() if tasks is not None else {'task_manager_online': False}
+        camera_health = cameras.health() if cameras is not None else {}
         # read_only: 명령을 넘길 곳이 없는 백엔드 (개발용 fleet_api_dev). 화면은 명령 버튼을 모두 끈다.
         return {'ok': True, 'domain_id': domain_id, 'read_only': publish_request is None,
-                **store.health(), **task_health}
+                **store.health(), **task_health,
+                'cameras': camera_health}
 
     @app.get('/api/fleet')
     def fleet():
@@ -99,6 +114,43 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         if robot_id not in robots:
             raise HTTPException(status_code=404, detail=f'등록되지 않은 로봇: {robot_id}')
         return {'robot_id': robot_id, **robots[robot_id]}
+
+    # ---------- 카메라 (로봇이 낸 JPEG 를 풀지 않고 그대로 넘긴다) ----------
+
+    def camera_or_404(robot_id):
+        if cameras is None or robot_id not in cameras.robots():
+            raise HTTPException(status_code=404, detail=f'카메라를 구독하지 않는 로봇: {robot_id}')
+        return cameras
+
+    @app.get('/api/robots/{robot_id}/camera.jpg')
+    def camera_frame(robot_id: str):
+        frame = camera_or_404(robot_id).latest(robot_id)
+        if frame is None:
+            raise HTTPException(status_code=404, detail=f'아직 받은 영상이 없음: {robot_id}')
+        return Response(content=frame[1], media_type='image/jpeg',
+                        headers={'Cache-Control': 'no-store'})
+
+    @app.get('/api/robots/{robot_id}/camera')
+    def camera_stream(robot_id: str):
+        store_ = camera_or_404(robot_id)
+
+        async def frames():
+            # 보는 사람이 창을 닫으면 Starlette 가 이 생성기를 취소한다.
+            # 프레임이 없으면 아무것도 보내지 않고 기다린다 (화면은 /api/health 의 cameras 로 '영상 없음'을 띄운다).
+            frame = store_.latest(robot_id)
+            seq = 0
+            if frame is not None:
+                seq = frame[0]
+                yield mjpeg_part(frame[1])
+            while True:
+                if not await asyncio.to_thread(store_.wait_newer, robot_id, seq, WS_WAIT_SEC):
+                    continue
+                seq, jpeg = store_.latest(robot_id)
+                yield mjpeg_part(jpeg)
+
+        return StreamingResponse(
+            frames(), media_type=f'multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}',
+            headers={'Cache-Control': 'no-store'})
 
     @app.get('/api/events')
     def events(after: int = Query(0, ge=0), robot: str | None = None,
@@ -247,7 +299,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     # API 경로를 먼저 등록하고 마지막에 '/' 를 마운트해야 /api·/ws 가 정적 파일에 가려지지 않는다.
     # colcon --symlink-install 은 설치된 web/ 파일을 build/ 로 가는 링크로 만든다. 그래서 링크를 따라간다.
     if web_dir is not None:
-        app.mount('/', StaticFiles(directory=web_dir, html=True, follow_symlink=True),
+        app.mount('/', NoCacheStaticFiles(directory=web_dir, html=True, follow_symlink=True),
                   name='web')
 
     return app

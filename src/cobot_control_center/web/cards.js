@@ -33,7 +33,10 @@ function ensureCard(robotId, index) {
   if (view.cards.has(robotId)) return view.cards.get(robotId);
   const card = $("card-template").content.firstElementChild.cloneNode(true);
   card.style.setProperty("--robot-color", `var(${robotColorVar(index)})`);
-  card.querySelector(".name").textContent = robotId;
+  const name = card.querySelector(".name");
+  name.textContent = robotId;
+  name.href = detailHref(robotId);
+  card.querySelector(".detail-link").href = detailHref(robotId);
   setupTeach(card);
   setupCommands(card, robotId);
   $("cards").appendChild(card);

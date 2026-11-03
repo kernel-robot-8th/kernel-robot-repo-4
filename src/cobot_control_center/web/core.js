@@ -49,6 +49,9 @@ const view = {
   robotHits: [],    // 지도 위 로봇 위치 {robotId, x, y, r} (지도 클릭으로 카드 찾기)
   mapScale: 0,      // 지도 1 px 의 화면 크기 (layoutMap 이 정함)
   laidOut: false,   // 첫 상태를 받은 뒤 한 번 다시 쟀는지
+  detailRobot: null, // 상세 화면(#/robot/<id>)에서 보는 로봇, 전체 화면이면 null
+  cameras: {},      // /api/health 의 cameras: 로봇별 {age_sec, frames}
+  spec: null,       // /api/health 의 spec: 로봇별 명령 규격 v1/v2 (작업 노드가 없으면 null)
 };
 
 // 화면의 시각은 모두 24시간 HH:MM:SS 로 쓴다. sec 는 UNIX 시각 [s], 없으면 지금.

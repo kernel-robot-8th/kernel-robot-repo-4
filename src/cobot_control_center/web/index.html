@@ -118,6 +118,77 @@
     </aside>
   </main>
 
+  <!-- 로봇 상세 화면 (#/robot/<id>). detail.js 가 켜고 끄며, 켜져 있으면 위 전체 화면(.layout)을 숨긴다.
+       명령 줄은 카드와 같은 클래스(.cmd-head·.cmd-row·.stop-row)라 commands.js renderCommands 를 그대로 쓴다. -->
+  <main class="detail-page" id="detail-page" hidden>
+    <section class="detail-head" aria-label="로봇 상태와 명령">
+      <a href="#" class="detail-back">← 전체</a>
+      <span class="swatch" id="dt-swatch"></span>
+      <strong class="dt-name" id="dt-name"></strong>
+      <span class="badge" id="dt-badge"></span>
+      <span class="state dt-state" id="dt-state"></span>
+      <span class="dt-battery muted" id="dt-battery"></span>
+      <div class="detail-cmds" id="detail-cmds">
+        <div class="cmd-head" title="명령 상태"><span class="cmd-reason"></span></div>
+        <div class="cmd-row">
+          <button type="button" data-cmd="goto">이동</button>
+          <button type="button" data-cmd="zone">구역</button>
+          <button type="button" data-cmd="leave">나가기</button>
+          <button type="button" data-cmd="home">홈</button>
+        </div>
+        <div class="stop-row">
+          <button type="button" class="stop-btn" data-cmd="stop" title="지금 작업 중단 (구역 안이면 출구로 나와 반납)">정지</button>
+          <button type="button" class="estop-btn" data-cmd="emergency_stop"
+                  title="그 자리 정지, 구역 토큰 유지 (zone_manager 가 max_hold_sec 뒤 해제)">비상정지</button>
+        </div>
+      </div>
+    </section>
+    <!-- 지점 고르기·결과 모름 해제 띠가 여기 붙는다 (commands.js barHost) -->
+    <div class="detail-bar-host" id="detail-bar-host"></div>
+    <p class="detail-missing" id="dt-missing" hidden>등록되지 않은 로봇입니다. <a href="#">전체 화면으로</a></p>
+
+    <div class="detail-hero">
+      <section class="panel" aria-label="카메라">
+        <div class="panel-head"><h2>카메라</h2><span class="muted" id="camera-meta"></span></div>
+        <div class="camera-wrap">
+          <img id="camera-img" alt="카메라 영상" hidden>
+          <p class="camera-empty" id="camera-empty">영상 없음</p>
+          <span class="camera-age" id="camera-age" hidden></span>
+        </div>
+      </section>
+      <section class="panel" aria-label="확대 지도">
+        <div class="panel-head">
+          <h2>지도</h2>
+          <span class="zoom">
+            <button type="button" id="dt-zoom-in" title="더 확대">＋</button>
+            <button type="button" id="dt-zoom-out" title="더 넓게">－</button>
+          </span>
+        </div>
+        <div class="dt-map-wrap" id="dt-map-wrap">
+          <canvas id="dt-map"></canvas>
+          <p class="map-empty" id="dt-map-empty" hidden>지도 없음</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="detail-stats" id="dt-stats"></div>
+
+    <div class="detail-lower">
+      <section class="panel" aria-label="타임라인">
+        <div class="panel-head"><h2>타임라인</h2><span class="muted">작업 · 이벤트</span></div>
+        <ol class="timeline" id="dt-timeline"></ol>
+      </section>
+      <section class="panel" aria-label="진단">
+        <div class="panel-head"><h2>진단</h2><span class="muted">마지막 수신</span></div>
+        <dl class="diag" id="dt-diag"></dl>
+        <details class="info-extra">
+          <summary>순찰 노드 추가 필드 (command_id 등)</summary>
+          <pre id="dt-extra"></pre>
+        </details>
+      </section>
+    </div>
+  </main>
+
   <!-- 명령 지점 고르기. 열 때 누른 로봇 카드 위에 덮어 띄운다 (정지 줄은 가리지 않음).
        지도 칸이나 카드 안에 끼우면 지도·카드 크기가 바뀌기 때문이다. 지점은 지도를 눌러서도 고른다. -->
   <div class="pick-bar" id="pick-bar" hidden>
@@ -152,12 +223,13 @@
       <div class="card-body">
       <div class="card-top">
         <span class="swatch"></span>
-        <strong class="name"></strong>
+        <a class="name" title="로봇 상세 화면"></a>
         <span class="battery" title="배터리">
           <span class="battery-icon"><span class="battery-fill"></span></span>
           <span class="battery-text"></span>
         </span>
         <span class="badge"></span>
+        <a class="detail-link" title="이 로봇만 크게 보기 (카메라·확대 지도·타임라인)">상세 ›</a>
       </div>
       <div class="state-row">
         <span class="state"></span>
@@ -224,6 +296,7 @@
   <script src="tasks.js"></script>
   <script src="map.js"></script>
   <script src="raw.js"></script>
+  <script src="detail.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

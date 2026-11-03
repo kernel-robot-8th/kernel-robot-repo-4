@@ -24,7 +24,8 @@ import threading
 
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    LayerError, load_map, load_map_layers, MapError, SnapshotStore, TaskStore)
+    CameraStore, LayerError, load_map, load_map_layers, MapError, mjpeg_part, SnapshotStore,
+    TaskStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -105,7 +106,7 @@ def test_api_before_first_snapshot():
     client = TestClient(create_app(store))
     assert client.get('/api/health').json() == {
         'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
-        'source_age': None, 'task_manager_online': False}
+        'source_age': None, 'task_manager_online': False, 'cameras': {}}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 
@@ -147,6 +148,67 @@ def test_api_without_task_manager_is_read_only():
     assert client.get('/api/health').json()['task_manager_online'] is False
 
 
+# 내용은 검사하지 않는다 (백엔드는 JPEG 를 풀지 않고 그대로 넘긴다).
+JPEG = b'\xff\xd8fake-jpeg\xff\xd9'
+
+
+def test_camera_store_put_latest_and_health():
+    clock = FakeClock()
+    cameras = CameraStore(['pinky1', 'pinky2'], clock=clock)
+    assert cameras.robots() == ['pinky1', 'pinky2']
+    assert cameras.latest('pinky1') is None
+    assert cameras.health() == {'pinky1': {'age_sec': None, 'frames': 0},
+                                'pinky2': {'age_sec': None, 'frames': 0}}
+    # 설정에 없는 로봇·빈 프레임은 버린다.
+    assert cameras.put('pinky9', JPEG) is False
+    assert cameras.put('pinky1', b'') is False
+    clock.now = 5.0
+    assert cameras.put('pinky1', bytearray(JPEG)) is True
+    clock.now = 7.5
+    assert cameras.latest('pinky1') == (1, JPEG)
+    assert cameras.health()['pinky1'] == {'age_sec': 2.5, 'frames': 1}
+    assert cameras.health()['pinky2'] == {'age_sec': None, 'frames': 0}
+
+
+def test_camera_store_wait_newer_is_per_robot():
+    cameras = CameraStore(['pinky1', 'pinky2'])
+    assert cameras.wait_newer('pinky1', 0, 0.01) is False
+    cameras.put('pinky2', JPEG)
+    # 다른 로봇 프레임으로는 깨지 않는다.
+    assert cameras.wait_newer('pinky1', 0, 0.01) is False
+    timer = threading.Timer(0.05, cameras.put, args=['pinky1', JPEG])
+    timer.start()
+    assert cameras.wait_newer('pinky1', 0, 2.0) is True
+    timer.join()
+
+
+def test_mjpeg_part():
+    part = mjpeg_part(JPEG)
+    assert part.startswith(b'--frame\r\nContent-Type: image/jpeg\r\n')
+    assert f'Content-Length: {len(JPEG)}\r\n\r\n'.encode() in part
+    assert part.endswith(JPEG + b'\r\n')
+
+
+def test_camera_routes():
+    store, _ = make_store()
+    cameras = CameraStore(['pinky1'])
+    client = TestClient(create_app(store, cameras=cameras))
+    assert client.get('/api/health').json()['cameras'] == {
+        'pinky1': {'age_sec': None, 'frames': 0}}
+    # 받은 프레임이 없으면 404, 받으면 바이트 그대로.
+    assert client.get('/api/robots/pinky1/camera.jpg').status_code == 404
+    cameras.put('pinky1', JPEG)
+    frame = client.get('/api/robots/pinky1/camera.jpg')
+    assert frame.status_code == 200
+    assert frame.headers['content-type'] == 'image/jpeg'
+    assert frame.content == JPEG
+    # 구독하지 않는 로봇, 카메라 없이 만든 앱은 404.
+    assert client.get('/api/robots/pinky9/camera.jpg').status_code == 404
+    assert client.get('/api/robots/pinky9/camera').status_code == 404
+    without = TestClient(create_app(store))
+    assert without.get('/api/robots/pinky1/camera').status_code == 404
+
+
 def test_load_map(tmp_path):
     info, data = load_map(write_map(tmp_path))
     assert info == {'image_width': 3, 'image_height': 2, 'resolution': 0.01,
@@ -180,7 +242,10 @@ def test_web_dir_is_served_without_hiding_api(tmp_path):
     (tmp_path / 'index.html').write_text('<title>관제</title>', encoding='utf-8')
     store, _ = make_store()
     client = TestClient(create_app(store, web_dir=str(tmp_path)))
-    assert '관제' in client.get('/').text
+    page = client.get('/')
+    assert '관제' in page.text
+    # 화면 파일은 브라우저가 매번 다시 확인한다 (고친 화면이 캐시에 가려지지 않게).
+    assert page.headers['cache-control'] == 'no-cache'
     assert client.get('/api/health').json()['ok'] is True
     assert client.post('/api/fleet').status_code == 405
 
@@ -189,7 +254,7 @@ def test_installed_web_files_exist():
     # 화면 파일이 패키지 소스에 있는지 본다 (setup.py data_files 가 web/* 를 설치한다).
     web = os.path.join(os.path.dirname(__file__), '..', 'web')
     for name in ('index.html', 'style.css', 'core.js', 'cards.js', 'events.js',
-                 'commands.js', 'tasks.js', 'map.js', 'raw.js', 'main.js'):
+                 'commands.js', 'tasks.js', 'map.js', 'raw.js', 'detail.js', 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
 
 

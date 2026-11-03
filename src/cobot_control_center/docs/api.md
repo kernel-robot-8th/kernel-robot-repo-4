@@ -11,10 +11,12 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | 경로 | 응답 |
 |---|---|
 | `GET /` | 관제 화면 |
-| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "task_manager_online", "task_manager_age", "spec": 로봇별 v1/v2, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false)}` |
+| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "task_manager_online", "task_manager_age", "spec": 로봇별 v1/v2, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
+| `GET /api/robots/{robot_id}/camera` | 카메라 영상 MJPEG 스트림 (`multipart/x-mixed-replace; boundary=frame`). 로봇이 낸 JPEG 를 풀지 않고 새 프레임마다 그대로 보냄. 프레임이 없으면 보내지 않고 기다림. `camera_robots` 에 없는 로봇이면 404 |
+| `GET /api/robots/{robot_id}/camera.jpg` | 마지막 프레임 1장 (`image/jpeg`). 아직 못 받았거나 구독하지 않는 로봇이면 404 |
 | `GET /api/map/info` | `{"image_width", "image_height", "resolution", "origin"}`. 지도 없으면 404 |
 | `GET /api/map/image` | 지도 PGM 원본 바이트 |
 | `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
@@ -137,6 +139,8 @@ ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
 | `task_stale_sec` | `3.0` | 작업 노드 목록이 이만큼 끊기면 명령을 받지 않음 (503) [s] |
 | `reply_timeout_sec` | `2.0` | 명령 요청에 작업 노드가 답하기를 기다리는 시간 [s] |
 | `read_only` | `false` | `true` 면 명령 경로가 모두 503 이고 `task_request` 발행자를 만들지 않음. `fleet_api_dev.launch.xml` 이 켬 (노드 이름 `fleet_api_node_dev`, 포트 8083) |
+| `camera_robots` | `[pinky1, pinky2, pinky3]` | 카메라를 구독할 로봇. `['']` 이면 끔 |
+| `camera_topic_format` | `/{robot}/camera/image_raw/compressed` | 카메라 토픽 (`sensor_msgs/CompressedImage`, JPEG). QoS `BEST_EFFORT / VOLATILE / KEEP_LAST(1)`. 이름은 가정값(비전 브랜치 592ebd4 규격 + 로봇 접두사)이라 확정되면 바꿈. 실물은 브릿지에 카메라 토픽이 있어야 들어옴 (아직 없음) |
 
 `task_manager_node` (`config/task_manager_node.yaml`)
 
@@ -176,4 +180,5 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `tasks.js` | 작업 목록 (`/ws/tasks`) |
 | `map.js` | 지도, 구역·지점 표시 |
 | `raw.js` | 개발용 수동 명령 |
+| `detail.js` | 로봇 상세 화면 (`#/robot/<id>`): 상태줄·카메라·확대 지도·요약·타임라인·진단 |
 | `main.js` | 시작, `/api/health` 확인 |

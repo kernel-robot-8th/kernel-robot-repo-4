@@ -13,9 +13,9 @@
 # limitations under the License.
 
 """
-관제 백엔드: 최신 fleet_status 스냅샷·작업 목록 보관 (ROS·fastapi 없는 순수 로직).
+관제 백엔드: 최신 fleet_status 스냅샷·작업 목록·카메라 프레임 보관 (ROS·fastapi 없는 순수 로직).
 
-ROS 콜백 스레드가 put() 으로 넣고, 웹 서버 스레드가 get()·wait_newer() 로 읽는다 (TaskStore 도 같다).
+ROS 콜백 스레드가 put() 으로 넣고, 웹 서버 스레드가 get()·wait_newer() 로 읽는다 (TaskStore·CameraStore 도 같다).
 그래서 모든 접근을 lock 으로 감싼다. 시각은 clock 인자로 받아 시험에서 바꿔 끼운다.
 """
 
@@ -273,6 +273,70 @@ class SnapshotStore:
         """순번이 seq 보다 큰 값이 들어올 때까지 최대 timeout 초 기다린다. 새 값이 있으면 True."""
         with self._cond:
             return self._cond.wait_for(lambda: self._seq > seq, timeout)
+
+
+# MJPEG(multipart/x-mixed-replace) 조각 사이의 구분 문자열. 브라우저 <img> 가 이 형식을 바로 그린다.
+MJPEG_BOUNDARY = 'frame'
+
+
+def mjpeg_part(jpeg):
+    """JPEG 바이트 하나를 MJPEG 스트림의 한 조각으로 감싼다."""
+    head = (f'--{MJPEG_BOUNDARY}\r\nContent-Type: image/jpeg\r\n'
+            f'Content-Length: {len(jpeg)}\r\n\r\n').encode('ascii')
+    return head + jpeg + b'\r\n'
+
+
+class CameraStore:
+    """
+    로봇별 카메라 마지막 프레임(JPEG 바이트) 1장만 보관한다.
+
+    영상은 풀지 않고 받은 바이트를 그대로 브라우저에 넘긴다. 지난 프레임은 쌓지 않는다
+    (보는 사람이 늦으면 중간 프레임을 건너뛰고 최신 것을 받는다).
+    """
+
+    def __init__(self, robots, clock=time.monotonic):
+        self.clock = clock
+        self._cond = threading.Condition()
+        self._frames = {robot: None for robot in robots}  # robot → (seq, bytes, 받은 시각)
+        self._counts = {robot: 0 for robot in robots}
+        self._seq = 0
+
+    def robots(self):
+        """구독하도록 설정된 로봇 목록."""
+        return list(self._frames)
+
+    def put(self, robot_id, jpeg):
+        """프레임을 넣는다. 설정에 없는 로봇이거나 빈 바이트면 False."""
+        if robot_id not in self._frames or not jpeg:
+            return False
+        with self._cond:
+            self._seq += 1
+            self._frames[robot_id] = (self._seq, bytes(jpeg), self.clock())
+            self._counts[robot_id] += 1
+            self._cond.notify_all()
+        return True
+
+    def latest(self, robot_id):
+        """(순번, JPEG 바이트). 받은 적이 없으면 None."""
+        with self._cond:
+            frame = self._frames.get(robot_id)
+        return None if frame is None else frame[:2]
+
+    def wait_newer(self, robot_id, seq, timeout):
+        """그 로봇의 프레임 순번이 seq 보다 커질 때까지 최대 timeout 초 기다린다. 새 값이 있으면 True."""
+        def newer():
+            frame = self._frames.get(robot_id)
+            return frame is not None and frame[0] > seq
+        with self._cond:
+            return self._cond.wait_for(newer, timeout)
+
+    def health(self):
+        """로봇별 {age_sec: 마지막 프레임 뒤 지난 시간(받은 적 없으면 None), frames: 받은 수}."""
+        now = self.clock()
+        with self._cond:
+            return {robot: {'age_sec': None if frame is None else round(now - frame[2], 3),
+                            'frames': self._counts[robot]}
+                    for robot, frame in self._frames.items()}
 
 
 class TaskStore:
