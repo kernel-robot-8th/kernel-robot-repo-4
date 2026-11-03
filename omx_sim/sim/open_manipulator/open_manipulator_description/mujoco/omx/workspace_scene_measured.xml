@@ -1,0 +1,46 @@
+<mujoco model="omx workspace (box to Pinky)">
+  <!-- OMX follower in the recording workspace of omx_1024_test_jihyeok_success.
+       Frame: origin = bottom centre of the robot base (on its stand), x = robot forward, y = robot left,
+       z = up. Sizes from the user's measurements (2026-10-26, from memory, approx.):
+         robot stand top        7 cm above the floor          -> floor at z = -0.07
+         box table (white)      top 20 cm above the stand, starts 5 cm in front of the robot,
+                                10 cm to each side (20 cm wide); depth not measured (0.20 assumed)
+         boxes                  4 x 4 x 4 cm, 10 g
+         Pinky                  disk: top 10 cm above the stand, diameter 10 cm, centre (x 7, y 20) cm;
+                                body 7 x 20 cm, 15 cm high from the floor
+         top camera             30 cm above the stand, 7 cm behind the robot (pose/FOV fitted:
+                                sim/calibrate_top_camera.py)
+  -->
+  <!-- workspace geoms are in group 1 so the arm can be rendered alone (camera calibration) -->
+  <include file="omx.xml"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.4 0.4 0.4" specular="0 0 0"/>
+    <global offwidth="640" offheight="480"/>
+  </visual>
+
+  <asset>
+    <texture type="2d" name="carpet" builtin="checker" rgb1="0.35 0.35 0.37" rgb2="0.3 0.3 0.32" width="200" height="200"/>
+    <material name="carpet" texture="carpet" texrepeat="20 20"/>
+    <material name="white" rgba="0.92 0.92 0.92 1"/>
+    <material name="pinky_body" rgba="0.15 0.15 0.15 1"/>
+    <material name="box" rgba="0.9 0.75 0.75 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor" group="1" type="plane" size="1 1 0.05" pos="0 0 -0.07" material="carpet"/>
+    <geom name="robot_stand" group="1" type="box" size="0.06 0.06 0.035" pos="0 0 -0.035" rgba="0.6 0.45 0.3 1"/>
+    <!-- table: x 0.05..0.25, y -0.10..0.10, top z 0.20, down to the floor -->
+    <geom name="table" group="1" type="box" size="0.10 0.10 0.135" pos="0.15 0 0.065" material="white"/>
+    <body name="pinky" pos="0.07 0.20 0">
+      <geom name="pinky_body" group="1" type="box" size="0.10 0.035 0.075" pos="0 0 0.005" material="pinky_body"/>
+      <geom name="pinky_disk" group="1" type="cylinder" size="0.05 0.01" pos="0 0 0.09" material="white"/>
+    </body>
+    <body name="box" pos="0.15 0 0.22">
+      <freejoint/>
+      <geom name="box" group="1" type="box" size="0.02 0.02 0.02" mass="0.010" material="box"/>
+    </body>
+    <camera name="top" mode="fixed" pos="-0.07 0 0.30" xyaxes="0 -1 0 1 0 0" fovy="60"/>
+  </worldbody>
+</mujoco>
