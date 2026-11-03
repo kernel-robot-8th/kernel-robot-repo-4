@@ -30,6 +30,7 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReli
 from sensor_msgs.msg import JointState, LaserScan
 from std_msgs.msg import String
 from tf2_ros import TransformBroadcaster
+from visualization_msgs.msg import Marker, MarkerArray
 
 try:
     from cobot_interfaces.msg import ArmCommand, ArmStatus, FleetCommand, RobotStatus
@@ -183,6 +184,16 @@ class ArenaSimNode(Node):
         self.create_subscription(
             String, '/fms/string_command', self._handle_string_fleet_command, 10
         )
+
+        # 4. 3D Visual Markers for RViz2 and FMS viewers
+        self.arena_marker_pub = self.create_publisher(
+            MarkerArray, '/arena_markers', status_qos
+        )
+        self.robot_marker_pub = self.create_publisher(
+            MarkerArray, '/robot_visual_markers', 10
+        )
+        self._arena_marker_counter = 0
+        self._publish_arena_markers()
 
         # Main simulation timer loop
         self.sim_timer = self.create_timer(self.dt, self._sim_loop)
@@ -385,6 +396,293 @@ class ArenaSimNode(Node):
                 s_arm = String()
                 s_arm.data = f'{arm_id}:{arm.state_str}:busy={arm.is_busy}:cargo={arm.has_cargo}'
                 self.arm_status_pubs[arm_id].publish(s_arm)
+
+        # 3. Publish 3D visual markers for RViz2
+        self._publish_robot_markers(now)
+        self._arena_marker_counter += 1
+        if self._arena_marker_counter >= int(self.rate_hz):
+            self._arena_marker_counter = 0
+            self._publish_arena_markers()
+
+    def _publish_arena_markers(self):
+        """Publish persistent 3D markers for arena walls, racks, gate and waypoints."""
+        arr = MarkerArray()
+        now = self.get_clock().now().to_msg()
+
+        # 1. Arena Outer Walls & Furniture
+        walls = [
+            ('border_south', 1.25, -0.025, 0.075, 2.55, 0.05, 0.15, 0.55, 0.58, 0.65),
+            ('border_north', 1.25, 2.425, 0.075, 2.55, 0.05, 0.15, 0.55, 0.58, 0.65),
+            ('border_west', -0.025, 1.20, 0.075, 0.05, 2.45, 0.15, 0.55, 0.58, 0.65),
+            ('border_east', 2.525, 1.20, 0.075, 0.05, 2.45, 0.15, 0.55, 0.58, 0.65),
+            ('central_partition_wall', 1.25, (self.gate_clearance_m + 2.40) / 2.0, 0.075, 0.10, (2.40 - self.gate_clearance_m), 0.15, 0.65, 0.68, 0.72),
+            ('wh_top_rack', (1.42 + 2.40) / 2.0, (2.14 + 2.40) / 2.0, 0.10, (2.40 - 1.42), (2.40 - 2.14), 0.20, 0.72, 0.52, 0.24),
+            ('wh_right_rack', (2.16 + 2.40) / 2.0, (0.67 + 2.40) / 2.0, 0.10, (2.40 - 2.16), (2.40 - 0.67), 0.20, 0.72, 0.52, 0.24),
+            ('store_counter', (0.14 + 1.04) / 2.0, (2.14 + 2.34) / 2.0, 0.10, (1.04 - 0.14), (2.34 - 2.14), 0.20, 0.25, 0.48, 0.62),
+            ('store_display_a', (0.44 + 0.82) / 2.0, (1.29 + 1.45) / 2.0, 0.075, (0.82 - 0.44), (1.45 - 1.29), 0.15, 0.30, 0.50, 0.60),
+            ('store_bench_b', (0.34 + 0.79) / 2.0, (0.74 + 0.92) / 2.0, 0.075, (0.79 - 0.34), (0.92 - 0.74), 0.15, 0.30, 0.50, 0.60),
+            ('store_rack_1', (0.04 + 0.36) / 2.0, (1.64 + 2.09) / 2.0, 0.075, (0.36 - 0.04), (2.09 - 1.64), 0.15, 0.30, 0.50, 0.60),
+            ('store_rack_2', (0.82 + 1.14) / 2.0, (1.64 + 2.09) / 2.0, 0.075, (1.14 - 0.82), (2.09 - 1.64), 0.15, 0.30, 0.50, 0.60),
+        ]
+
+        for i, (name, x, y, z, sx, sy, sz, cr, cg, cb) in enumerate(walls):
+            m = Marker()
+            m.header.frame_id = 'map'
+            m.header.stamp = now
+            m.ns = 'arena_layout'
+            m.id = i
+            m.type = Marker.CUBE
+            m.action = Marker.ADD
+            m.pose.position.x = float(x)
+            m.pose.position.y = float(y)
+            m.pose.position.z = float(z)
+            m.scale.x = float(sx)
+            m.scale.y = float(sy)
+            m.scale.z = float(sz)
+            m.color.r = float(cr)
+            m.color.g = float(cg)
+            m.color.b = float(cb)
+            m.color.a = 0.85
+            arr.markers.append(m)
+
+        # 2. 67cm Transfer Gate Floor Visualizer (Green Stripe & Text)
+        m_gate = Marker()
+        m_gate.header.frame_id = 'map'
+        m_gate.header.stamp = now
+        m_gate.ns = 'arena_gate'
+        m_gate.id = 50
+        m_gate.type = Marker.CUBE
+        m_gate.action = Marker.ADD
+        m_gate.pose.position.x = 1.25
+        m_gate.pose.position.y = self.gate_clearance_m / 2.0
+        m_gate.pose.position.z = 0.002
+        m_gate.scale.x = 0.10
+        m_gate.scale.y = self.gate_clearance_m
+        m_gate.scale.z = 0.004
+        m_gate.color.r = 0.2
+        m_gate.color.g = 0.85
+        m_gate.color.b = 0.4
+        m_gate.color.a = 0.6
+        arr.markers.append(m_gate)
+
+        m_gt = Marker()
+        m_gt.header.frame_id = 'map'
+        m_gt.header.stamp = now
+        m_gt.ns = 'arena_gate'
+        m_gt.id = 51
+        m_gt.type = Marker.TEXT_VIEW_FACING
+        m_gt.action = Marker.ADD
+        m_gt.pose.position.x = 1.25
+        m_gt.pose.position.y = self.gate_clearance_m / 2.0
+        m_gt.pose.position.z = 0.25
+        m_gt.scale.z = 0.10
+        m_gt.color.r = 0.2
+        m_gt.color.g = 1.0
+        m_gt.color.b = 0.3
+        m_gt.color.a = 1.0
+        m_gt.text = f'{int(self.gate_clearance_m * 100)}cm GATE'
+        arr.markers.append(m_gt)
+
+        # 3. Waypoint Markers & Labels
+        wp_id = 100
+        for wp_name, wp_coord in self.arena.waypoints.items():
+            wx, wy, _ = wp_coord
+            mw = Marker()
+            mw.header.frame_id = 'map'
+            mw.header.stamp = now
+            mw.ns = 'waypoints'
+            mw.id = wp_id
+            mw.type = Marker.SPHERE
+            mw.action = Marker.ADD
+            mw.pose.position.x = float(wx)
+            mw.pose.position.y = float(wy)
+            mw.pose.position.z = 0.02
+            mw.scale.x = 0.08
+            mw.scale.y = 0.08
+            mw.scale.z = 0.04
+            if 'ZA' in wp_name:
+                mw.color.r, mw.color.g, mw.color.b = 1.0, 0.4, 0.1
+            elif 'ZB' in wp_name:
+                mw.color.r, mw.color.g, mw.color.b = 0.1, 0.8, 0.4
+            elif 'ZC' in wp_name:
+                mw.color.r, mw.color.g, mw.color.b = 0.2, 0.6, 1.0
+            else:
+                mw.color.r, mw.color.g, mw.color.b = 0.8, 0.8, 0.8
+            mw.color.a = 0.8
+            arr.markers.append(mw)
+
+            ml = Marker()
+            ml.header.frame_id = 'map'
+            ml.header.stamp = now
+            ml.ns = 'waypoint_labels'
+            ml.id = wp_id + 500
+            ml.type = Marker.TEXT_VIEW_FACING
+            ml.action = Marker.ADD
+            ml.pose.position.x = float(wx)
+            ml.pose.position.y = float(wy)
+            ml.pose.position.z = 0.10
+            ml.scale.z = 0.06
+            ml.color.r, ml.color.g, ml.color.b, ml.color.a = 1.0, 1.0, 1.0, 0.9
+            ml.text = wp_name
+            arr.markers.append(ml)
+            wp_id += 1
+
+        self.arena_marker_pub.publish(arr)
+
+    def _publish_robot_markers(self, now):
+        """Publish real-time 3D markers for 3 Pinky robots and 3 OMX arms."""
+        arr = MarkerArray()
+        colors = {
+            'pinky1': (0.95, 0.55, 0.15),  # Orange
+            'pinky2': (0.25, 0.75, 0.35),  # Green
+            'pinky3': (0.35, 0.55, 0.95),  # Blue
+        }
+
+        # 1. Pinky Fleet 3D Cylinders, Lidar and Heading
+        for idx, (rid, robot) in enumerate(self.pinkies.items()):
+            rx, ry, ryaw = robot.get_pose()
+            cr, cg, cb = colors.get(rid, (0.7, 0.7, 0.7))
+
+            # Chassis Cylinder
+            mc = Marker()
+            mc.header.frame_id = 'map'
+            mc.header.stamp = now
+            mc.ns = 'pinky_bodies'
+            mc.id = idx * 10
+            mc.type = Marker.CYLINDER
+            mc.action = Marker.ADD
+            mc.pose.position.x = rx
+            mc.pose.position.y = ry
+            mc.pose.position.z = 0.025
+            mc.scale.x = 0.14
+            mc.scale.y = 0.14
+            mc.scale.z = 0.05
+            mc.color.r, mc.color.g, mc.color.b, mc.color.a = cr, cg, cb, 0.95
+            arr.markers.append(mc)
+
+            # Lidar Cylinder
+            ml = Marker()
+            ml.header.frame_id = 'map'
+            ml.header.stamp = now
+            ml.ns = 'pinky_lidars'
+            ml.id = idx * 10 + 1
+            ml.type = Marker.CYLINDER
+            ml.action = Marker.ADD
+            ml.pose.position.x = rx
+            ml.pose.position.y = ry
+            ml.pose.position.z = 0.06
+            ml.scale.x = 0.05
+            ml.scale.y = 0.05
+            ml.scale.z = 0.025
+            ml.color.r, ml.color.g, ml.color.b, ml.color.a = 0.1, 0.1, 0.1, 1.0
+            arr.markers.append(ml)
+
+            # Heading Indicator Arrow
+            ma = Marker()
+            ma.header.frame_id = 'map'
+            ma.header.stamp = now
+            ma.ns = 'pinky_headings'
+            ma.id = idx * 10 + 2
+            ma.type = Marker.ARROW
+            ma.action = Marker.ADD
+            ma.pose.position.x = rx
+            ma.pose.position.y = ry
+            ma.pose.position.z = 0.03
+            ma.pose.orientation = yaw_to_quaternion(ryaw)
+            ma.scale.x = 0.12
+            ma.scale.y = 0.025
+            ma.scale.z = 0.025
+            ma.color.r, ma.color.g, ma.color.b, ma.color.a = 1.0, 1.0, 1.0, 1.0
+            arr.markers.append(ma)
+
+            # Text Label
+            mt = Marker()
+            mt.header.frame_id = 'map'
+            mt.header.stamp = now
+            mt.ns = 'pinky_labels'
+            mt.id = idx * 10 + 3
+            mt.type = Marker.TEXT_VIEW_FACING
+            mt.action = Marker.ADD
+            mt.pose.position.x = rx
+            mt.pose.position.y = ry
+            mt.pose.position.z = 0.14
+            mt.scale.z = 0.07
+            mt.color.r, mt.color.g, mt.color.b, mt.color.a = cr, cg, cb, 1.0
+            mt.text = rid.upper()
+            arr.markers.append(mt)
+
+        # 2. OMX Arms 3D Base and Articulated Stands
+        for idx, (aid, arm) in enumerate(self.arms.items()):
+            bx, by, bz = arm.base_pos
+
+            # Stand box
+            ms = Marker()
+            ms.header.frame_id = 'map'
+            ms.header.stamp = now
+            ms.ns = 'omx_stands'
+            ms.id = idx * 10
+            ms.type = Marker.CUBE
+            ms.action = Marker.ADD
+            ms.pose.position.x = bx
+            ms.pose.position.y = by
+            ms.pose.position.z = bz / 2.0
+            ms.scale.x = 0.12
+            ms.scale.y = 0.08
+            ms.scale.z = bz
+            ms.color.r, ms.color.g, ms.color.b, ms.color.a = 0.5, 0.55, 0.6, 1.0
+            arr.markers.append(ms)
+
+            # Arm Base Cylinder
+            mb = Marker()
+            mb.header.frame_id = 'map'
+            mb.header.stamp = now
+            mb.ns = 'omx_bases'
+            mb.id = idx * 10 + 1
+            mb.type = Marker.CYLINDER
+            mb.action = Marker.ADD
+            mb.pose.position.x = bx
+            mb.pose.position.y = by
+            mb.pose.position.z = bz + 0.02
+            mb.scale.x = 0.08
+            mb.scale.y = 0.08
+            mb.scale.z = 0.04
+            mb.color.r, mb.color.g, mb.color.b, mb.color.a = 0.2, 0.2, 0.2, 1.0
+            arr.markers.append(mb)
+
+            # Arm Link Column
+            mlk = Marker()
+            mlk.header.frame_id = 'map'
+            mlk.header.stamp = now
+            mlk.ns = 'omx_links'
+            mlk.id = idx * 10 + 2
+            mlk.type = Marker.CYLINDER
+            mlk.action = Marker.ADD
+            mlk.pose.position.x = bx
+            mlk.pose.position.y = by
+            mlk.pose.position.z = bz + 0.12
+            mlk.scale.x = 0.035
+            mlk.scale.y = 0.035
+            mlk.scale.z = 0.16
+            mlk.color.r, mlk.color.g, mlk.color.b, mlk.color.a = 0.7, 0.7, 0.75, 1.0
+            arr.markers.append(mlk)
+
+            # Text Label
+            mat = Marker()
+            mat.header.frame_id = 'map'
+            mat.header.stamp = now
+            mat.ns = 'omx_labels'
+            mat.id = idx * 10 + 3
+            mat.type = Marker.TEXT_VIEW_FACING
+            mat.action = Marker.ADD
+            mat.pose.position.x = bx
+            mat.pose.position.y = by
+            mat.pose.position.z = bz + 0.26
+            mat.scale.z = 0.07
+            mat.color.r, mat.color.g, mat.color.b, mat.color.a = 0.3, 0.8, 1.0, 1.0
+            mat.text = aid.upper()
+            arr.markers.append(mat)
+
+        self.robot_marker_pub.publish(arr)
 
 
 def main(args=None):
