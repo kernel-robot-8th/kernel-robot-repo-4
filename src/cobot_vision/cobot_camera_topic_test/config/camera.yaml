@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+    topic: camera/image_raw/compressed
+
+/**/camera_publisher:
+  ros__parameters:
+    source: synthetic
+    device: /dev/video0
+    width: 640
+    height: 480
+    fps: 10.0
+    jpeg_quality: 75
+    frame_id: camera_optical_frame
+    max_read_failures: 30
+
+/**/camera_subscriber:
+  ros__parameters:
+    display: false
+    report_interval: 2.0

@@ -1,0 +1,22 @@
+<launch>
+  <arg name="namespace" default="vision"/>
+  <arg name="source" default="synthetic"/>
+  <arg name="device" default="/dev/video0"/>
+  <arg name="publisher" default="true"/>
+  <arg name="subscriber" default="true"/>
+  <arg name="display" default="false"/>
+  <arg name="topic" default="camera/image_raw/compressed"/>
+  <node pkg="cobot_camera_topic_test" exec="camera_publisher" name="camera_publisher"
+        namespace="$(var namespace)" output="screen" if="$(var publisher)">
+    <param from="$(find-pkg-share cobot_camera_topic_test)/config/camera.yaml"/>
+    <param name="source" value="$(var source)" type="str"/>
+    <param name="device" value="$(var device)" type="str"/>
+    <param name="topic" value="$(var topic)" type="str"/>
+  </node>
+  <node pkg="cobot_camera_topic_test" exec="camera_subscriber" name="camera_subscriber"
+        namespace="$(var namespace)" output="screen" if="$(var subscriber)">
+    <param from="$(find-pkg-share cobot_camera_topic_test)/config/camera.yaml"/>
+    <param name="display" value="$(var display)" type="bool"/>
+    <param name="topic" value="$(var topic)" type="str"/>
+  </node>
+</launch>
