@@ -1,7 +1,7 @@
 # 관제 백엔드 파라미터 (관제 PC, ROS_DOMAIN_ID=100)
 fleet_api_node:
   ros__parameters:
-    host: 127.0.0.1           # 이 PC 에서만 접속. 다른 PC 에서 보려면 0.0.0.0 (로그인 기능 없음 주의)
+    host: 127.0.0.1           # 이 PC 에서만 접속. 다른 PC 에서 보려면 launch 인자 host:=0.0.0.0 (로그인 기능 없음 주의)
     port: 8080
     source_stale_sec: 3.0     # fleet_status 가 이만큼 끊기면 source_online=false [s]
     map_yaml: ''              # 지도 YAML 경로. fleet_api.launch.xml 의 map_yaml 인자가 채운다. 비면 지도 없이
