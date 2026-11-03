@@ -40,4 +40,10 @@
 
     <node pkg="ros_gz_bridge" exec="parameter_bridge" name="clock_bridge" output="screen"
           args="--ros-args -p config_file:=$(var clock_bridge_params)"/>
+
+    <!-- RViz2 (선택 사항: rviz:=True 시 3D 시각화 함께 기동) -->
+    <arg name="rviz" default="False" description="True 면 사전 구성된 RViz2 시각화 화면을 함께 기동"/>
+    <node pkg="rviz2" exec="rviz2" name="rviz2" output="screen"
+          args="-d $(find-pkg-share pinky_fleet_sim)/rviz/cobot_fleet.rviz"
+          if="$(var rviz)"/>
 </launch>

@@ -16,12 +16,14 @@
 <launch>
     <arg name="world_name" default="fleet_arena.sdf"/>
     <arg name="gui" default="True"/>
+    <arg name="rviz" default="False"/>
     <arg name="spawn_delay" default="5.0"
          description="가제보가 뜨기 전에 스폰하면 조용히 실패한다. 느린 PC 면 늘린다."/>
 
     <include file="$(find-pkg-share pinky_fleet_sim)/launch/gz_world.launch.xml">
         <arg name="world_name" value="$(var world_name)"/>
         <arg name="gui" value="$(var gui)"/>
+        <arg name="rviz" value="$(var rviz)"/>
     </include>
 
     <!--
