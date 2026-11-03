@@ -54,6 +54,9 @@ class FleetApiNode(Node):
         self.declare_parameter('events_max', 500)
         self.declare_parameter('task_stale_sec', 3.0)
         self.declare_parameter('reply_timeout_sec', 2.0)
+        # 개발용(fleet_api_dev.launch.xml): 실물을 보면서 화면을 고칠 때 명령이 나가지 않게 한다.
+        self.declare_parameter('read_only', False)
+        self.read_only = bool(self.get_parameter('read_only').value)
         self.host = self.get_parameter('host').value
         self.port = int(self.get_parameter('port').value)
         self.store = SnapshotStore(self.get_parameter('source_stale_sec').value,
@@ -70,8 +73,9 @@ class FleetApiNode(Node):
         self.tasks = TaskStore(self.get_parameter('task_stale_sec').value,
                                self.get_parameter('reply_timeout_sec').value)
         command_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
-        self.request_pub = self.create_publisher(String, '/control_center/task_request',
-                                                 command_qos)
+        # 읽기 전용이면 요청 발행자를 아예 만들지 않는다 (작업 목록·이벤트는 그대로 받는다).
+        self.request_pub = None if self.read_only else self.create_publisher(
+            String, '/control_center/task_request', command_qos)
         self.create_subscription(String, '/control_center/task_events', self._on_task_event,
                                  command_qos)
         self.create_subscription(
@@ -80,7 +84,8 @@ class FleetApiNode(Node):
                        durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
-            f'(로봇 토픽에 발행하지 않음. 명령은 task_manager_node 로 넘김)')
+            + ('(읽기 전용: 명령 경로 503, task_request 를 내지 않음)' if self.read_only
+               else '(로봇 토픽에 발행하지 않음. 명령은 task_manager_node 로 넘김)'))
 
     def _load_map(self, path):
         # 지도가 없어도 카드·구역 화면은 쓸 수 있으므로 경고만 하고 계속한다.
@@ -143,7 +148,7 @@ def main(args=None):
         # 일으킬 때 남은 lifespan 작업이 CancelledError 트레이스백을 남긴다.
         app = create_app(node.store, node.map_data, node.web_dir,
                          node.context.get_domain_id(), node.layers,
-                         node.tasks, node.publish_request)
+                         node.tasks, None if node.read_only else node.publish_request)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

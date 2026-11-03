@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  개발용 관제 백엔드: 실물(도메인 100)을 보면서 화면·백엔드를 고칠 때 쓴다. 실물 bringup(8080)은 그대로 둔다.
+    export ROS_DOMAIN_ID=100
+    ros2 launch cobot_control_center fleet_api_dev.launch.xml        # http://<관제 PC>:8083/
+
+  - 읽기 전용: 상태·지도·작업 목록·카메라는 실물 그대로 보고, 명령 경로는 503 이다.
+    task_request 발행자를 만들지 않으므로 고치던 코드가 실물 로봇을 움직이지 않는다. 명령 화면은 가짜 핑키(8081)로.
+  - 화면 파일은 src/cobot_control_center/web 을 바로 읽는다. 새 js 파일도 다시 빌드 없이 새로 고침만 하면 된다.
+  - 파이썬 코드는 symlink-install 이라 src 를 읽는다. 백엔드를 고쳤으면 이 launch 만 Ctrl+C 후 다시 띄운다.
+  - 포트: 실물 8080, 가짜 핑키 8081, 가제보 시뮬 8082, 개발 8083.
+  - 노드 이름은 fleet_api_node_dev (실물 fleet_api_node 와 겹치지 않게).
+-->
+<launch>
+  <arg name="host" default="0.0.0.0" description="웹 서버 주소 (읽기 전용이라 내부망 공개, 이 PC 만이면 127.0.0.1)"/>
+  <arg name="port" default="8083" description="웹 서버 포트 (실물 8080, 가짜 핑키 8081, 가제보 8082 와 겹치지 않게)"/>
+  <arg name="web_dir"
+       default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_control_center/web"
+       description="화면 파일 폴더 (src 를 바로 읽음)"/>
+
+  <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
+    <arg name="node_name" value="fleet_api_node_dev"/>
+    <arg name="host" value="$(var host)"/>
+    <arg name="port" value="$(var port)"/>
+    <arg name="read_only" value="true"/>
+    <arg name="web_dir" value="$(var web_dir)"/>
+  </include>
+</launch>

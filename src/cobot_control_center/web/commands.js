@@ -11,7 +11,8 @@ const PICK_HIT_PX = 14;        // 지도에서 지점을 누른 것으로 볼 �
 
 // ---------- 명령 ----------
 // 화면은 요청만 한다. 검증·기록·발행은 task_manager_node 가 하고, 결과는 /ws/tasks 로 온다.
-// 정지는 항상 누를 수 있다. 다른 명령은 연결돼 있고, 작업 중이 아니고, 작업 노드가 살아 있을 때만.
+// 정지는 항상 누를 수 있다. 다른 명령은 연결돼 있고, 작업 중이 아니고, 작업 노드가 살아 있고,
+// 상단 '작업 명령 켜기'로 켜져 있을 때만 (작업 노드는 bringup 에서 늘 켜져 있어 사람이 따로 켠다).
 
 const ACTIVE_TASK = new Set(["ACCEPTED", "SENT", "RUNNING"]);
 // 로봇이 이 상태면 관제 작업이 없어도 움직이는 중이다 (유휴 복귀 등). task_manager 와 같은 목록.
@@ -63,7 +64,9 @@ function heldZones(robotId) {
 function renderCommands(card, robotId, robot) {
   const active = robotTask(robotId, ACTIVE_TASK);
   const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
-  const reason = !view.taskManagerOnline ? "작업 노드 꺼짐"
+  const reason = view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
+    : !view.taskManagerOnline ? "작업 노드 꺼짐"
+    : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
     : !robot.online ? "연결 끊김"
     : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 해제`
     : active ? `작업 중 ${active.task_id}`
@@ -83,13 +86,13 @@ function renderCommands(card, robotId, robot) {
       && view.pick.cmd === button.dataset.cmd));
   });
   card.querySelectorAll(".stop-row button").forEach((button) => {
-    button.disabled = !view.taskManagerOnline;
+    button.disabled = !view.taskManagerOnline || view.readOnly;
   });
   // 아이콘 옆 한 줄: 명령을 보낼 수 있는지, 관제 작업이 있으면 그 내용 (마우스를 올리지 않아도 보이게).
   const why = card.querySelector(".cmd-reason");
   let text;
   let level;
-  if (!view.taskManagerOnline || !robot.online) {
+  if (view.readOnly || !view.taskManagerOnline || !view.commandsArmed || !robot.online) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
   } else if (unknown) {
@@ -146,6 +149,41 @@ function errorText(result) {
 function sendStop(robotId, emergency) {
   return postJson(`/api/robots/${encodeURIComponent(robotId)}/stop`,
     { client_request_id: newRequestId(), emergency });
+}
+
+// 상단 '작업 명령 켜기/끄기' 버튼. 버튼 글은 누르면 할 일이고, 켜진 동안은 주황이다.
+// 켜는 쪽만 확인 창을 띄운다 (끄는 것은 늘 안전한 쪽이라 바로).
+function renderArmToggle() {
+  const button = $("arm-toggle");
+  button.disabled = !view.taskManagerOnline || view.readOnly;
+  button.dataset.armed = String(view.commandsArmed);
+  button.textContent = view.commandsArmed ? "작업 명령 끄기" : "작업 명령 켜기";
+  button.title = view.readOnly ? "개발 화면 (읽기 전용): 실물 관제 화면(8080)에서 켜고 끈다"
+    : view.commandsArmed
+    ? "작업 명령 켜짐: 이동·구역·나가기·홈을 보낼 수 있음. 누르면 끈다"
+    : "작업 명령 꺼짐: 이동·구역·나가기·홈이 막혀 있음. 누르면 켠다 (정지·비상정지는 꺼져 있어도 됨)";
+}
+
+async function toggleArm() {
+  const armed = !view.commandsArmed;
+  if (armed) {
+    const domain = view.healthDomain ?? "?";
+    const real = view.snapshot && view.snapshot.infra && view.snapshot.infra.mode === "real";
+    const what = real ? "실물 로봇이 움직입니다" : "로봇에 명령이 나갑니다";
+    if (!confirm(`${what} (도메인 ${domain}).\n작업 명령(이동·구역·나가기·홈)을 켤까요?`)) return;
+  } else {
+    cancelPick();
+  }
+  const result = await postJson("/api/commands/arm", { client_request_id: newRequestId(), armed });
+  if (!result.ok) {
+    alert(`작업 명령 ${armed ? "켜기" : "끄기"} 실패 (${result.status}): ${errorText(result)}`);
+    return;
+  }
+  // 다음 /api/health 를 기다리지 않고 바로 반영한다.
+  view.commandsArmed = Boolean(result.data.armed);
+  renderArmToggle();
+  renderRawPanel();
+  render();
 }
 
 // 전체 비상정지: 모든 로봇을 그 자리에 세운다. 확인 창 없이 한꺼번에 보낸다.
@@ -336,4 +374,5 @@ function setupPick() {
     if (event.key === "Escape" && view.pick) cancelPick();
   });
   $("stop-all").addEventListener("click", stopAll);
+  $("arm-toggle").addEventListener("click", toggleArm);
 }

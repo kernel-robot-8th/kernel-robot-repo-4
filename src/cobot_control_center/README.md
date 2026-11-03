@@ -2,8 +2,8 @@
 
 관제 PC에서 로봇 3대(pinky1~3)의 상태를 모아 웹 화면으로 보여 주고, 화면에서 순찰 명령(이동·구역·나가기·홈·정지)을 보내는 관제 패키지입니다.
 
-- 로봇 명령 토픽(`/pinkyN/patrol_cmd`, v2 `/pinkyN/patrol_command`)에 발행하는 것은 **`task_manager_node` 하나**입니다. 이 노드를 켜지 않으면 관제는 읽기 전용입니다.
-- **`task_manager_node` 는 bringup 에 들어 있지 않습니다.** 실물 도메인(100)에서 켜면 실물 로봇이 움직이므로 따로 켭니다 ([명령 켜기](#명령-켜기)).
+- 로봇 명령 토픽(`/pinkyN/patrol_cmd`, v2 `/pinkyN/patrol_command`)에 발행하는 것은 **`task_manager_node` 하나**입니다.
+- **`task_manager_node` 는 bringup 이 함께 띄우지만 작업 명령이 꺼진 채로 시작합니다.** 화면 상단 **작업 명령 켜기**를 눌러야 이동·구역·나가기·홈이 나갑니다. 정지·비상정지는 꺼져 있어도 됩니다 ([명령 켜기](#명령-켜기)).
 - `/pinkyN/cmd_vel`·`goal_pose`·`initialpose` 는 쓰지 않습니다.
 
 담당: 김지혜 (로봇 수행 관제)
@@ -108,12 +108,13 @@ export ROS_DOMAIN_ID=100
 ros2 launch cobot_bringup bringup.launch.xml
 ```
 
-한 번에 뜨는 것: 도메인 브릿지 3개, zone_manager, `fleet_status_node`, `fleet_api_node` (명령 노드는 빠짐).
+한 번에 뜨는 것: 도메인 브릿지 3개, zone_manager, `fleet_status_node`, `fleet_api_node`, `task_manager_node` (작업 명령 꺼짐으로 시작).
 
 | 인자 | 기본값 | 뜻 |
 |---|---|---|
 | `pinky1` / `pinky2` / `pinky3` | `true` | 해당 로봇 브릿지 실행 여부. 일부 로봇만 켤 때 `pinky2:=false` |
 | `fleet_api` | `true` | 백엔드·화면 실행 여부. `.venv` 가 없는 환경이면 `fleet_api:=false` |
+| `task_manager` | `true` | 작업 노드 실행 여부. 보기 전용으로만 띄우려면 `task_manager:=false` |
 
 로봇 쪽(Nav2, 순찰 노드)은 각 로봇에서 따로 켭니다. 순서는 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 봅니다.
 
@@ -140,16 +141,47 @@ SSH 터미널에서 띄우면 접속이 끊길 때 같이 꺼질 수 있으므�
 
 화면 사용법은 [docs/screen_guide.md](docs/screen_guide.md) 를 봅니다.
 
+## 화면 개발 (실물 보면서)
+
+실물 bringup(8080)은 그대로 두고, **읽기 전용 개발 백엔드**를 따로 띄워 실물 데이터를 보면서 화면·백엔드를 고칩니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash && source .venv/bin/activate && source install/setup.bash
+export ROS_DOMAIN_ID=100
+ros2 launch cobot_control_center fleet_api_dev.launch.xml      # 화면 http://<관제 PC>:8083/
+```
+
+- **읽기 전용**: 상태·지도·작업 목록·카메라는 실물 그대로 보입니다. 명령 경로는 `503` 이고 `task_request` 발행자도 만들지 않아, 고치던 코드가 실물 로봇을 움직이지 않습니다. 화면 칩에 `개발(읽기 전용)` 이 붙고 명령 버튼은 모두 꺼집니다. 명령 화면을 고칠 때는 [가짜 핑키](#로봇-없이-시험하기)(8081)를 씁니다.
+- **고친 것 반영**: 화면(`web/`)은 `src` 를 바로 읽으므로 새로 고침만 하면 됩니다 (새 js 파일도). 파이썬 백엔드를 고쳤으면 이 launch 만 Ctrl+C 후 다시 띄웁니다. 실물 bringup 은 재시작하지 않아도 됩니다.
+- 처음 한 번, 그리고 `setup.py`·`package.xml`·launch 파일을 새로 만들었을 때는 다시 빌드합니다.
+
+| 포트 | 용도 | 띄우는 명령 | 도메인 |
+|---|---|---|---|
+| 8080 | 실물 관제 | `ros2 launch cobot_bringup bringup.launch.xml` | 100 |
+| 8081 | 가짜 핑키 | `ros2 launch cobot_mock mock_fleet.launch.xml` | 101 |
+| 8082 | 가제보 시뮬 | `ros2 launch cobot_gazebo sim_fleet.launch.xml` | 140 |
+| 8083 | 개발 (읽기 전용) | `ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 100 |
+
+어느 포트를 누가 띄웠는지 모르겠으면:
+
+```bash
+ss -ltnp | grep -E ':808[0-9]'                 # 포트별 프로세스·PID
+ps -o pid,tty,lstart,cmd -p <PID>              # 언제, 어떤 명령으로 (tty 가 ? 면 터미널 밖)
+pstree -s -p -a <PID> | cut -c1-150            # 누가 띄웠는지 (terminator, sshd, .claude/remote 등)
+```
+
 ## 명령 켜기
 
-**로봇 없이 (권장, 먼저 이것으로)**: 가짜 핑키 launch 가 `task_manager_node` 까지 함께 띄웁니다. 기록은 `~/.ros/cobot_control_center/tasks_mock.db`.
+**로봇 없이 (권장, 먼저 이것으로)**: 가짜 핑키 launch 가 `task_manager_node` 까지 함께 띄우고, **작업 명령이 켜진 채로 시작**합니다(`start_armed:=false` 면 꺼짐). 기록은 `~/.ros/cobot_control_center/tasks_mock.db`.
 
 ```bash
 export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 ros2 launch cobot_mock mock_fleet.launch.xml auto_patrol:=false        # 화면 http://localhost:8081/
 ```
 
-**실물 (도메인 100)**: bringup 을 띄운 뒤 **현장·사용자 확인 후** 따로 켭니다. 기록은 `~/.ros/cobot_control_center/tasks.db`.
+**실물 (도메인 100)**: [bringup](#실행) 이 작업 노드를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 기록은 `~/.ros/cobot_control_center/tasks.db` 이고, 누가(접속 IP) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다.
+
+bringup 을 `task_manager:=false` 로 띄웠다면 따로 켭니다:
 
 ```bash
 export ROS_DOMAIN_ID=100
@@ -183,7 +215,7 @@ ros2 launch cobot_control_center task_manager.launch.xml
    ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
    ```
 
-5. **관제 PC: `task_manager`** ([명령 켜기](#명령-켜기)) → 화면에서 가까운 지점으로 `goto` 를 보내고, 이동 중 정지, `home` 순으로 확인합니다.
+5. **관제 화면: 작업 명령 켜기** ([명령 켜기](#명령-켜기)) → 화면에서 가까운 지점으로 `goto` 를 보내고, 이동 중 정지, `home` 순으로 확인합니다. 끝나면 **작업 명령 끄기**.
 
 끄기: 관제 PC 와 로봇의 노드를 먼저 끄고 로봇 전원을 끕니다. 네트워크가 끊긴 채로 끄면 로봇에 노드가 남을 수 있으니 `ssh pinky2 'pgrep -af "ros2 launch"'` 로 확인합니다.
 
@@ -217,7 +249,8 @@ curl http://127.0.0.1:8080/api/robots/pinky1
 |---|---|---|
 | 화면이 안 뜸, 로그에 `No module named 'fastapi'` | `.venv` 를 켜지 않고 빌드해서 실행 파일이 시스템 파이썬을 씀 | `.venv` 를 켠 셸에서 다시 빌드 ([빌드·시험](#빌드시험)) |
 | 지도가 안 뜸 | 풀 뒤 다시 빌드하지 않음, 또는 `install/`·`src/` 가 나란히 있지 않음 (`--merge-install`, 도커 등) | 다시 빌드. 안 되면 `fleet_api.launch.xml map_yaml:=<지도.yaml>`. 로그의 `지도` 줄로 어느 쪽인지 구분 |
-| 카드에 `작업 노드 꺼짐` | `task_manager_node` 를 아직 안 켬 (일부러 bringup 에서 뺌), 또는 백엔드가 꺼짐 | [명령 켜기](#명령-켜기) |
+| 카드에 `작업 노드 꺼짐` | `task_manager_node` 가 꺼짐 (`task_manager:=false` 로 띄움, 노드 오류), 또는 백엔드가 꺼짐 | [명령 켜기](#명령-켜기) |
+| 카드에 `명령 잠김: 상단 '작업 명령 켜기'를 누르세요` | 작업 명령이 꺼져 있음 (기본, 재시작 뒤에도) | 화면 상단 **작업 명령 켜기** → 확인 |
 | 명령이 `결과 모름`, 그 로봇 버튼이 잠김 | 순찰 노드가 꺼져 있을 때 보내서 응답이 없음 | 순찰 노드를 켜고 화면에서 [결과 모름 해제](docs/screen_guide.md#결과-모름-해제) |
 | 정지를 눌러도 반응 없음 | 순찰 노드는 이동 중이 아니면 정지를 무시함 (로그 `순찰 중이 아닙니다. 명령 무시.`) | 정상 |
 | 순찰 노드 `Package 'cobot_pinky_patrol' not found` | 로봇 워크스페이스를 source 하지 않음 | `source ~/ws/kernel-robot-repo-4/install/setup.bash` |

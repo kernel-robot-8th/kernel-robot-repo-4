@@ -16,6 +16,9 @@ const RAW_LOG_MAX = 8;   // 패널에 남기는 최근 수동 명령 수
 function renderRawPanel() {
   $("raw-panel").hidden = !view.rawEnabled;
   if (!view.rawEnabled) return;
+  // 수동 명령도 실물을 움직이므로 상단 '작업 명령 켜기'로 켜져 있어야 보낸다.
+  $("raw-send").disabled = !view.commandsArmed;
+  $("raw-send").title = view.commandsArmed ? "" : "상단 '작업 명령 켜기'를 누르세요";
   const select = $("raw-robot");
   const robots = view.snapshot ? Object.keys(view.snapshot.robots || {}) : [];
   const have = new Set([...select.options].map((o) => o.value));
@@ -78,7 +81,7 @@ async function sendRaw(event) {
   $("raw-send").disabled = true;
   const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/raw_cmd`,
     { client_request_id: newRequestId(), command });
-  $("raw-send").disabled = false;
+  $("raw-send").disabled = !view.commandsArmed;
   if (result.ok) {
     logRawSent(result.data || {}, robotId, command);
     $("raw-cmd").select();

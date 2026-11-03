@@ -38,13 +38,20 @@ async function pollHealth() {
     const health = res.ok ? await res.json() : {};
     view.healthDomain = health.domain_id ?? null;
     setLink("link-source", Boolean(health.source_online));
-    if (view.taskManagerOnline !== Boolean(health.task_manager_online)) {
+    const armed = Boolean(health.commands_armed);
+    const readOnly = Boolean(health.read_only);
+    if (view.taskManagerOnline !== Boolean(health.task_manager_online)
+        || view.commandsArmed !== armed || view.readOnly !== readOnly) {
       view.taskManagerOnline = Boolean(health.task_manager_online);
+      view.commandsArmed = armed;
+      view.readOnly = readOnly;
+      if (!armed) cancelPick();
       render();
     }
+    renderArmToggle();
     setLink("link-tasks", view.taskManagerOnline);
-    $("stop-all").disabled = !view.taskManagerOnline;
-    view.rawEnabled = Boolean(health.raw_cmd_enabled);
+    $("stop-all").disabled = !view.taskManagerOnline || view.readOnly;
+    view.rawEnabled = Boolean(health.raw_cmd_enabled) && !view.readOnly;
     renderRawPanel();
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
@@ -52,10 +59,12 @@ async function pollHealth() {
     if (!health.source_online) renderAlerts(null, false);
   } catch (err) {
     // 백엔드가 꺼지면 마지막 스냅샷이 남으므로, 카드 명령 버튼이 켜진 채로 남지 않게 다시 그린다.
-    if (view.taskManagerOnline) {
+    if (view.taskManagerOnline || view.commandsArmed) {
       view.taskManagerOnline = false;
+      view.commandsArmed = false;
       render();
     }
+    renderArmToggle();
     setLink("link-source", false);
     renderAlerts(null, false);
     setLink("link-tasks", false);

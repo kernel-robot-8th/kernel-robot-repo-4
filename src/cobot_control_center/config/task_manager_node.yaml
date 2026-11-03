@@ -14,3 +14,4 @@ task_manager_node:
     publish_period_sec: 1.0            # /control_center/tasks 다시 내는 주기 [s]
     list_limit: 50                     # /control_center/tasks 에 싣는 최근 작업 수
     allow_raw_cmd: false               # 개발용 수동 명령(화면에서 문자열을 patrol_cmd 에 그대로). 실물은 꺼 둔다
+    start_armed: false                 # 작업 명령 켜진 상태로 시작할지. 실물은 꺼 두고 화면 상단 '작업 명령 켜기'로 켠다

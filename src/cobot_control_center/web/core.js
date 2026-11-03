@@ -40,6 +40,8 @@ const view = {
   lastEventId: 0,
   tasks: new Map(), // task_id → 작업 (/ws/tasks)
   taskManagerOnline: false,
+  readOnly: false,  // 개발용 읽기 전용 백엔드 (/api/health 의 read_only). 명령 버튼을 모두 끈다
+  commandsArmed: false, // 화면 상단 '작업 명령 켜기/끄기' (/api/health 의 commands_armed)
   cardMsg: new Map(), // robot_id → {text, bad, until}: 명령 결과를 카드 상태 줄에 잠깐
   rawEnabled: false, // 개발용 수동 명령 칸을 보일지 (/api/health)
   resolving: null,  // 결과 모름 해제 확인 중인 작업
@@ -95,9 +97,13 @@ function renderMode(infra) {
   const domain = infra ? infra.domain_id : view.healthDomain;
   const mode = infra ? infra.mode : "unknown";
   el.dataset.mode = mode;
-  el.textContent = domain === null || domain === undefined ? "도메인 ?"
+  const text = domain === null || domain === undefined ? "도메인 ?"
     : MODE_TEXT[mode] ? `도메인 ${domain} · ${MODE_TEXT[mode]}` : `도메인 ${domain}`;
-  el.title = mode === "real" ? "실물 관제 도메인입니다"
+  // 개발 화면(8083)은 실물 화면(8080)과 똑같이 생겼으므로 칩에 꼭 적는다.
+  el.textContent = view.readOnly ? `${text} · 개발(읽기 전용)` : text;
+  el.dataset.readOnly = String(view.readOnly);
+  el.title = view.readOnly ? "개발용 읽기 전용 화면입니다. 명령은 실물 관제 화면(8080)에서"
+    : mode === "real" ? "실물 관제 도메인입니다"
     : mode === "unknown" ? "관제 노드 정보를 기다리는 중"
     : `실물 관제 도메인(${infra.control_domain_id})이 아닙니다`;
 }

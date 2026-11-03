@@ -104,8 +104,8 @@ def test_api_before_first_snapshot():
     store, _ = make_store()
     client = TestClient(create_app(store))
     assert client.get('/api/health').json() == {
-        'ok': True, 'domain_id': None, 'source_online': False, 'source_age': None,
-        'task_manager_online': False}
+        'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
+        'source_age': None, 'task_manager_online': False}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 
@@ -441,6 +441,58 @@ def test_api_raw_cmd_passes_through_and_health_flag():
     # 작업 노드가 끊기면 켜져 있어도 숨긴다
     clock.now = 3.5
     assert client.get('/api/health').json()['raw_cmd_enabled'] is False
+
+
+def test_api_arm_passes_through_and_health_flag():
+    store, _ = make_store()
+    tasks, clock = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': []}))
+    publish, sent = fake_task_manager(tasks, 200, {'armed': True, 'changed': True})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    # 작업 노드가 armed 를 알리지 않으면 잠김으로 본다
+    assert client.get('/api/health').json()['commands_armed'] is False
+    res = client.post('/api/commands/arm', json={'client_request_id': 'a1', 'armed': True})
+    assert res.status_code == 200 and res.json()['armed'] is True
+    assert sent[0] == dict(sent[0], type='arm', armed=True, client_request_id='a1')
+    assert sent[0]['source'] == 'testclient'
+    tasks.put_snapshot(json.dumps({'tasks': [], 'armed': True}))
+    assert client.get('/api/health').json()['commands_armed'] is True
+    # 작업 노드가 끊기면 허용으로 보이지 않는다
+    clock.now = 3.5
+    assert client.get('/api/health').json()['commands_armed'] is False
+
+
+def test_api_locked_create_returns_423():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': []}))
+    publish, _ = fake_task_manager(tasks, 423, {'detail': '작업 명령 꺼짐'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/tasks', json={'client_request_id': 'r1', 'robot_id': 'pinky1',
+                                          'operation': 'home'})
+    assert res.status_code == 423 and res.json()['detail'] == '작업 명령 꺼짐'
+
+
+def test_api_read_only_backend_lists_tasks_but_refuses_commands():
+    # 개발용(fleet_api_dev): 작업 목록은 보이지만 명령은 하나도 넘기지 않는다.
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': [TASK], 'armed': True}))
+    client = TestClient(create_app(store, tasks=tasks, publish_request=None))
+    health = client.get('/api/health').json()
+    assert health['read_only'] is True and health['task_manager_online'] is True
+    assert [t['task_id'] for t in client.get('/api/tasks').json()] == ['t-1']
+    for url, body in (('/api/tasks', {'client_request_id': 'r1', 'robot_id': 'pinky1',
+                                      'operation': 'home'}),
+                      ('/api/commands/arm', {'armed': False}),
+                      ('/api/robots/pinky1/stop', {'emergency': True}),
+                      ('/api/robots/pinky1/raw_cmd', {'command': 'home'}),
+                      ('/api/tasks/t-1/resolve', {})):
+        res = client.post(url, json=body)
+        assert res.status_code == 503 and '읽기 전용' in res.json()['detail'], url
+    publish, _ = fake_task_manager(tasks, 200, {})
+    full = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    assert full.get('/api/health').json()['read_only'] is False
 
 
 def test_api_task_manager_offline_is_503():

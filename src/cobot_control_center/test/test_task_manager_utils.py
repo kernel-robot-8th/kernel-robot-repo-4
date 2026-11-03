@@ -14,6 +14,8 @@
 
 """관제 작업 관리(task_manager_utils.py)를 ROS 없이 검사한다."""
 
+import json
+
 from cobot_control_center.task_manager_utils import (
     check_points, load_robot_points, TaskDB, TaskError, TaskManager, v1_command)
 import pytest
@@ -55,10 +57,11 @@ def rules(tmp_path):
     return load_robot_points(str(tmp_path), ['pinky1', 'pinky2'])
 
 
-def make_tm(rules, path=':memory:', clock=None, robot=None, **kwargs):
+def make_tm(rules, path=':memory:', clock=None, robot=None, armed=True, **kwargs):
+    # 시험 대부분은 작업 명령을 켠 뒤의 동작을 본다. 꺼짐은 armed=False 로 따로 시험한다.
     clock = clock or FakeClock()
     db = TaskDB(path, clock=clock)
-    tm = TaskManager(db, ['pinky1', 'pinky2'], rules, clock=clock, **kwargs)
+    tm = TaskManager(db, ['pinky1', 'pinky2'], rules, clock=clock, armed=armed, **kwargs)
     tm.update_fleet({'robots': {'pinky1': dict(robot or ONLINE_IDLE),
                                 'pinky2': dict(ONLINE_IDLE)}})
     return tm, clock
@@ -281,6 +284,63 @@ def test_stop_ends_running_task_as_stopped(rules):
     assert result['task_id'] == task['task_id'] and actions[0]['command'] == 'stop'
     tm.on_v1_status('pinky1', {'state': 'STOPPED', 'detail': 'P1'})
     assert tm.db.get(task['task_id'])['state'] == 'STOPPED'
+
+
+# ---------- 작업 명령 켜기/끄기 ----------
+
+def events_of(tm, kind):
+    rows = tm.db.conn.execute('SELECT robot_id, detail_json FROM events WHERE type = ?', (kind,))
+    return [(row['robot_id'], json.loads(row['detail_json'])) for row in rows]
+
+
+def test_locked_by_default_refuses_create_and_raw_without_record(rules):
+    db = TaskDB(':memory:', clock=FakeClock())
+    assert TaskManager(db, ['pinky1'], rules).armed is False
+    tm, _ = make_tm(rules, armed=False, allow_raw_cmd=True)
+    for call in (lambda: create(tm),
+                 lambda: tm.raw({'robot_id': 'pinky1', 'command': 'home'})):
+        with pytest.raises(TaskError) as err:
+            call()
+        assert err.value.status == 423
+    # 잠김 거절은 작업 줄(REJECTED)도 사건도 남기지 않는다
+    assert tm.db.recent() == [] and tm.take_changed() == []
+    assert events_of(tm, 'operator_raw') == []
+    assert tm.snapshot()['armed'] is False
+
+
+def test_locked_still_allows_stop_and_resolve(rules):
+    tm, _ = make_tm(rules)
+    (_, task), _ = create(tm)
+    tm.tick()
+    tm.clock.now += 10
+    tm.tick()
+    assert tm.db.get(task['task_id'])['state'] == 'UNKNOWN'
+    tm.arm({'armed': False})
+    (status, _), actions = tm.stop({'robot_id': 'pinky1', 'emergency': True})
+    assert status == 202 and actions[0]['command'] == 'emergency_stop'
+    (status, resolved), _ = tm.resolve({'task_id': task['task_id'], 'result': 'FAILED'})
+    assert status == 200 and resolved['state'] == 'FAILED'
+
+
+def test_arm_toggles_and_records_who(rules):
+    tm, _ = make_tm(rules, armed=False)
+    (status, result), actions = tm.arm({'armed': True, 'source': '192.168.0.5',
+                                        'client_request_id': 'a1'})
+    assert status == 200 and actions == []
+    assert result == {'armed': True, 'changed': True, 'source': '192.168.0.5',
+                      'client_request_id': 'a1'}
+    assert tm.snapshot()['armed'] is True
+    assert create(tm)[0][0] == 202
+    assert tm.arm({'armed': True})[0][1]['changed'] is False
+    tm.arm({'armed': False, 'source': '192.168.0.5'})
+    assert tm.armed is False
+    assert [d['armed'] for _, d in events_of(tm, 'operator_arm')] == [True, True, False]
+    assert events_of(tm, 'operator_arm')[0][0] is None
+    for bad in ({}, {'armed': 'yes'}, {'armed': 1}):
+        with pytest.raises(TaskError) as err:
+            tm.arm(bad)
+        assert err.value.status == 400
+    assert tm.armed is False
 
 
 # ---------- 수동 명령 (개발용) ----------

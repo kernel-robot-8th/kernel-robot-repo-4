@@ -30,13 +30,18 @@
   <arg name="zone_params"
        default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_navigation/cobot_zone_traffic_control/config/zone_params.yaml"
        description="zone_manager 설정 (로봇 목록·대기 슬롯)"/>
+  <arg name="node_name" default="fleet_api_node" description="노드 이름 (개발용은 fleet_api_node_dev)"/>
+  <arg name="read_only" default="false" description="true 면 명령 경로 503, task_request 를 내지 않음"/>
+  <arg name="web_dir" default="" description="화면 파일 폴더. 비면 설치된 share/cobot_control_center/web"/>
 
-  <node pkg="cobot_control_center" exec="fleet_api_node" name="fleet_api_node" output="screen">
+  <node pkg="cobot_control_center" exec="fleet_api_node" name="$(var node_name)" output="screen">
     <param from="$(find-pkg-share cobot_control_center)/config/fleet_api_node.yaml"/>
     <param name="host" value="$(var host)"/>
     <param name="port" value="$(var port)"/>
     <param name="map_yaml" value="$(var map_yaml)"/>
     <param name="points_dir" value="$(var points_dir)"/>
     <param name="zone_params" value="$(var zone_params)"/>
+    <param name="read_only" value="$(var read_only)"/>
+    <param name="web_dir" value="$(var web_dir)"/>
   </node>
 </launch>

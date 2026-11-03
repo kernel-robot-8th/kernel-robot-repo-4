@@ -24,7 +24,10 @@
 - v2 (cobot_patrol_interfaces, 지금은 가짜 핑키만): /pinkyN/patrol_command, _ack, _state
 spec_mode=auto 이면 v2 상태가 오는 로봇에만 v2 로 보낸다.
 
-실물 로봇이 움직이는 노드다. bringup 에 넣지 않았고 따로 켜야 한다.
+실물 로봇이 움직이는 노드다. bringup 이 늘 띄우지만 '작업 명령 꺼짐'으로 시작한다.
+꺼져 있는 동안에는 작업·수동 명령을 거절(423)하고, 정지·비상정지·결과 모름 해제만 받는다.
+화면 상단 '작업 명령 켜기'(type=arm)를 사람이 눌러야 로봇으로 작업 명령이 나간다.
+재시작하면 다시 꺼진다 (start_armed 는 가짜 핑키 launch 만 켠다).
 cmd_vel·goal_pose·initialpose 는 쓰지 않는다.
 
 allow_raw_cmd(기본 꺼짐)를 켜면 화면의 개발용 수동 명령(type=raw)을 받아
@@ -56,7 +59,7 @@ class TaskManagerNode(Node):
             'points_dir': '', 'ack_timeout_sec': 3.0, 'task_timeout_sec': 300.0,
             'fleet_stale_sec': 3.0, 'retention_days': 30.0, 'spec_mode': 'auto',
             'v2_fresh_sec': 3.0, 'tick_period_sec': 0.2, 'publish_period_sec': 1.0,
-            'list_limit': 50, 'allow_raw_cmd': False,
+            'list_limit': 50, 'allow_raw_cmd': False, 'start_armed': False,
         }
         for name, value in p.items():
             self.declare_parameter(name, value)
@@ -71,7 +74,8 @@ class TaskManagerNode(Node):
             self.db, robots, self._load_rules(cfg['points_dir'], robots),
             ack_timeout_sec=cfg['ack_timeout_sec'], task_timeout_sec=cfg['task_timeout_sec'],
             fleet_stale_sec=cfg['fleet_stale_sec'], spec_mode=cfg['spec_mode'],
-            v2_fresh_sec=cfg['v2_fresh_sec'], allow_raw_cmd=cfg['allow_raw_cmd'])
+            v2_fresh_sec=cfg['v2_fresh_sec'], allow_raw_cmd=cfg['allow_raw_cmd'],
+            armed=cfg['start_armed'])
         # 재시작 규칙: 끝나지 않은 작업은 다시 보내지 않고 UNKNOWN 으로 둔다.
         for task in self.db.recover():
             self.tm.changed.append(task)
@@ -109,7 +113,8 @@ class TaskManagerNode(Node):
         self.get_logger().info(
             f'task_manager_node 시작 (robots={robots}, spec_mode={cfg["spec_mode"]}, '
             f'db={db_path}, 오래된 사건 {pruned}줄 정리). '
-            f'도메인 {self.context.get_domain_id()} 의 로봇 명령 토픽에 발행한다')
+            f'도메인 {self.context.get_domain_id()} 의 로봇 명령 토픽에 발행한다. '
+            f'작업 명령 {"켜짐" if self.tm.armed else "꺼짐 (화면 상단 작업 명령 켜기로 켠다)"} 상태로 시작')
         if cfg['allow_raw_cmd']:
             self.get_logger().warning(
                 '수동 명령(allow_raw_cmd) 켜짐: 화면에서 검사 없이 patrol_cmd 에 문자열을 보낼 수 있다 (개발용)')
@@ -169,7 +174,7 @@ class TaskManagerNode(Node):
             self.get_logger().warning('task_request 를 읽지 못함 (JSON 객체가 아님)')
             return
         handlers = {'create': self.tm.create, 'stop': self.tm.stop, 'resolve': self.tm.resolve,
-                    'raw': self.tm.raw}
+                    'raw': self.tm.raw, 'arm': self.tm.arm}
         kind = request.get('type')
         reply = {'type': 'reply', 'request_id': request.get('request_id')}
         try:
@@ -183,6 +188,12 @@ class TaskManagerNode(Node):
         for action in actions:
             self._send(action)
         self._publish_event(reply)
+        if kind == 'arm' and reply['status'] == 200 and reply['body'].get('changed'):
+            body = reply['body']
+            self.get_logger().warning(
+                f'작업 명령 {"켜짐" if body["armed"] else "꺼짐"} (요청 {body["source"] or "?"})')
+            # 화면이 다음 목록 주기(publish_period_sec)를 기다리지 않고 바로 알게 한다.
+            self._publish_tasks()
         self._flush()
 
     # ---------- 출력 ----------

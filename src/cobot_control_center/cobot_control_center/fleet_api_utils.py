@@ -355,10 +355,12 @@ class TaskStore:
             age = None if self._received is None else round(self.clock() - self._received, 3)
             spec = (self._snapshot or {}).get('spec')
             raw = bool((self._snapshot or {}).get('allow_raw_cmd'))
+            armed = bool((self._snapshot or {}).get('armed'))
         online = age is not None and age <= self.stale_sec
         # 수동 명령 칸은 작업 노드가 켜져 있고 allow_raw_cmd 가 켜져 있을 때만 화면에 보인다.
+        # commands_armed: 화면 상단 '작업 명령 켜기/끄기'. 꺼져 있으면 작업 명령 버튼이 잠긴다 (정지는 항상).
         return {'task_manager_online': online, 'task_manager_age': age, 'spec': spec,
-                'raw_cmd_enabled': online and raw}
+                'raw_cmd_enabled': online and raw, 'commands_armed': online and armed}
 
     def request(self, payload, publish):
         """

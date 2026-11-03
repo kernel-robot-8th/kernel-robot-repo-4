@@ -24,13 +24,16 @@
 
 import asyncio
 
-from fastapi import (Body, FastAPI, HTTPException, Query, Response, WebSocket,
+from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # WebSocket 이 새 스냅샷을 기다리는 한 번의 최대 시간 [s]. 끊긴 연결을 이 주기로 알아챈다.
 WS_WAIT_SEC = 1.0
+
+
+READ_ONLY_DETAIL = '읽기 전용 백엔드: 명령은 실물 관제 화면(bringup, 8080)에서'
 
 
 def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
@@ -76,7 +79,9 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.get('/api/health')
     def health():
         task_health = tasks.health() if tasks is not None else {'task_manager_online': False}
-        return {'ok': True, 'domain_id': domain_id, **store.health(), **task_health}
+        # read_only: 명령을 넘길 곳이 없는 백엔드 (개발용 fleet_api_dev). 화면은 명령 버튼을 모두 끈다.
+        return {'ok': True, 'domain_id': domain_id, 'read_only': publish_request is None,
+                **store.health(), **task_health}
 
     @app.get('/api/fleet')
     def fleet():
@@ -135,7 +140,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     def call_task_manager(payload):
         if tasks is None or publish_request is None:
-            raise HTTPException(status_code=503, detail='명령 기능이 꺼져 있음 (읽기 전용 백엔드)')
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         if not tasks.online():
             raise HTTPException(status_code=503,
                                 detail='task_manager_node 응답 없음 (작업 노드를 켜 주세요)')
@@ -172,6 +177,14 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'client_request_id': body.get('client_request_id'),
             'command': body.get('command')})
 
+    @app.post('/api/commands/arm')
+    def arm_commands(request: Request, body: dict = Body(default={})):
+        # 작업 명령 켜기/끄기. 꺼져 있으면 작업 노드가 작업·수동 명령을 423 으로 거절한다.
+        return call_task_manager({
+            'type': 'arm', 'armed': body.get('armed'),
+            'client_request_id': body.get('client_request_id'),
+            'source': request.client.host if request.client else ''})
+
     @app.post('/api/tasks/{task_id}/resolve')
     def resolve_task(task_id: str, body: dict = Body(default={})):
         return call_task_manager({
@@ -181,7 +194,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     def task_store():
         if tasks is None:
-            raise HTTPException(status_code=503, detail='명령 기능이 꺼져 있음 (읽기 전용 백엔드)')
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         return tasks
 
     @app.get('/api/tasks')

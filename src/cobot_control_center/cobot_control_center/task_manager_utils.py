@@ -37,6 +37,7 @@ OPERATIONS = ('goto', 'zone', 'leave', 'home')
 STOP_OPERATIONS = ('stop', 'emergency_stop')
 ACTIVE_STATES = ('ACCEPTED', 'SENT', 'RUNNING')
 RESOLVE_RESULTS = ('SUCCEEDED', 'FAILED', 'STOPPED')
+ARMED_OFF_DETAIL = "작업 명령 꺼짐: 화면 상단 '작업 명령 켜기'를 눌러야 보낼 수 있음"
 # 로봇 끝 상태 → 작업 끝 상태
 FINAL_STATES = {'DONE': 'SUCCEEDED', 'FAILED': 'FAILED', 'STOPPED': 'STOPPED'}
 # 로봇이 이 상태면 관제가 보낸 작업이 없어도 바쁘다 (예: 스스로 시작한 유휴 복귀).
@@ -289,7 +290,7 @@ class TaskManager:
 
     def __init__(self, db, robots, rules=None, ack_timeout_sec=3.0, task_timeout_sec=300.0,
                  fleet_stale_sec=3.0, spec_mode='auto', v2_fresh_sec=3.0,
-                 allow_raw_cmd=False, clock=time.time):
+                 allow_raw_cmd=False, armed=False, clock=time.time):
         if spec_mode not in SPEC_MODES:
             raise ValueError(f'spec_mode 는 {SPEC_MODES} 중 하나: {spec_mode}')
         self.db = db
@@ -301,6 +302,9 @@ class TaskManager:
         self.spec_mode = spec_mode
         self.v2_fresh_sec = float(v2_fresh_sec)
         self.allow_raw_cmd = bool(allow_raw_cmd)
+        # 작업 명령 켜짐(armed): 꺼져 있으면 작업·수동 명령을 받지 않는다 (정지·해제는 항상).
+        # 작업 노드가 bringup 에서 늘 켜져 있으므로, 실물을 움직이는 순간은 사람이 화면에서 연다.
+        self.armed = bool(armed)
         self.clock = clock
         self.fleet = None
         self.fleet_received = None
@@ -395,6 +399,7 @@ class TaskManager:
 
     def create(self, request):
         """작업 만들기. (HTTP 상태, 작업) 와 할 일 목록. 처리 못 하면 TaskError."""
+        self._require_armed()
         crid = request.get('client_request_id')
         if not isinstance(crid, str) or not crid.strip():
             raise TaskError(400, 'client_request_id 가 필요함')
@@ -478,6 +483,7 @@ class TaskManager:
         allow_raw_cmd 가 꺼져 있으면 거절한다. 사건(operator_raw)으로만 남긴다.
         관제 작업이 진행 중이거나 결과를 모르면 막는다 (끼어들면 작업 결과를 잘못 판단한다).
         """
+        self._require_armed()
         if not self.allow_raw_cmd:
             raise TaskError(403, '수동 명령이 꺼져 있음 (task_manager_node 파라미터 allow_raw_cmd)')
         robot = request.get('robot_id')
@@ -504,6 +510,22 @@ class TaskManager:
         action = {'robot': robot, 'spec': 'v1', 'operation': 'raw', 'points': [],
                   'task_id': raw_id, 'command': command}
         return (202, result), [action]
+
+    def _require_armed(self):
+        if not self.armed:
+            raise TaskError(423, ARMED_OFF_DETAIL)
+
+    def arm(self, request):
+        """작업 명령 켜기/끄기. 사건(operator_arm)으로 누가 언제 바꿨는지 남긴다."""
+        armed = request.get('armed')
+        if not isinstance(armed, bool):
+            raise TaskError(400, 'armed 는 true/false')
+        before, self.armed = self.armed, armed
+        result = {'armed': armed, 'changed': before != armed,
+                  'source': str(request.get('source') or ''),
+                  'client_request_id': request.get('client_request_id')}
+        self.db.add_event(None, None, 'operator_arm', result)
+        return (200, result), []
 
     def resolve(self, request):
         """UNKNOWN 작업을 사람이 확인하고 끝낸다. 기록은 지우지 않는다."""
@@ -547,4 +569,5 @@ class TaskManager:
         return {'time': self.clock(), 'robots': self.robots,
                 'spec': {r: self.spec_for(r) for r in self.robots},
                 'allow_raw_cmd': self.allow_raw_cmd,
+                'armed': self.armed,
                 'tasks': self.db.recent(limit)}

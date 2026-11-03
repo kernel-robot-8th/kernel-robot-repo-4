@@ -83,6 +83,8 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
   color: var(--muted);
 }
 .mode[data-mode="real"] { color: var(--text); border-color: var(--good); }
+/* 개발용 읽기 전용 화면: 실물 화면과 헷갈리지 않게 점선 테두리 */
+.mode[data-read-only="true"] { border-style: dashed; border-color: var(--active); }
 .mode[data-mode="mock"], .mode[data-mode="test"] {
   color: #fff;
   background: var(--warn);
@@ -115,6 +117,22 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 }
 .estop-all:hover:not(:disabled) { filter: brightness(1.1); }
 .estop-all:disabled { opacity: 0.45; cursor: default; }
+
+/* 작업 명령 켜기/끄기: 꺼짐 = 회색 테두리, 켜짐 = 주황 (실물이 움직일 수 있는 상태) */
+.arm-toggle {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--idle);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.arm-toggle[data-armed="true"] { border-color: var(--warn); background: var(--warn); color: #fff; }
+.arm-toggle:hover:not(:disabled) { filter: brightness(1.1); }
+.arm-toggle:disabled { opacity: 0.45; cursor: default; }
 
 /* ---------- 경고 띠 ---------- */
 
