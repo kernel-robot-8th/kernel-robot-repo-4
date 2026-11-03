@@ -14,6 +14,7 @@
 
 """Main simulation node coordinating 3 Pinky robots and 3 OMX arms in the Shoe Store arena."""
 
+import json
 import math
 from typing import Dict
 
@@ -91,6 +92,10 @@ class ArenaSimNode(Node):
         self.pinkies: Dict[str, PinkySimAgent] = {}
         self.pinky_subs = {}
         self.pinky_goal_subs = {}
+        self.pinky_patrol_cmd_subs = {}
+        self.pinky_patrol_status_pubs = {}
+        self.pinky_patrol_queues = {}
+        self.pinky_patrol_states = {}
         self.pinky_odom_pubs = {}
         self.pinky_scan_pubs = {}
         self.pinky_joint_pubs = {}
@@ -107,6 +112,10 @@ class ArenaSimNode(Node):
             init_pose = spawn_poses.get(ns, (1.41, 1.5, 0.0))
             agent = PinkySimAgent(robot_id=ns, initial_pose=init_pose)
             self.pinkies[ns] = agent
+            self.pinky_patrol_queues[ns] = []
+            self.pinky_patrol_states[ns] = {
+                'robot_id': ns, 'state': 'IDLE', 'detail': '', 'waypoint': 0, 'total': 0
+            }
 
             # Subscribers
             self.pinky_subs[ns] = self.create_subscription(
@@ -121,9 +130,18 @@ class ArenaSimNode(Node):
                 lambda msg, robot=agent: self._handle_goal_pose(robot, msg),
                 10,
             )
+            self.pinky_patrol_cmd_subs[ns] = self.create_subscription(
+                String,
+                f'/{ns}/patrol_cmd',
+                lambda msg, robot=agent: self._handle_patrol_cmd(robot, msg),
+                10,
+            )
 
             # Publishers
             self.pinky_odom_pubs[ns] = self.create_publisher(Odometry, f'/{ns}/odom', 10)
+            self.pinky_patrol_status_pubs[ns] = self.create_publisher(
+                String, f'/{ns}/patrol_status', 10
+            )
             if self.enable_lidar:
                 self.pinky_scan_pubs[ns] = self.create_publisher(
                     LaserScan, f'/{ns}/scan', sensor_qos
@@ -237,6 +255,99 @@ class ArenaSimNode(Node):
                     self.pinkies[rid].set_goal(wp[0], wp[1], math.radians(wp[2]))
                     self.get_logger().info(f'String cmd: {rid} -> {wp_name}')
 
+    def _publish_patrol_status(self, rid: str):
+        """Publish patrol status JSON matching cobot_pinky_patrol protocol."""
+        if rid not in self.pinky_patrol_status_pubs:
+            return
+        st = dict(self.pinky_patrol_states.get(rid, {}))
+        rx, ry, ryaw = self.pinkies[rid].get_pose()
+        st['pose'] = {'x': round(rx, 3), 'y': round(ry, 3), 'yaw': round(ryaw, 3)}
+        msg = String()
+        msg.data = json.dumps(st)
+        self.pinky_patrol_status_pubs[rid].publish(msg)
+
+    def _handle_patrol_cmd(self, robot: PinkySimAgent, msg: String):
+        """Process team patrol_cmd protocol (goto, zone, leave, home, stop)."""
+        cmd_text = msg.data.strip()
+        rid = robot.robot_id
+        self.get_logger().info(f'[{rid}] Received patrol_cmd: {cmd_text}')
+
+        if cmd_text in ('stop', 'emergency_stop'):
+            robot.set_cmd_vel(0.0, 0.0)
+            robot.goal_target = None
+            self.pinky_patrol_queues[rid].clear()
+            self.pinky_patrol_states[rid] = {
+                'robot_id': rid,
+                'state': 'STOPPED',
+                'detail': cmd_text,
+                'action': 'stop',
+                'waypoint': 0,
+                'total': 0,
+            }
+            self._publish_patrol_status(rid)
+            return
+
+        target_wps = []
+        action = ''
+        if cmd_text.startswith('goto:'):
+            action = 'goto'
+            names = [p.strip().upper() for p in cmd_text[5:].split(',') if p.strip()]
+            for name in names:
+                if name in self.arena.waypoints:
+                    target_wps.append((name, self.arena.waypoints[name]))
+                else:
+                    self.get_logger().warn(f'[{rid}] Unknown waypoint: {name}')
+        elif cmd_text.startswith('zone:'):
+            action = 'zone'
+            zname = cmd_text[5:].strip().upper()
+            if zname in self.arena.waypoints:
+                target_wps.append((zname, self.arena.waypoints[zname]))
+            else:
+                self.get_logger().warn(f'[{rid}] Unknown zone: {zname}')
+        elif cmd_text == 'leave':
+            action = 'leave'
+            curr_x, _, _ = robot.get_pose()
+            exit_name = 'ZA_EXIT' if curr_x > 1.25 else 'ZC_EXIT'
+            target_wps.append((exit_name, self.arena.waypoints[exit_name]))
+        elif cmd_text == 'home':
+            action = 'home'
+            home_key = 'WP_HOME_1' if rid == 'pinky1' else ('WP_HOME_2' if rid == 'pinky2' else 'WP_HOME_3')
+            target_wps.append((home_key, self.arena.waypoints[home_key]))
+
+        if not target_wps:
+            self.get_logger().warn(f'[{rid}] No valid target in patrol_cmd: {cmd_text}')
+            return
+
+        # Route through 67cm gate if crossing between warehouse (X > 1.25) and store (X < 1.25)
+        planned_queue = []
+        curr_x, curr_y, _ = robot.get_pose()
+
+        for wp_name, wp_coord in target_wps:
+            gx, gy, gyaw_deg = wp_coord
+            if (curr_x > 1.25 and gx < 1.25 and (curr_y > 0.67 or gy > 0.67)) or \
+               (curr_x < 1.25 and gx > 1.25 and (curr_y > 0.67 or gy > 0.67)):
+                gate_x, gate_y = 1.25, 0.335
+                planned_queue.append(('GATE_APP', 1.41 if curr_x > 1.25 else 1.05, 0.335, -math.pi / 2.0))
+                planned_queue.append(('WP_GATE_TRANSIT', gate_x, gate_y, math.pi if curr_x > 1.25 else 0.0))
+                planned_queue.append(('GATE_EXIT', 1.05 if curr_x > 1.25 else 1.41, 0.335, 0.0))
+            planned_queue.append((wp_name, gx, gy, math.radians(gyaw_deg)))
+            curr_x, curr_y = gx, gy
+
+        self.pinky_patrol_queues[rid] = planned_queue
+        self.pinky_patrol_states[rid] = {
+            'robot_id': rid,
+            'state': 'MOVING',
+            'detail': target_wps[0][0],
+            'action': action,
+            'waypoint': 1,
+            'total': len(planned_queue),
+        }
+        self._publish_patrol_status(rid)
+
+        # Set first target
+        first = self.pinky_patrol_queues[rid][0]
+        robot.set_goal(first[1], first[2], first[3])
+
     def _handle_arm_command(self, arm: OmxSimAgent, msg):
         """Handle structured ArmCommand."""
         action = getattr(msg, 'action', '')
@@ -265,6 +376,27 @@ class ArenaSimNode(Node):
             rx, ry, ryaw = robot.get_pose()
             rv, rw = robot.get_twist()
             q = yaw_to_quaternion(ryaw)
+
+            # Advance patrol waypoint queue if active
+            queue = self.pinky_patrol_queues.get(rid, [])
+            if queue:
+                head = queue[0]
+                dist_to_head = math.hypot(rx - head[1], ry - head[2])
+                if dist_to_head < 0.08:
+                    queue.pop(0)
+                    if queue:
+                        nxt = queue[0]
+                        robot.set_goal(nxt[1], nxt[2], nxt[3])
+                        self.pinky_patrol_states[rid]['waypoint'] += 1
+                        self.pinky_patrol_states[rid]['detail'] = nxt[0]
+                        self._publish_patrol_status(rid)
+                    else:
+                        action = self.pinky_patrol_states[rid].get('action', '')
+                        if action == 'zone':
+                            self.pinky_patrol_states[rid]['state'] = 'HOLDING_ZONE'
+                        else:
+                            self.pinky_patrol_states[rid]['state'] = 'DONE'
+                        self._publish_patrol_status(rid)
 
             # 1. Publish TF: map -> {rid}/odom -> {rid}/base_footprint
             if self.publish_tf:

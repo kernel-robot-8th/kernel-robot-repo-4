@@ -97,3 +97,17 @@ def test_omx_arm_kinematics_and_interpolation():
     new_joints = arm.get_joint_states()
     # Verify joints moved smoothly under velocity clamp without instant jump
     assert any(abs(new_joints[k] - initial_joints[k]) > 0.001 for k in initial_joints)
+
+
+def test_transformed_navigation_waypoints():
+    """Verify that transformed navigation waypoints (P1~P35) lie within arena free space."""
+    arena = ShoeStoreArena()
+    assert 'P1' in arena.waypoints
+    assert 'P6' in arena.waypoints
+    assert 'P35' in arena.waypoints
+
+    # P6 should be near gate (around Y=0.19, X=1.16)
+    p6 = arena.waypoints['P6']
+    assert 1.0 <= p6[0] <= 1.3
+    assert 0.0 <= p6[1] <= 0.5
+    assert arena.is_in_collision(p6[0], p6[1]) is False

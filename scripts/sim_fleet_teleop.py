@@ -68,10 +68,12 @@ if needs_reexec:
     )
     sys.exit(subprocess.call(['bash', '-c', cmd]))
 
+import json
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, PoseStamped, Point, Quaternion
 from nav_msgs.msg import Odometry
+from std_msgs.msg import String
 
 # 2. 실행 중인 외부 시뮬레이터 및 맵 서버 감지
 def check_external_sim():
@@ -136,9 +138,46 @@ class TeleopController(Node):
             'pinky2': self.create_publisher(PoseStamped, '/pinky2/goal_pose', 10),
             'pinky3': self.create_publisher(PoseStamped, '/pinky3/goal_pose', 10),
         }
+        self.patrol_pubs = {
+            'pinky1': self.create_publisher(String, '/pinky1/patrol_cmd', 10),
+            'pinky2': self.create_publisher(String, '/pinky2/patrol_cmd', 10),
+            'pinky3': self.create_publisher(String, '/pinky3/patrol_cmd', 10),
+        }
         self.poses = {}
+        self.patrol_statuses = {}
         for ns in ['pinky1', 'pinky2', 'pinky3']:
             self.create_subscription(Odometry, f'/{ns}/odom', lambda m, r=ns: self._on_odom(r, m), 10)
+            self.create_subscription(String, f'/{ns}/patrol_status', lambda m, r=ns: self._on_patrol_status(r, m), 10)
+
+    def _on_patrol_status(self, r_id, msg):
+        try:
+            self.patrol_statuses[r_id] = json.loads(msg.data)
+        except Exception:
+            pass
+
+    def send_patrol(self, r_id, cmd_text, timeout_sec=12.0):
+        """팀 순찰 명령(patrol_cmd)을 발행하고 실시간 상태 및 좌표를 모니터링"""
+        msg = String()
+        msg.data = cmd_text
+        self.patrol_pubs[r_id].publish(msg)
+        if self.embedded_sim:
+            self.embedded_sim._handle_patrol_cmd(self.embedded_sim.pinkies[r_id], msg)
+
+        print(f'   [명령 발행] /{r_id}/patrol_cmd -> \"{cmd_text}\"')
+        start_t = time.time()
+        while time.time() - start_t < timeout_sec:
+            p = self.get_pose(r_id)
+            st = self.patrol_statuses.get(r_id, {})
+            state_val = st.get('state', 'MOVING')
+            detail = st.get('detail', '')
+            print(f'   [순찰 주행 중] 상태: {state_val} ({detail}) | 현재 위치: X={p[0]:5.3f}m, Y={p[1]:5.3f}m', end='\r')
+            if state_val in ('DONE', 'HOLDING_ZONE', 'STOPPED'):
+                break
+            time.sleep(0.1)
+
+        p = self.get_pose(r_id)
+        final_st = self.patrol_statuses.get(r_id, {}).get('state', 'DONE')
+        print(f'   [도착 완료] 최종 상태: {final_st} | 위치: X={p[0]:5.3f}m, Y={p[1]:5.3f}m                        ')
 
     def _on_odom(self, r_id, msg):
         pos = msg.pose.pose.position
@@ -241,7 +280,12 @@ class TeleopController(Node):
                 bot.yaw = syaw
                 bot.v = 0.0
                 bot.w = 0.0
-                bot.target_goal = None
+                bot.goal_target = None
+                if hasattr(self.embedded_sim, 'pinky_patrol_queues'):
+                    self.embedded_sim.pinky_patrol_queues[rid].clear()
+                    self.embedded_sim.pinky_patrol_states[rid] = {
+                        'robot_id': rid, 'state': 'IDLE', 'detail': 'reset', 'waypoint': 0, 'total': 0
+                    }
             else:
                 self.send_goal_and_track(rid, sx, sy, syaw, timeout_sec=0.1)
 
@@ -300,14 +344,14 @@ def main():
             print(f'  Pinky 2 (초록): X={p2[0]:6.3f}m, Y={p2[1]:6.3f}m, Yaw={math.degrees(p2[2]):6.1f}°')
             print(f'  Pinky 3 (파랑): X={p3[0]:6.3f}m, Y={p3[1]:6.3f}m, Yaw={math.degrees(p3[2]):6.1f}°')
             print('-' * 75)
-            print(' [1] 핑키 1호기: 25cm 전진 (Move Forward)')
-            print(' [2] 핑키 1호기: 25cm 후진 (Move Backward)')
-            print(' [3] 핑키 1호기: 좌회전 (Turn Left 45°)')
-            print(' [4] 핑키 1호기: 우회전 (Turn Right 45°)')
-            print(' [5] 핑키 1호기: 상차 구역(ZA)으로 자율주행 [X=2.015, Y=2.105]')
-            print(' [6] 핑키 1호기: 67cm 통로 게이트 통과 -> 하차장(ZC) [X=0.415, Y=1.850]')
-            print(' [7] 핑키 2호기: 25cm 전진')
-            print(' [8] 핑키 3호기: 25cm 전진')
+            print(' [1] 핑키 1호기: 25cm 전진 (cmd_vel 수동 제어)')
+            print(' [2] 핑키 1호기: 25cm 후진 (cmd_vel 수동 제어)')
+            print(' [3] 핑키 1호기: 45도 회전 (cmd_vel 수동 제어)')
+            print(' [4] 핑키 1호기: 팀 순찰 상차구역 진입 [patrol_cmd -> "zone:ZA"]')
+            print(' [5] 핑키 1호기: 팀 순찰 구역 퇴출 [patrol_cmd -> "leave"]')
+            print(' [6] 핑키 1호기: 67cm 통로 통과 -> 하차장 [patrol_cmd -> "zone:ZC"]')
+            print(' [7] 핑키 1호기: 복합 경유지 순찰 [patrol_cmd -> "goto:P1,P2,P6"]')
+            print(' [8] 핑키 1호기: 초기 홈 위치 복귀 [patrol_cmd -> "home"]')
             print(' [9] 전체 로봇 초기 위치로 리셋')
             print(' [0] 프로그램 종료')
             print('=' * 75)
@@ -327,29 +371,29 @@ def main():
                 print('[*] [명령 2] 핑키 1호기 25cm 후진 시작...')
                 controller.move_distance('pinky1', -0.25)
             elif choice == '3':
-                print('[*] [명령 3] 핑키 1호기 좌회전 (45°)...')
+                print('[*] [명령 3] 핑키 1호기 45도 회전...')
                 controller.rotate_angle('pinky1', 45.0)
             elif choice == '4':
-                print('[*] [명령 4] 핑키 1호기 우회전 (45°)...')
-                controller.rotate_angle('pinky1', -45.0)
+                print('[*] [명령 4] 핑키 1호기 상차 구역(ZA) 진입 순찰 명령 발행...')
+                controller.send_patrol('pinky1', 'zone:ZA')
             elif choice == '5':
-                print('[*] [명령 5] 핑키 1호기 상차 구역(ZA: 2.015, 2.105)으로 자율주행 시작...')
-                controller.send_goal_and_track('pinky1', 2.015, 2.105, 0.0)
+                print('[*] [명령 5] 핑키 1호기 구역 퇴출(leave) 명령 발행...')
+                controller.send_patrol('pinky1', 'leave')
             elif choice == '6':
-                print('[*] [명령 6] 핑키 1호기 67cm 협소 게이트 통과 -> 하차장(ZC: 0.415, 1.850) 주행...')
-                controller.send_goal_and_track('pinky1', 0.415, 1.850, math.pi, timeout_sec=12.0)
+                print('[*] [명령 6] 핑키 1호기 67cm 협소 게이트 통과 -> 하차장(ZC) 순찰 명령 발행...')
+                controller.send_patrol('pinky1', 'zone:ZC', timeout_sec=16.0)
             elif choice == '7':
-                print('[*] [명령 7] 핑키 2호기 25cm 전진...')
-                controller.move_distance('pinky2', 0.25)
+                print('[*] [명령 7] 핑키 1호기 복합 경유지(P1 -> P2 -> P6 게이트 앞) 순찰 명령 발행...')
+                controller.send_patrol('pinky1', 'goto:P1,P2,P6', timeout_sec=20.0)
             elif choice == '8':
-                print('[*] [명령 8] 핑키 3호기 25cm 전진...')
-                controller.move_distance('pinky3', 0.25)
+                print('[*] [명령 8] 핑키 1호기 홈 위치(WP_HOME_1) 복귀 명령 발행...')
+                controller.send_patrol('pinky1', 'home')
             elif choice == '9':
                 print('[*] [명령 9] 모든 로봇 위치를 초기 스폰 좌표로 리셋합니다...')
                 controller.reset_all()
                 print('    -> 리셋 완료.')
             else:
-                print('[!] 잘못된 입력입니다. 1번부터 9번까지의 숫자를 입력하세요.')
+                print('[!] 잘못된 입력입니다. 0번부터 9번까지의 숫자를 입력하세요.')
 
     finally:
         if rviz_proc:
