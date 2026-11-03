@@ -60,6 +60,8 @@
       <!-- 명령 기록은 실물·가짜 핑키와 다른 파일에 둔다 -->
       <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml">
         <arg name="db_path" value="~/.ros/cobot_control_center/tasks_gazebo.db"/>
+        <!-- 격리 도메인(140)이라 가짜 핑키처럼 작업 명령 켜진 채로 시작한다 -->
+        <arg name="start_armed" value="true"/>
       </include>
     </group>
   </group>
