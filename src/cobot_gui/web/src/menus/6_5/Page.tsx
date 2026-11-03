@@ -77,18 +77,20 @@ export default function Page({ menu }: MenuPageProps) {
     { id: "pinky2", name: "Pinky 2호기 (P2)", x: 1.41, y: 1.86, z: 0.08, heading: -Math.PI / 2, color: "#06b6d4" },
     { id: "pinky3", name: "Pinky 3호기 (P3)", x: 1.41, y: 1.66, z: 0.08, heading: -Math.PI / 2, color: "#10b981" },
   ]);
+  const pinkiesRef = useRef(pinkies);
+  pinkiesRef.current = pinkies;
 
-  // 4. 로봇팔 3대 3D 물리 모델 상태 (OMX 1: 상차1, OMX 2: 상차2, OMX 3: 하차)
+  // 4. 로봇팔 3대 3D 물리 모델 상태 (OMX 1: 상차1 ZA, OMX 2: 상차2 ZB, OMX 3: 하차 ZC)
   const [arms, setArms] = useState<ArmState[]>([
-    { id: "omx_1", name: "OMX 1호기 (ZA)", baseX: 2.015, baseY: 2.105, baseZ: 0.15, shoulderYaw: 0, shoulderPitch: 0.3, elbowPitch: -0.6, gripperState: "OPEN" },
-    { id: "omx_2", name: "OMX 2호기 (ZB)", baseX: 2.015, baseY: 1.5375, baseZ: 0.15, shoulderYaw: 0, shoulderPitch: 0.3, elbowPitch: -0.6, gripperState: "OPEN" },
-    { id: "omx_3", name: "OMX 3호기 (ZC)", baseX: 0.415, baseY: 1.85, baseZ: 0.15, shoulderYaw: 0, shoulderPitch: 0.3, elbowPitch: -0.6, gripperState: "OPEN" },
+    { id: "omx_1", name: "OMX 1호기 (ZA)", baseX: 2.015, baseY: 2.139, baseZ: 0.15, shoulderYaw: 0, shoulderPitch: 0.3, elbowPitch: -0.6, gripperState: "OPEN" },
+    { id: "omx_2", name: "OMX 2호기 (ZB)", baseX: 2.015, baseY: 1.489, baseZ: 0.15, shoulderYaw: 0, shoulderPitch: 0.3, elbowPitch: -0.6, gripperState: "OPEN" },
+    { id: "omx_3", name: "OMX 3호기 (ZC)", baseX: 0.915, baseY: 1.939, baseZ: 0.15, shoulderYaw: 0, shoulderPitch: 0.3, elbowPitch: -0.6, gripperState: "OPEN" },
   ]);
 
   // 5. 물류 박스 3D 위치
   const [cargo, setCargo] = useState<CargoBox>({
     x: 2.015,
-    y: 2.105,
+    y: 2.139,
     z: 0.18,
     attachedTo: "TABLE_ZA",
   });
@@ -260,8 +262,8 @@ export default function Page({ menu }: MenuPageProps) {
 
       // 실측 변환 주요 웨이포인트 시각화 (P1, P2, P6)
       [
-        { name: "P1", x: 1.415, y: 2.139 },
-        { name: "P2", x: 1.695, y: 2.139 },
+        { name: "P1", x: 1.585, y: 1.039 },
+        { name: "P2", x: 1.865, y: 1.039 },
         { name: "P6(게이트)", x: 1.165, y: 0.189 },
       ].forEach((wp) => {
         const pWp = project3D({ x: wp.x, y: wp.y, z: 0 }, width, height);
@@ -276,11 +278,11 @@ export default function Page({ menu }: MenuPageProps) {
       });
 
       // D. 고정 작업대 및 스테이션 베이스 그리기
-      // 1) 상차대 1 (ZA) & 2 (ZB)
+      // 1) 상차대 1 (ZA) & 2 (ZB) & 매장 하차대 (ZC)
       [
-        { name: "ZA (상차 1)", x: 2.015, y: 2.105, color: "#9333ea" },
-        { name: "ZB (상차 2)", x: 2.015, y: 1.5375, color: "#7e22ce" },
-        { name: "ZC (매장 하차)", x: 0.415, y: 1.85, color: "#2563eb" },
+        { name: "ZA (상차 1)", x: 2.015, y: 2.139, color: "#9333ea" },
+        { name: "ZB (상차 2)", x: 2.015, y: 1.489, color: "#7e22ce" },
+        { name: "ZC (매장 하차)", x: 0.915, y: 1.939, color: "#2563eb" },
         { name: "고객 벤치", x: 0.29, y: 1.31, color: "#059669" },
       ].forEach((st) => {
         const pBase = project3D({ x: st.x, y: st.y, z: 0 }, width, height);
@@ -512,9 +514,9 @@ export default function Page({ menu }: MenuPageProps) {
       );
     }, 150);
 
-    const startX = pinkies[0].x;
-    const startY = pinkies[0].y;
-    const startH = pinkies[0].heading;
+    const startX = pinkiesRef.current[0].x;
+    const startY = pinkiesRef.current[0].y;
+    const startH = pinkiesRef.current[0].heading;
     const startTime = performance.now();
     const duration = 2400; // 2.4초 부드러운 물리 이동
 
@@ -603,9 +605,9 @@ export default function Page({ menu }: MenuPageProps) {
       // 박스 위치 동기화
       if (actionType === "PICK_TO_PINKY") {
         if (progress > 0.45 && progress < 0.9) {
-          setCargo({ x: 2.015 - progress * 0.15, y: 2.105, z: 0.28, attachedTo: "OMX_1" });
+          setCargo({ x: 2.015 - progress * 0.15, y: 2.139, z: 0.28, attachedTo: "OMX_1" });
         } else if (progress >= 0.9) {
-          setCargo({ x: pinkies[0].x, y: pinkies[0].y, z: 0.18, attachedTo: "PINKY_1" });
+          setCargo({ x: pinkiesRef.current[0].x, y: pinkiesRef.current[0].y, z: 0.18, attachedTo: "PINKY_1" });
         }
       } else {
         // UNLOAD_TO_BENCH
@@ -647,7 +649,7 @@ export default function Page({ menu }: MenuPageProps) {
       addLog("ALERT", "E-STOP", "pinky1", "비상 정지 상태로 인해 동작 신호 거부됨");
       return;
     }
-    const current = pinkies[0];
+    const current = pinkiesRef.current[0];
     const newHeading = current.heading + (rotDeg * Math.PI) / 180;
     const newX = current.x + dist * Math.cos(newHeading);
     const newY = current.y + dist * Math.sin(newHeading);
@@ -662,7 +664,14 @@ export default function Page({ menu }: MenuPageProps) {
   };
 
   // 팀 순찰 프로토콜 (patrol_cmd) 신호 인젝션
-  const executePatrolCmd = (cmdText: string, targetX: number, targetY: number, targetHeading: number, taskName: string) => {
+  const executePatrolCmd = (
+    cmdText: string,
+    targetX: number,
+    targetY: number,
+    targetHeading: number,
+    taskName: string,
+    onDone?: () => void,
+  ) => {
     if (isEStopped) {
       addLog("ALERT", "E-STOP", "pinky1", "비상 정지 상태로 인해 순찰 명령 거부됨");
       return;
@@ -674,20 +683,69 @@ export default function Page({ menu }: MenuPageProps) {
       `[patrol_cmd 인젝션] 명령: "${cmdText}" -> 목표 웨이포인트: [${targetX.toFixed(2)}, ${targetY.toFixed(2)}]`,
     );
 
-    const currentX = pinkies[0].x;
+    const currentX = pinkiesRef.current[0].x;
     // 창고(X > 1.25)와 매장(X < 1.25) 경계 교차 시 67cm 통로 게이트 자동 경유
     if ((currentX > 1.25 && targetX < 1.25) || (currentX < 1.25 && targetX > 1.25)) {
       addLog("ACK", taskName, "routing_engine", "중앙 격벽 통과 감지: 67cm 협소 게이트(1.25, 0.335) 자동 경유 라우팅 적용");
       executeMovePinky(1.25, 0.335, currentX > 1.25 ? -Math.PI : 0, `${taskName}_GATE`, () => {
         executeMovePinky(targetX, targetY, targetHeading, taskName, () => {
           addLog("DONE", taskName, "pinky1/patrol_status", `순찰 완료: 상태 DONE (최종 좌표: [${targetX.toFixed(2)}, ${targetY.toFixed(2)}])`);
+          if (onDone) onDone();
         });
       });
     } else {
       executeMovePinky(targetX, targetY, targetHeading, taskName, () => {
         addLog("DONE", taskName, "pinky1/patrol_status", `순찰 완료: 상태 DONE (최종 좌표: [${targetX.toFixed(2)}, ${targetY.toFixed(2)}])`);
+        if (onDone) onDone();
       });
     }
+  };
+
+  // 복수 웨이포인트 순차 경유 실행기 (goto:P1,P2,P6 등)
+  const executePatrolQueue = (
+    cmdText: string,
+    wps: Array<{ name: string; x: number; y: number; heading: number }>,
+    taskName: string,
+  ) => {
+    if (isEStopped) {
+      addLog("ALERT", "E-STOP", "pinky1", "비상 정지 상태로 인해 순찰 큐 명령 거부됨");
+      return;
+    }
+    if (wps.length === 0) return;
+
+    addLog(
+      "SEND",
+      taskName,
+      "pinky1/patrol_cmd",
+      `[patrol_cmd 인젝션] 명령: "${cmdText}" -> 총 ${wps.length}개 웨이포인트 큐 등록: ${wps.map((w) => w.name).join(" -> ")}`,
+    );
+
+    const runQueueStep = (index: number) => {
+      if (index >= wps.length) {
+        addLog(
+          "DONE",
+          taskName,
+          "pinky1/patrol_status",
+          `순찰 큐 완료: 모든 웨이포인트 경유 성공 (${wps.map((w) => w.name).join(" -> ")})`,
+        );
+        return;
+      }
+      const target = wps[index];
+      const stepTask = `${taskName}_${target.name}`;
+
+      executePatrolCmd(
+        `step:${target.name}`,
+        target.x,
+        target.y,
+        target.heading,
+        stepTask,
+        () => {
+          runQueueStep(index + 1);
+        },
+      );
+    };
+
+    runQueueStep(0);
   };
 
   // AMCL 초기 위치 강제 재설정
@@ -709,13 +767,13 @@ export default function Page({ menu }: MenuPageProps) {
   const handleRunFullSequence = () => {
     addLog("SEND", "FULL_AUTO", "coordinator", "전체 시퀀스 연속 검증 시작 (상차 -> 게이트 -> 하차 -> 복귀)");
     // Step 1: 상차대 이동
-    executeMovePinky(2.015, 2.105, 0, "T1_상차대_도킹", () => {
+    executeMovePinky(2.015, 2.139, -Math.PI / 2, "T1_상차대_도킹", () => {
       // Step 2: 상차
       executeArmAction(0, "PICK_TO_PINKY", "T2_상차_피킹", () => {
         // Step 3: 게이트 통과
         executeMovePinky(1.25, 0.335, -Math.PI / 2, "T3_게이트_통과", () => {
           // Step 4: 매장 하차대 이동
-          executeMovePinky(0.415, 1.85, Math.PI / 2, "T4_하차대_도킹", () => {
+          executeMovePinky(0.915, 1.939, Math.PI / 2, "T4_하차대_도킹", () => {
             // Step 5: 하차 및 벤치 전달
             executeArmAction(2, "UNLOAD_TO_BENCH", "T5_하차_배치", () => {
               // Step 6: 충전소 복귀
@@ -726,6 +784,8 @@ export default function Page({ menu }: MenuPageProps) {
           });
         });
       });
+    });
+  };
     });
   };
 
@@ -962,7 +1022,7 @@ export default function Page({ menu }: MenuPageProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
-                        onClick={() => executePatrolCmd("zone:ZA", 2.015, 2.105, 0, "PATROL_ZA")}
+                        onClick={() => executePatrolCmd("zone:ZA", 2.015, 2.139, -Math.PI / 2, "PATROL_ZA")}
                         disabled={isEStopped}
                       >
                         상차구역 진입 (zone:ZA)
@@ -971,7 +1031,14 @@ export default function Page({ menu }: MenuPageProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
-                        onClick={() => executePatrolCmd("leave", 1.415, 2.054, -Math.PI / 2, "PATROL_LEAVE")}
+                        onClick={() => {
+                          const currX = pinkiesRef.current[0].x;
+                          if (currX > 1.25) {
+                            executePatrolCmd("leave", 1.865, 1.839, -Math.PI / 2, "PATROL_LEAVE_ZA");
+                          } else {
+                            executePatrolCmd("leave", 1.215, 1.239, Math.PI / 2, "PATROL_LEAVE_ZC");
+                          }
+                        }}
                         disabled={isEStopped}
                       >
                         구역 퇴출 (leave)
@@ -980,7 +1047,7 @@ export default function Page({ menu }: MenuPageProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
-                        onClick={() => executePatrolCmd("zone:ZC", 0.415, 1.85, Math.PI / 2, "PATROL_ZC")}
+                        onClick={() => executePatrolCmd("zone:ZC", 0.915, 1.939, Math.PI / 2, "PATROL_ZC")}
                         disabled={isEStopped}
                       >
                         67cm 통과 하차 (zone:ZC)
@@ -989,7 +1056,17 @@ export default function Page({ menu }: MenuPageProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
-                        onClick={() => executePatrolCmd("goto:P1,P2,P6", 1.165, 0.189, 0, "PATROL_WAYPOINTS")}
+                        onClick={() =>
+                          executePatrolQueue(
+                            "goto:P1,P2,P6",
+                            [
+                              { name: "P1", x: 1.585, y: 1.039, heading: 0.0 },
+                              { name: "P2", x: 1.865, y: 1.039, heading: -Math.PI / 2 },
+                              { name: "P6", x: 1.165, y: 0.189, heading: 0.0 },
+                            ],
+                            "PATROL_WAYPOINTS",
+                          )
+                        }
                         disabled={isEStopped}
                       >
                         복합 순찰 (goto:P1,P2,P6)
@@ -1019,7 +1096,7 @@ export default function Page({ menu }: MenuPageProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                        onClick={() => executeMovePinky(2.015, 2.105, 0, "T1_상차대1_도킹")}
+                        onClick={() => executeMovePinky(2.015, 2.139, -Math.PI / 2, "T1_상차대1_도킹")}
                         disabled={isEStopped}
                       >
                         상차대 1 도킹 이동
@@ -1062,7 +1139,7 @@ export default function Page({ menu }: MenuPageProps) {
                         variant="outline"
                         size="sm"
                         className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                        onClick={() => executeMovePinky(0.415, 1.85, Math.PI / 2, "T4_하차대_도킹")}
+                        onClick={() => executeMovePinky(0.915, 1.939, Math.PI / 2, "T4_하차대_도킹")}
                         disabled={isEStopped}
                       >
                         하차대 도킹 이동
