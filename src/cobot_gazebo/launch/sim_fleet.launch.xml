@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  가제보 시뮬 전체: 월드 + 핑키 3대(각자 도메인, Nav2 + 실제 순찰 노드) + 관제 도메인(브릿지, zone_manager, 관제).
+    ros2 launch cobot_gazebo sim_fleet.launch.xml                  # 가제보 화면 + 관제 화면 http://localhost:8082/
+    ros2 launch cobot_gazebo sim_fleet.launch.xml headless:=true   # 화면 없이
+    ros2 launch cobot_gazebo sim_fleet.launch.xml pinky3:=false    # 2대만
+  관제 쪽 토픽 보기:  ROS_DOMAIN_ID=140 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 topic echo /pinky1/patrol_status
+
+  도메인은 실물과 겹치지 않게 고정한다 (실물 100 / 10·20·30  ->  시뮬 140 / 141·142·143).
+  config/domain_bridge_pinkyN.yaml 의 숫자와 같아야 하므로 인자로 받지 않는다 (test_launch_domains 가 확인).
+  ROS 와 가제보 통신 모두 이 PC 안에서만 돈다 (LOCALHOST, GZ_IP=127.0.0.1).
+-->
+<launch>
+  <arg name="pinky1" default="true" description="pinky1 을 띄울지"/>
+  <arg name="pinky2" default="true" description="pinky2 를 띄울지"/>
+  <arg name="pinky3" default="true" description="pinky3 를 띄울지"/>
+  <arg name="headless" default="false" description="true 면 가제보 화면 없이"/>
+  <arg name="with_control_center" default="true" description="관제(fleet_status·fleet_api·task_manager)도 띄울지"/>
+  <arg name="port" default="8082" description="관제 화면 포트 (실물 8080, 가짜 핑키 8081 과 겹치지 않게)"/>
+
+  <let name="control_domain" value="140"/>
+  <let name="pinky1_domain" value="141"/>
+  <let name="pinky2_domain" value="142"/>
+  <let name="pinky3_domain" value="143"/>
+
+  <set_env name="ROS_AUTOMATIC_DISCOVERY_RANGE" value="LOCALHOST"/>
+  <set_env name="ROS_STATIC_PEERS" value=""/>
+  <set_env name="GZ_IP" value="127.0.0.1"/>
+  <set_env name="GZ_PARTITION" value="cobot_sim"/>
+
+  <!-- 관제 도메인 -->
+  <group>
+    <set_env name="ROS_DOMAIN_ID" value="$(var control_domain)"/>
+
+    <!-- 도메인 검사: 실물 도메인이면 이 노드가 끝나고 시뮬 전체가 내려간다 -->
+    <node pkg="cobot_gazebo" exec="sim_guard_node" name="sim_guard_node" output="screen" on_exit="shutdown">
+      <param name="control_domain" value="$(var control_domain)"/>
+      <param name="robot_names" value="[pinky1, pinky2, pinky3]"/>
+      <param name="robot_domains" value="[$(var pinky1_domain), $(var pinky2_domain), $(var pinky3_domain)]"/>
+    </node>
+
+    <!-- 실물 bridges.launch.xml 은 ros2 run 으로 띄우지만, 그러면 종료 때 실제 브릿지가 남는다. 실행 파일을 직접 띄운다 -->
+    <executable cmd="$(find-pkg-prefix cobot_domain_bridge)/lib/cobot_domain_bridge/domain_bridge $(find-pkg-share cobot_gazebo)/config/domain_bridge_pinky1.yaml"
+                name="sim_bridge_pinky1" output="screen" if="$(var pinky1)"/>
+    <executable cmd="$(find-pkg-prefix cobot_domain_bridge)/lib/cobot_domain_bridge/domain_bridge $(find-pkg-share cobot_gazebo)/config/domain_bridge_pinky2.yaml"
+                name="sim_bridge_pinky2" output="screen" if="$(var pinky2)"/>
+    <executable cmd="$(find-pkg-prefix cobot_domain_bridge)/lib/cobot_domain_bridge/domain_bridge $(find-pkg-share cobot_gazebo)/config/domain_bridge_pinky3.yaml"
+                name="sim_bridge_pinky3" output="screen" if="$(var pinky3)"/>
+
+    <include file="$(find-pkg-share cobot_zone_traffic_control)/launch/zone_manager.launch.xml"/>
+
+    <group if="$(var with_control_center)">
+      <include file="$(find-pkg-share cobot_control_center)/launch/fleet_status.launch.xml"/>
+      <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
+        <arg name="port" value="$(var port)"/>
+      </include>
+      <!-- 명령 기록은 실물·가짜 핑키와 다른 파일에 둔다 -->
+      <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml">
+        <arg name="db_path" value="~/.ros/cobot_control_center/tasks_gazebo.db"/>
+      </include>
+    </group>
+  </group>
+
+  <include file="$(find-pkg-share cobot_gazebo)/launch/sim_world.launch.xml">
+    <arg name="headless" value="$(var headless)"/>
+  </include>
+
+  <!-- 홈 위치 = config/pinkyN.yaml 의 I1 / I2 / I3 -->
+  <include file="$(find-pkg-share cobot_gazebo)/launch/sim_robot.launch.xml" if="$(var pinky1)">
+    <arg name="robot" value="pinky1"/>
+    <arg name="domain" value="$(var pinky1_domain)"/>
+    <arg name="x" value="0.0"/>
+    <arg name="y" value="0.0"/>
+  </include>
+  <include file="$(find-pkg-share cobot_gazebo)/launch/sim_robot.launch.xml" if="$(var pinky2)">
+    <arg name="robot" value="pinky2"/>
+    <arg name="domain" value="$(var pinky2_domain)"/>
+    <arg name="x" value="0.0"/>
+    <arg name="y" value="-0.2"/>
+  </include>
+  <include file="$(find-pkg-share cobot_gazebo)/launch/sim_robot.launch.xml" if="$(var pinky3)">
+    <arg name="robot" value="pinky3"/>
+    <arg name="domain" value="$(var pinky3_domain)"/>
+    <arg name="x" value="0.0"/>
+    <arg name="y" value="-0.4"/>
+  </include>
+</launch>

@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  시뮬 핑키 한 대: 가제보 소환 + ros_gz 연결 + Nav2 + 가짜 LED + 실제 순찰 노드.
+  모든 노드는 이 로봇의 도메인(domain)에서 돈다. 실물 로봇 PC 에서 도는 것과 같은 구성이다.
+  가제보 토픽 /model/<robot>/* 을 이 도메인의 /cmd_vel, /odom, /scan, /tf, /joint_states 로 바꾼다.
+  보통은 sim_fleet.launch.xml 이 include 한다.
+-->
+<launch>
+  <arg name="robot" description="pinky1 / pinky2 / pinky3 (순찰 노드·설정 이름)"/>
+  <arg name="domain" description="이 로봇의 ROS_DOMAIN_ID (시뮬 141~143)"/>
+  <arg name="x" default="0.0" description="소환·초기 위치 [m] (map 좌표 = 월드 좌표)"/>
+  <arg name="y" default="0.0"/>
+  <arg name="yaw" default="0.0" description="[rad]"/>
+  <arg name="world" default="cobot_sim" description="SDF world name (map_to_world_utils.WORLD_NAME)"/>
+
+  <group>
+    <set_env name="ROS_DOMAIN_ID" value="$(var domain)"/>
+
+    <node pkg="robot_state_publisher" exec="robot_state_publisher" name="robot_state_publisher" output="screen">
+      <param name="robot_description" type="str"
+             value="$(command 'xacro $(find-pkg-share cobot_gazebo)/urdf/pinky_sim.urdf.xacro robot_name:=$(var robot)')"/>
+      <param name="use_sim_time" value="true"/>
+    </node>
+
+    <node pkg="ros_gz_sim" exec="create" name="spawn_$(var robot)" output="screen"
+          args="-world $(var world) -name $(var robot) -topic robot_description -x $(var x) -y $(var y) -z 0.005 -Y $(var yaw)"/>
+
+    <!-- [ : 가제보 -> ROS,  ] : ROS -> 가제보 -->
+    <node pkg="ros_gz_bridge" exec="parameter_bridge" name="gz_bridge" output="screen"
+          args="/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock
+                /model/$(var robot)/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist
+                /model/$(var robot)/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry
+                /model/$(var robot)/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V
+                /model/$(var robot)/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan
+                /model/$(var robot)/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model">
+      <param name="use_sim_time" value="true"/>
+      <remap from="/model/$(var robot)/cmd_vel" to="/cmd_vel"/>
+      <remap from="/model/$(var robot)/odom" to="/odom"/>
+      <remap from="/model/$(var robot)/tf" to="/tf"/>
+      <remap from="/model/$(var robot)/scan" to="/scan"/>
+      <remap from="/model/$(var robot)/joint_states" to="/joint_states"/>
+    </node>
+
+    <include file="$(find-pkg-share cobot_gazebo)/launch/sim_nav2.launch.xml">
+      <arg name="x" value="$(var x)"/>
+      <arg name="y" value="$(var y)"/>
+      <arg name="yaw" value="$(var yaw)"/>
+    </include>
+
+    <node pkg="cobot_gazebo" exec="fake_led_node" name="fake_led_node" output="screen"/>
+    <node pkg="cobot_gazebo" exec="fake_battery_node" name="fake_battery_node" output="screen">
+      <param from="$(find-pkg-share cobot_gazebo)/config/fake_battery_node.yaml"/>
+    </node>
+
+    <!-- 순찰 노드는 ~/.pinky_last_pose.json 을 첫 명령 때 AMCL 초기 위치로 쓴다. 3대가 한 파일을 나눠 쓰지 않게
+         로봇마다 HOME 을 따로 주고, 매번 홈에 소환되므로 그 파일을 소환 위치로 다시 쓴다 (last_pose_utils.py).
+         파일은 첫 명령 때 읽으므로 아래 노드보다 늦게 끝나도 된다 -->
+    <let name="patrol_home" value="$(env HOME)/.ros/cobot_gazebo/$(var robot)"/>
+    <executable cmd="$(find-pkg-prefix cobot_gazebo)/lib/cobot_gazebo/reset_last_pose $(var patrol_home) $(var x) $(var y) $(var yaw)"
+                name="reset_last_pose" output="screen"/>
+
+    <!-- 실제 순찰 노드 (cobot_pinky_patrol, 수정 없이). 이 param 은 같은 프로세스의 basic_navigator 에도 적용된다 -->
+    <node pkg="cobot_pinky_patrol" exec="pinky_patrol_node_$(var robot)" name="pinky_patrol_node" output="screen">
+      <param from="$(find-pkg-share cobot_pinky_patrol)/config/$(var robot).yaml"/>
+      <param name="use_sim_time" value="true"/>
+      <!-- HOME 만 바꾸고 ROS 로그·파이썬 사용자 패키지 자리는 원래대로 둔다 -->
+      <env name="HOME" value="$(var patrol_home)"/>
+      <env name="ROS_HOME" value="$(env ROS_HOME $(env HOME)/.ros)"/>
+      <env name="PYTHONUSERBASE" value="$(env HOME)/.local"/>
+    </node>
+  </group>
+</launch>

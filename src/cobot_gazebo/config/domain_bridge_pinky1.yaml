@@ -1,0 +1,102 @@
+# 시뮬용 도메인 브릿지 (pinky1). 원본: cobot_navigation/cobot_domain_bridge/config/pinky_bridge_pinky1.yaml (2026-11-03)
+# 바꾼 곳: 도메인 100 -> 140(시뮬 관제), 10 -> 141(시뮬 pinky1).
+# 뺀 곳: /battery_state·차선 토픽 (시뮬 로봇이 내지 않음). 배터리 Float32 두 개는 fake_battery_node 가 낸다. 원본 토픽 목록이 바뀌면 이 파일도 맞춘다.
+name: sim_bridge_pinky1
+
+topics:
+  /pinky1/patrol_cmd:
+    type: std_msgs/msg/String
+    from_domain: 140
+    to_domain: 141
+    remap: /patrol_cmd
+
+  /patrol_status:
+    type: std_msgs/msg/String
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/patrol_status
+
+  /pinky1/cmd_vel:
+    type: geometry_msgs/msg/Twist
+    from_domain: 140
+    to_domain: 141
+    remap: /cmd_vel
+
+  /pinky1/initialpose:
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    from_domain: 140
+    to_domain: 141
+    remap: /initialpose
+
+  /pinky1/goal_pose:
+    type: geometry_msgs/msg/PoseStamped
+    from_domain: 140
+    to_domain: 141
+    remap: /goal_pose
+
+  /scan:
+    type: sensor_msgs/msg/LaserScan
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/scan
+
+  /odom:
+    type: nav_msgs/msg/Odometry
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/odom
+
+  /tf:
+    type: tf2_msgs/msg/TFMessage
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/tf
+
+  /tf_static:
+    type: tf2_msgs/msg/TFMessage
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/tf_static
+
+  /amcl_pose:
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/amcl_pose
+
+  /zone_manager/request_entry:
+    type: std_msgs/msg/String
+    from_domain: 141
+    to_domain: 140
+
+  /zone_manager/notify_exit:
+    type: std_msgs/msg/String
+    from_domain: 141
+    to_domain: 140
+
+  /zone_manager/cancel_entry:
+    type: std_msgs/msg/String
+    from_domain: 141
+    to_domain: 140
+
+  /zone_manager/grant_entry:
+    type: std_msgs/msg/String
+    from_domain: 140
+    to_domain: 141
+
+  /zone_manager/queue_slot:
+    type: std_msgs/msg/String
+    from_domain: 140
+    to_domain: 141
+
+  /battery/percent:
+    type: std_msgs/msg/Float32
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/battery/percent
+
+  /battery/voltage:
+    type: std_msgs/msg/Float32
+    from_domain: 141
+    to_domain: 140
+    remap: /pinky1/battery/voltage

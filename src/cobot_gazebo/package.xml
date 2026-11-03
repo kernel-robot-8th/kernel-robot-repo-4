@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_gazebo</name>
+  <version>0.0.0</version>
+  <description>가제보 시뮬레이션: v9 지도 월드에 핑키 3대를 띄우고 로봇마다 Nav2 + 실제 순찰 노드(cobot_pinky_patrol)를 돌린다. 실제 cobot_domain_bridge·zone_manager 로 관제 도메인에 연결해 실물과 같은 /pinkyN/* 토픽을 낸다. 실물 도메인(0·10·12·20·30·100)에서는 시작하지 않는다 (시뮬 도메인 140·141~143).</description>
+  <maintainer email="bebe217@gmail.com">jihye kim</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- 가제보 Harmonic 과 ROS 연결 -->
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <!-- Nav2 노드 (실물 nav2_params.yaml 의 노드 구성 그대로) -->
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_smoother</exec_depend>
+  <exec_depend>nav2_behaviors</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+  <exec_depend>nav2_waypoint_follower</exec_depend>
+  <exec_depend>nav2_velocity_smoother</exec_depend>
+  <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
+  <exec_depend>nav2_navfn_planner</exec_depend>
+  <exec_depend>nav2_simple_commander</exec_depend>
+  <!-- 실제 순찰·구역·브릿지 (코드는 import 하지 않고 실행·설정 파일만 쓴다) -->
+  <exec_depend>cobot_pinky_patrol</exec_depend>
+  <exec_depend>cobot_zone_traffic_control</exec_depend>
+  <exec_depend>cobot_domain_bridge</exec_depend>
+  <!-- sim_fleet.launch.xml 이 관제 노드를 함께 띄운다 (with_control_center:=false 면 안 띄움) -->
+  <exec_depend>cobot_control_center</exec_depend>
+  <!-- 시뮬용 대체 SetLed (src/pinky_interfaces_stub) -->
+  <exec_depend>pinky_interfaces</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

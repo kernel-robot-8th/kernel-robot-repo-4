@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  로봇 한 대의 Nav2 (sim_robot.launch.xml 이 로봇 도메인 안에서 include 한다).
+  노드 구성은 실물 nav2_params.yaml 에 있는 노드 그대로다 (collision_monitor·docking 없음).
+  토픽 연결은 nav2_bringup(navigation_launch.py)과 같다:
+    controller·behavior -> cmd_vel_nav -> velocity_smoother -> cmd_vel
+  네임스페이스는 쓰지 않는다. 로봇마다 도메인이 달라 실물처럼 '혼자 있는 로봇' 이다.
+-->
+<launch>
+  <arg name="params" default="$(find-pkg-share cobot_gazebo)/config/nav2_sim.yaml"/>
+  <arg name="map" default="$(find-pkg-share cobot_gazebo)/config/map/cobot_map_v9.yaml"/>
+  <arg name="x" default="0.0" description="AMCL 초기 위치 [m]"/>
+  <arg name="y" default="0.0" description="AMCL 초기 위치 [m]"/>
+  <arg name="yaw" default="0.0" description="AMCL 초기 방향 [rad]"/>
+
+  <!-- 위치 추정 -->
+  <node pkg="nav2_map_server" exec="map_server" name="map_server" output="screen">
+    <param from="$(var params)"/>
+    <param name="yaml_filename" value="$(var map)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+  <node pkg="nav2_amcl" exec="amcl" name="amcl" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+    <param name="initial_pose.x" value="$(var x)"/>
+    <param name="initial_pose.y" value="$(var y)"/>
+    <param name="initial_pose.yaw" value="$(var yaw)"/>
+  </node>
+  <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager" name="lifecycle_manager_localization" output="screen">
+    <param name="use_sim_time" value="true"/>
+    <param name="autostart" value="true"/>
+    <param name="node_names" value="[map_server, amcl]"/>
+  </node>
+
+  <!-- 주행 -->
+  <node pkg="nav2_controller" exec="controller_server" name="controller_server" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+    <remap from="cmd_vel" to="cmd_vel_nav"/>
+  </node>
+  <node pkg="nav2_smoother" exec="smoother_server" name="smoother_server" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+  <node pkg="nav2_planner" exec="planner_server" name="planner_server" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+  <node pkg="nav2_behaviors" exec="behavior_server" name="behavior_server" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+    <remap from="cmd_vel" to="cmd_vel_nav"/>
+  </node>
+  <node pkg="nav2_bt_navigator" exec="bt_navigator" name="bt_navigator" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+  <node pkg="nav2_waypoint_follower" exec="waypoint_follower" name="waypoint_follower" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+  <node pkg="nav2_velocity_smoother" exec="velocity_smoother" name="velocity_smoother" output="screen">
+    <param from="$(var params)"/>
+    <param name="use_sim_time" value="true"/>
+    <remap from="cmd_vel" to="cmd_vel_nav"/>
+    <remap from="cmd_vel_smoothed" to="cmd_vel"/>
+  </node>
+  <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager" name="lifecycle_manager_navigation" output="screen">
+    <param name="use_sim_time" value="true"/>
+    <param name="autostart" value="true"/>
+    <param name="node_names"
+           value="[controller_server, smoother_server, planner_server, behavior_server, bt_navigator, waypoint_follower, velocity_smoother]"/>
+  </node>
+</launch>

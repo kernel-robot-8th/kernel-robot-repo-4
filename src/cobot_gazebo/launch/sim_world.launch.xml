@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  가제보 월드 (v9 지도). 로봇 도메인과 상관없이 하나만 띄운다.
+  headless:=true 면 화면 없이 서버만 (라이다는 화면 없이 렌더링한다).
+
+  ros_gz_sim 의 gz_sim.launch.py 는 셸(sh -c)로 띄워서, launch 를 끄면 셸만 죽고
+  가제보 서버가 남는다 (남은 서버가 다음 실행의 로봇을 받아 버림). 그래서 gz 를 직접 띄운다.
+  기본 플러그인만 쓰므로 gz_sim.launch.py 가 넣는 플러그인·모델 경로 환경 변수는 필요 없다.
+-->
+<launch>
+  <arg name="world_file" default="$(find-pkg-share cobot_gazebo)/worlds/cobot_map_v9.sdf"/>
+  <arg name="headless" default="false" description="true 면 가제보 화면 없이 서버만"/>
+
+  <executable cmd="gz sim -r $(var world_file) --force-version 8"
+              name="gazebo" output="screen" unless="$(var headless)"/>
+  <executable cmd="gz sim -r -s --headless-rendering $(var world_file) --force-version 8"
+              name="gazebo" output="screen" if="$(var headless)"/>
+</launch>
