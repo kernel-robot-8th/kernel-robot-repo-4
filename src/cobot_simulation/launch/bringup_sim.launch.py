@@ -27,6 +27,14 @@ def generate_launch_description():
     default_config = os.path.join(pkg_dir, 'config', 'sim_params.yaml')
     default_rviz = os.path.join(pkg_dir, 'rviz', 'cobot_fleet.rviz')
 
+    try:
+        bringup_dir = get_package_share_directory('cobot_bringup')
+        default_map = os.path.join(bringup_dir, 'config', 'maps', 'map_shoe_store_1021_gate67.yaml')
+    except Exception:
+        default_map = os.path.expanduser(
+            '~/kernel-robot-repo-4/src/cobot_bringup/config/maps/map_shoe_store_1021_gate67.yaml'
+        )
+
     rate_arg = DeclareLaunchArgument(
         'rate_hz', default_value='50.0', description='Loop frequency (Hz)'
     )
@@ -42,11 +50,45 @@ def generate_launch_description():
     config_arg = DeclareLaunchArgument(
         'config_file', default_value=default_config, description='Path to parameter YAML'
     )
+    map_arg = DeclareLaunchArgument(
+        'map', default_value=default_map, description='Path to official project map YAML'
+    )
+    use_map_server_arg = DeclareLaunchArgument(
+        'use_map_server',
+        default_value='true',
+        description='Launch nav2_map_server for project official map',
+    )
     rviz_arg = DeclareLaunchArgument(
         'rviz', default_value='false', description='Launch RViz2 visualizer'
     )
     rviz_config_arg = DeclareLaunchArgument(
         'rviz_config', default_value=default_rviz, description='Path to RViz configuration file'
+    )
+
+    map_server_node = Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
+        output='screen',
+        parameters=[{
+            'yaml_filename': LaunchConfiguration('map'),
+            'topic_name': 'map',
+            'frame_id': 'map',
+        }],
+        condition=IfCondition(LaunchConfiguration('use_map_server')),
+    )
+
+    lifecycle_manager_node = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_map',
+        output='screen',
+        parameters=[{
+            'use_sim_time': False,
+            'autostart': True,
+            'node_names': ['map_server'],
+        }],
+        condition=IfCondition(LaunchConfiguration('use_map_server')),
     )
 
     sim_node = Node(
@@ -80,8 +122,12 @@ def generate_launch_description():
         lidar_arg,
         pinky_arg,
         config_arg,
+        map_arg,
+        use_map_server_arg,
         rviz_arg,
         rviz_config_arg,
+        map_server_node,
+        lifecycle_manager_node,
         sim_node,
         rviz_node,
     ])

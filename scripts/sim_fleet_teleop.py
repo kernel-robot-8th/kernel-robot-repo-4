@@ -73,7 +73,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, PoseStamped, Point, Quaternion
 from nav_msgs.msg import Odometry
 
-# 2. 실행 중인 외부 시뮬레이터 감지
+# 2. 실행 중인 외부 시뮬레이터 및 맵 서버 감지
 def check_external_sim():
     for pid_dir in glob.glob('/proc/[0-9]*'):
         try:
@@ -84,6 +84,41 @@ def check_external_sim():
         except Exception:
             continue
     return False
+
+def check_map_server():
+    for pid_dir in glob.glob('/proc/[0-9]*'):
+        try:
+            with open(f'{pid_dir}/cmdline', 'rb') as f:
+                cmdline = f.read().decode('utf-8', errors='ignore')
+            if 'map_server' in cmdline and 'nav2' in cmdline:
+                return True
+        except Exception:
+            continue
+    return False
+
+def launch_map_server():
+    if check_map_server():
+        print('[*] 외부 맵 서버(map_server)가 이미 동작 중입니다.')
+        return None, None
+    map_yaml = os.path.expanduser(
+        '~/kernel-robot-repo-4/src/cobot_bringup/config/maps/map_shoe_store_1021_gate67.yaml'
+    )
+    if not os.path.exists(map_yaml):
+        print(f'[!] 정본 맵 파일을 찾을 수 없습니다: {map_yaml}')
+        return None, None
+    print(f'[*] 공식 정본 맵 서버(nav2_map_server)를 가동합니다... ({os.path.basename(map_yaml)})')
+    p_map = subprocess.Popen([
+        'ros2', 'run', 'nav2_map_server', 'map_server',
+        '--ros-args', '-p', f'yaml_filename:={map_yaml}',
+        '-p', 'topic_name:=map', '-p', 'frame_id:=map'
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(0.6)
+    p_life = subprocess.Popen([
+        'ros2', 'run', 'nav2_lifecycle_manager', 'lifecycle_manager',
+        '--ros-args', '-p', 'autostart:=true', '-p', 'node_names:=[\'map_server\']'
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(0.6)
+    return p_map, p_life
 
 RVIZ_CONFIG = os.path.expanduser('~/.rviz2/default.rviz')
 
@@ -238,6 +273,9 @@ def main():
 
     time.sleep(1.0)
 
+    # 맵 서버 가동
+    p_map, p_life = launch_map_server()
+
     # RViz2 실행
     rviz_proc = None
     if os.environ.get('DISPLAY'):
@@ -318,6 +356,16 @@ def main():
             try:
                 rviz_proc.terminate()
                 rviz_proc.wait(timeout=1.0)
+            except Exception:
+                pass
+        if p_life:
+            try:
+                p_life.terminate()
+            except Exception:
+                pass
+        if p_map:
+            try:
+                p_map.terminate()
             except Exception:
                 pass
         try:
