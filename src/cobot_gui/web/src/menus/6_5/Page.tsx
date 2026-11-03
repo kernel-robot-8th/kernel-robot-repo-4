@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MenuHeader from "@/shell/MenuHeader";
 import type { MenuPageProps } from "@/shell/types";
 
@@ -128,8 +129,8 @@ export default function Page({ menu }: MenuPageProps) {
 
   // 3D 투영 수학 함수 (Isometric / Perspective 3D -> 2D Canvas)
   const project3D = useCallback((p: Point3D, width: number, height: number): { x: number; y: number; scale: number; visible: boolean } => {
-    // 경기장 중심 (1.2m, 1.2m) 기준 상대 좌표 변환
-    const cx = p.x - 1.2;
+    // 경기장 중심 (1.25m, 1.2m) 기준 상대 좌표 변환
+    const cx = p.x - 1.25;
     const cy = p.y - 1.2;
     const cz = p.z;
 
@@ -180,11 +181,11 @@ export default function Page({ menu }: MenuPageProps) {
       ctx.fillStyle = "#0c0d10";
       ctx.fillRect(0, 0, width, height);
 
-      // A. 경기장 바닥 그리드 그리기 (2.4m x 2.4m)
+      // A. 경기장 바닥 그리드 그리기 (2.5m x 2.4m 정본)
       ctx.strokeStyle = "#1e2430";
       ctx.lineWidth = 1;
-      const step = 0.3; // 30cm 간격
-      for (let x = 0; x <= 2.4; x += step) {
+      const step = 0.25; // 25cm 간격
+      for (let x = 0; x <= 2.51; x += step) {
         const p1 = project3D({ x, y: 0, z: 0 }, width, height);
         const p2 = project3D({ x, y: 2.4, z: 0 }, width, height);
         if (p1.visible && p2.visible) {
@@ -194,9 +195,9 @@ export default function Page({ menu }: MenuPageProps) {
           ctx.stroke();
         }
       }
-      for (let y = 0; y <= 2.4; y += step) {
+      for (let y = 0; y <= 2.41; y += step) {
         const p1 = project3D({ x: 0, y, z: 0 }, width, height);
-        const p2 = project3D({ x: 2.4, y, z: 0 }, width, height);
+        const p2 = project3D({ x: 2.5, y, z: 0 }, width, height);
         if (p1.visible && p2.visible) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -205,11 +206,11 @@ export default function Page({ menu }: MenuPageProps) {
         }
       }
 
-      // B. 경기장 외곽선 및 벽면 (2.4m x 2.4m, 높이 0.15m)
+      // B. 경기장 외곽선 및 벽면 (2.5m x 2.4m, 높이 0.15m)
       const corners = [
         { x: 0, y: 0 },
-        { x: 2.4, y: 0 },
-        { x: 2.4, y: 2.4 },
+        { x: 2.5, y: 0 },
+        { x: 2.5, y: 2.4 },
         { x: 0, y: 2.4 },
       ];
       ctx.strokeStyle = "#3b82f6";
@@ -224,11 +225,11 @@ export default function Page({ menu }: MenuPageProps) {
       ctx.stroke();
 
       // C. 중앙 분리벽 및 67cm 가변 게이트 시각화
-      // 분리벽: X=1.2m 축, 게이트 위치 Y=0.335m 부근 (폭 0.67m: Y=0.0m ~ 0.67m 개방)
-      const gateBottom = project3D({ x: 1.2, y: 0.67, z: 0 }, width, height);
-      const gateTop = project3D({ x: 1.2, y: 2.4, z: 0 }, width, height);
-      const wallZ = project3D({ x: 1.2, y: 2.4, z: 0.18 }, width, height);
-      const wallZGate = project3D({ x: 1.2, y: 0.67, z: 0.18 }, width, height);
+      // 분리벽: X=1.25m 축, 게이트 위치 Y=0.0m ~ 0.67m 개방
+      const gateBottom = project3D({ x: 1.25, y: 0.67, z: 0 }, width, height);
+      const gateTop = project3D({ x: 1.25, y: 2.4, z: 0 }, width, height);
+      const wallZ = project3D({ x: 1.25, y: 2.4, z: 0.18 }, width, height);
+      const wallZGate = project3D({ x: 1.25, y: 0.67, z: 0.18 }, width, height);
 
       // 분리벽 상단 면
       ctx.fillStyle = "rgba(70, 85, 110, 0.45)";
@@ -244,10 +245,10 @@ export default function Page({ menu }: MenuPageProps) {
       ctx.stroke();
 
       // 게이트 통과 구역 하이라이트 (노란색 안전 빗금 바닥)
-      const g1 = project3D({ x: 1.05, y: 0.0, z: 0 }, width, height);
+      const g1 = project3D({ x: 1.15, y: 0.0, z: 0 }, width, height);
       const g2 = project3D({ x: 1.35, y: 0.0, z: 0 }, width, height);
       const g3 = project3D({ x: 1.35, y: 0.67, z: 0 }, width, height);
-      const g4 = project3D({ x: 1.05, y: 0.67, z: 0 }, width, height);
+      const g4 = project3D({ x: 1.15, y: 0.67, z: 0 }, width, height);
       ctx.fillStyle = "rgba(234, 179, 8, 0.25)";
       ctx.beginPath();
       ctx.moveTo(g1.x, g1.y);
@@ -256,6 +257,23 @@ export default function Page({ menu }: MenuPageProps) {
       ctx.lineTo(g4.x, g4.y);
       ctx.closePath();
       ctx.fill();
+
+      // 실측 변환 주요 웨이포인트 시각화 (P1, P2, P6)
+      [
+        { name: "P1", x: 1.415, y: 2.139 },
+        { name: "P2", x: 1.695, y: 2.139 },
+        { name: "P6(게이트)", x: 1.165, y: 0.189 },
+      ].forEach((wp) => {
+        const pWp = project3D({ x: wp.x, y: wp.y, z: 0 }, width, height);
+        if (pWp.visible) {
+          ctx.strokeStyle = "#06b6d4";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(pWp.x - 3, pWp.y - 3, 6, 6);
+          ctx.fillStyle = "#67e8f9";
+          ctx.font = "8px monospace";
+          ctx.fillText(wp.name, pWp.x + 5, pWp.y);
+        }
+      });
 
       // D. 고정 작업대 및 스테이션 베이스 그리기
       // 1) 상차대 1 (ZA) & 2 (ZB)
@@ -417,7 +435,7 @@ export default function Page({ menu }: MenuPageProps) {
 
         ctx.fillStyle = "#78350f";
         ctx.font = "8px sans-serif";
-        ctx.fillText("📦SKU", boxP.x - 8 * bsc, boxP.y + 2 * bsc);
+        ctx.fillText("SKU", boxP.x - 8 * bsc, boxP.y + 2 * bsc);
       }
 
       animFrameRef.current = requestAnimationFrame(render);
@@ -615,12 +633,76 @@ export default function Page({ menu }: MenuPageProps) {
     if (!isEStopped) {
       setIsEStopped(true);
       setEngineStatus("PAUSED");
-      addLog("ALERT", "EMERGENCY_STOP", "all_nodes", "🚨 긴급 정지(E-STOP) 동작 신호 인젝션: 전 장치 모터 토크 차단");
+      addLog("ALERT", "EMERGENCY_STOP", "all_nodes", "[경고] 긴급 정지(E-STOP) 동작 신호 인젝션: 전 장치 모터 토크 차단");
     } else {
       setIsEStopped(false);
       setEngineStatus("ACTIVE");
-      addLog("ACK", "RECOVER", "all_nodes", "✅ 안전 복구 신호 송신: 50Hz 엔진 및 통신 정상화");
+      addLog("ACK", "RECOVER", "all_nodes", "[정상] 안전 복구 신호 송신: 50Hz 엔진 및 통신 정상화");
     }
+  };
+
+  // 수동 조작 (cmd_vel) 신호 인젝션
+  const executeTeleopMove = (dist: number, rotDeg: number, taskName: string) => {
+    if (isEStopped) {
+      addLog("ALERT", "E-STOP", "pinky1", "비상 정지 상태로 인해 동작 신호 거부됨");
+      return;
+    }
+    const current = pinkies[0];
+    const newHeading = current.heading + (rotDeg * Math.PI) / 180;
+    const newX = current.x + dist * Math.cos(newHeading);
+    const newY = current.y + dist * Math.sin(newHeading);
+
+    addLog(
+      "SEND",
+      taskName,
+      "pinky1/cmd_vel",
+      `[cmd_vel 수동 제어] dist: ${dist > 0 ? "+" : ""}${dist}m, rot: ${rotDeg}deg -> 목표: (${newX.toFixed(2)}, ${newY.toFixed(2)})`,
+    );
+    executeMovePinky(newX, newY, newHeading, taskName);
+  };
+
+  // 팀 순찰 프로토콜 (patrol_cmd) 신호 인젝션
+  const executePatrolCmd = (cmdText: string, targetX: number, targetY: number, targetHeading: number, taskName: string) => {
+    if (isEStopped) {
+      addLog("ALERT", "E-STOP", "pinky1", "비상 정지 상태로 인해 순찰 명령 거부됨");
+      return;
+    }
+    addLog(
+      "SEND",
+      taskName,
+      "pinky1/patrol_cmd",
+      `[patrol_cmd 인젝션] 명령: "${cmdText}" -> 목표 웨이포인트: [${targetX.toFixed(2)}, ${targetY.toFixed(2)}]`,
+    );
+
+    const currentX = pinkies[0].x;
+    // 창고(X > 1.25)와 매장(X < 1.25) 경계 교차 시 67cm 통로 게이트 자동 경유
+    if ((currentX > 1.25 && targetX < 1.25) || (currentX < 1.25 && targetX > 1.25)) {
+      addLog("ACK", taskName, "routing_engine", "중앙 격벽 통과 감지: 67cm 협소 게이트(1.25, 0.335) 자동 경유 라우팅 적용");
+      executeMovePinky(1.25, 0.335, currentX > 1.25 ? -Math.PI : 0, `${taskName}_GATE`, () => {
+        executeMovePinky(targetX, targetY, targetHeading, taskName, () => {
+          addLog("DONE", taskName, "pinky1/patrol_status", `순찰 완료: 상태 DONE (최종 좌표: [${targetX.toFixed(2)}, ${targetY.toFixed(2)}])`);
+        });
+      });
+    } else {
+      executeMovePinky(targetX, targetY, targetHeading, taskName, () => {
+        addLog("DONE", taskName, "pinky1/patrol_status", `순찰 완료: 상태 DONE (최종 좌표: [${targetX.toFixed(2)}, ${targetY.toFixed(2)}])`);
+      });
+    }
+  };
+
+  // AMCL 초기 위치 강제 재설정
+  const handleResetAmclPose = () => {
+    setPinkies((prev) => [
+      { ...prev[0], x: 1.41, y: 2.054, heading: -Math.PI / 2 },
+      prev[1],
+      prev[2],
+    ]);
+    addLog(
+      "ACK",
+      "AMCL_RESET",
+      "pinky1/initialpose",
+      "[AMCL 정본 맵 정렬] Initial Pose 재설정 완료: X=1.410m, Y=2.054m, Yaw=-90.0deg (cov: 0.05)",
+    );
   };
 
   // 전체 시나리오 순차 자동 실행 (End-to-End Test)
@@ -638,7 +720,7 @@ export default function Page({ menu }: MenuPageProps) {
             executeArmAction(2, "UNLOAD_TO_BENCH", "T5_하차_배치", () => {
               // Step 6: 충전소 복귀
               executeMovePinky(1.41, 2.05, -Math.PI / 2, "T6_충전소_복귀", () => {
-                addLog("DONE", "FULL_AUTO", "coordinator", "🏁 전체 시나리오 연속 검증 완료: 6단계 모션 성공");
+                addLog("DONE", "FULL_AUTO", "coordinator", "[완료] 전체 시나리오 연속 검증 완료: 6단계 모션 성공");
               });
             });
           });
@@ -701,7 +783,7 @@ export default function Page({ menu }: MenuPageProps) {
         <Card className="lg:col-span-7 rounded-none border border-border bg-[#101114] shadow-none flex flex-col">
           <CardHeader className="py-2.5 px-3 border-b border-border bg-[#16171b] flex flex-row items-center justify-between">
             <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
-              <span>🎮 브라우저 내장 3D 가상환경 뷰포트 (2.4m × 2.4m)</span>
+              <span>[시각화] 브라우저 내장 3D 가상환경 뷰포트 (2.5m x 2.4m 정본)</span>
               <span className="text-[10px] font-normal text-[#888888]">(마우스 드래그: 회전 | 휠: 줌)</span>
             </CardTitle>
             <div className="flex items-center gap-1.5">
@@ -711,7 +793,7 @@ export default function Page({ menu }: MenuPageProps) {
                 className="h-6 px-2 text-[10px] rounded-none bg-[#22242a] border-border text-[#cccccc] hover:text-white"
                 onClick={() => setPresetView("iso")}
               >
-                📐 입체뷰
+                입체뷰 (ISO)
               </Button>
               <Button
                 variant="outline"
@@ -719,7 +801,7 @@ export default function Page({ menu }: MenuPageProps) {
                 className="h-6 px-2 text-[10px] rounded-none bg-[#22242a] border-border text-[#cccccc] hover:text-white"
                 onClick={() => setPresetView("top")}
               >
-                🔝 탑뷰
+                탑뷰 (TOP)
               </Button>
               <Button
                 variant="outline"
@@ -727,7 +809,7 @@ export default function Page({ menu }: MenuPageProps) {
                 className="h-6 px-2 text-[10px] rounded-none bg-[#22242a] border-border text-[#cccccc] hover:text-white"
                 onClick={() => setPresetView("front")}
               >
-                👀 정면뷰
+                정면뷰 (FRONT)
               </Button>
               <Button
                 variant="outline"
@@ -777,7 +859,7 @@ export default function Page({ menu }: MenuPageProps) {
                 <span className="w-2.5 h-2.5 bg-purple-500 inline-block" />
                 <span>OMX 로봇팔 1~3 (5-DOF)</span>
                 <span className="w-2.5 h-2.5 bg-yellow-400 inline-block ml-2" />
-                <span className="text-yellow-300 font-bold">📦 화물 박스</span>
+                <span className="text-yellow-300 font-bold">화물 박스</span>
               </div>
               <div className="text-[9px] text-[#777777]">
                 중앙 협소 통로 게이트 폭: <b className="text-white">67cm</b> (노란 안전 구역)
@@ -788,11 +870,11 @@ export default function Page({ menu }: MenuPageProps) {
 
         {/* B. 우측 5컬럼: 세분화된 태스크 시나리오 인젝션 패널 & 통신 콘솔 */}
         <div className="lg:col-span-5 space-y-4 flex flex-col justify-between">
-          {/* 1. 세분화된 태스크 인젝션 컨트롤 */}
+          {/* 1. 세분화된 태스크 인젝션 컨트롤 (Tabs 구조) */}
           <Card className="rounded-none border border-border bg-[#121316] shadow-none">
             <CardHeader className="py-2 px-3 border-b border-border bg-[#18191f] flex flex-row items-center justify-between">
               <CardTitle className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>🎯 세분화 포인트별 태스크 동작 신호 인젝션</span>
+                <span>개발 및 디버깅 신호 인젝션 콘솔</span>
               </CardTitle>
               <Button
                 variant="destructive"
@@ -800,103 +882,215 @@ export default function Page({ menu }: MenuPageProps) {
                 className="h-6 px-2 text-[10px] rounded-none font-bold"
                 onClick={handleToggleEStop}
               >
-                {isEStopped ? "▶ E-STOP 해제" : "🚨 긴급 정지 (E-STOP)"}
+                {isEStopped ? "E-STOP 해제" : "긴급 정지 (E-STOP)"}
               </Button>
             </CardHeader>
             <CardContent className="p-3 space-y-3 font-sans">
-              {/* 태스크 그룹 1: 상차 구역 */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-purple-400 flex items-center justify-between">
-                  <span>1. 상차 구역 태스크 (Loading ZA)</span>
-                  <span className="font-mono text-[10px] text-[#888888]">WP_LOAD_1</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                    onClick={() => executeMovePinky(2.015, 2.105, 0, "T1_상차대1_도킹")}
-                    disabled={isEStopped}
-                  >
-                    ① 상차대 1 도킹 이동
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                    onClick={() => executeArmAction(0, "PICK_TO_PINKY", "T2_상차_피킹")}
-                    disabled={isEStopped}
-                  >
-                    ② OMX 1 피킹 & 상차
-                  </Button>
-                </div>
-              </div>
+              <Tabs defaultValue="nav_debug" className="w-full">
+                <TabsList className="w-full grid grid-cols-2 rounded-none bg-[#1a1c23] h-8 p-0">
+                  <TabsTrigger value="nav_debug" className="text-[11px] font-bold rounded-none h-8">
+                    주행 & 센서 디버깅
+                  </TabsTrigger>
+                  <TabsTrigger value="logistics_e2e" className="text-[11px] font-bold rounded-none h-8">
+                    물류 E2E 시퀀스
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* 태스크 그룹 2: 통로 이동 */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-yellow-400 flex items-center justify-between">
-                  <span>2. 협소 통로 게이트 태스크 (Gate Transit)</span>
-                  <span className="font-mono text-[10px] text-[#888888]">Width: 67cm</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-8 text-[11px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                  onClick={() => executeMovePinky(1.25, 0.335, -Math.PI / 2, "T3_게이트_통과")}
-                  disabled={isEStopped}
-                >
-                  ③ 67cm 협소 게이트 통과 주행 신호
-                </Button>
-              </div>
+                {/* 탭 1: 주행 & 센서 디버깅 콘솔 */}
+                <TabsContent value="nav_debug" className="space-y-3 pt-2">
+                  {/* A. 수동 조작 (cmd_vel) */}
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-cyan-400 flex items-center justify-between">
+                      <span>수동 이동 및 회전 제어 (/cmd_vel)</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-[10px] text-zinc-400 hover:text-white"
+                        onClick={handleResetAmclPose}
+                      >
+                        [AMCL 리셋]
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executeTeleopMove(0.25, 0, "전진_25cm")}
+                        disabled={isEStopped}
+                      >
+                        전진 25cm
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executeTeleopMove(-0.25, 0, "후진_25cm")}
+                        disabled={isEStopped}
+                      >
+                        후진 25cm
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executeTeleopMove(0, 45, "좌회전_45도")}
+                        disabled={isEStopped}
+                      >
+                        좌회전 45°
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executeTeleopMove(0, -45, "우회전_45도")}
+                        disabled={isEStopped}
+                      >
+                        우회전 45°
+                      </Button>
+                    </div>
+                  </div>
 
-              {/* 태스크 그룹 3: 매장 하차 & 고객 전달 */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-blue-400 flex items-center justify-between">
-                  <span>3. 매장 하차 & 전달 태스크 (Unloading ZC)</span>
-                  <span className="font-mono text-[10px] text-[#888888]">WP_UNLOAD</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                    onClick={() => executeMovePinky(0.415, 1.85, Math.PI / 2, "T4_하차대_도킹")}
-                    disabled={isEStopped}
-                  >
-                    ④ 하차대 도킹 이동
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                    onClick={() => executeArmAction(2, "UNLOAD_TO_BENCH", "T5_하차_배치")}
-                    disabled={isEStopped}
-                  >
-                    ⑤ OMX 3 하차 & 벤치 배치
-                  </Button>
-                </div>
-              </div>
+                  {/* B. 팀 순찰 프로토콜 인젝션 (/patrol_cmd) */}
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-amber-400 flex items-center justify-between">
+                      <span>팀 순찰 프로토콜 (/patrol_cmd)</span>
+                      <span className="font-mono text-[9px] text-[#888888]">cobot_pinky_patrol</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executePatrolCmd("zone:ZA", 2.015, 2.105, 0, "PATROL_ZA")}
+                        disabled={isEStopped}
+                      >
+                        상차구역 진입 (zone:ZA)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executePatrolCmd("leave", 1.415, 2.054, -Math.PI / 2, "PATROL_LEAVE")}
+                        disabled={isEStopped}
+                      >
+                        구역 퇴출 (leave)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executePatrolCmd("zone:ZC", 0.415, 1.85, Math.PI / 2, "PATROL_ZC")}
+                        disabled={isEStopped}
+                      >
+                        67cm 통과 하차 (zone:ZC)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                        onClick={() => executePatrolCmd("goto:P1,P2,P6", 1.165, 0.189, 0, "PATROL_WAYPOINTS")}
+                        disabled={isEStopped}
+                      >
+                        복합 순찰 (goto:P1,P2,P6)
+                      </Button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white"
+                      onClick={() => executePatrolCmd("home", 1.41, 2.054, -Math.PI / 2, "PATROL_HOME")}
+                      disabled={isEStopped}
+                    >
+                      홈 복귀 (home: WP_HOME_1)
+                    </Button>
+                  </div>
+                </TabsContent>
 
-              {/* 태스크 그룹 4: 충전 복귀 및 전체 연속 실행 */}
-              <div className="pt-1 border-t border-border/60 grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-[11px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
-                  onClick={() => executeMovePinky(1.41, 2.05, -Math.PI / 2, "T6_충전소_복귀")}
-                  disabled={isEStopped}
-                >
-                  ⑥ 충전소 1 복귀 주행
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 text-[11px] rounded-none bg-green-700 hover:bg-green-600 text-white font-bold"
-                  onClick={handleRunFullSequence}
-                  disabled={isEStopped}
-                >
-                  ⚡ 전체 시퀀스 연속 실행
-                </Button>
-              </div>
+                {/* 탭 2: 물류 E2E 시퀀스 콘솔 */}
+                <TabsContent value="logistics_e2e" className="space-y-3 pt-2">
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-purple-400 flex items-center justify-between">
+                      <span>1. 상차 구역 태스크 (Loading ZA)</span>
+                      <span className="font-mono text-[10px] text-[#888888]">WP_LOAD_1</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
+                        onClick={() => executeMovePinky(2.015, 2.105, 0, "T1_상차대1_도킹")}
+                        disabled={isEStopped}
+                      >
+                        상차대 1 도킹 이동
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
+                        onClick={() => executeArmAction(0, "PICK_TO_PINKY", "T2_상차_피킹")}
+                        disabled={isEStopped}
+                      >
+                        OMX 1 피킹 & 상차
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-yellow-400 flex items-center justify-between">
+                      <span>2. 협소 통로 게이트 태스크 (Gate Transit)</span>
+                      <span className="font-mono text-[10px] text-[#888888]">Width: 67cm</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
+                      onClick={() => executeMovePinky(1.25, 0.335, -Math.PI / 2, "T3_게이트_통과")}
+                      disabled={isEStopped}
+                    >
+                      67cm 협소 게이트 통과 주행 신호
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-blue-400 flex items-center justify-between">
+                      <span>3. 매장 하차 & 전달 태스크 (Unloading ZC)</span>
+                      <span className="font-mono text-[10px] text-[#888888]">WP_UNLOAD</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
+                        onClick={() => executeMovePinky(0.415, 1.85, Math.PI / 2, "T4_하차대_도킹")}
+                        disabled={isEStopped}
+                      >
+                        하차대 도킹 이동
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd] hover:text-white hover:bg-[#25272e]"
+                        onClick={() => executeArmAction(2, "UNLOAD_TO_BENCH", "T5_하차_배치")}
+                        disabled={isEStopped}
+                      >
+                        OMX 3 하차 & 벤치 배치
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 border-t border-border/60">
+                    <Button
+                      size="sm"
+                      className="w-full h-7 text-[10px] rounded-none bg-green-700 hover:bg-green-600 text-white font-bold"
+                      onClick={handleRunFullSequence}
+                      disabled={isEStopped}
+                    >
+                      전체 시퀀스 연속 실행 (E2E)
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 
@@ -909,7 +1103,7 @@ export default function Page({ menu }: MenuPageProps) {
               </span>
               <span className="text-[10px] font-mono text-[#888888]">{signalLogs.length}건 기록</span>
             </CardHeader>
-            <CardContent className="p-2 font-mono text-[11px] space-y-1.5 max-h-[190px] overflow-y-auto">
+            <CardContent className="p-2 font-mono text-[11px] space-y-1.5 max-h-[170px] overflow-y-auto">
               {signalLogs.map((log) => (
                 <div
                   key={log.id}
@@ -943,6 +1137,25 @@ export default function Page({ menu }: MenuPageProps) {
               ))}
             </CardContent>
           </Card>
+
+          {/* 3. 하단 디버깅 진단 상태 바 (DDS 도메인 / Zone 뮤텍스 / QoS) */}
+          <div className="p-2 bg-[#121316] border border-border font-mono text-[10px] flex items-center justify-between text-[#888888]">
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-400 font-bold">DDS 도메인:</span>
+              <span className="text-emerald-400">FMS(10)</span>
+              <span>/</span>
+              <span className="text-cyan-400">Nav2(12)</span>
+              <span>/</span>
+              <span className="text-purple-400">Sim(100)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-400 font-bold">구역 락:</span>
+              <span className="text-emerald-400">ZA[IDLE]</span>
+              <span className="text-emerald-400">ZB[IDLE]</span>
+              <span className="text-emerald-400">ZC[IDLE]</span>
+              <span className="text-yellow-400 font-bold">GATE[FREE]</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
