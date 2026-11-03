@@ -7,14 +7,16 @@
   - 도메인 브릿지: 관제 PC(100) <-> pinky1/2/3(10/20/30). 도메인은 브릿지 YAML 에 적혀 있다.
   - zone_manager: 위험구역 토큰·대기열 관리. 관제 PC 한 대에서만 띄운다.
   - fleet_status_node: 읽기 전용 관제. 로봇 상태를 모아 /control_center/fleet_status 로 낸다.
-  - fleet_api_node: 관제 백엔드. 위 스냅샷을 http://127.0.0.1:8080/api/fleet 와 WebSocket 으로 낸다.
-    fastapi 가 없는 환경이면 fleet_api:=false 로 끈다.
+  - fleet_api_node: 관제 백엔드. 위 스냅샷을 http://<관제 PC>:8080/api/fleet 와 WebSocket 으로 낸다.
+    fastapi 가 없는 환경이면 fleet_api:=false 로 끈다. 기본으로 내부망에 공개(host 0.0.0.0)한다
+    (로그인 없음, 방화벽에서 8080 도 열어야 함). 이 PC 에서만 보려면 host:=127.0.0.1.
   로봇 쪽(Nav2, 순찰 노드)은 각 로봇에서 따로 켠다.
 
   실행 (ROS_DOMAIN_ID 는 launch 가 정하지 않는다. 실행하는 셸에서 지정한다):
     export ROS_DOMAIN_ID=100
     ros2 launch cobot_bringup bringup.launch.xml
     ros2 launch cobot_bringup bringup.launch.xml pinky2:=false pinky3:=false   # 일부 로봇만
+    ros2 launch cobot_bringup bringup.launch.xml host:=127.0.0.1               # 관제 화면 이 PC 에서만
   맵은 $(find-pkg-share cobot_bringup)/config/maps 에 있다 (docs/fms_map_contract.md).
 -->
 <launch>
@@ -22,6 +24,7 @@
   <arg name="pinky2" default="true" description="pinky2 브릿지 실행 여부"/>
   <arg name="pinky3" default="true" description="pinky3 브릿지 실행 여부"/>
   <arg name="fleet_api" default="true" description="관제 백엔드(FastAPI, .venv 필요) 실행 여부"/>
+  <arg name="host" default="0.0.0.0" description="관제 화면 주소 (0.0.0.0 내부망 공개, 127.0.0.1 이 PC 만)"/>
 
   <include file="$(find-pkg-share cobot_domain_bridge)/launch/bridges.launch.xml">
     <arg name="pinky1" value="$(var pinky1)"/>
@@ -33,5 +36,7 @@
 
   <include file="$(find-pkg-share cobot_control_center)/launch/fleet_status.launch.xml"/>
 
-  <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml" if="$(var fleet_api)"/>
+  <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml" if="$(var fleet_api)">
+    <arg name="host" value="$(var host)"/>
+  </include>
 </launch>
