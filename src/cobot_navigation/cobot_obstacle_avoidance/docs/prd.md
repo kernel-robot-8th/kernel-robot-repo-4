@@ -48,7 +48,7 @@ behavior_server (Spin/BackUp) ────────────────�
 - `patrol_status.state` 가 `active_states`(`STARTING`, `MOVING`, `RETURNING`, `RETREATING`, `LEAVING_ZONE`)일 때만 켠다.
 - 그 외 상태와 순찰 노드가 아직 상태를 안 보낸 경우에는 끈다. 꺼지면 Nav2 속도를 **그대로** 넘긴다(비상 정지 없음).
 - `use_patrol_gate: false` 면 순찰 상태와 무관하게 항상 켠다(시뮬 시험용).
-- 켜진 상태에서 Nav2 명령이 `cmd_timeout` 동안 없으면 정지 명령 한 번 후 발행을 멈춘다(다른 노드의 `cmd_vel` 을 가리지 않음).
+- 켜진 상태에서 Nav2 명령이 `cmd_timeout` 동안 없으면 정지 명령 한 번 후 발행을 멈춘다(다른 노드의 `cmd_vel` 을 가리지 않음). 이때 `obstacle_avoidance/state` 는 `IDLE` 이다.
 - 켜진 상태에서 scan 이 `scan_timeout` 동안 끊기면 정지한다(`NO_SCAN`).
 
 ## 6. 상태 머신

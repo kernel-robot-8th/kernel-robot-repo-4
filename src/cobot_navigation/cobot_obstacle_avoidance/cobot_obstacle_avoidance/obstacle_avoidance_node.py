@@ -25,7 +25,6 @@ from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, LaserScan, Range
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
-from vision_msgs.msg import Detection2DArray
 
 from .avoidance_utils import AvoidanceController, AvoidanceParams, PASS, Perception
 from .person_utils import bbox_bearing_interval, camera_intrinsics, person_points
@@ -165,6 +164,8 @@ class ObstacleAvoidanceNode(Node):
         self.create_subscription(Range, 'us_sensor/range', self._us_cb, qos_profile_sensor_data)
         self.create_subscription(Odometry, 'odom', self._odom_cb, 10)
         if self.use_person:
+            # 사람 기능을 쓸 때만 불러온다 (로봇에 vision_msgs 가 없어도 기본 회피는 동작).
+            from vision_msgs.msg import Detection2DArray
             self.create_subscription(Detection2DArray, gp('person_topic').value,
                                      self._person_cb, 10)
             self.create_subscription(CameraInfo, gp('camera_info_topic').value,
@@ -300,7 +301,7 @@ class ObstacleAvoidanceNode(Node):
         if state != self.last_state:
             self.last_state = state
             self.state_pub.publish(String(data=state))
-            if state != PASS:
+            if state not in (PASS, 'IDLE'):
                 self.get_logger().info(f'회피 상태: {state}')
 
     def _control_tick(self):
@@ -312,7 +313,7 @@ class ObstacleAvoidanceNode(Node):
             if not self.last_out_zero:
                 self._publish(0.0, 0.0)
             self.controller.reset()
-            self._publish_state(PASS)
+            self._publish_state('IDLE')   # Nav2 명령 없음 (속도 발행 안 함)
             return
         if self.perception is None or t - self.scan_t > self.scan_timeout:
             self.get_logger().warn('라이다 scan 이 끊겨 정지합니다', throttle_duration_sec=2.0)
