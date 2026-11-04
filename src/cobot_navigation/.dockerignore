@@ -1,0 +1,19 @@
+# 관제 이미지에 필요한 세 패키지만 build context로 보낸다.
+**
+!cobot_fleet_control/
+!cobot_fleet_control/**
+!cobot_zone_traffic_control/
+!cobot_zone_traffic_control/**
+!cobot_domain_bridge/
+!cobot_domain_bridge/**
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/test/
+**/.env
+**/*.local.*
+**/*.env
+!cobot_fleet_control/config/docker/versions.env
+**/*.pem
+**/*.key
+**/secrets/

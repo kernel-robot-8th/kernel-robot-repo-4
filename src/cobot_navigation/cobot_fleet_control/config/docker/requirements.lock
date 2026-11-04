@@ -1,0 +1,7 @@
+# Python 3.12용 universal wheel만 사용. 하위 의존성·설치 도구도 버전과 해시를 고정한다.
+pip==25.0.1 --hash=sha256:c46efd13b6aa8279f33f2864459c8ce587ea6a1a59ee20de055868d8f7688f7f
+setuptools==75.8.0 --hash=sha256:e3982f444617239225d675215d51f6ba05f845d4eec313da4418fdbb56fb27e3
+py-trees==2.2.3 --hash=sha256:0c667e15d45157d92b0cd23f0cf8f8ca6a41bd9d2f3a159599cbf88287d98566
+paho-mqtt==2.1.0 --hash=sha256:6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee
+pydot==2.0.0 --hash=sha256:408a47913ea7bd5d2d34b274144880c1310c4aee901f353cf21fe2e526a4ea28
+pyparsing==3.1.4 --hash=sha256:a6a7ee4235a3f944aa1fa2249307708f893fe5717dc603503c6c7969c070fb7c

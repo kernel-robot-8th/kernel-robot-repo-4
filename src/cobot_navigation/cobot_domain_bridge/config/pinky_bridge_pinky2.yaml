@@ -1,0 +1,119 @@
+name: pinky_bridge_pinky2_only
+
+topics:
+  # 관제 PC(100) -> 핑키2(20)
+  /pinky2/patrol_cmd:
+    type: std_msgs/msg/String
+    from_domain: 100
+    to_domain: 20
+    remap: /patrol_cmd
+
+  /patrol_status:
+    type: std_msgs/msg/String
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/patrol_status
+
+  /pinky2/cmd_vel:
+    type: geometry_msgs/msg/Twist
+    from_domain: 100
+    to_domain: 20
+    remap: /cmd_vel
+
+  /pinky2/initialpose:
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    from_domain: 100
+    to_domain: 20
+    remap: /initialpose
+
+  /pinky2/goal_pose:
+    type: geometry_msgs/msg/PoseStamped
+    from_domain: 100
+    to_domain: 20
+    remap: /goal_pose
+
+  # 핑키2(20) -> 관제 PC(100)
+  /scan:
+    type: sensor_msgs/msg/LaserScan
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/scan
+
+  /odom:
+    type: nav_msgs/msg/Odometry
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/odom
+
+  /tf:
+    type: tf2_msgs/msg/TFMessage
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/tf
+
+  /tf_static:
+    type: tf2_msgs/msg/TFMessage
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/tf_static
+
+  /amcl_pose:
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/amcl_pose
+
+  /battery_state:
+    type: sensor_msgs/msg/BatteryState
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/battery_state
+
+  # 로봇은 /battery_state 대신 Float32 두 개(/battery/percent, /battery/voltage)를 발행함.
+  # 웹 GUI 백엔드가 이 두 토픽을 구독한다.
+  /battery/percent:
+    type: std_msgs/msg/Float32
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/battery/percent
+
+  /battery/voltage:
+    type: std_msgs/msg/Float32
+    from_domain: 20
+    to_domain: 100
+    remap: /pinky2/battery/voltage
+
+  # === ZONE-QUEUE ADDED ===================================================
+  # zone_manager_node(대기열 슬롯 방식) 전용. 메시지에 robot_id 가 들어 있어 로봇별 remap 은 필요 없다.
+  # status 는 매니저와 GUI 가 모두 관제 PC(100)에 있어 도메인을 건너갈 일이 없으므로 넣지 않는다.
+
+  # 로봇(20) -> 관제 PC(100): 진입 요청 (대기 중 1초마다 재전송)
+  /zone_manager/request_entry:
+    type: std_msgs/msg/String
+    from_domain: 20
+    to_domain: 100
+
+  # 로봇(20) -> 관제 PC(100): 구역 이탈 통보
+  /zone_manager/notify_exit:
+    type: std_msgs/msg/String
+    from_domain: 20
+    to_domain: 100
+
+  # 로봇(20) -> 관제 PC(100): 대기 포기 (stop / 이동 실패 / queue_full)
+  /zone_manager/cancel_entry:
+    type: std_msgs/msg/String
+    from_domain: 20
+    to_domain: 100
+
+  # 관제 PC(100) -> 로봇(20): 진입 허가
+  /zone_manager/grant_entry:
+    type: std_msgs/msg/String
+    from_domain: 100
+    to_domain: 20
+
+  # 관제 PC(100) -> 로봇(20): 대기 슬롯 좌표 "robot_id:k:x,y,yaw" (k=-1 이면 대기열 가득 참)
+  /zone_manager/queue_slot:
+    type: std_msgs/msg/String
+    from_domain: 100
+    to_domain: 20
+  # === ZONE-QUEUE END =====================================================

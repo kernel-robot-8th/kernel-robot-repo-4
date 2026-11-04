@@ -1,0 +1,6 @@
+<launch>
+  <!-- 관제 PC의 기존 도메인 100에서 실행한다. -->
+  <node pkg="cobot_fleet_control" exec="fleet_control_node" name="fleet_control" output="screen">
+    <param from="$(find-pkg-share cobot_fleet_control)/config/fleet_control.yaml"/>
+  </node>
+</launch>
