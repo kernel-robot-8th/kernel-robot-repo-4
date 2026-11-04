@@ -1,0 +1,76 @@
+{
+ "what": "Team map cobot_map_v9, copied byte-identical from the team repository (read-only); waypoints_v9.json is a transcription, not a copy",
+ "repo": "kernel-robot-repo-4 (team Gitea/GitHub; blobless read-only clone used)",
+ "branch": "feature/navigation",
+ "branch_head_commit": "1a97ba4cc91afd4f218a2c56804521337a986ca5",
+ "branch_head_read": "2026-10-29 (head commit 2026-10-28 22:24 +0900); 20 commits after the previous head 79dbc38",
+ "map_added_in_commit": "29e5b393c94df66692867b60f6a178f415b5495e (chore(navigation):맵 v9 추가 및 v6 삭제)",
+ "map_unchanged_since": "the PGM / YAML blobs at the branch head are the blobs added in 29e5b39 (same blob ids at 79dbc38 and 1a97ba4)",
+ "not_on": "team main (4281759) and submaster; tag navigation_v1.0.0 (05c596a) predates v9",
+ "files": {
+  "cobot_map_v9.pgm": {
+   "team_path": "src/cobot_navigation/map_view_pc/maps/cobot_map_v9.pgm",
+   "team_blob": "4e6e689db724b069a5555432ac3a89572247b7e7",
+   "sha256": "3e717de68dc51fd32b69efb496b80721c43f81ba89bb91eafe91053839a2c78e"
+  },
+  "cobot_map_v9.yaml": {
+   "team_path": "src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml",
+   "team_blob": "03463f850bf2377189372db9d87757a5ce3c1ea5",
+   "sha256": "7f05f87226384718c5931104381e72f89ddd77854807fa8fd5f9995b97b013b8"
+  }
+ },
+ "waypoint_files": {
+  "pinky1.yaml": {
+   "team_path": "src/cobot_navigation/cobot_pinky_patrol/config/pinky1.yaml",
+   "team_blob": "7c63e06c74b29e63c7b497af31ac96ce4063671d",
+   "sha256": "5a60642b2ecaa9de7800736676768c8d75e08d65f59a7b41e392c333b944ea71"
+  },
+  "pinky2.yaml": {
+   "team_path": "src/cobot_navigation/cobot_pinky_patrol/config/pinky2.yaml",
+   "team_blob": "35713db3b1b439730cd297b67942671d8bb10bf2",
+   "sha256": "d1ac03066ac9603dd21ae59dc3b4d4e1c860268314773205cd6dabebce4f1260"
+  },
+  "pinky3.yaml": {
+   "team_path": "src/cobot_navigation/cobot_pinky_patrol/config/pinky3.yaml",
+   "team_blob": "9503243728294fcda8ee81787d8ca4130735452f",
+   "sha256": "9a6057e45257d9809f97bda235e1c1d43993deed6300379853b2f7dcec913f07"
+  },
+  "zone_params.yaml": {
+   "team_path": "src/cobot_navigation/cobot_zone_traffic_control/config/zone_params.yaml",
+   "team_blob": "f801cd865d0e5d77d43115ea2f7c17b1c94aaf35",
+   "sha256": "020fd9d0ef4a29ba555da48712e4ebc3610c7347c8712570ca1135a7cf87d58e"
+  }
+ },
+ "waypoint_values_last_changed_in": "fe06696fd7acb6c21ed8cf1d52468fe3bb9bdee5 (2026-10-28 17:53 +0900, fix(navigation): 실측 좌표 반영 (P1~P10, 구역 EXIT, 대기 앵커) 및 pinky2 EXIT 정렬)",
+ "team_nav2_params_read": {
+  "team_path": "src/cobot_navigation/docs/cobot_slam_nav_param/nav2_params.yaml (a docs copy; whether the robots run this file is not known)",
+  "team_blob": "b7bbf731ac1ac27e6e47c6e2608c174ba0b01c67",
+  "sha256": "825116235c52b1f5a68dca6f7e2221356eaa7fabe8517ade655bb41c6e1dfa84",
+  "values": "footprint [[0.06,0.06],[0.06,-0.06],[-0.06,-0.06],[-0.06,0.06]] (local and global), global footprint_padding 0.03, inflation_radius 0.45 (local cost_scaling 8.0, global 10.0), global resolution 0.025, track_unknown_space true, NavFn allow_unknown true, tolerance 0.5, xy_goal_tolerance 0.025, yaw_goal_tolerance 0.17",
+  "same_blob_at_branch_head": true
+ },
+ "antigravity_copy_compared": "Claude outputs/cobot_map_v9_package/cobot_map_v9.pgm has the same sha256 as the team PGM; its cobot_map_v9.yaml differs (sha256 9fd9b5ce...) and is NOT used here",
+ "previous": {
+  "read": "2026-10-28",
+  "branch_head_commit": "79dbc38fa7b9b956e2fe60800357e98fb085a785",
+  "map_blobs": "the same two blobs as above",
+  "waypoint_files": {
+   "pinky1.yaml": {
+    "team_blob": "53af881005bd282a69b0e48809f542b06848e5a0",
+    "sha256": "9da2da98c9af464539c16131fa326e7da78c91061067468f28c98e90fb9a83cc"
+   },
+   "pinky2.yaml": {
+    "team_blob": "702a5aecc870a16df6c15476d8139a0a4d8a4079",
+    "sha256": "b4058c64613feab47c3f65b32b1542bab1614d4da7394832406f147809afad3d"
+   },
+   "pinky3.yaml": {
+    "team_blob": "5e96b8559783f97cfec78591b5db0b6e5ee7b566",
+    "sha256": "e30517ea21eace3f5a447dbdb713504920ab20b76c9d43512fd64e24b0882b9a"
+   },
+   "zone_params.yaml": {
+    "team_blob": "871e5600a326098ab97bbbc4270e0573357ecc18",
+    "sha256": "3a10105639226b44b941d2a4b7f272bfd5cdd78e126f82635dca33692e15ecec"
+   }
+  }
+ }
+}

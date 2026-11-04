@@ -1,0 +1,12 @@
+image: cobot_map_v6.pgm
+mode: trinary
+resolution: 0.010
+origin: [-1.490, -1.696, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+
+# 팀 공식 Cobot_map_v6 (2026-10-26 팀장 김진호 님 Confluence #11304963)
+# - SLAM 실측 점유격자 지도 (267 x 255 px @ 0.01m)
+# - 시뮬레이션(sim, 내벽 남서 모서리 원점) 좌표와의 변환: X_sim = X_v6 + 1.400, Y_sim = Y_v6 + 1.596
+#   (외곽 여백까지 포함한 1.470 / 1.676 은 내벽과 맞지 않는다 — 2026-10-27 정정)
