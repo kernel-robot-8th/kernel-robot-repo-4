@@ -1,19 +1,18 @@
 /**:
   ros__parameters:
-    topic: camera/image_raw/compressed
+    topic: /camera/image_raw
 
 /**/camera_publisher:
   ros__parameters:
-    source: synthetic
-    device: /dev/video0
+    source: pinky
+    fps: 10.0
+    encoding: bgr8
+    frame_id: front_camera_link
+    max_read_failures: 30
+    # Only synthetic mode uses these dimensions; real frames keep the vendor size.
     width: 640
     height: 480
-    fps: 10.0
-    jpeg_quality: 75
-    frame_id: camera_optical_frame
-    max_read_failures: 30
 
 /**/camera_subscriber:
   ros__parameters:
-    display: false
     report_interval: 2.0

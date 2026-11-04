@@ -12,33 +12,79 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test parameter failures and receive-rate calculations without ROS."""
+"""Test raw image validation and timing without ROS or imaging libraries."""
 
 from dataclasses import replace
 import unittest
 
-from cobot_camera_topic_test.camera_utils import CameraSettings, StreamStats
+from cobot_camera_topic_test.camera_utils import (
+    CameraSettings, frame_payload, StreamStats, synthetic_payload, validate_image,
+)
 
 
 class TestCameraSettings(unittest.TestCase):
-    """Reject settings that cannot produce a valid timer or frame."""
+    """Reject invalid parameters before touching hardware."""
 
-    def test_default_and_camera_sources(self):
-        """Accept the two supported source modes."""
-        for source in ('synthetic', 'camera'):
+    def test_supported_sources(self):
+        """Accept the vendor camera and the standard-library test pattern."""
+        for source in ('pinky', 'synthetic'):
             self.assertEqual(CameraSettings(source=source).validate().source, source)
 
     def test_invalid_parameters(self):
-        """Reject invalid sizes, rates, encodings and identifiers."""
+        """Reject USB source names, invalid dimensions, rates and pixel encodings."""
         invalid = [
-            {'source': 'unknown'}, {'width': 0}, {'height': -1}, {'width': True},
-            {'fps': 0.0}, {'fps': -1.0}, {'fps': float('inf')}, {'fps': float('nan')},
-            {'jpeg_quality': 0}, {'jpeg_quality': 101}, {'jpeg_quality': 75.5},
-            {'device': ''}, {'frame_id': ' '}, {'max_read_failures': 0},
+            {'source': 'camera'}, {'source': 'unknown'}, {'width': 0}, {'height': -1},
+            {'width': True}, {'fps': 0.0}, {'fps': -1.0}, {'fps': float('inf')},
+            {'fps': float('nan')}, {'encoding': 'jpeg'}, {'frame_id': ' '},
+            {'max_read_failures': 0},
         ]
         for changes in invalid:
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 replace(CameraSettings(), **changes).validate()
+
+
+class TestRawImages(unittest.TestCase):
+    """Validate real payload layout rather than compressed image headers."""
+
+    def test_padded_row(self):
+        """Accept valid ROS row padding."""
+        validate_image(2, 2, 8, 'rgb8', bytes(16))
+
+    def test_invalid_payload(self):
+        """Reject truncation, short strides and unknown encodings."""
+        for width, height, step, encoding, data in [
+            (2, 2, 6, 'rgb8', bytes(11)), (2, 2, 5, 'rgb8', bytes(10)),
+            (0, 2, 6, 'rgb8', bytes(12)), (2, 2, 6, 'unknown', bytes(12)),
+        ]:
+            with self.subTest(encoding=encoding, step=step), self.assertRaises(ValueError):
+                validate_image(width, height, step, encoding, data)
+
+    def test_synthetic_pattern(self):
+        """Produce valid, changing patterns for every supported channel layout."""
+        for encoding in ('mono8', 'bgr8', 'rgb8', 'bgra8', 'rgba8'):
+            first = synthetic_payload(32, 16, encoding, 0)
+            second = synthetic_payload(32, 16, encoding, 1)
+            width, height, step, data = first
+            validate_image(width, height, step, encoding, data)
+            self.assertNotEqual(data, second[3])
+
+    def test_vendor_array_payload(self):
+        """Preserve bytes and dimensions supplied by the vendor array protocol."""
+        class Frame:
+            shape = (2, 3, 3)
+            dtype = 'uint8'
+
+            def tobytes(self):
+                return bytes(range(18))
+
+        width, height, step, data = frame_payload(Frame(), 'bgr8')
+        self.assertEqual((width, height, step), (3, 2, 9))
+        self.assertEqual(data, bytes(range(18)))
+        with self.assertRaises(ValueError):
+            frame_payload(Frame(), 'mono8')
+        Frame.dtype = 'float32'
+        with self.assertRaises(ValueError):
+            frame_payload(Frame(), 'bgr8')
 
 
 class TestStreamStats(unittest.TestCase):
