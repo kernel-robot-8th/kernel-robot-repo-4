@@ -13,8 +13,8 @@ amcl:
     global_frame_id: "map"
     lambda_short: 0.1
     laser_likelihood_max_dist: 2.0
-    laser_max_range: 100.0
-    laser_min_range: -1.0
+    laser_max_range: 3.5
+    laser_min_range: 0.05
     laser_model_type: "likelihood_field"
     max_beams: 60
     max_particles: 2000   # 이미 넉넉하지만, 좁은 공간이면 min_particles를 800~1000으로 올려도 도움
@@ -29,7 +29,7 @@ amcl:
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true
-    transform_tolerance: 1.0
+    transform_tolerance: 0.3
     update_min_a: 0.1   # → 0.05~0.1
     update_min_d: 0.1   # → 0.1 정도로 낮추면 더 자주 위치 업데이트
     z_hit: 0.5
@@ -186,13 +186,13 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.01          # → 0.025 정도로 낮추면 정밀도↑ (연산량↑ 트레이드오프)
-      #robot_radius: 0.22
-      footprint: '[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]'
+      # 25cm 원형 적재판 장착 기준 풋프린트 및 31cm 게이트 통과 파라미터 보정
+      footprint: '[[-0.125, -0.125], [0.125, -0.125], [0.125, 0.125], [-0.125, 0.125]]'
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0
-        inflation_radius: 0.20   # 벽과의 거리를 좁히려면 안전지대 자체의 폭을 줄여야 함
+        cost_scaling_factor: 10.0
+        inflation_radius: 0.15   # 31cm 게이트 통과를 위해 안전 여유 15cm로 조정
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: True
@@ -221,13 +221,12 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      footprint_padding: 0.03
+      footprint_padding: 0.01  # 0.03 -> 0.01로 축소하여 31cm 게이트 내 경로 생성 확보
       update_frequency: 1.0
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_footprint
-      #robot_radius: 0.22
-      footprint: '[[0.06, 0.06], [0.06, -0.06], [-0.06, -0.06], [-0.06, 0.06]]'
+      footprint: '[[-0.125, -0.125], [0.125, -0.125], [0.125, 0.125], [-0.125, 0.125]]'
       resolution: 0.025
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -250,8 +249,8 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0
-        inflation_radius: 0.2
+        cost_scaling_factor: 10.0
+        inflation_radius: 0.15
       always_send_full_costmap: True
 
 # The yaml_filename does not need to be specified since it going to be set by defaults in launch.
