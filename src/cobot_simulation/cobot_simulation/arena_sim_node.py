@@ -21,7 +21,15 @@ from typing import Dict
 from cobot_simulation.arena_model import ObstacleBox, ShoeStoreArena
 from cobot_simulation.omx_agent import OmxSimAgent
 from cobot_simulation.pinky_agent import PinkySimAgent
-from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Twist, Vector3
+from geometry_msgs.msg import (
+    Point,
+    PoseStamped,
+    PoseWithCovarianceStamped,
+    Quaternion,
+    TransformStamped,
+    Twist,
+    Vector3,
+)
 from nav_msgs.msg import Odometry
 import numpy as np
 import rclpy
@@ -93,13 +101,18 @@ class ArenaSimNode(Node):
         self.pinky_subs = {}
         self.pinky_goal_subs = {}
         self.pinky_patrol_cmd_subs = {}
+        self.pinky_initialpose_subs = {}
         self.pinky_patrol_status_pubs = {}
         self.pinky_patrol_queues = {}
         self.pinky_patrol_states = {}
+        self.pinky_amcl_drifts = {}
         self.pinky_odom_pubs = {}
+        self.pinky_amcl_pubs = {}
+        self.pinky_overhead_pubs = {}
         self.pinky_scan_pubs = {}
         self.pinky_joint_pubs = {}
         self.pinky_status_pubs = {}
+        self._amcl_pub_tick = 0
 
         spawn_poses = {
             'pinky1': (1.41, 2.05375, -math.pi / 2.0),
@@ -113,6 +126,7 @@ class ArenaSimNode(Node):
             agent = PinkySimAgent(robot_id=ns, initial_pose=init_pose)
             self.pinkies[ns] = agent
             self.pinky_patrol_queues[ns] = []
+            self.pinky_amcl_drifts[ns] = (0.0, 0.0, 0.0)
             self.pinky_patrol_states[ns] = {
                 'robot_id': ns, 'state': 'IDLE', 'detail': '', 'waypoint': 0, 'total': 0
             }
@@ -136,9 +150,21 @@ class ArenaSimNode(Node):
                 lambda msg, robot=agent: self._handle_patrol_cmd(robot, msg),
                 10,
             )
+            self.pinky_initialpose_subs[ns] = self.create_subscription(
+                PoseWithCovarianceStamped,
+                f'/{ns}/initialpose',
+                lambda msg, robot=agent: self._handle_initialpose(robot, msg),
+                10,
+            )
 
             # Publishers
             self.pinky_odom_pubs[ns] = self.create_publisher(Odometry, f'/{ns}/odom', 10)
+            self.pinky_amcl_pubs[ns] = self.create_publisher(
+                PoseWithCovarianceStamped, f'/{ns}/amcl_pose', 10
+            )
+            self.pinky_overhead_pubs[ns] = self.create_publisher(
+                PoseStamped, f'/{ns}/overhead_pose', 10
+            )
             self.pinky_patrol_status_pubs[ns] = self.create_publisher(
                 String, f'/{ns}/patrol_status', 10
             )
@@ -233,6 +259,23 @@ class ArenaSimNode(Node):
             f'{msg.pose.position.y:.2f}, {deg:.1f}°)'
         )
 
+    def _handle_initialpose(self, robot: PinkySimAgent, msg: PoseWithCovarianceStamped):
+        """Handle /pinkyN/initialpose AMCL relocalization from cobot_amcl_corrector or RViz2."""
+        rid = robot.robot_id
+        q = msg.pose.pose.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
+        ix = float(msg.pose.pose.position.x)
+        iy = float(msg.pose.pose.position.y)
+        rx, ry, ryaw = robot.get_pose()
+        # Update simulated AMCL offset relative to true pose (0.0 when synced to overhead vision)
+        dyaw = (yaw - ryaw + math.pi) % (2.0 * math.pi) - math.pi
+        self.pinky_amcl_drifts[rid] = (ix - rx, iy - ry, dyaw)
+        self.get_logger().info(
+            f'[{rid}] AMCL relocalized via /initialpose -> ({ix:.3f}, {iy:.3f}, {math.degrees(yaw):.1f} deg)'
+        )
+
     def _handle_fleet_command(self, msg):
         """Dispatch high-level fleet command."""
         target_id = getattr(msg, 'robot_id', None)
@@ -244,7 +287,7 @@ class ArenaSimNode(Node):
                 self.get_logger().info(f'Dispatched {target_id} to waypoint {target_wp}')
 
     def _handle_string_fleet_command(self, msg: String):
-        """Parse string commands like goto:pinky1,WP_LOAD_1."""
+        """Parse string commands like goto:pinky1,WP_LOAD_1 or drift:pinky1,0.22,0.0,25.0."""
         text = msg.data.strip()
         if text.startswith('goto:'):
             parts = text[5:].split(',')
@@ -254,6 +297,21 @@ class ArenaSimNode(Node):
                     wp = self.arena.waypoints[wp_name]
                     self.pinkies[rid].set_goal(wp[0], wp[1], math.radians(wp[2]))
                     self.get_logger().info(f'String cmd: {rid} -> {wp_name}')
+        elif text.startswith('drift:'):
+            parts = [p.strip() for p in text[6:].split(',') if p.strip()]
+            if not parts:
+                return
+            target = parts[0]
+            dx = float(parts[1]) if len(parts) > 1 else 0.22
+            dy = float(parts[2]) if len(parts) > 2 else -0.08
+            dyaw_deg = float(parts[3]) if len(parts) > 3 else 25.0
+            targets = list(self.pinkies.keys()) if target == 'all' else [target]
+            for rid in targets:
+                if rid in self.pinky_amcl_drifts:
+                    self.pinky_amcl_drifts[rid] = (dx, dy, math.radians(dyaw_deg))
+                    self.get_logger().info(
+                        f'[{rid}] Injected simulated AMCL drift: dx={dx:.2f}m, dy={dy:.2f}m, dyaw={dyaw_deg:.1f}deg'
+                    )
 
     def _publish_patrol_status(self, rid: str):
         """Publish patrol status JSON matching cobot_pinky_patrol protocol."""
@@ -369,6 +427,8 @@ class ArenaSimNode(Node):
         if not rclpy.ok():
             return
         now = self.get_clock().now().to_msg()
+        self._amcl_pub_tick = (self._amcl_pub_tick + 1) % 5
+        publish_amcl_this_tick = (self._amcl_pub_tick == 0)
 
         # Step Pinky fleet
         for rid, robot in self.pinkies.items():
@@ -450,6 +510,28 @@ class ArenaSimNode(Node):
             odom_msg.twist.twist.linear = Vector3(x=rv, y=0.0, z=0.0)
             odom_msg.twist.twist.angular = Vector3(x=0.0, y=0.0, z=rw)
             self.pinky_odom_pubs[rid].publish(odom_msg)
+
+            # 2b. Publish simulated AMCL pose (/pinkyN/amcl_pose) & overhead ground truth (/pinkyN/overhead_pose) @ 10Hz
+            if publish_amcl_this_tick:
+                dx, dy, dyaw = self.pinky_amcl_drifts.get(rid, (0.0, 0.0, 0.0))
+                amcl_msg = PoseWithCovarianceStamped()
+                amcl_msg.header.stamp = now
+                amcl_msg.header.frame_id = 'map'
+                amcl_msg.pose.pose.position = Point(x=rx + dx, y=ry + dy, z=0.0)
+                amcl_msg.pose.pose.orientation = yaw_to_quaternion(ryaw + dyaw)
+                cov = [0.0] * 36
+                cov[0] = 0.04
+                cov[7] = 0.04
+                cov[35] = 0.05
+                amcl_msg.pose.covariance = cov
+                self.pinky_amcl_pubs[rid].publish(amcl_msg)
+
+                ov_msg = PoseStamped()
+                ov_msg.header.stamp = now
+                ov_msg.header.frame_id = 'map'
+                ov_msg.pose.position = Point(x=rx, y=ry, z=0.0)
+                ov_msg.pose.orientation = q
+                self.pinky_overhead_pubs[rid].publish(ov_msg)
 
             # 3. Publish JointStates (wheels)
             js = JointState()

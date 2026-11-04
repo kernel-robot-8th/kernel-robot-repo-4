@@ -1,0 +1,28 @@
+amcl_corrector_node:
+  ros__parameters:
+    robot_names: ["pinky1", "pinky2", "pinky3"]
+    # 수신 시각(receiver clock) 기준 비전 데이터 유효 시간 (500ms 초과 시 VISION_STALE 거부)
+    stale_after_ms: 500
+    # AMCL 추정 위치와 항공뷰 비전 위치 간 보정 트리거 임계치
+    drift_dist_m: 0.15
+    drift_yaw_deg: 20.0
+    # 단일 프레임 ArUco 검출 노이즈 방지를 위한 연속 확인 횟수
+    confirm_count: 3
+    # 원샷 /initialpose 발행 후 최소 재보정 대기 시간(초)
+    cooldown_sec: 5.0
+    # 정지 판정 최대 선속도(m/s)
+    max_stationary_speed_mps: 0.03
+    # 좌표계 모드:
+    # - "identity" / "v9": 항공뷰 Homography 기준점이 대상 맵과 동일한 경우 (시뮬 또는 v9 직접 캘리브레이션)
+    # - "canonical_to_v9": 항공뷰가 정본(2.5x2.4m gate67) 좌표이고 실물 로봇이 cobot_map_v9를 쓰는 경우 (-1.415, -1.639 변환)
+    frame_mode: "identity"
+    target_frame_id: "map"
+    # AMCL 재초기화 공분산 (20cm 표준편차 수준: 0.04 m^2, 약 13도 수준: 0.05 rad^2)
+    cov_x: 0.04
+    cov_y: 0.04
+    cov_yaw: 0.05
+    auto_correct_enabled: true
+    # 태블릿 HTTP 수신 게이트웨이 설정
+    enable_http: true
+    http_host: "0.0.0.0"
+    http_port: 8785

@@ -95,7 +95,28 @@ export default function Page({ menu }: MenuPageProps) {
     attachedTo: "TABLE_ZA",
   });
 
-  // 6. 도커 신호 송수신 콘솔 로그
+  // 6. 항공뷰 -> 태블릿 -> 게이트웨이 -> AMCL 위치 보정 디버깅 상태
+  const [amclDrift, setAmclDrift] = useState<{
+    dx: number;
+    dy: number;
+    dyawDeg: number;
+    visionStatus: "VISION_FRESH" | "VISION_STALE";
+    confirmStreak: number;
+    reprojErrorPx: number;
+    frameMode: "v9" | "canonical_to_v9";
+    lastReason: string;
+  }>({
+    dx: 0.0,
+    dy: 0.0,
+    dyawDeg: 0.0,
+    visionStatus: "VISION_FRESH",
+    confirmStreak: 0,
+    reprojErrorPx: 0.8,
+    frameMode: "canonical_to_v9",
+    lastReason: "IN_TOLERANCE",
+  });
+
+  // 7. 도커 신호 송수신 콘솔 로그
   const [signalLogs, setSignalLogs] = useState<TaskSignalLog[]>([
     {
       id: "init-1",
@@ -422,6 +443,34 @@ export default function Page({ menu }: MenuPageProps) {
           ctx.fillStyle = "#ffffff";
           ctx.font = "bold 10px monospace";
           ctx.fillText(bot.id === "pinky1" ? "P1 (ACTIVE)" : bot.id.toUpperCase(), topCorners[0].x - 12, topCorners[0].y - 8);
+
+          // Pinky 1호기 AMCL 드리프트 유령(Ghost) 및 항공뷰 보정 벡터 시각화
+          if (bot.id === "pinky1" && (Math.abs(amclDrift.dx) > 0.005 || Math.abs(amclDrift.dy) > 0.005)) {
+            const amclX = bot.x + amclDrift.dx;
+            const amclY = bot.y + amclDrift.dy;
+            const ghostCenter = project3D({ x: amclX, y: amclY, z: 0.05 }, width, height);
+            const trueCenter = project3D({ x: bot.x, y: bot.y, z: 0.05 }, width, height);
+            if (ghostCenter.visible && trueCenter.visible) {
+              ctx.save();
+              ctx.setLineDash([4, 3]);
+              ctx.strokeStyle = "#ef4444";
+              ctx.lineWidth = 1.8;
+              ctx.beginPath();
+              ctx.moveTo(ghostCenter.x, ghostCenter.y);
+              ctx.lineTo(trueCenter.x, trueCenter.y);
+              ctx.stroke();
+
+              ctx.beginPath();
+              ctx.arc(ghostCenter.x, ghostCenter.y, 12 * sc, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.fillStyle = "#f87171";
+              ctx.font = "bold 9px monospace";
+              const driftDistCm = Math.round(Math.hypot(amclDrift.dx, amclDrift.dy) * 100);
+              ctx.fillText(`AMCL DRIFT (${driftDistCm}cm)`, ghostCenter.x - 32, ghostCenter.y - 12);
+              ctx.restore();
+            }
+          }
         }
       });
 
@@ -449,7 +498,7 @@ export default function Page({ menu }: MenuPageProps) {
       running = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [azimuth, elevation, zoom, pinkies, arms, cargo, project3D]);
+  }, [azimuth, elevation, zoom, pinkies, arms, cargo, amclDrift, project3D]);
 
   // 마우스 드래그로 3D 시점 회전 (Orbit rotate)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -755,12 +804,72 @@ export default function Page({ menu }: MenuPageProps) {
       prev[1],
       prev[2],
     ]);
+    setAmclDrift((prev) => ({
+      ...prev,
+      dx: 0.0,
+      dy: 0.0,
+      dyawDeg: 0.0,
+      confirmStreak: 0,
+      lastReason: "MANUAL_RESET",
+    }));
     addLog(
       "ACK",
       "AMCL_RESET",
       "pinky1/initialpose",
-      "[AMCL 정본 맵 정렬] Initial Pose 재설정 완료: X=1.410m, Y=2.054m, Yaw=-90.0deg (cov: 0.05)",
+      "[AMCL 정본 맵 정렬] Initial Pose 재설정 완료: X=1.410m, Y=2.054m, Yaw=-90.0deg (cov: 0.04)",
     );
+  };
+
+  // 시뮬레이션 AMCL 누적 오차(드리프트) 강제 주입
+  const handleInjectAmclDrift = () => {
+    setAmclDrift((prev) => ({
+      ...prev,
+      dx: 0.22,
+      dy: -0.08,
+      dyawDeg: 25.0,
+      visionStatus: "VISION_FRESH",
+      confirmStreak: 1,
+      reprojErrorPx: 0.85,
+      lastReason: "CONFIRMING(1/3)",
+    }));
+    addLog(
+      "ALERT",
+      "AMCL_DRIFT",
+      "pinky1/amcl_pose",
+      "[드리프트 감지] 휠 슬립 오차 주입: Δd=0.234m (>=0.15m), Δyaw=25.0deg (>=20.0deg) -> 3회 연속 확인 대기",
+    );
+  };
+
+  // 항공뷰(Overhead Localizer) -> 태블릿(PoseFix) -> 게이트웨이(500ms 게이트) -> AMCL(/initialpose) 원샷 보정 실행
+  const handleVisionToAmclSync = () => {
+    const bot = pinkiesRef.current[0];
+    const v9X = (bot.x - 1.415).toFixed(3);
+    const v9Y = (bot.y - 1.639).toFixed(3);
+    addLog(
+      "SEND",
+      "POSE_FIX",
+      "tablet -> gateway:8785",
+      `[항공뷰 ArUco ID:10] PoseFix 수신 (VISION_FRESH, age=38ms, reproj=0.8px) -> 정본(${bot.x.toFixed(3)}, ${bot.y.toFixed(3)}) / v9(${v9X}, ${v9Y})`,
+    );
+    setTimeout(() => {
+      setAmclDrift((prev) => ({
+        ...prev,
+        dx: 0.0,
+        dy: 0.0,
+        dyawDeg: 0.0,
+        visionStatus: "VISION_FRESH",
+        confirmStreak: 0,
+        reprojErrorPx: 0.75,
+        lastReason: "VISION_SYNC_CORRECTED",
+      }));
+      addLog(
+        "DONE",
+        "AMCL_CORRECT",
+        "pinky1/initialpose",
+        `[Domain 100->10 브리지] 원샷 /initialpose 발행 완료: cov=(0.04, 0.04, 0.05), 5.0초 쿨다운 진입`,
+        2.4,
+      );
+    }, 180);
   };
 
   // 전체 시나리오 순차 자동 실행 (End-to-End Test)
@@ -784,8 +893,6 @@ export default function Page({ menu }: MenuPageProps) {
           });
         });
       });
-    });
-  };
     });
   };
 
@@ -1081,6 +1188,55 @@ export default function Page({ menu }: MenuPageProps) {
                     >
                       홈 복귀 (home: WP_HOME_1)
                     </Button>
+                  </div>
+
+                  {/* C. 항공뷰 -> 태블릿 -> 게이트웨이 -> AMCL 위치 보정 파이프라인 */}
+                  <div className="space-y-1.5 pt-1 border-t border-border/60">
+                    <div className="text-[11px] font-bold text-emerald-400 flex items-center justify-between">
+                      <span>항공뷰 -&gt; 태블릿 -&gt; AMCL 보정</span>
+                      <span className="font-mono text-[9px] text-[#888888]">cobot_amcl_corrector</span>
+                    </div>
+                    <div className="p-1.5 bg-[#0c0d10] border border-[#22252e] font-mono text-[10px] text-[#bbbbbb] space-y-0.5">
+                      <div className="flex items-center justify-between">
+                        <span>
+                          상태:{" "}
+                          <b className={amclDrift.visionStatus === "VISION_FRESH" ? "text-emerald-400" : "text-red-400"}>
+                            {amclDrift.visionStatus}
+                          </b>{" "}
+                          (reproj {amclDrift.reprojErrorPx.toFixed(1)}px)
+                        </span>
+                        <span className="text-cyan-400">모드: {amclDrift.frameMode}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>
+                          드리프트:{" "}
+                          <b className={Math.hypot(amclDrift.dx, amclDrift.dy) >= 0.15 ? "text-red-400" : "text-zinc-300"}>
+                            {(Math.hypot(amclDrift.dx, amclDrift.dy) * 100).toFixed(1)}cm / {amclDrift.dyawDeg.toFixed(1)}deg
+                          </b>
+                        </span>
+                        <span className="text-amber-300">{amclDrift.lastReason}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-red-900/60 text-red-300 hover:text-white hover:bg-red-950/40"
+                        onClick={handleInjectAmclDrift}
+                        disabled={isEStopped}
+                      >
+                        AMCL 오차 주입 (+23cm/25도)
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] rounded-none bg-[#1c1d22] border-emerald-800 text-emerald-300 hover:text-white hover:bg-emerald-950/40"
+                        onClick={handleVisionToAmclSync}
+                        disabled={isEStopped}
+                      >
+                        항공뷰-&gt;AMCL 원샷 보정
+                      </Button>
+                    </div>
                   </div>
                 </TabsContent>
 
