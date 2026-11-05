@@ -1,0 +1,17 @@
+# Site mapping example using existing lab waypoints. Confirm arm/station mapping on site.
+routes:
+  lab_delivery:
+    pickup: ZA
+    dropoff: ZB
+    pickup_arm: omx1
+    dropoff_arm: omx2
+    lane: main
+max_retries: 3                 # initial attempt + at most three safe retries
+step_timeout_sec: 300.0
+customer_timeout_sec: 120.0
+stale_sec: 3.0
+battery_min: 20.0             # assignment policy, not a fixed UML value
+departure_gap_sec: 3.0
+dock_xy_m: 0.01
+dock_yaw_deg: 15.0
+allow_returns: false

@@ -8,3 +8,8 @@ pinky_patrol_node:
     initial_rotation_sec: 4.0
     restore_pose: true
     idle_return_sec: 120.0
+    # In fleet mode only the central scheduler may initiate a return-home command.
+    central_controlled: true
+    status_period_sec: 0.5
+    central_timeout_sec: 3.0
+    command_ttl_sec: 5.0

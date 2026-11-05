@@ -10,7 +10,6 @@ usage() {
   build         고정 의존성과 현재 코드를 이미지로 빌드
   config        해석된 Compose 구성 확인
   up            기존 브로커를 사용해 관제·구역 매니저·브릿지 실행
-  up-local      개발용 로컬 브로커까지 함께 실행
   down          컨테이너 중지·제거, DB 볼륨은 보존
   logs          서비스 로그 확인
   versions      실행 중 fleet의 이미지 내부 버전 기록 확인
@@ -42,9 +41,8 @@ case "$operation" in
     ;;
   config) "${compose[@]}" config "$@" ;;
   up) "${compose[@]}" up -d "$@" bridge zone-manager fleet ;;
-  up-local) "${compose[@]}" --profile local-broker up -d "$@" broker bridge zone-manager fleet ;;
-  down) "${compose[@]}" --profile local-broker down "$@" ;;
-  logs) "${compose[@]}" --profile local-broker logs "$@" ;;
+  down) "${compose[@]}" down "$@" ;;
+  logs) "${compose[@]}" logs "$@" ;;
   versions)
     "${compose[@]}" images fleet
     "${compose[@]}" exec -T fleet bash -c \

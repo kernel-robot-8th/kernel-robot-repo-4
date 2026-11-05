@@ -1,7 +1,7 @@
 name: cobot-fleet
 
 x-runtime: &runtime
-  image: ${COBOT_IMAGE:-cobot-fleet:jazzy-bt-v0.2.0}
+  image: ${COBOT_IMAGE:-cobot-fleet:jazzy-scenario-v0.3.0}
   build:
     context: ../../..
     dockerfile: cobot_fleet_control/config/docker/Dockerfile
@@ -38,10 +38,6 @@ services:
         condition: service_started
       zone-manager:
         condition: service_started
-    environment:
-      <<: *ros-environment
-      COBOT_MQTT_USERNAME: ${COBOT_MQTT_USERNAME:-}
-      COBOT_MQTT_PASSWORD: ${COBOT_MQTT_PASSWORD:-}
     volumes:
       - fleet-data:/var/lib/cobot
     command:
@@ -54,27 +50,6 @@ services:
       - /opt/cobot_ws/install/share/cobot_fleet_control/config/fleet_control.yaml
       - -p
       - db_path:=/var/lib/cobot/fleet_control.sqlite3
-      - -p
-      - mqtt_host:=${MQTT_HOST:-127.0.0.1}
-      - -p
-      - mqtt_port:=${MQTT_PORT:-1883}
-
-  # 외부 브로커를 쓰면 켜지 않는다. fleet은 연결이 끊기면 재접속한다.
-  broker:
-    profiles: [local-broker]
-    image: ${MOSQUITTO_IMAGE:?versions.env를 지정하세요}
-    network_mode: host
-    init: true
-    restart: "no"
-    volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - broker-data:/mosquitto/data
-    healthcheck:
-      test: [CMD, mosquitto_pub, -h, 127.0.0.1, -p, "1883", -t, cobot/healthcheck, -m, ok, -q, "1"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
 
 volumes:
   fleet-data:
-  broker-data:

@@ -22,8 +22,7 @@ def test_compose_uses_one_image_and_persistent_db():
         assert services[name]['environment']['ROS_DOMAIN_ID'] == '100'
     assert services['fleet']['volumes'] == ['fleet-data:/var/lib/cobot']
     assert 'db_path:=/var/lib/cobot/fleet_control.sqlite3' in services['fleet']['command']
-    assert services['broker']['profiles'] == ['local-broker']
-    assert 'ports' not in services['broker']
+    assert 'broker' not in services
 
 
 def test_python_and_base_versions_are_pinned():
@@ -37,11 +36,11 @@ def test_python_and_base_versions_are_pinned():
         assert match, line
         packages[match[1]] = match[2]
     assert packages == {'pip': '25.0.1', 'setuptools': '75.8.0', 'py-trees': '2.2.3',
-                        'paho-mqtt': '2.1.0', 'pydot': '2.0.0', 'pyparsing': '3.1.4'}
+                        'pydot': '2.0.0', 'pyparsing': '3.1.4'}
     lines = (CONFIG / 'versions.env').read_text().splitlines()
     versions = dict(line.split('=', 1) for line in lines
                     if line and not line.startswith('#'))
-    for name in ('ROS_BASE_IMAGE', 'MOSQUITTO_IMAGE'):
+    for name in ('ROS_BASE_IMAGE',):
         assert re.search(r'@sha256:[a-f0-9]{64}$', versions[name])
     dockerfile = (CONFIG / 'Dockerfile').read_text()
     assert 'ARG ROS_BASE_IMAGE=' + versions['ROS_BASE_IMAGE'] in dockerfile
@@ -93,11 +92,11 @@ def test_down_preserves_volumes_by_default(runner):
     assert '-v' not in calls[-1]['args'] and '--volumes' not in calls[-1]['args']
 
 
-def test_optional_broker_is_explicit(runner):
-    result, calls = runner('up-local')
+def test_up_starts_only_ros_execution_services(runner):
+    result, calls = runner('up')
     assert result.returncode == 0
-    assert calls[-1]['args'][-5:] == ['-d', 'broker', 'bridge', 'zone-manager', 'fleet']
-    assert '--profile' in calls[-1]['args']
+    assert calls[-1]['args'][-4:] == ['-d', 'bridge', 'zone-manager', 'fleet']
+    assert 'broker' not in calls[-1]['args']
 
 
 def test_trace_export_sources_ros_environment_and_quotes_id(runner):

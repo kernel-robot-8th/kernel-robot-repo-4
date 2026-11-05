@@ -1,149 +1,201 @@
-"""ROS 실행기와 Paho MQTT 사이를 큐로 연결하는 얇은 노드."""
+"""ROS-only central executor; web transport belongs to cobot_control_center."""
 
 import json
-import os
 from pathlib import Path
-from queue import Empty, Full, Queue
+import time
+import uuid
 
-import paho.mqtt.client as mqtt
+from ament_index_python.packages import get_package_share_directory
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from std_msgs.msg import String
+from rclpy.qos import DurabilityPolicy, QoSProfile
+from std_msgs.msg import Float32, String
+import yaml
 
+from .control_api import ControlAPI
 from .repository import encode, SqliteRepository
+from .scenario import ScenarioService
 from .service import FleetService
 
 
 class FleetControlNode(Node):
-    """DB와 BT는 ROS executor 스레드에서만 접근한다."""
+    """Access SQLite, navigation BTs and scenarios from one ROS executor."""
 
     def __init__(self):
         super().__init__('fleet_control')
         defaults = {
             'robot_ids': ['pinky1', 'pinky2', 'pinky3'],
-            'mqtt_host': 'localhost', 'mqtt_port': 1883,
-            'mqtt_client_id': 'cobot_fleet_control', 'mqtt_prefix': 'cobot/fleet',
-            'db_path': '~/.cobot/fleet_control.sqlite3',
-            'tick_sec': 0.1, 'queue_capacity': 1000,
+            'db_path': '~/.cobot/fleet_control.sqlite3', 'tick_sec': 0.1,
+            'heartbeat_sec': 0.5, 'heartbeat_ttl_sec': 3.0, 'command_ttl_sec': 5.0,
+            'scenario_config': str(Path(get_package_share_directory('cobot_fleet_control'))
+                                   / 'config/scenario.yaml'),
+            'request_topic': '/control_center/task_request',
+            'events_topic': '/control_center/task_events',
+            'tasks_topic': '/control_center/tasks',
+            'work_request_topic': '/fleet/work_request',
+            'work_result_topic': '/fleet/work_result',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
         config = {name: self.get_parameter(name).value for name in defaults}
+        self.config = config
         robots = config['robot_ids']
-        self.prefix = config['mqtt_prefix'].rstrip('/')
-        self.inbox = Queue(maxsize=config['queue_capacity'])
-        self.inflight = {}
+        if not robots or len(set(robots)) != len(robots):
+            raise ValueError('robot_ids는 중복 없는 목록이어야 합니다')
         self.publishers_by_robot = {
-            robot: self.create_publisher(String, f'/{robot}/patrol_cmd', 10)
-            for robot in robots
-        }
-        self.status_subscriptions = [
-            self.create_subscription(
-                String, f'/{robot}/patrol_status',
-                lambda msg, robot=robot: self._status(robot, msg), 10)
-            for robot in robots
-        ]
+            robot: self.create_publisher(String, f'/{robot}/patrol_cmd', 10) for robot in robots}
+        self.heartbeat_publishers = {
+            robot: self.create_publisher(String, f'/{robot}/fleet_heartbeat', 10)
+            for robot in robots}
+        self.fleet_heartbeat_pub = self.create_publisher(String, '/fleet/heartbeat', 10)
+        self.session_id = uuid.uuid4().hex
+        self.sequences = {robot: 0 for robot in robots}
+        self.heartbeat_seq = 0
+        self.work_sequences = {}
+        self.events_pub = self.create_publisher(String, config['events_topic'], 50)
+        self.tasks_pub = self.create_publisher(
+            String, config['tasks_topic'],
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.work_pub = self.create_publisher(String, config['work_request_topic'], 50)
         db_path = Path(config['db_path']).expanduser()
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.repository = SqliteRepository(str(db_path))
         self.service = FleetService(self.repository, self, robots)
-        self.mqtt = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-            client_id=config['mqtt_client_id'], clean_session=False, manual_ack=True)
-        if os.environ.get('COBOT_MQTT_USERNAME'):
-            self.mqtt.username_pw_set(os.environ['COBOT_MQTT_USERNAME'],
-                                      os.environ.get('COBOT_MQTT_PASSWORD'))
-        if os.environ.get('COBOT_MQTT_CA'):
-            self.mqtt.tls_set(ca_certs=os.environ['COBOT_MQTT_CA'])
-        self.mqtt.on_connect = self._connect
-        self.mqtt.on_message = self._message
-        self.mqtt.reconnect_delay_set(min_delay=1, max_delay=30)
-        self.mqtt.max_queued_messages_set(config['queue_capacity'])
-        self.mqtt.connect_async(config['mqtt_host'], config['mqtt_port'])
-        self.mqtt.loop_start()
+        scenario_config = yaml.safe_load(
+            Path(config['scenario_config']).read_text(encoding='utf-8'))
+        self.scenario = ScenarioService(self.repository, self.service, self, **scenario_config)
+        self.api = ControlAPI(self.scenario, self.service, self)
+        self.status_subscriptions = []
+        for robot in robots:
+            self.status_subscriptions.extend([
+                self.create_subscription(String, f'/{robot}/patrol_status',
+                                         lambda msg, r=robot: self._status(r, msg), 10),
+                self.create_subscription(Float32, f'/{robot}/battery/percent',
+                                         lambda msg, r=robot: self._battery(r, msg), 10)])
+        self.create_subscription(String, config['request_topic'], self._request, 50)
+        self.create_subscription(String, config['work_result_topic'], self._result, 50)
         self.create_timer(config['tick_sec'], self._tick)
+        self.create_timer(1.0, self._snapshot)
+        self.create_timer(config['heartbeat_sec'], self._heartbeat)
+        self.get_logger().warning(
+            '중앙 실행기 시작 (작업 명령 꺼짐). control-center task_manager_node와 동시 실행 금지.')
 
     def send(self, robot_id, payload):
-        """MQTT 수신 스레드는 ROS 발행을 직접 호출하지 않는다."""
+        """Require one command owner and one robot subscriber before movement."""
         publisher = self.publishers_by_robot[robot_id]
-        if publisher.get_subscription_count() == 0:
-            raise RuntimeError('로봇 명령 구독자 없음')
-        publisher.publish(String(data=encode(payload)))
+        if publisher.get_subscription_count() != 1:
+            raise RuntimeError('로봇 명령 구독자 수가 1이 아님')
+        if self.count_publishers(f'/{robot_id}/patrol_cmd') != 1:
+            raise RuntimeError('중복 patrol_cmd 발행자: task_manager/CLI 동시 실행 금지')
+        publisher.publish(String(data=encode(self._envelope(robot_id, payload))))
 
-    def _connect(self, client, userdata, flags, reason_code, properties):
-        if reason_code == 0:
-            client.subscribe(self.prefix + '/commands', qos=1)
+    def _envelope(self, robot_id, payload):
+        self.sequences[robot_id] += 1
+        return dict(payload, session_id=self.session_id, seq=self.sequences[robot_id],
+                    issued_at=time.time(), ttl_sec=self.config['command_ttl_sec'])
 
-    def _message(self, client, userdata, message):
-        # 접수 저장이 끝나기 전에는 QoS 1 PUBACK을 보내지 않는다.
+    def _heartbeat(self):
+        self.heartbeat_seq += 1
+        payload = dict(session_id=self.session_id, seq=self.heartbeat_seq,
+                       issued_at=time.time(), ttl_sec=self.config['heartbeat_ttl_sec'])
+        self.fleet_heartbeat_pub.publish(String(data=encode(payload)))
+        for publisher in self.heartbeat_publishers.values():
+            publisher.publish(String(data=encode(payload)))
+
+    def release(self, robot_id, route=None):
+        """An explicit reconciliation authorizes clearing the onboard stop latch."""
+        self.send(robot_id, {'command_id': uuid.uuid4().hex, 'command': 'control_reset'})
+        if route:
+            for target in {route['pickup_arm'], route['dropoff_arm']}:
+                self.work(dict(request_id=uuid.uuid4().hex, order_id='', robot_id=robot_id,
+                               target=target, stage='SAFETY', action='release_hold'))
+
+    def work(self, payload):
+        """Adapters deduplicate request_id and return measured, final results."""
+        target = payload['target']
+        self.work_sequences[target] = self.work_sequences.get(target, 0) + 1
+        payload = dict(payload, session_id=self.session_id, seq=self.work_sequences[target],
+                       issued_at=time.time(), ttl_sec=self.config['command_ttl_sec'])
+        self.work_pub.publish(String(data=encode(payload)))
+
+    def halt(self, robot_id, route, order_id):
+        """Request software stops without claiming hardware power isolation."""
+        self.publishers_by_robot[robot_id].publish(String(data=encode(
+            {'command_id': uuid.uuid4().hex, 'command': 'emergency_stop'})))
+        routes = list(self.scenario.routes.values()) if route.get('all_arms') else [route]
+        targets = {r.get(k) for r in routes for k in ('pickup_arm', 'dropoff_arm')} - {None}
+        for target in targets:
+            self.work(dict(request_id=uuid.uuid4().hex, order_id=order_id, robot_id=robot_id,
+                           target=target, stage='SAFETY', action='hold'))
+
+    def _decode(self, message):
+        if len(message.data.encode('utf-8')) > 16384:
+            raise ValueError('JSON 요청 크기는 16 KiB 이하')
+        data = json.loads(message.data)
+        if not isinstance(data, dict):
+            raise ValueError('JSON 객체 필요')
+        return data
+
+    def _request(self, message):
         try:
-            self.inbox.put_nowait(message)
-        except Full:
-            self.get_logger().error('MQTT 수신 큐 포화: 접수하지 않음')
+            reply = self.api.handle(self._decode(message))
+            self.events_pub.publish(String(data=encode(reply)))
+            self._snapshot()
+        except (ValueError, TypeError) as error:
+            self.get_logger().warning(f'요청 거절: {error}')
 
     def _status(self, robot_id, message):
         try:
-            status = json.loads(message.data)
+            status = self._decode(message)
+            self.scenario.telemetry(robot_id, status=status)
             self.service.on_status(robot_id, status)
-            self.repository.record_status(robot_id, status)
         except (ValueError, TypeError) as error:
             self.get_logger().warning(f'로봇 상태 무시: {error}')
 
-    def _consume(self, message):
+    def _battery(self, robot_id, message):
         try:
-            if message.retain:
-                raise ValueError('retain 명령은 재실행 위험 때문에 거절합니다')
-            if len(message.payload) > 16384:
-                raise ValueError('명령 크기는 16 KiB 이하')
-            payload = json.loads(message.payload)
-            row = self.service.submit(payload)
-            response = {'command_id': row['command_id'], 'state': row['state']}
-        except (ValueError, UnicodeError, TypeError) as error:
-            response = {'state': 'REJECTED', 'detail': str(error)}
-        self.mqtt.publish(self.prefix + '/receipts', encode(response), qos=1, retain=False)
-        if message.qos:
-            self.mqtt.ack(message.mid, message.qos)
+            self.scenario.telemetry(robot_id, battery=message.data)
+        except ValueError as error:
+            self.get_logger().warning(str(error))
+
+    def _result(self, message):
+        try:
+            self.scenario.result(self._decode(message))
+        except (ValueError, TypeError) as error:
+            self.get_logger().warning(f'장치 결과 무시: {error}')
+
+    def _snapshot(self):
+        self.tasks_pub.publish(String(data=encode(self.api.snapshot())))
 
     def _tick(self):
-        try:
-            # 한 tick의 입력량을 제한해 BT 결과 처리를 굶기지 않는다.
-            for _ in range(100):
-                try:
-                    message = self.inbox.get_nowait()
-                except Empty:
-                    break
-                self._consume(message)
-            self.service.tick()
-            if not self.mqtt.is_connected():
-                return
-            for event_id, info in list(self.inflight.items()):
-                if info.is_published():
-                    self.repository.acknowledge(event_id)
-                    del self.inflight[event_id]
-            for event in self.repository.pending():
-                event_id = event['event_id']
-                if event_id in self.inflight:
-                    continue
-                info = self.mqtt.publish(self.prefix + '/events', event['payload'],
-                                         qos=1, retain=False)
-                if info.rc == mqtt.MQTT_ERR_SUCCESS:
-                    self.inflight[event_id] = info
-        except Exception as error:
-            # DB 장애일 때 예외를 감추고 다음 명령을 계속 실행하지 않는다.
-            self.get_logger().error(f'관제 처리 중단: {error}')
-            raise
+        for robot_id in self.service.robots:
+            if not self.scenario._fresh(robot_id):
+                for row in list(self.repository.db.execute(
+                        "SELECT command_id FROM commands WHERE robot_id=? "
+                        "AND state IN ('ACCEPTED','RUNNING')", (robot_id,))):
+                    self.service.quarantine(row[0], '통신·배터리 상태 수신 만료')
+                    self.scenario.store.hold(robot_id, 'LINK_LOST')
+                    self.halt(robot_id, {}, '')
+        self.scenario.tick()
+        self.service.tick(allow_dispatch=self.scenario.armed)
+        for event in self.repository.pending():
+            payload = json.loads(event['payload'])
+            if payload['type'] == 'command_state':
+                payload = dict(type='task', event_id=payload['event_id'],
+                               task=self.api._task(self.repository.get(payload['command_id'])))
+            self.events_pub.publish(String(data=encode(payload)))
+            # Local journal is durable. ROS publish is not a remote durable acknowledgement.
+            self.repository.acknowledge(event['event_id'])
 
     def destroy_node(self):
-        """통신 스레드를 먼저 멈춘 후 저장소를 닫는다."""
-        self.mqtt.disconnect()
-        self.mqtt.loop_stop()
+        """Close the journal after the executor has stopped."""
         self.repository.close()
         return super().destroy_node()
 
 
 def main(args=None):
-    """관제 서버 진입점."""
+    """Run the central executor in the existing control ROS domain."""
     rclpy.init(args=args)
     node = FleetControlNode()
     executor = SingleThreadedExecutor()
@@ -155,5 +207,4 @@ def main(args=None):
     finally:
         executor.shutdown()
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.shutdown()

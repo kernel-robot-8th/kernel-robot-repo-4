@@ -1,4 +1,4 @@
-"""업무 서비스. MQTT·ROS 콜백은 큐로 전달하고 이 객체는 한 스레드에서 사용한다."""
+"""단일 ROS executor에서 사용하는 주행 명령 BT 서비스."""
 
 import time
 
@@ -23,7 +23,7 @@ class FleetService:
         repository.recover()
 
     def submit(self, payload):
-        """명령 QoS 1 중복은 재실행하지 않고 같은 ID의 다른 내용은 거절한다."""
+        """같은 명령 ID는 재실행하지 않고 같은 ID의 다른 내용은 거절한다."""
         command = Command.parse(payload, self.robots)
         previous = self.repository.get(command.command_id)
         if previous:
@@ -39,9 +39,11 @@ class FleetService:
         self.traces[command.command_id].capture('created')
         return self.repository.get(command.command_id)
 
-    def tick(self):
+    def tick(self, allow_dispatch=True):
         """통신 발행의 성공을 로봇 도착 성공으로 처리하지 않는다."""
         for command_id, (_, tree, _) in list(self.active.items()):
+            if not allow_dispatch and self.repository.get(command_id)['state'] == 'ACCEPTED':
+                continue
             try:
                 tree.tick()
             except Exception:
@@ -54,6 +56,16 @@ class FleetService:
                 del self.active[command_id]
                 del self.traces[command_id]
 
+    def quarantine(self, command_id, detail):
+        """Remove pending local dispatch before requesting a stop at the device boundary."""
+        row = self.repository.get(command_id)
+        if row and row['state'] not in {'SUCCEEDED', 'FAILED'}:
+            self.repository.transition(command_id, 'UNKNOWN', detail)
+            self.active.pop(command_id, None)
+            trace = self.traces.pop(command_id, None)
+            if trace:
+                trace.capture('interrupted')
+
     def on_status(self, robot_id, status):
         """잘못된 로봇·이전 작업·중간 DONE을 완료로 오인하지 않는다."""
         if not isinstance(status, dict):
@@ -63,6 +75,8 @@ class FleetService:
             return
         row = self.repository.get(command_id)
         if not row or row['robot_id'] != robot_id:
+            return
+        if row['state'] not in {'RUNNING', 'UNKNOWN'}:
             return
         if (status.get('task_finished') is not True
                 or status.get('state') not in {'DONE', 'FAILED', 'STOPPED'}):

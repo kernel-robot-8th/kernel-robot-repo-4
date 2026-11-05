@@ -1,3 +1,21 @@
+# 현재 구현: SN-01 중앙 시나리오 제어
+
+2026-11-04 기준 중앙 실행기는 `cobot_fleet_control`입니다. 웹·HTTP/WebSocket·카메라 통신은
+`feature/control-center`의 `cobot_control_center`에 두고 fleet의 MQTT 접수기·브로커는 제거했습니다.
+실행 시 기존 `task_manager_node`를 함께 띄우면 안 됩니다. fleet이 로봇 명령을 발행하는 유일한 실행기입니다.
+
+- [중앙 시나리오 구현·시나리오 대응·연동 계약·검증 HTML](docs/central_scenario_control.html)
+- 설정: `cobot_fleet_control/config/scenario.yaml` (작업점·팔 매핑은 현장에 맞게 설정)
+- 신규 주문: `/control_center/task_request`의 `type=order`. 기존 웹의 `create/arm/stop` 봉투도 지원합니다.
+- 로봇: `central_controlled=true`, 주기적 상태와 배터리, 관제 하트비트·세션·TTL 검사.
+- 팔·비전·정밀 정차: `/fleet/work_request` → 실제 어댑터 → `/fleet/work_result`.
+  어댑터가 없으면 다음 단계로 진행하지 않습니다. 하드웨어 비상정지·텔레옵 구동은 별도 연동입니다.
+- 중앙 모드에서는 자동 유휴 복귀를 막고, 구역 점유 시간 초과만으로 다음 로봇에 허가하지 않습니다.
+
+**아래 MQTT·BT 내용은 이전 실험 이력입니다. 현재 접수·실행·연동은 위 HTML을 따릅니다.**
+
+---
+
 # cobot_navigation
 
 Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담당하는 폴더입니다.
@@ -25,6 +43,7 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 `refactor/control-server-bt-mqtt-db` 브랜치에서 UI → MQTT → 관제 Python BT → ROS → Pinky → Nav2 BT 흐름을 추가했습니다. 실제 SQLite 저장소와 MQTT 이벤트 outbox를 사용하며 추후 서버 DB로 교체할 수 있도록 경계를 분리했습니다.
 
 - [구조 분석·데이터 흐름·변경 결과 단일 HTML 리포트](docs/control_server_bt_report.html)
+- [실행 명령 선택·관제/로봇 역할·설치 순서](docs/control_server_bt_report.html#quick-start)
 - [실제 로직 읽는 순서·증상별 디버깅 위치](docs/control_server_bt_report.html#logic-debug)
 - [실제 tick 기반 BT 상태·방문 경로 시각화](docs/control_server_bt_report.html#bt-visualizer)
 - [Docker로 관제 버전·실행 환경 고정](cobot_fleet_control/config/docker/README.md)
@@ -93,7 +112,11 @@ Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담
 source /opt/ros/jazzy/setup.bash
 
 # 관제 PC
-colcon build --symlink-install --packages-select cobot_zone_traffic_control cobot_domain_bridge
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+python -m pip install 'py_trees==2.2.3' 'paho-mqtt==2.1.0'
+python "$(command -v colcon)" build --symlink-install --packages-select \
+  cobot_fleet_control cobot_zone_traffic_control cobot_domain_bridge
 
 # 각 로봇 (patrol 노드가 zone_gate_client 를 import 하므로 둘 다 필요)
 colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
@@ -101,20 +124,39 @@ colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
 source install/setup.bash
 ```
 
-## 실행 순서
+## 관제에서 통합 기동
+
+로봇 전원은 직접 켭니다. 관제의 `fleet_startup`은 브릿지·구역 관리자를 켜고 SSH로 pinky1 → pinky2 → pinky3의 `robot_startup`을 순서대로 호출합니다. 각 로봇은 bringup → Nav2 → patrol 준비 검사를 거치고, 마지막에 관제 업무 서버가 시작됩니다. 준비된 로봇 프로세스는 계속 실행됩니다.
+
+```bash
+# Linux 관제 PC · ROS / .venv / install 환경을 source한 뒤
+ros2 launch cobot_fleet_control fleet_startup.launch.xml                # 미리보기
+ros2 launch cobot_fleet_control fleet_startup.launch.xml execute:=true  # 실제 기동
+```
+
+기본 미리보기는 SSH 접속·ROS 프로세스를 시작하지 않습니다. 실제 실행 전 `cobot_fleet_control/config/fleet_startup.yaml`의 SSH 계정을 채우고 키 인증·호스트 키·vendor underlay를 준비합니다. 현재 IP는 `192.168.45.21 / .22 / .23`, 로봇 workspace는 `/ws/kernel-robot-repo-4`, 지도는 각 로봇의 `~/cobot_map_v9.yaml`입니다. 지도 이미지도 함께 있어야 합니다. MQTT 브로커는 별도로 준비합니다.
+
+[설치·실행 전체 순서](docs/control_server_bt_report.html#run-order) · [SSH 설정·로봇만 기동·로봇 추가](cobot_fleet_control/README.md#관제에서-로봇까지-순차-기동). 기존 관제/Docker가 실행 중이면 `--robots-only`를 사용합니다. 설정 수정은 재빌드·source 후 다시 기동해야 반영됩니다.
+
+## 수동 실행 순서
 
 모든 터미널에서 `source /opt/ros/jazzy/setup.bash && source install/setup.bash` 를 먼저 합니다.
-순서를 지켜 위에서부터 켭니다.
+통합 기동과 택일하는 경로입니다. 관제 업무 서버 터미널에서는 위 `.venv`도 활성화합니다. 순서를 지켜 위에서부터 켭니다.
 
 | 단계 | 장비 | 실행 | 도메인 |
 |---|---|---|---|
-| 1 | 각 로봇 | Nav2 bringup (로봇에 설치된 Nav2·`pinky_interfaces`·`pinky_led` 사용, 이 저장소에는 없음) | 10 / 20 / 30 |
+| 1 | 각 로봇 | 아래 bringup → Nav2 (로봇의 vendor 패키지 사용) | 10 / 20 / 30 |
 | 2 | 관제 PC | 도메인 브릿지 | 100 |
 | 3 | 관제 PC | zone_manager (**1대만**) | 100 |
 | 4 | 각 로봇 | 순찰 노드 | 10 / 20 / 30 |
-| 5 | 관제 PC | 순찰 명령 | 100 |
+| 5 | 관제 PC | MQTT 브로커·`fleet_control` 후 MQTT 업무 전송, 또는 기존 CLI 직접 명령 | 100 |
 
 ```bash
+# 1. 각 로봇: 같은 도메인 환경의 별도 터미널에서 순서대로
+export ROS_DOMAIN_ID=10   # pinky1 (pinky2 = 20, pinky3 = 30)
+ros2 launch pinky_bringup bringup_robot.launch.xml
+ros2 launch pinky_navigation bringup_launch.xml map:="$HOME/cobot_map_v9.yaml"
+
 # 2. 관제 PC: 도메인 브릿지
 export ROS_DOMAIN_ID=100
 ros2 launch cobot_domain_bridge bridges.launch.xml                  # pinky1~3 모두
@@ -128,12 +170,17 @@ ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
 # 4. 각 로봇: 공통 실행기 + 공통·현장·로봇 설정
 export ROS_DOMAIN_ID=10   # pinky1 (pinky2 = 20, pinky3 = 30)
 ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
+
+# 5. MQTT 업무 경로를 쓸 경우: 관제 PC 별도 터미널, 브로커 준비 후
+ROS_DOMAIN_ID=100 ros2 launch cobot_fleet_control fleet_control.launch.xml
 ```
 
 Nav2 파라미터는 [`docs/cobot_slam_nav_param/`](docs/cobot_slam_nav_param/param_changes.md) 에 정리되어 있습니다.
 기존 `pinky1_patrol.launch.xml`·`pinky2_patrol.launch.xml`·`pinky3_patrol.launch.xml`도 공통 launch를 호출합니다. 직접 `ros2 run`할 때는 common·현장·로봇 YAML을 모두 전달합니다. [설정 이전·직접 실행 안내](cobot_pinky_patrol/README.md#기존-실행-명령과-설정-경로-이전)를 참고하세요.
 
 ## 순찰 명령
+
+아래 CLI는 ROS 토픽으로 직접 요청하므로 fleet의 MQTT 접수·중복 방지·업무 BT를 거치지 않습니다. 업무 ID와 DB 이력을 사용하는 경로는 [MQTT 데이터 계약](cobot_fleet_control/README.md#데이터-계약)을 따릅니다.
 
 **명령을 보내면 로봇이 실제로 움직이므로** 주변을 확인한 뒤 보냅니다. 워크스페이스 최상위에서 `ROS_DOMAIN_ID=100` 으로 실행합니다.
 
@@ -165,6 +212,7 @@ ros2 topic echo /zone_manager/status    # <구역>:free | <구역>:occupied_by:<
 
 | 바꾸려는 것 | 파일 | 주의 |
 |---|---|---|
+| 원격 접속·로봇 workspace·지도·기동 간격 | `cobot_fleet_control/config/fleet_startup.yaml` | 로봇 추가 시 업무·구역 robot_ids와 브릿지도 함께 갱신 |
 | 지점·홈 좌표, 구역 소속·EXIT | `cobot_pinky_patrol/config/sites/lab.yaml` | 모든 로봇이 같은 현장 좌표를 공유한다. 좌표는 소수점으로(`0.0`) 작성 |
 | 로봇 ID·홈 이름 / 실행 기본값 | `cobot_pinky_patrol/config/robots/pinky{1,2,3}.yaml` / `config/common.yaml` | 로봇별 차이와 공통 실행 설정을 분리 |
 | 구역 이름, 대기 앵커·방향·간격, 대기 상한, 타임아웃 | `cobot_zone_traffic_control/config/zone_params.yaml` | `robot_ids`, `zone_names` 는 순찰 YAML 과 같아야 한다. 앵커는 여기가 **유일한 출처** |
@@ -203,7 +251,7 @@ cd src/cobot_navigation/cobot_zone_traffic_control && python3 -m pytest test/
 
 실측이 남았거나 구조상 확인이 필요한 항목입니다.
 
-- **지점 좌표 미실측**: `P11`~`P50` 은 모두 `(0, 0, 0)` 임시값이라 `goto` 하면 원점으로 갑니다. pinky1~3 의 구역 지점·일반 지점 좌표도 같은 값이며 실측 확인이 남아 있으니, 확인 전에는 구역 지점으로 이동하지 마세요.
+- **현장 좌표 확인**: 현재 `config/sites/lab.yaml`은 P1~P35를 등록합니다. P36~P50 예비 원점 좌표는 제거했으며 미등록 지점은 거절됩니다. 실제 지도와 지점·홈·구역 좌표의 정합 및 주행 가능 여부는 현장에서 확인해야 합니다.
 - **대기 위치 실측**: 줄이 늘어나는 `-y` 쪽에 장애물이 없는지 확인해야 합니다. 구역 A·B 는 대기 위치가 같아서 두 구역에 대기자가 동시에 생기면 같은 슬롯으로 가 충돌할 수 있습니다. A·B 슬롯 2 는 홈 `I1` 과 0.1 m, C 슬롯 1 은 `ZC_EXIT` 와 0.4 m 입니다.
 - **`start` 순회 비활성**: v1.1.0 부터 `start` 는 받으면 `FAILED` 로 응답합니다.
 - **함께 재배포**: 메시지 맨 앞에 구역 이름이 붙으므로 **관제 PC 매니저 → 로봇 3대 순서로 함께** 재배포해야 하고 구형 노드와 섞어 쓸 수 없습니다. 같은 구역을 쓰는 로봇은 모두 같은 대기열 방식이어야 하며, 이전 세대(`v2-final` 태그)와 섞으면 두 대가 동시에 구역에 들어갈 수 있습니다.

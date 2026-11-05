@@ -1,3 +1,16 @@
+# 현재 Docker 구성: ROS 중앙 실행기
+
+2026-11-04 이후 서비스는 fleet / bridge / zone-manager입니다.
+MQTT 브로커, Paho, MQTT 계정 환경변수, `up-local`은 제거했습니다.
+`fleet_docker.sh build`, `config`, `up`, `down`, `logs`는 유지합니다.
+이미지 태그는 `cobot-fleet:jazzy-scenario-v0.3.0`입니다.
+
+[현재 중앙 시나리오 실행·계약·검증](../../../docs/central_scenario_control.html)
+
+아래는 이전 배포 실험 이력입니다. broker/MQTT 관련 예시는 현재 실행 경로에 적용되지 않습니다.
+
+---
+
 # 관제 PC Docker 실행 환경
 
 호스트의 ROS 설치·venv·pip·colcon 작업을 이미지 빌드 안으로 옮깁니다. Linux Docker Engine + Compose 플러그인이 필요합니다. 기존 팀 `scripts/docker/dev.sh`는 격리 개발·시험용이며, 이 구성은 관제·브릿지·구역 매니저를 실제 네트워크에서 실행하는 용도입니다.

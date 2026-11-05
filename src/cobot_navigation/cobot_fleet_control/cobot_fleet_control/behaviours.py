@@ -28,11 +28,13 @@ class AwaitResult(py_trees.behaviour.Behaviour):
         self.command = command
         self.repository = repository
         self.clock = clock
-        self.deadline = clock() + command.timeout_sec
+        self.deadline = None
         self.result = None
 
     def update(self):
         """통신 타임아웃을 물리 정지 또는 실패 확정으로 간주하지 않는다."""
+        if self.deadline is None:
+            self.deadline = self.clock() + self.command.timeout_sec
         if self.result is not None:
             state = 'SUCCEEDED' if self.result['state'] == 'DONE' else 'FAILED'
             self.feedback_message = '로봇 정리 완료: ' + self.result['state']

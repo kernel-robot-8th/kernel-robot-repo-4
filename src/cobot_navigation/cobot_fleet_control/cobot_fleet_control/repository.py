@@ -1,4 +1,4 @@
-"""SQLite 구현: 업무 상태와 MQTT 발행 대기 이벤트를 같은 트랜잭션에 기록한다."""
+"""SQLite 실행 원장: 업무 상태와 ROS 통지 이벤트를 같은 트랜잭션에 기록한다."""
 
 import fcntl
 import json
@@ -47,7 +47,8 @@ class SqliteRepository:
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS commands (
                 command_id TEXT PRIMARY KEY, robot_id TEXT NOT NULL,
-                payload TEXT NOT NULL, state TEXT NOT NULL, detail TEXT NOT NULL
+                payload TEXT NOT NULL, state TEXT NOT NULL, detail TEXT NOT NULL,
+                created_at REAL NOT NULL DEFAULT 0, updated_at REAL NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS robot_status (
                 robot_id TEXT PRIMARY KEY, payload TEXT NOT NULL, received_at REAL NOT NULL
@@ -57,6 +58,11 @@ class SqliteRepository:
                 payload TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0
             );
         """)
+        columns = {row['name'] for row in self.db.execute('PRAGMA table_info(commands)')}
+        for column in ('created_at', 'updated_at'):
+            if column not in columns:
+                self.db.execute(f'ALTER TABLE commands ADD COLUMN {column} REAL NOT NULL DEFAULT 0')
+        self.db.commit()
 
     def get(self, command_id):
         """명령 ID 단위 최신 상태 조회."""
@@ -73,9 +79,12 @@ class SqliteRepository:
     def create(self, command):
         """접수 내역이 디스크에 기록된 후에만 BT 실행을 허용한다."""
         with self.db:
-            self.db.execute('INSERT INTO commands VALUES (?,?,?,?,?)',
+            now = time.time()
+            self.db.execute('INSERT INTO commands '
+                            '(command_id,robot_id,payload,state,detail,created_at,updated_at) '
+                            'VALUES (?,?,?,?,?,?,?)',
                             (command.command_id, command.robot_id,
-                             encode(command.payload()), 'ACCEPTED', ''))
+                             encode(command.payload()), 'ACCEPTED', '', now, now))
             self._event(command.command_id, 'ACCEPTED', '')
 
     def _event(self, command_id, state, detail):
@@ -94,8 +103,9 @@ class SqliteRepository:
         if row['state'] == state and row['detail'] == detail:
             return
         with self.db:
-            self.db.execute('UPDATE commands SET state=?, detail=? WHERE command_id=?',
-                            (state, detail, command_id))
+            self.db.execute('UPDATE commands SET state=?, detail=?, updated_at=? '
+                            'WHERE command_id=?',
+                            (state, detail, time.time(), command_id))
             self._event(command_id, state, detail)
 
     def resolve_unknown(self, command_id, robot_id, operator, reason):
@@ -109,18 +119,19 @@ class SqliteRepository:
                 raise ValueError('robot_id가 기존 작업과 일치하지 않습니다')
             if row['state'] != 'UNKNOWN':
                 raise ValueError('UNKNOWN 상태의 작업만 수동 해제할 수 있습니다')
-            self.db.execute('UPDATE commands SET state=?, detail=? WHERE command_id=?',
-                            ('FAILED', detail, command_id))
+            self.db.execute('UPDATE commands SET state=?, detail=?, updated_at=? '
+                            'WHERE command_id=?',
+                            ('FAILED', detail, time.time(), command_id))
             self._event(command_id, 'FAILED', detail)
         return self.get(command_id)
 
     def pending(self, limit=100):
-        """브로커 확인을 받지 못한 이벤트를 순서대로 재전송한다."""
+        """아직 ROS 발행 처리하지 않은 이벤트를 순서대로 반환한다."""
         return [dict(row) for row in self.db.execute(
             'SELECT * FROM outbox WHERE acknowledged=0 ORDER BY event_id LIMIT ?', (limit,))]
 
     def acknowledge(self, event_id):
-        """MQTT PUBACK 수신 후에만 발행 완료로 기록한다."""
+        """ROS 발행 처리 여부를 기록한다. 원격 수신 보장은 아니다."""
         with self.db:
             self.db.execute('UPDATE outbox SET acknowledged=1 WHERE event_id=?', (event_id,))
 

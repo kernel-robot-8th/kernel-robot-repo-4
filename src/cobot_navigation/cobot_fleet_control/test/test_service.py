@@ -213,3 +213,23 @@ def test_resolution_cli_requires_server_stop_and_confirmation(tmp_path, capsys):
     check = SqliteRepository(path)
     assert check.get('job1')['state'] == 'FAILED'
     check.close()
+
+
+def test_legacy_five_column_database_upgrades_without_losing_unknown_reservation(tmp_path):
+    """Old fleet databases remain usable after adding web timing fields."""
+    import sqlite3
+    path = str(tmp_path / 'legacy.sqlite3')
+    with sqlite3.connect(path) as connection:
+        connection.execute('CREATE TABLE commands (command_id TEXT PRIMARY KEY, robot_id TEXT, '
+                           'payload TEXT, state TEXT, detail TEXT)')
+        connection.execute('INSERT INTO commands VALUES (?,?,?,?,?)',
+                           ('legacy1', 'pinky1', '{}', 'UNKNOWN', 'legacy detail'))
+    repo = SqliteRepository(path)
+    try:
+        assert repo.get('legacy1')['detail'] == 'legacy detail'
+        assert repo.get('legacy1')['created_at'] == 0
+        assert repo.busy('pinky1')
+        repo.create(Command.parse(request('new1', 'pinky2'), ['pinky2']))
+        assert repo.get('new1')['created_at'] > 0
+    finally:
+        repo.close()

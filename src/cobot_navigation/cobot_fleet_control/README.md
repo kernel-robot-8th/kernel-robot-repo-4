@@ -1,8 +1,50 @@
+# SN-01 중앙 실행기
+
+현재 fleet은 ROS 전용 중앙 실행기입니다. HTTP/WebSocket·카메라·웹 접수는 `cobot_control_center`가 담당합니다.
+이 패키지의 MQTT 코드, Paho 의존성, 로컬 브로커 구성은 제거했습니다.
+기존 SQLite는 실행 복구 원장으로 유지하며 웹 저장소를 대신하지 않습니다.
+
+[구현 상세·PDF 18개 흐름 대응·실행 순서·연동 계약 HTML](../docs/central_scenario_control.html)
+
+```bash
+# 기존 ROS/vendor 환경을 source한 Linux 관제 PC
+colcon build --packages-select cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
+source install/setup.bash
+ROS_DOMAIN_ID=100 ros2 launch cobot_fleet_control fleet_control.launch.xml
+```
+
+기본 작업 명령은 꺼짐입니다. 기존 `task_manager_node`는 중지하고 웹 API·fleet_status만 유지합니다.
+`config/scenario.yaml`의 `lab_delivery`는 기존 ZA/ZB와 omx1/omx2의 예시 매핑이며 실제 설치에 맞춰야 합니다.
+로봇에는 `central_controlled=true`인 새 patrol과 하트비트 브리지를 함께 배포합니다.
+웹의 주문·수령·복구 화면과 팔·비전 어댑터는 HTML 계약에 맞게 연결해야 합니다.
+
+핵심 파일은 `scenario.py`, `scenario_repository.py`, `control_api.py`입니다.
+주행은 기존 `service.py` / `behaviours.py`의 py_trees BT가 수행합니다.
+공용 msg/srv/action과 기능 패키지 간 import는 추가하지 않았습니다.
+
+**아래 내용은 이전 MQTT 실험·기동 이력으로 보존합니다. 이전 MQTT 실행 예시는 현재 코드에서 사용하지 않습니다.**
+
+---
+
 # 관제 서버 BT · MQTT · DB
 
 UI → MQTT → 관제 서버의 `py_trees` → ROS 도메인 브릿지 → Pinky 공통 실행기 → Nav2 BT로 연결합니다. 업무 진행 상태와 실제 로봇 상태를 SQLite에 저장하고 MQTT 이벤트로 돌려줍니다. 전체 구조·분석·시연·검증 결과는 [단일 HTML 리포트](../docs/control_server_bt_report.html)에 있습니다.
 
 현재는 이 브랜치에서 검증 가능한 독립 `ament_python` 패키지로 둡니다. 기존 `cobot_control_center`와의 통합 위치는 팀이 정하면 이전할 수 있습니다. 다른 기능 패키지의 Python 코드를 import하지 않습니다.
+
+## 먼저 확인할 실행 경로
+
+로봇 전원을 켠 뒤 Linux 관제 PC에서 통합 기동합니다. 관제 PC의 `fleet_startup`이 SSH로 각 로봇의 `robot_startup`을 호출하고, 로봇의 bringup → Nav2 → patrol 준비를 확인합니다. 이후 `fleet_control`이 MQTT 이동 업무를 처리합니다.
+
+| 목적 | 실행 위치 | 명령·안내 |
+|---|---|---|
+| 통합 기동 미리보기 | 관제 PC | `ros2 launch cobot_fleet_control fleet_startup.launch.xml` |
+| 실제 통합 기동 | 관제 PC | 위 명령에 `execute:=true` 추가. SSH 계정·키·호스트 키와 로봇 설치 환경을 먼저 설정 |
+| 기존 관제를 유지하고 로봇만 기동 | 관제 PC | 아래 순차 기동 절차의 `--robots-only`; 한 대는 `--robot pinky1` 추가 |
+| 로봇 한 대에서 직접 단계 기동 | 해당 로봇 | `ros2 run cobot_pinky_patrol robot_startup --robot-id pinky1 --domain-id 10` — 실제 실행 |
+| 업무 요청·결과 확인 | 관제 PC | MQTT commands / receipts / events. 통합 기동 자체는 이동 목표를 발행하지 않음 |
+
+[명령 선택·설치부터 실행까지 HTML 가이드](../docs/control_server_bt_report.html#quick-start)에서 실행 범위와 모드를 선택해 명령을 복사할 수 있습니다. HTML은 실행 안내와 기록 재생 문서이며 SSH 접속이나 실시간 로봇 제어를 수행하지 않습니다.
 
 ## 책임과 오픈소스
 
@@ -24,6 +66,8 @@ ros2 launch cobot_fleet_control fleet_startup.launch.xml
 ```
 
 `config/fleet_startup.yaml`에 다음 주소와 로봇 워크스페이스를 등록했습니다. SSH 계정은 아직 받지 않았으므로 공란입니다. 각 `ssh_user`를 채우기 전에는 실제 실행이 거절됩니다.
+
+launch는 기본적으로 설치된 패키지의 YAML을 읽습니다. 소스 설정을 수정했다면 재빌드·source하거나, 미리보기에서 `config:=/절대/경로/fleet_startup.yaml`로 파일을 명시합니다. 실제 기동에도 같은 `config:=...`를 전달해야 합니다.
 
 | 로봇 | IP | ROS 도메인 |
 |---|---|---|
@@ -117,7 +161,7 @@ bash cobot_fleet_control/config/docker/fleet_docker.sh build
 bash cobot_fleet_control/config/docker/fleet_docker.sh up-local
 ```
 
-ROS·브로커 이미지는 digest, Python 직접·하위 의존성은 버전과 wheel 해시로 고정합니다. 세 관제 서비스는 같은 이미지를 사용하고 SQLite는 별도 named volume에 보존합니다. 이미지 전체 빌드·컨테이너 기동은 이 작업 환경에 Docker가 없어 아직 검증하지 못했습니다. 아래는 Docker를 쓰지 않을 때의 네이티브 실행 절차입니다.
+ROS·브로커 이미지는 digest, Python 직접·하위 의존성은 버전과 wheel 해시로 고정합니다. 세 관제 서비스는 같은 이미지를 사용하고 SQLite는 별도 named volume에 보존합니다. 이 Docker 구성은 로봇 SSH 기동을 포함하지 않습니다. 기존 컨테이너가 실행 중이면 원격 기동기에 `--robots-only`를 사용합니다. 이미지 전체 빌드·컨테이너 기동·실물 DDS 연결은 미검증입니다. 아래는 네이티브 설치 절차입니다.
 
 ## 설치와 빌드
 
@@ -128,9 +172,12 @@ source /opt/ros/jazzy/setup.bash
 python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 python -m pip install 'py_trees==2.2.3' 'paho-mqtt==2.1.0'
-python -m colcon build --packages-select cobot_fleet_control cobot_pinky_patrol cobot_zone_traffic_control
+python "$(command -v colcon)" build --packages-select \
+  cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
 source install/setup.bash
 ```
+
+workspace 최상위에서 실행합니다. `colcon`이 설치된 ROS 환경을 사용하고 가상환경의 Python으로 해당 스크립트를 실행합니다. 로봇의 패트롤 패키지는 위 원격 기동 절차에 따라 각 로봇에서 별도로 빌드합니다. 설정 파일을 수정한 뒤에는 재빌드·source·프로세스 재시작으로 설치 경로에 반영합니다.
 
 관제 서버는 `config/fleet_control.yaml`의 브로커·DB 경로를 사용합니다. 실행 전 각 로봇의 순찰 패키지도 새 버전으로 배포해야 JSON 명령/종료 응답을 처리합니다. `cobot_domain_bridge`의 기존 String 토픽은 그대로 사용합니다. 기존 zone_manager는 1개만 실행합니다.
 
@@ -150,7 +197,7 @@ UI는 `cobot/fleet/commands`에 **QoS 1 / retain=false**로 아래 JSON을 보�
 {"command_id":"job-20261031-001","robot_id":"pinky1","operation":"goto","points":["P1","P2"],"timeout_sec":300}
 ```
 
-지원 업무는 `goto`(1~50개 지점), `zone`(1개), `leave`/`home`(지점 없음)입니다. 실제 지점 존재/구역 검증은 로봇 YAML을 기준으로 로봇이 최종 검증합니다. 기존 CLI의 `stop`/`emergency_stop`은 유지되지만 신규 MQTT 업무 API의 취소·선점 계약은 아직 포함하지 않습니다.
+지원 업무는 `goto`(1~50개 지점), `zone`(1개), `leave`/`home`(지점 없음)입니다. 실제 지점 존재/구역 검증은 로봇의 `config/sites/lab.yaml`을 기준으로 최종 검증합니다. 기존 CLI의 `stop`/`emergency_stop`은 유지되지만 신규 MQTT 업무 API의 취소·선점 계약은 아직 포함하지 않습니다.
 
 | 구간 | 토픽/저장소 | 내용 |
 |---|---|---|

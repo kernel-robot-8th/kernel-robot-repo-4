@@ -117,3 +117,9 @@ topics:
     from_domain: 100
     to_domain: 20
   # === ZONE-QUEUE END =====================================================
+
+  /pinky2/fleet_heartbeat:
+    type: std_msgs/msg/String
+    from_domain: 100
+    to_domain: 20
+    remap: /fleet_heartbeat

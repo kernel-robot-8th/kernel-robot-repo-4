@@ -11,9 +11,9 @@ setup(
         ('share/cobot_fleet_control/config', glob('config/*.yaml')),
         ('share/cobot_fleet_control/launch', glob('launch/*.launch.xml')),
     ],
-    install_requires=['setuptools', 'py_trees==2.2.3', 'paho-mqtt==2.1.0'],
+    install_requires=['setuptools', 'py_trees==2.2.3'],
     maintainer='cobot navigation team', maintainer_email='cobot@example.com',
-    description='MQTT commands, persistent job events and Python behaviour trees for Pinky',
+    description='Central SN-01 scenario orchestration and navigation behaviour trees for Pinky',
     license='Apache-2.0',
     entry_points={'console_scripts': [
         'fleet_control_node = cobot_fleet_control.fleet_control_node:main',
