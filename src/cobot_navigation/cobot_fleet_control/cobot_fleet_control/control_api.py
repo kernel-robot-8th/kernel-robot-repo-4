@@ -168,9 +168,17 @@ class ControlAPI:
         if not isinstance(note, str) or not note.strip():
             raise ValueError('현장 정지 확인 내용을 note에 적으세요')
         status = self.scenario.health.get(robot, {}).get('status', {})
-        if (not self.scenario._fresh(robot) or status.get('busy') is not False
-                or status.get('held_zone') or status.get('central_latched') is not True):
-            raise ApiError(409, '최신 로봇 정지·취소 완료·구역 이탈 확인이 필요합니다')
+        reasons = []
+        if not self.scenario._fresh(robot):
+            reasons.append('로봇 상태 또는 배터리 수신이 오래됐거나 없습니다')
+        if status.get('busy') is not False:
+            reasons.append('로봇 정지·취소 완료 미확인 (busy=false 필요)')
+        if status.get('held_zone'):
+            reasons.append(f'구역 이탈 미확인 (held_zone={status["held_zone"]})')
+        if status.get('central_latched') is not True:
+            reasons.append('로봇 정지 래치 미확인 (central_latched=true 필요)')
+        if reasons:
+            raise ApiError(409, '해제 불가: ' + '; '.join(reasons))
         self.gateway.release(robot)
         repository.resolve_unknown(task_id, robot, 'control-center-ui', note.strip())
         self.scenario.store.clear_hold(robot)

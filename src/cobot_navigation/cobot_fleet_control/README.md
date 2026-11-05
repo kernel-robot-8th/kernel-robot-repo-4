@@ -34,6 +34,16 @@
 시나리오의 화물·자원 예약은 기존 단일 작업 해제 버튼으로 풀 수 없습니다.
 그 경우 주문별 안전·화물·자원 확인을 담은 시나리오 복구가 필요합니다.
 
+### 현재 제한: 구역 점유 중 정지 래치의 웹 복구
+
+`held_zone`에 구역이 남아 있고 `central_latched=true`인 상태는 현재 웹의
+**현장 확인 후 해제**만으로 복구할 수 없습니다. 해제는 구역 미점유를 요구하지만,
+구역 이탈 명령도 정지 래치로 차단되기 때문입니다. `busy=false`여도 구역 점유는 유지됩니다.
+
+이 상태에서 현장 확인을 거쳐 이탈하거나 점유를 정리하는 웹 복구 절차는 아직 구현되지 않았습니다.
+거절 사유를 구체적으로 표시하는 변경은 진단 개선이며, 이 복구 제한을 해결하지 않습니다.
+실제 로봇 위치와 구역 상태를 확인해야 하며, 점유 값이나 DB를 임의로 지워 우회하지 않습니다.
+
 ## 기동
 
 feature/control-center의 cobot_control_center를 빌드·source한 환경이 필요합니다.
@@ -41,7 +51,7 @@ feature/control-center의 cobot_control_center를 빌드·source한 환경이 �
 
 ```bash
 # Linux 관제 PC, ROS·control-center 설치 환경을 먼저 source
-colcon build --packages-select cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
+colcon build --packages-up-to cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
 source install/setup.bash
 export ROS_DOMAIN_ID=100
 
@@ -53,6 +63,12 @@ ros2 launch cobot_fleet_control control_center_web.launch.xml \
 ros2 launch cobot_fleet_control control_center_web.launch.xml \
   navigation_root:=/ws/kernel-robot-repo-4/src/cobot_navigation mode:=execute
 ```
+
+`--packages-up-to`는 `cobot_fleet_control`의 의존 패키지인 `cobot_control_center`도 함께 빌드합니다.
+`--packages-select`는 지정한 패키지만 빌드하므로, 의존 패키지가 아직 설치되지 않았다면
+`cobot_control_center/share/cobot_control_center/package.sh`를 찾지 못해 실패합니다.
+이 빌드는 현재 체크아웃의 `cobot_control_center`를 설치하므로, 웹 기동에는 위에서 설명한
+feature/control-center의 웹 실행 파일이 있는 소스가 필요합니다.
 
 이미 fleet이 실행 중이면 `fleet:=existing`을 추가합니다. 브릿지·zone_manager·로봇은 이 기동기가 중복 실행하지 않습니다.
 `host`·`port` 인자로 화면 접속 주소를 바꿀 수 있고 기본은 `127.0.0.1:8080`입니다.
