@@ -123,16 +123,6 @@ def test_failure_and_outbox_ack(env):
     assert repo.pending() == []
 
 
-def test_telemetry_is_real_payload_with_receipt_time(env):
-    repo, *_ = env
-    status = {'state': 'MOVING', 'waypoint': 0, 'detail': 'P1', 'time': 123.0}
-    repo.record_status('pinky1', status)
-    event = json.loads(repo.pending()[0]['payload'])
-    assert event['status'] == status
-    assert event['type'] == 'robot_status'
-    assert event['recorded_at'] > 123
-
-
 @pytest.mark.parametrize('changes', [
     {'command_id': '../bad'}, {'robot_id': 'unknown'}, {'robot_id': []},
     {'operation': 'start'}, {'operation': []}, {'points': 'P1'}, {'points': ['P1:stop']},

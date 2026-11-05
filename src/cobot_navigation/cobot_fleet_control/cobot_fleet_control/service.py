@@ -34,14 +34,14 @@ class FleetService:
             raise ValueError('로봇 작업 중 또는 UNKNOWN: 기존 작업 확인 필요')
         self.repository.create(command)
         tree, result = build_tree(command, self.repository, self.gateway, self.clock)
-        self.active[command.command_id] = (command, tree, result)
+        self.active[command.command_id] = (tree, result)
         self.traces[command.command_id] = TreeTrace(command, tree, self.repository)
         self.traces[command.command_id].capture('created')
         return self.repository.get(command.command_id)
 
     def tick(self, allow_dispatch=True):
         """통신 발행의 성공을 로봇 도착 성공으로 처리하지 않는다."""
-        for command_id, (_, tree, _) in list(self.active.items()):
+        for command_id, (tree, _) in list(self.active.items()):
             if not allow_dispatch and self.repository.get(command_id)['state'] == 'ACCEPTED':
                 continue
             try:
@@ -83,7 +83,7 @@ class FleetService:
                 or status.get('state') not in {'DONE', 'FAILED', 'STOPPED'}):
             return
         if command_id in self.active:
-            self.active[command_id][2].result = status
+            self.active[command_id][1].result = status
         elif (row['state'] == 'UNKNOWN'
               and not self.repository.confirmation_required(command_id)):
             # 지연 완료가 실제로 도착했을 때만 자동으로 점유를 해제한다.

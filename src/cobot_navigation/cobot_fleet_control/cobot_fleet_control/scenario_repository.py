@@ -38,12 +38,6 @@ class ScenarioRepository:
                               (order_id,)).fetchone()
         return json.loads(row[0]) if row else None
 
-    def stock(self, sku):
-        """확인되지 않은 재고는 사용 불가로 처리하며 재고가 있다고 추정하지 않는다."""
-        row = self.db.execute('SELECT available FROM scenario_stock WHERE sku=?',
-                              (sku,)).fetchone()
-        return row[0] if row else 0
-
     def holds(self):
         """운영자의 보류 상태를 영속 저장해 진행 중인 주문이 없는 로봇도 보호한다."""
         return dict(self.db.execute('SELECT robot_id, reason FROM scenario_holds'))

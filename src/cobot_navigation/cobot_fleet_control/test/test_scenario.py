@@ -67,6 +67,12 @@ class Environment:
     def current(self, order_id='order1'):
         return self.scenario.store.get(order_id)
 
+    def stock(self, sku):
+        """재고 예약 검증에 필요한 값은 시험 도우미에서 직접 조회한다."""
+        row = self.repo.db.execute(
+            'SELECT available FROM scenario_stock WHERE sku=?', (sku,)).fetchone()
+        return row[0] if row else 0
+
     def result(self, data=None, **changes):
         order = self.current()
         work = next(w for w in reversed(self.gateway.work_sent)
@@ -126,14 +132,14 @@ def test_delivery_requires_all_device_results_customer_and_home(env):
     assert [p['command'] for _, p in env.gateway.sent] == [
         'zone:ZA', 'leave', 'zone:ZB', 'leave', 'home']
     assert not env.scenario.store.resources('order1')
-    assert env.scenario.store.stock('SHOE42') == 9
+    assert env.stock('SHOE42') == 9
 
 
 def test_qos_duplicate_conflict_inventory_atomicity_and_no_available_robot(env):
     env.scenario.armed = False
     first = env.order(quantity=2)
     assert env.order(quantity=2) == first
-    assert env.scenario.store.stock('SHOE42') == 8
+    assert env.stock('SHOE42') == 8
     with pytest.raises(ValueError, match='다른 주문'):
         env.order(quantity=3)
     with pytest.raises(ValueError, match='재고 부족'):
@@ -299,7 +305,7 @@ def test_restart_preserves_order_inventory_and_leases_without_redispatch(env):
     env.tick()
     assert env.current()['state'] == 'UNKNOWN'
     assert env.scenario.store.resources('order1') == resources
-    assert env.scenario.store.stock('SHOE42') == 9
+    assert env.stock('SHOE42') == 9
     assert (len(env.gateway.sent), len(env.gateway.work_sent)) == sent
 
 
@@ -336,10 +342,10 @@ def test_optional_return_uses_explicit_reverse_route_store_and_replenishes_once(
     assert env.current()['state'] == 'COMPLETED'
     assert [p['command'] for _, p in env.gateway.sent][:3] == ['zone:ZB', 'leave', 'zone:ZA']
     assert any(w['action'] == 'warehouse_store' for w in env.gateway.work_sent)
-    assert env.scenario.store.stock('SHOE42') == 11
+    assert env.stock('SHOE42') == 11
     env.order(kind='return')
     env.tick()
-    assert env.scenario.store.stock('SHOE42') == 11
+    assert env.stock('SHOE42') == 11
 
 
 @pytest.mark.parametrize('changes', [
@@ -349,7 +355,7 @@ def test_optional_return_uses_explicit_reverse_route_store_and_replenishes_once(
 def test_invalid_orders_do_not_reserve_stock(env, changes):
     with pytest.raises(ValueError):
         env.order(**changes)
-    assert env.scenario.store.stock('SHOE42') == 10
+    assert env.stock('SHOE42') == 10
 
 
 def test_pause_before_first_bt_tick_prevents_queued_movement(env):

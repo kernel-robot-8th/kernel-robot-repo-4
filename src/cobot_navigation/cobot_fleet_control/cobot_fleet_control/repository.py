@@ -34,9 +34,6 @@ class SqliteRepository:
                 payload TEXT NOT NULL, state TEXT NOT NULL, detail TEXT NOT NULL,
                 created_at REAL NOT NULL DEFAULT 0, updated_at REAL NOT NULL DEFAULT 0
             );
-            CREATE TABLE IF NOT EXISTS robot_status (
-                robot_id TEXT PRIMARY KEY, payload TEXT NOT NULL, received_at REAL NOT NULL
-            );
             CREATE TABLE IF NOT EXISTS outbox (
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 payload TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0
@@ -138,19 +135,6 @@ class SqliteRepository:
                                "('ACCEPTED','RUNNING')").fetchall()
         for row in rows:
             self.transition(row['command_id'], 'UNKNOWN', '서버 재시작: 현장 확인 필요')
-
-    def record_status(self, robot_id, status):
-        """실제 로봇 상태 원문과 서버 수신 시각을 보존해 UI가 데이터 출처를 알게 한다."""
-        received_at = time.time()
-        event = {'type': 'robot_status', 'robot_id': robot_id,
-                 'status': status, 'recorded_at': received_at}
-        with self.db:
-            self.db.execute('INSERT OR REPLACE INTO robot_status VALUES (?,?,?)',
-                            (robot_id, encode(status), received_at))
-            cursor = self.db.execute('INSERT INTO outbox(payload) VALUES (?)', (encode(event),))
-            event['event_id'] = cursor.lastrowid
-            self.db.execute('UPDATE outbox SET payload=? WHERE event_id=?',
-                            (encode(event), cursor.lastrowid))
 
     def record_bt_snapshot(self, snapshot):
         """BT 상태 변경도 기존 영속 outbox를 통해 UI로 전달한다."""
