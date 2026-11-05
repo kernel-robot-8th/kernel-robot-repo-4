@@ -98,4 +98,7 @@ SQLite 실행 원장은 fleet-data 볼륨의 `/var/lib/cobot/fleet_control.sqlit
 실제 Compose CLI로 네 서비스 구성 해석을 확인했고 shell 구문·HTML 구조·변경 Python 파일의 flake8 검사도 통과했습니다.
 이 작업 환경에는 Docker Engine·데몬이 없어 전체 이미지 빌드·컨테이너 웹 접속·실물 DDS 왕복은 로컬에서 실행하지 못했습니다.
 GitHub Actions의 fleet-docker 작업은 전체 이미지를 빌드하고 `--network none`에서 웹 의존성·기동 계획을 검사합니다.
-CI 성공 전에는 이미지 빌드 완료로 간주하지 않습니다.
+커밋 `903bbb6`은 전체 이미지 빌드와 컨테이너 내부 의존성·기동 계획 검사까지 통과했습니다.
+같은 실행의 fleet-control·fms-contract·fms-web도 모두 통과했습니다.
+[CI 검증 결과](https://github.com/kernel-robot-8th/kernel-robot-repo-4/actions/runs/42024585369)
+실제 웹 서버 접속·로봇 DDS 왕복은 별도 현장 검증이 필요합니다.
