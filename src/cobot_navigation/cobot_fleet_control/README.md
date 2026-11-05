@@ -1,290 +1,168 @@
-# SN-01 중앙 실행기
+# cobot_fleet_control
 
-현재 fleet은 ROS 전용 중앙 실행기입니다. HTTP/WebSocket·카메라·웹 접수는 `cobot_control_center`가 담당합니다.
-이 패키지의 MQTT 코드, Paho 의존성, 로컬 브로커 구성은 제거했습니다.
-기존 SQLite는 실행 복구 원장으로 유지하며 웹 저장소를 대신하지 않습니다.
+웹 제어 통신은 feature/control-center의 **FastAPI HTTP + WebSocket**을 사용합니다.
+이 패키지는 주문별 전체 BT와 개별 주행 BT를 실행하며, 개발용 조회 전용 BT 뷰어를 제공합니다.
+뷰어는 기본 8091 포트에서 실행 원장만 읽습니다. 작업 명령은 기존 control-center를 거칩니다.
+모델 추론은 별도 PC의 통신 API와 실행 어댑터를 통해 연결해야 합니다.
 
-[구현 상세·PDF 18개 흐름 대응·실행 순서·연동 계약 HTML](../docs/central_scenario_control.html)
+[전체 구현·통신·검증 HTML](../docs/central_scenario_control.html)
+
+## 웹 계약
+
+| 기존 HTTP 요청 | 내부 ROS 요청 | 결과 |
+|---|---|---|
+| `POST /api/tasks` | `type=create` | 최초 202, 동일 요청 200, 충돌 409 |
+| `POST /api/commands/arm` | `type=arm` | 켜기·끄기 200, 꺼진 상태의 작업 요청 423 |
+| `POST /api/robots/{id}/stop` | `type=stop` | 202, 실제 사용한 소프트 정지 동작·작업 ID 반환 |
+| `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | UNKNOWN만 해제, 최신 정지·취소·구역 상태 확인 |
+| `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
+| `GET /api/tasks`, `WS /ws/tasks` | `tasks`, `task` | 현재 작업 목록·개별 변경 |
+
+웹 백엔드가 쓰는 ROS 토픽은 다음 세 개로 고정합니다.
+
+- `/control_center/task_request`: 요청 JSON (`request_id`, `client_request_id` 포함)
+- `/control_center/task_events`: `reply` 응답과 `task` 변경 이벤트
+- `/control_center/tasks`: 최근 종료 작업과 **모든 미종료·UNKNOWN 작업**, `armed`, `allow_raw_cmd`, `spec`
+
+`fleet_status_node`는 로봇·구역 상태를 `/control_center/fleet_status`로 집계하고,
+`fleet_api_node`가 이를 `/ws/fleet`으로 내보냅니다. fleet이 화면용 상태 수집기를 다시 만들지 않습니다.
+기존 웹의 `task_manager_online` 필드명은 호환을 위해 그대로 쓰지만, 그 상태의 실제 발행자는 fleet입니다.
+
+정지 시에는 팔 작업 영역으로 임의 후퇴하지 않도록 제자리 소프트 정지를 사용합니다.
+실제 하드웨어 비상정지와 다릅니다. 웹 해제 버튼은 현장 확인 기록을 남기되,
+로봇의 `busy=false`, 최신 상태, 구역 미점유, 정지 래치를 함께 확인합니다.
+시나리오의 화물·자원 예약은 기존 단일 작업 해제 버튼으로 풀 수 없습니다.
+그 경우 주문별 안전·화물·자원 확인을 담은 시나리오 복구가 필요합니다.
+
+## 기동
+
+feature/control-center의 cobot_control_center를 빌드·source한 환경이 필요합니다.
+현재 브랜치의 예전 cobot_control_center만 있으면 웹 실행 파일이 없어 기동 전 거절됩니다.
 
 ```bash
-# 기존 ROS/vendor 환경을 source한 Linux 관제 PC
+# Linux 관제 PC, ROS·control-center 설치 환경을 먼저 source
 colcon build --packages-select cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
 source install/setup.bash
-ROS_DOMAIN_ID=100 ros2 launch cobot_fleet_control fleet_control.launch.xml
+export ROS_DOMAIN_ID=100
+
+# 기본 미리보기
+ros2 launch cobot_fleet_control control_center_web.launch.xml \
+  navigation_root:=/ws/kernel-robot-repo-4/src/cobot_navigation
+
+# 웹 + 상태 집계 + 중앙 실행기. 기본 작업 명령 꺼짐
+ros2 launch cobot_fleet_control control_center_web.launch.xml \
+  navigation_root:=/ws/kernel-robot-repo-4/src/cobot_navigation mode:=execute
 ```
 
-기본 작업 명령은 꺼짐입니다. 기존 `task_manager_node`는 중지하고 웹 API·fleet_status만 유지합니다.
-`config/scenario.yaml`의 `lab_delivery`는 기존 ZA/ZB와 omx1/omx2의 예시 매핑이며 실제 설치에 맞춰야 합니다.
-로봇에는 `central_controlled=true`인 새 patrol과 하트비트 브리지를 함께 배포합니다.
-웹의 주문·수령·복구 화면과 팔·비전 어댑터는 HTML 계약에 맞게 연결해야 합니다.
+이미 fleet이 실행 중이면 `fleet:=existing`을 추가합니다. 브릿지·zone_manager·로봇은 이 기동기가 중복 실행하지 않습니다.
+`host`·`port` 인자로 화면 접속 주소를 바꿀 수 있고 기본은 `127.0.0.1:8080`입니다.
 
-핵심 파일은 `scenario.py`, `scenario_repository.py`, `control_api.py`입니다.
-주행은 기존 `service.py` / `behaviours.py`의 py_trees BT가 수행합니다.
-공용 msg/srv/action과 기능 패키지 간 import는 추가하지 않았습니다.
+새 기동기는 **fleet_status_node + fleet_api_node + 선택적 fleet_control_node**만 시작합니다.
+**기존 task_manager_node는 함께 실행하지 않습니다.** 정상 종료·실패 시 자신이 시작한 프로세스만 정리합니다.
 
-**아래 내용은 이전 MQTT 실험·기동 이력으로 보존합니다. 이전 MQTT 실행 예시는 현재 코드에서 사용하지 않습니다.**
+웹 지도용 프로필은 현재 주행 설정을 사용자 캐시 `~/.cache/cobot/control_center_profiles`에 자동 내보냅니다.
+내보내기를 마친 뒤에 웹 서버를 시작합니다. 원본 waypoint는 `cobot_pinky_patrol/config/sites/lab.yaml` 한 곳에서 관리합니다.
 
----
-
-# 관제 서버 BT · MQTT · DB
-
-UI → MQTT → 관제 서버의 `py_trees` → ROS 도메인 브릿지 → Pinky 공통 실행기 → Nav2 BT로 연결합니다. 업무 진행 상태와 실제 로봇 상태를 SQLite에 저장하고 MQTT 이벤트로 돌려줍니다. 전체 구조·분석·시연·검증 결과는 [단일 HTML 리포트](../docs/control_server_bt_report.html)에 있습니다.
-
-현재는 이 브랜치에서 검증 가능한 독립 `ament_python` 패키지로 둡니다. 기존 `cobot_control_center`와의 통합 위치는 팀이 정하면 이전할 수 있습니다. 다른 기능 패키지의 Python 코드를 import하지 않습니다.
-
-## 먼저 확인할 실행 경로
-
-로봇 전원을 켠 뒤 Linux 관제 PC에서 통합 기동합니다. 관제 PC의 `fleet_startup`이 SSH로 각 로봇의 `robot_startup`을 호출하고, 로봇의 bringup → Nav2 → patrol 준비를 확인합니다. 이후 `fleet_control`이 MQTT 이동 업무를 처리합니다.
-
-| 목적 | 실행 위치 | 명령·안내 |
-|---|---|---|
-| 통합 기동 미리보기 | 관제 PC | `ros2 launch cobot_fleet_control fleet_startup.launch.xml` |
-| 실제 통합 기동 | 관제 PC | 위 명령에 `execute:=true` 추가. SSH 계정·키·호스트 키와 로봇 설치 환경을 먼저 설정 |
-| 기존 관제를 유지하고 로봇만 기동 | 관제 PC | 아래 순차 기동 절차의 `--robots-only`; 한 대는 `--robot pinky1` 추가 |
-| 로봇 한 대에서 직접 단계 기동 | 해당 로봇 | `ros2 run cobot_pinky_patrol robot_startup --robot-id pinky1 --domain-id 10` — 실제 실행 |
-| 업무 요청·결과 확인 | 관제 PC | MQTT commands / receipts / events. 통합 기동 자체는 이동 목표를 발행하지 않음 |
-
-[명령 선택·설치부터 실행까지 HTML 가이드](../docs/control_server_bt_report.html#quick-start)에서 실행 범위와 모드를 선택해 명령을 복사할 수 있습니다. HTML은 실행 안내와 기록 재생 문서이며 SSH 접속이나 실시간 로봇 제어를 수행하지 않습니다.
-
-## 책임과 오픈소스
-
-- `contracts.py`: 입력 검증, 로봇별 허용 목록, 명령 봉투.
-- `service.py`: 중복 방지, 로봇별 한 작업, 결과 상관관계, BT 실행 수명.
-- `behaviours.py`: `py_trees==2.2.3`의 memory Sequence로 전달 → 실제 작업 종료 대기. 후속 업무 단계는 Behaviour로 추가합니다.
-- `repository.py`: 저장소 Protocol + 실제 SQLite 구현. 명령 상태와 outbox 이벤트를 함께 커밋합니다. 추후 서버 DB는 같은 경계를 구현합니다.
-- `fleet_control_node.py`: `paho-mqtt==2.1.0` MQTT 통신, ROS 입출력, executor 스레드에서 DB/BT 실행.
-- `resolve_unknown.py`: 현장 정지 확인 후 UNKNOWN 작업 한 건의 예약을 해제하는 운영 CLI.
-- 로봇: Nav2가 제공하는 `nav2_bt_navigator`/BehaviorTree.CPP로 경로 계획·주행·복구. 이번 변경은 로봇의 Nav2 BT XML을 교체하지 않습니다.
-
-## 관제에서 로봇까지 순차 기동
-
-`fleet_startup.launch.xml`은 Linux 관제 PC에서 브릿지·구역 관리자와 세 로봇의 원격 기동을 묶습니다. 작업 BT 서버와 분리된 프로세스 관리 기능이며, 기본 실행은 SSH 접속도 ROS 프로세스 실행도 하지 않는 **미리보기**입니다.
+중앙 실행기만 직접 실행할 경우 지점 설정을 함께 지정하면 웹 요청을 로봇 전달 전에 검증합니다.
 
 ```bash
-# 관제 PC: ROS·가상환경·워크스페이스 환경을 불러온 뒤
+ros2 launch cobot_fleet_control fleet_control.launch.xml \
+  patrol_config_dir:=/ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol/config site:=lab
+```
+
+## 관제에서 로봇까지 SSH 순차 기동
+
+`config/fleet_startup.yaml`의 주소·계정·vendor underlay를 현장에 맞춥니다.
+기본 명령은 미리보기이고 SSH 연결이나 로봇 프로세스를 시작하지 않습니다.
+
+```bash
 ros2 launch cobot_fleet_control fleet_startup.launch.xml
+# 실제 기동은 준비 확인 후 execute:=true
 ```
 
-`config/fleet_startup.yaml`에 다음 주소와 로봇 워크스페이스를 등록했습니다. SSH 계정은 아직 받지 않았으므로 공란입니다. 각 `ssh_user`를 채우기 전에는 실제 실행이 거절됩니다.
+기동 순서는 bridge → zone_manager → pinky1 준비 → pinky2 준비 → pinky3 준비 → fleet입니다.
+각 로봇은 bringup 센서 수신 → Nav2 lifecycle/action → patrol ID 확인을 거칩니다.
+현재 주소는 192.168.45.21 / .22 / .23, 도메인은 10 / 20 / 30,
+로봇 workspace는 `/ws/kernel-robot-repo-4`, 지도는 각 로봇의 `~/cobot_map_v9.yaml`입니다.
+키 인증·호스트 키·SSH 계정·지도 이미지가 필요합니다. 계정 공란은 실제 기동 전에 거절됩니다.
+이미 관제 서비스를 실행 중이면 `fleet_startup --robots-only`를 사용합니다.
 
-launch는 기본적으로 설치된 패키지의 YAML을 읽습니다. 소스 설정을 수정했다면 재빌드·source하거나, 미리보기에서 `config:=/절대/경로/fleet_startup.yaml`로 파일을 명시합니다. 실제 기동에도 같은 `config:=...`를 전달해야 합니다.
+## 전체 시나리오 BT와 코드 역할
 
-| 로봇 | IP | ROS 도메인 |
-|---|---|---|
-| pinky1 | 192.168.45.21 | 10 |
-| pinky2 | 192.168.45.22 | 20 |
-| pinky3 | 192.168.45.23 | 30 |
+주문마다 실제 `py_trees.BehaviourTree`를 구성합니다. 상차·작업장 간 이동·하차·수령·복귀가
+메모리 순차 노드로 실행되며, 정차 측정·재보정은 선택 노드와 안전 재시도 노드로 분기합니다.
+`scenario.py`는 접수·배정·트리 수명만 관리합니다. 단계 전이표 `NEXT`는 제거했습니다.
 
-로봇 워크스페이스는 `/ws/kernel-robot-repo-4`입니다. SSH로 로봇의 ROS와 `install/setup.bash`를 source한 뒤 해당 디렉터리에서 `robot_startup`을 실행합니다. 지도 `~/cobot_map_v9.yaml`의 HOME 확장은 로봇에서 하며 YAML이 가리키는 이미지 파일도 사전 검사합니다.
+| 파일 | 역할 |
+|---|---|
+| `fleet_control_node.py` | ROS 입출력과 타이머. 전체 주문 BT 실행 후 하위 주행 BT 실행 |
+| `control_api.py` | 기존 웹 요청·응답 호환, 작업 생성·정지·해제 |
+| `scenario.py` | 주문 검증·접수, 재고 예약, 로봇 배정, 주문별 BT 수명 |
+| `scenario_tree.py` | 전체 업무의 순서·선택·재시도·실패 복귀 트리 조립 |
+| `scenario_nodes.py` | 안전 감시, 주행·장치·실측 검증·정차 보정·수령·종결 BT 노드 |
+| `scenario_runtime.py` | 주문별 실행 문맥, 예약·요청 전달·결과 대응·관측 기록 |
+| `scenario_safety.py` | 트리 무효화·소프트 정지·현장 확인 복구 |
+| `scenario_contracts.py` | 단계별 장치 요청 계약, 상태 집합, 입력 검증 |
+| `scenario_repository.py` | 주문·재고·작업 구역·팔·통로·로봇 보류 영속화 |
+| `service.py`, `behaviours.py` | 개별 주행의 명령 전달 → 실제 종료 확인 BT |
+| `repository.py`, `contracts.py` | 단일 프로세스 SQLite 실행 원장과 주행 명령 검증 |
+| `bt_visualization.py` | 실제 트리 상태·방문 기록 수집, 오프라인 JSON 내보내기 |
+| `bt_viewer.py`, `docs/bt_viewer.html` | 원장 읽기 전용 실시간 조회 서버와 화면 |
+| `web_profiles.py`, `control_center_web.py` | 기존 웹용 지점 내보내기와 웹 프로세스 기동 |
+| `fleet_startup.py` | 관제에서 로봇까지 SSH 순차 기동 |
 
-```text
-관제 PC: bridge → zone_manager
-  → pinky1: bringup → 센서 확인 → Nav2 → 활성 상태 확인 → patrol → ID 확인
-  → 3초 간격
-  → pinky2: 동일 순서
-  → 3초 간격
-  → pinky3: 동일 순서
-  → 관제 PC: fleet_control 업무 서버 시작
-```
+정상 경로: 상차 이동 → 후미 이탈 → 정차 실측·보정 → 마커 → 피킹 → 상차·적재 검증 →
+상차 구역 이탈 → 하차 이동 → 후미 이탈 → 정차 실측·보정 → QR → 피킹 → 하차·배치 검증 →
+고객 수령 → 하차 구역 이탈 → HOME → 후미 이탈 → 주문 종결.
 
-각 로봇에서 실행하는 실제 명령은 다음과 같습니다.
+개별 이동 버튼의 `type=create`는 주행 BT만 실행합니다. 전체 업무는 `type=order`를 접수해야 합니다.
+웹 주문 엔드포인트·화면 연결은 기존 control-center에서 추가해야 합니다.
+장치 결과 콜백은 현재 BT의 상태만 진행시키며 다음 장치 명령은 타이머에서 전달합니다.
+정지·통신 단절 시 트리를 무효화하고, 재시작한 미종료 주문은 UNKNOWN으로 보류합니다.
+운영자 복구는 이동·수령 체크포인트에서만 새 트리를 만들며 물리 작업을 임의 재실행하지 않습니다.
+
+## 실시간 BT 뷰어
+
+중앙 제어기와 별도 터미널에서 **같은 실행 원장 경로**를 지정합니다.
 
 ```bash
-ros2 launch pinky_bringup bringup_robot.launch.xml
-ros2 launch pinky_navigation bringup_launch.xml map:="$HOME/cobot_map_v9.yaml"
-ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
+ros2 run cobot_fleet_control fleet_bt_viewer --db ~/.cobot/fleet_control.sqlite3
+# 브라우저: http://127.0.0.1:8091
 ```
 
-`stage_delay_sec` 기본값 5초는 각 단계의 최소 간격입니다. 간격 이후 `/scan`, `/odom`, `/tf` 메시지를 확인하고, Nav2의 `/amcl`·`/bt_navigator`가 active이며 `/navigate_to_pose` 서버가 있는지 확인합니다. 패트롤의 `robot_id`까지 확인한 뒤 다음 로봇으로 진행합니다. 토픽 이름은 `readiness_topics`, 단계 제한 시간은 `stage_timeout_sec`(기본 90초)로 조정합니다. 이 검사는 기동 당시의 ROS 준비 상태이며 위치 추정 정확도·물리 주행 검증을 뜻하지 않습니다.
-
-로봇에도 새 `robot_startup` 실행기가 필요합니다. 먼저 새 패키지를 배포·빌드합니다.
+화면은 0.5초마다 원장을 읽어 주문 전체 BT와 개별 주행 BT를 선택해 표시합니다.
+실행 중인 노드로 이동, 표시 일시정지·재개, 수신 이력 탐색이 가능하며 트리당 최근 200개를 보관합니다.
+접속 시에는 트리별 최신 기록부터 받습니다. 과거 전체 기록이 필요하면 JSON 내보내기를 사용합니다.
+밝은 테두리는 해당 갱신에서 방문한 노드이고, 노드의 SUCCESS가 유지되는 것은 재실행을 뜻하지 않습니다.
+원장이 없으면 대기하고 DB를 만들지 않습니다. 쓰기·제어 API와 ROS 연결은 없습니다.
+서버 종료·재시작 후 과거 기록도 읽을 수 있으므로 기록 시각과 현재 주문 상태를 함께 확인하세요.
 
 ```bash
-# 각 로봇에서 기존 vendor ROS 환경을 불러온 뒤
-cd /ws/kernel-robot-repo-4
-colcon build --packages-select cobot_zone_traffic_control cobot_pinky_patrol
-source install/setup.bash
-
-# 관제 PC의 워크스페이스에서도 새 실행기를 등록
-colcon build --packages-select cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
-source install/setup.bash
-```
-
-vendor 패키지가 다른 workspace에 있으면 `underlay_setups`에 해당 로봇의 `install/setup.bash` 절대 경로를 넣습니다. 파일은 ROS → vendor underlay → `/ws/kernel-robot-repo-4/install/setup.bash` 순서로 읽습니다. SSH는 대화형 터미널의 `.bashrc` 설정을 자동 적용하지 않으므로 사용 중인 DDS 환경변수는 `environment`에 명시합니다. 로봇별로 기본값을 덮어쓸 수 있습니다.
-
-SSH는 키 인증과 사전에 확인·등록된 호스트 키를 사용합니다. 비밀번호·개인키 본문을 YAML에 저장하지 않으며 호스트 키 검사를 자동으로 끄지 않습니다. 네이티브 Ubuntu 관제의 OpenSSH 클라이언트(`ssh`)가 필요합니다. SSH 계정·키 인증·underlay 설정과 미리보기 내용을 확인한 뒤 실제 기동합니다.
-
-```bash
-# 실제 SSH 접속과 프로세스 기동
-ros2 launch cobot_fleet_control fleet_startup.launch.xml execute:=true
-
-# 이미 관제 서비스가 실행 중이면 로봇만 기동; --execute 없이 실행하면 미리보기
-STARTUP_CONFIG="$(ros2 pkg prefix --share cobot_fleet_control)/config/fleet_startup.yaml"
-ros2 run cobot_fleet_control fleet_startup --config "$STARTUP_CONFIG" --robots-only --execute
-# 특정 로봇만 선택하려면 --robot pinky1 추가
-```
-
-한 단계 실패·시간 초과·SSH 종료 시 전체 기동을 중단하고 이 도구가 시작한 프로세스를 역순 정리합니다. Ctrl+C도 동일하게 처리합니다. SSH TTY와 로봇의 HUP/TERM 처리로 원격 정리를 시도하며, 강제 전원 종료·네트워크 단절에서 즉시 물리 정지를 보장하는 기능은 아닙니다. 수동 bringup·Nav2·패트롤 또는 기존 관제/Docker 서비스와 중복 기동하지 않습니다. 통합 기동 자체는 이동 목표를 발행하지 않습니다.
-
-현재 검증은 가짜 로컬 프로세스·준비 출력·설정 검사로 수행했습니다. 실제 SSH·vendor bringup·ROS 준비 검사 왕복은 계정 정보와 장비 환경을 받은 뒤 확인해야 합니다.
-
-### 로봇을 추가할 때
-
-원격 기동기는 `fleet_startup.yaml`의 `robots` 항목을 순서대로 읽으므로 3대로 제한되지 않습니다. 기동은 순차이며, 이미 준비된 로봇 프로세스는 계속 실행됩니다. 새 로봇이 같은 Pinky 실행 방식을 사용한다면 Python 실행 코드를 복사할 필요가 없습니다.
-
-예를 들어 pinky4를 추가할 때는 다음 설정을 함께 변경합니다. 아래 IP와 도메인은 예시이며 실제 할당값으로 바꿉니다.
-
-1. `cobot_fleet_control/config/fleet_startup.yaml`의 `robots`에 접속 정보를 추가합니다.
-
-   ```yaml
-   pinky4:
-     host: 192.168.45.24
-     ssh_user: 실제_로봇_계정
-     domain_id: 40
-   ```
-
-2. `cobot_pinky_patrol/config/robots/pinky4.yaml`을 만들고 ROS 노드 이름 아래 `robot_id: pinky4`, `home_name: I4`를 지정합니다. `config/sites/lab.yaml`의 `points`에는 실제 측정한 I4 좌표를 추가합니다. 미측정 좌표를 예비 원점으로 등록하지 않습니다. 다른 현장을 사용한다면 해당 현장 파일과 `site`를 지정합니다.
-3. 업무 관제의 `cobot_fleet_control/config/fleet_control.yaml`과 구역 관리자의 `cobot_zone_traffic_control/config/zone_params.yaml` 양쪽 `robot_ids`에 `pinky4`를 추가합니다.
-4. 현재 도메인 브릿지는 로봇별 등록 방식입니다. `cobot_domain_bridge/config/pinky_bridge_pinky3.yaml`을 참고해 `pinky_bridge_pinky4.yaml`을 만들고 로봇 ID, 관제 측 토픽 접두사, 로봇 도메인을 맞춥니다. 관제 도메인 100은 유지합니다. `launch/bridges.launch.xml`에도 해당 브릿지를 실행하는 항목을 추가해야 합니다. IP 등록만으로 이 브릿지가 자동 생성되지는 않습니다.
-5. 관제와 로봇의 변경 패키지를 재빌드·배포합니다. 로봇에 같은 지도·현장 설정과 vendor 패키지를 준비하고 SSH 인증·호스트 키를 등록합니다. 미리보기 후 `--robot pinky4 --robots-only --execute`로 추가 로봇만 점검할 수 있습니다. 관제·구역 관리자·브릿지 설정 반영을 위한 재시작은 진행 중인 작업을 정리한 뒤 수행합니다.
-
-로봇 ID·도메인은 서로 중복되지 않아야 합니다. 대기열 슬롯 수와 물리 간격, 공유 구역의 운용 조건도 늘어난 로봇 수에 맞게 확인합니다.
-
-## Docker로 버전과 실행 환경 고정
-
-호스트의 venv·pip·colcon 절차를 Docker 이미지 빌드로 처리할 수 있습니다. Linux Docker Engine과 Compose 플러그인이 필요하며, 호스트에 ROS를 설치하지 않아도 됩니다. [Docker 실행·버전·배포 안내](config/docker/README.md)를 참고하세요.
-
-```bash
-# src/cobot_navigation에서
-bash cobot_fleet_control/config/docker/fleet_docker.sh build
-# 개발용 로컬 브로커도 함께 실행. 기존 브로커 사용 시에는 up
-bash cobot_fleet_control/config/docker/fleet_docker.sh up-local
-```
-
-ROS·브로커 이미지는 digest, Python 직접·하위 의존성은 버전과 wheel 해시로 고정합니다. 세 관제 서비스는 같은 이미지를 사용하고 SQLite는 별도 named volume에 보존합니다. 이 Docker 구성은 로봇 SSH 기동을 포함하지 않습니다. 기존 컨테이너가 실행 중이면 원격 기동기에 `--robots-only`를 사용합니다. 이미지 전체 빌드·컨테이너 기동·실물 DDS 연결은 미검증입니다. 아래는 네이티브 설치 절차입니다.
-
-## 설치와 빌드
-
-Ubuntu 24.04 / ROS 2 Jazzy / Python 3.12 기준입니다. Paho의 Callback API v2를 사용하므로 배포판 기본 패키지 버전 대신 아래 고정 버전을 준비합니다.
-
-```bash
-source /opt/ros/jazzy/setup.bash
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
-python -m pip install 'py_trees==2.2.3' 'paho-mqtt==2.1.0'
-python "$(command -v colcon)" build --packages-select \
-  cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
-source install/setup.bash
-```
-
-workspace 최상위에서 실행합니다. `colcon`이 설치된 ROS 환경을 사용하고 가상환경의 Python으로 해당 스크립트를 실행합니다. 로봇의 패트롤 패키지는 위 원격 기동 절차에 따라 각 로봇에서 별도로 빌드합니다. 설정 파일을 수정한 뒤에는 재빌드·source·프로세스 재시작으로 설치 경로에 반영합니다.
-
-관제 서버는 `config/fleet_control.yaml`의 브로커·DB 경로를 사용합니다. 실행 전 각 로봇의 순찰 패키지도 새 버전으로 배포해야 JSON 명령/종료 응답을 처리합니다. `cobot_domain_bridge`의 기존 String 토픽은 그대로 사용합니다. 기존 zone_manager는 1개만 실행합니다.
-
-```bash
-# 브로커와 domain bridge, zone_manager, 로봇 실행기는 별도 기존 절차로 준비합니다.
-# 아래 명령은 실제 로봇 연결 시 이동 명령을 수신할 수 있는 서버를 시작합니다.
-ROS_DOMAIN_ID=100 ros2 launch cobot_fleet_control fleet_control.launch.xml
-```
-
-인증 정보는 `COBOT_MQTT_USERNAME`, `COBOT_MQTT_PASSWORD`, TLS CA는 `COBOT_MQTT_CA` 환경변수로 전달합니다. UI의 계정/역할 인증, 브로커 ACL, TLS 배포 설정은 운영 환경에서 별도로 구성해야 합니다. 브라우저에서 MQTT를 직접 쓰려면 해당 브로커의 WebSocket/WSS 리스너가 필요합니다.
-
-## 데이터 계약
-
-UI는 `cobot/fleet/commands`에 **QoS 1 / retain=false**로 아래 JSON을 보냅니다. 한 사용자 동작의 재전송에는 같은 `command_id`를 사용하고 새 작업에는 새 ID를 만듭니다.
-
-```json
-{"command_id":"job-20261031-001","robot_id":"pinky1","operation":"goto","points":["P1","P2"],"timeout_sec":300}
-```
-
-지원 업무는 `goto`(1~50개 지점), `zone`(1개), `leave`/`home`(지점 없음)입니다. 실제 지점 존재/구역 검증은 로봇의 `config/sites/lab.yaml`을 기준으로 최종 검증합니다. 기존 CLI의 `stop`/`emergency_stop`은 유지되지만 신규 MQTT 업무 API의 취소·선점 계약은 아직 포함하지 않습니다.
-
-| 구간 | 토픽/저장소 | 내용 |
-|---|---|---|
-| UI → 관제 | `cobot/fleet/commands` | 위 JSON 명령 |
-| 관제 → UI | `cobot/fleet/receipts` | 접수/중복 시 현재 상태 또는 REJECTED. 편의 알림이며 outbox에는 보관하지 않음 |
-| 관제 → 로봇 | `/pinkyN/patrol_cmd` | `{"command_id":"…","command":"goto:P1,P2"}` |
-| 로봇 → 관제 | `/pinkyN/patrol_status` | 기존 state/waypoint/detail/time + command_id/task_finished |
-| 관제 → UI | `cobot/fleet/events` | 영속 outbox 이벤트. `type=command_state`, `robot_status` 또는 `bt_snapshot`, event_id, recorded_at |
-| DB | `commands` | 명령 입력 원문 정규화, 최신 업무 상태 |
-| DB | `robot_status` | 로봇별 최신 수신 원문과 서버 수신 시각 |
-| DB | `outbox` | 작업 전이/수신 상태 이벤트, MQTT PUBACK 완료 여부 |
-
-로봇은 내부 `DONE` 이후 정리 단계가 끝난 최종 상태에만 `task_finished=true`를 붙입니다. 관제는 로봇 ID와 명령 ID가 모두 일치하는 최종 응답만 완료로 처리합니다. 로봇의 `HOLDING_ZONE`은 구역 점유 상태이고 업무 `SUCCEEDED`와 별개의 개념입니다.
-
-상태: `ACCEPTED → RUNNING → SUCCEEDED/FAILED`. 시간 초과·서버 재시작·전달 예외는 `UNKNOWN`으로 남아 로봇을 계속 예약합니다. 같은 ID의 지연 최종 응답이 오면 해제할 수 있습니다. 응답이 영구 유실되면 현장에서 로봇 정지와 기존 작업 종료를 확인한 뒤 운영 CLI로 해당 작업만 `FAILED`로 확정합니다. 작업 기록과 사유가 `commands` 및 `events`에 남습니다. 자동 초기화/재전송 API는 제공하지 않습니다.
-
-### UNKNOWN 작업 수동 해제
-
-로봇의 물리 정지와 기존 작업 종료를 먼저 확인합니다. 관제 서버를 중지한 뒤 아래 명령을 실행하고 다시 시작합니다. 실행 중인 서버가 DB를 사용하면 CLI는 해제를 거절합니다. `command_id`와 `robot_id`가 일치하는 `UNKNOWN` 작업만 해제하며 다른 작업의 기록은 유지합니다.
-
-```bash
-# 네이티브 설치: 관제 서버 중지 후
-ros2 run cobot_fleet_control fleet_resolve_unknown \
-  --db ~/.cobot/fleet_control.sqlite3 \
-  --command-id job-run-001 --robot-id pinky1 \
-  --operator operator1 --reason '로봇 정지 및 기존 작업 종료 확인' \
-  --confirm-stopped
-
-# Docker: src/cobot_navigation에서, 새 이미지 빌드·배포 후
-docker compose --env-file cobot_fleet_control/config/docker/versions.env \
-  -f cobot_fleet_control/config/docker/compose.yaml stop fleet
-bash cobot_fleet_control/config/docker/fleet_docker.sh resolve-unknown \
-  job-run-001 pinky1 operator1 '로봇 정지 및 기존 작업 종료 확인' --confirm-stopped
-bash cobot_fleet_control/config/docker/fleet_docker.sh up
-```
-
-MQTT 이벤트는 QoS 1이므로 중복될 수 있습니다. UI는 `event_id`로 중복을 제거합니다. `recorded_at`은 서버 수신/기록 시각이고 `status.time`은 로봇 보고 시각입니다. UI 재접속 시 과거 이벤트를 조회하는 HTTP API는 아직 없으며 DB 조회 어댑터를 추가할 수 있습니다.
-
-## 시험
-
-```bash
-# ROS 환경 source 및 위 가상환경 활성화 후, 저장소 루트에서
-python -m pytest cobot_fleet_control/test -q
-# 로컬 MQTT 브로커 왕복 시험까지 실행하려면 테스트 환경에만 amqtt 설치
-python -m pip install 'amqtt==0.11.3'
-ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python -m pytest \
-  cobot_fleet_control/test cobot_pinky_patrol/test cobot_zone_traffic_control/test -q
-ament_flake8 cobot_fleet_control
-ament_pep257 cobot_fleet_control
-```
-
-테스트 브로커는 임의 로컬 포트, DB는 pytest 임시 디렉터리, ROS는 격리 도메인 77에서 사용합니다. 가짜 navigator를 사용하므로 실측 주행·다중 실제 장비·브릿지 왕복·실제 Nav2 XML 선택은 별도 현장 검증 대상입니다.
-
-## 운영 범위
-
-단일 서버 프로세스 기준입니다. 다중 서버는 DB 고유 제약/원자적 로봇 예약·리더 선출·lease가 추가되어야 합니다. ROS String 토픽의 전송은 영속 원자 트랜잭션에 포함되지 않으므로 물리 동작의 exactly-once는 보장하지 않습니다. UNKNOWN 작업의 자동 재전송은 하지 않습니다.
-
-브로커 연결이 끊겨도 수신한 작업의 DB 상태/outbox는 남습니다. 브로커의 영속 세션·메시지 저장 설정이 필요합니다. 이벤트 PUBACK은 UI 수신 확인과 다릅니다. receipts 거절 알림, DB 보존 기간/백업, 수신 큐 포화 시 운영 대응, 장기 DB 용량·복구 API는 후속 운영 작업입니다.
-
-기존 로봇의 유휴 자동 복귀(120초), 구역 FIFO/토큰·강제 만료 정책, zone_gate_client 패키지 간 직접 import는 유지합니다. 업무를 관제로 모두 이전하려면 유휴 복귀도 관제 BT로 옮기고 구역 점유 상태·물리 위치 검증을 추가해야 합니다.
-
-## BT 실행 시각화
-
-[HTML 리포트의 BT 실행 시각화](../docs/control_server_bt_report.html#bt-visualizer)에서 이전/다음 tick, 자동 재생, 슬라이더로 실제 노드 상태를 확인합니다. 기본 데이터는 실제 `py_trees` 실행기와 가짜 로봇으로 수집한 5개 시나리오입니다. 손으로 상태 색을 맞춘 시연 데이터가 아닙니다.
-
-`bt_visualization.py`는 `SnapshotVisitor`로 노드 ID·구조·상태·이번 tick 방문 여부·피드백을 관측합니다. 생성 시점과 상태/방문 경로가 바뀐 시점만 outbox에 `type=bt_snapshot`으로 저장하며 기존 `cobot/fleet/events`로 발행합니다. 매번 같은 대기 상태인 tick은 저장하지 않아 이력의 tick 번호에 간격이 있을 수 있습니다.
-
-- 첫 tick: 전달 SUCCESS(방문), 결과 대기 RUNNING(방문).
-- 다음 tick: 전달 SUCCESS(이번 tick 미방문), 결과 대기 RUNNING(방문). 명령이 다시 전송되지 않음을 확인합니다.
-- 종료: 최종 결과에 따라 대기와 루트가 SUCCESS 또는 FAILURE.
-- 시간 초과: 트리는 FAILURE, 업무는 UNKNOWN. 물리 정지를 의미하지 않습니다.
-- 전달 예외: `phase=tick_error`, 업무 UNKNOWN. 노드 상태는 마지막 관측값이므로 FAILURE 색을 임의로 덮어쓰지 않습니다.
-
-운영 DB 이력은 아래 명령으로 읽기 전용 추출 후 리포트의 파일 선택으로 가져옵니다. ACK가 끝난 이벤트도 추출합니다. HTML 파일은 서버나 CDN 없이 열리며 운영 MQTT를 직접 구독하지 않습니다.
-
-```bash
-# 새 console script 등록 후에는 패키지를 재빌드하고 install/setup.bash를 source합니다.
+# 주문별 전체 BT 기록을 나중에 분석할 때
 ros2 run cobot_fleet_control fleet_bt_trace \
-  --db ~/.cobot/fleet_control.sqlite3 \
-  --command-id job-20261031-001 \
-  --output /tmp/bt_trace.json
+  --db ~/.cobot/fleet_control.sqlite3 --order-id order1 --output /tmp/order1.json
 ```
 
-JSON 형식은 `cobot-bt-trace-v1`, 브라우저 입력 제한은 10 MiB/5,000 스냅샷입니다. 많은 작업은 `--command-id`로 나눠 추출합니다. 현재 관측 대상은 관제 Python BT이며 로봇 Nav2 내부 BT·실제 물리 위치는 별도 계측이 필요합니다. 재시작 후 종료된 트리를 자동 재개하거나 지연 결과에 맞춰 과거 트리 색을 다시 칠하지 않습니다.
+`bt_visualization.py`는 기록·내보내기, `bt_viewer.py`는 실시간 화면 제공을 담당합니다.
+기존 단일 명령의 DB 직접 해제 CLI는 제거했고, 웹 작업 해제와 증거 기반 시나리오 복구를 사용합니다.
+ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만료와 별도로 10초입니다.
 
-## 실행 스레드와 디버깅
+## 시나리오와 외부 추론 PC
 
-관제 BT·DB·ROS 처리는 명시적인 SingleThreadedExecutor에서 실행합니다. Paho loop_start의 통신 스레드는 수신 큐만 갱신하며 업무 상태는 직접 변경하지 않습니다. 로봇은 작업 스레드 대신 비동기 액션·타이머 상태 기계로 전환했습니다. SQLite·작은 위치 파일 I/O는 동기이므로 하드 실시간 실행을 보장하는 구조는 아닙니다.
+`config/scenario.yaml`의 작업점·팔 매핑은 예시입니다. 실제 설치에 맞춰야 합니다.
+주문·수령·시나리오 복구는 내부 요청 타입이 준비돼 있고, 해당 HTTP 엔드포인트·화면은 기존 웹에 추가해야 합니다.
+별도 추론 PC에는 아직 ROS·통신 API가 없으며 원격 HTTP 추론 제어는 별도 연동 작업입니다.
+추론 코드·가중치·LeRobot·GPU 라이브러리를 이 패키지에 넣지 않습니다.
 
-[실제 로직·디버깅 지도](../docs/control_server_bt_report.html#logic-debug)에 MQTT 수신부터 관제 BT, 로봇 상태 기계, 액션 취소·결과까지 읽는 순서와 증상별 확인 함수·변수를 정리했습니다.
+## 검증
+
+```bash
+python3 -m pytest src/cobot_navigation/cobot_fleet_control/test -q
+```
+
+control-center 패키지가 Python 경로에 있고 FastAPI/httpx가 설치돼 있으면
+`test_control_center_integration.py`에서 **그 브랜치의 실제 HTTP·WebSocket 코드**로 시험합니다.
+GitHub Actions에서도 b847b8e를 테스트 참조로 체크아웃하고 같은 검사를 수행합니다.
+ROS 실물·DDS 시험은 별도이며 격리 도메인 77·localhost 조건에서만 실행합니다.
+
+Docker 사용법은 [config/docker/README.md](config/docker/README.md)를 참고하세요.

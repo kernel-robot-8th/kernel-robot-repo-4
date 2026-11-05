@@ -1,4 +1,4 @@
-﻿"""The central watchdog cannot resume motion from stale or replayed network messages."""
+﻿"""중앙 연결 감시가 오래되거나 재전송된 네트워크 메시지로 이동을 재개하지 않는지 검증한다."""
 
 from cobot_pinky_patrol.central_guard import CentralGuard
 import pytest

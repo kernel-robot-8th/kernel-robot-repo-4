@@ -1,4 +1,4 @@
-﻿"""Actual ROS adapter regression checks runnable without a ROS installation."""
+﻿"""ROS 설치 없이 실행할 수 있는 실제 ROS 어댑터의 회귀 검사."""
 
 import ast
 import json
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def definitions(path, names, method=None):
-    """Compile unchanged production definitions with only their ROS imports omitted."""
+    """제품 코드의 정의는 그대로 두고 ROS 가져오기만 제외해 컴파일한다."""
     module = ast.parse(path.read_text(encoding='utf-8'))
     nodes = [n for n in module.body if isinstance(n, (ast.ClassDef, ast.FunctionDef))
              and n.name in names]
@@ -23,7 +23,7 @@ def definitions(path, names, method=None):
 
 
 def test_expired_zone_owner_is_retained_and_next_robot_cannot_enter():
-    """Exercise the real timeout callback, not a duplicated timeout policy."""
+    """시간 초과 정책을 복제하지 않고 실제 시간 초과 콜백을 시험한다."""
     path = ROOT / 'cobot_zone_traffic_control/cobot_zone_traffic_control/zone_manager_node.py'
     namespace = {'time': SimpleNamespace(time=lambda: 1000.0)}
     exec(definitions(path, {'ZoneQueue', 'ZoneState'},
@@ -45,7 +45,7 @@ def test_expired_zone_owner_is_retained_and_next_robot_cannot_enter():
 
 
 def test_patrol_heartbeat_cannot_replay_terminal_result():
-    """A liveness publication must not complete an old or unrelated command."""
+    """생존 상태 발행으로 이전 명령이나 무관한 명령이 완료 처리되지 않아야 한다."""
     path = ROOT / 'cobot_pinky_patrol/cobot_pinky_patrol/pinky_patrol_node.py'
     namespace = {'time': SimpleNamespace(time=lambda: 1000.0), 'json': json,
                  'String': lambda **kwargs: SimpleNamespace(**kwargs)}
@@ -53,7 +53,7 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
     sent = []
     node = SimpleNamespace(
         _last_status=dict(state='DONE', task_finished=True, command_id='old', boot_id='boot1'),
-        controller=SimpleNamespace(command_id=None, held_zone='A'),
+        controller=SimpleNamespace(command_id=None, held_zone='A', busy=False),
         config={'central_controlled': True},
         central_guard=SimpleNamespace(expired=lambda: False, latched=False),
         status_pub=SimpleNamespace(publish=sent.append))

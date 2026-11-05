@@ -9,13 +9,12 @@ usage() {
 사용법: bash cobot_fleet_control/config/docker/fleet_docker.sh <명령> [Compose 옵션]
   build         고정 의존성과 현재 코드를 이미지로 빌드
   config        해석된 Compose 구성 확인
-  up            기존 브로커를 사용해 관제·구역 매니저·브릿지 실행
+  up            중앙 제어기·구역 매니저·브릿지 실행
   down          컨테이너 중지·제거, DB 볼륨은 보존
   logs          서비스 로그 확인
   versions      실행 중 fleet의 이미지 내부 버전 기록 확인
   export-bt ID  명령별 BT 기록을 표준 출력 JSON으로 내보내기
-  resolve-unknown ID ROBOT OPERATOR REASON --confirm-stopped
-               fleet 중지 및 로봇 정지 확인 후 UNKNOWN 작업 1건 해제
+  view-bt      실행 중인 fleet의 원장으로 실시간 BT 뷰어 실행 (127.0.0.1:8091)
 배포 이미지 선택: COBOT_IMAGE 환경변수. 이 도구는 호스트 패키지를 설치하지 않습니다.
 HELP
 }
@@ -56,16 +55,11 @@ case "$operation" in
       'ros2 run cobot_fleet_control fleet_bt_trace --db /var/lib/cobot/fleet_control.sqlite3 --command-id "$1" --output /tmp/bt_trace.json && cat /tmp/bt_trace.json' \
       bash "$1"
     ;;
-  resolve-unknown)
-    if [[ $# -ne 5 || "$5" != --confirm-stopped ]]; then
-      echo '사용법: resolve-unknown ID ROBOT OPERATOR REASON --confirm-stopped' >&2
-      exit 2
-    fi
-    "${compose[@]}" run --rm --no-deps -T fleet \
-      ros2 run cobot_fleet_control fleet_resolve_unknown \
-      --db /var/lib/cobot/fleet_control.sqlite3 \
-      --command-id "$1" --robot-id "$2" --operator "$3" --reason "$4" \
-      --confirm-stopped
+  view-bt)
+    if [[ $# -ne 0 ]]; then usage >&2; exit 2; fi
+    "${compose[@]}" exec -T fleet /opt/cobot/entrypoint.sh \
+      ros2 run cobot_fleet_control fleet_bt_viewer \
+      --db /var/lib/cobot/fleet_control.sqlite3
     ;;
   *) usage >&2; exit 2 ;;
 esac

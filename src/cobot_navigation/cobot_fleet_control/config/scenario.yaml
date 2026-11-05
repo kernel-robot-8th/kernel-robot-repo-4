@@ -1,4 +1,4 @@
-# Site mapping example using existing lab waypoints. Confirm arm/station mapping on site.
+# 기존 실험실 경유 지점을 이용한 현장 매핑 예시. 로봇팔·작업장 매핑은 현장에서 확인한다.
 routes:
   lab_delivery:
     pickup: ZA
@@ -10,6 +10,7 @@ max_retries: 3                 # initial attempt + at most three safe retries
 step_timeout_sec: 300.0
 customer_timeout_sec: 120.0
 stale_sec: 3.0
+battery_stale_sec: 10.0       # control-center documents the real battery topic at 5 s intervals
 battery_min: 20.0             # assignment policy, not a fixed UML value
 departure_gap_sec: 3.0
 dock_xy_m: 0.01

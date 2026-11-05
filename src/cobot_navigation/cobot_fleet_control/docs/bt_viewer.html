@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>COBOT · 실시간 행동 트리</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#111d30;--line:#293b54;--text:#e6eefb;--muted:#9bafc9;--run:#55b7ff;--success:#54dcac;--failure:#ff8790;--invalid:#8192a8}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,sans-serif}header{padding:28px 36px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:20px;align-items:center}.brand{color:var(--success);font-size:12px;letter-spacing:3px}h1{font-size:26px;margin:5px 0}h2{font-size:16px;margin:0 0 12px}p{margin:0;color:var(--muted)}.pill{border:1px solid var(--line);border-radius:100px;padding:6px 12px;font-size:12px;white-space:nowrap}main{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:calc(100vh - 130px)}aside{padding:24px;border-right:1px solid var(--line)}.work{padding:24px 32px;min-width:0}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px}button,select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:inherit;cursor:pointer}select{width:100%;margin-bottom:16px;min-width:0}button:hover{border-color:var(--run)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--run);outline-offset:3px}.legend{display:flex;gap:15px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}.metric small{display:block;color:var(--muted);font-size:11px}.metric strong{display:block;font-size:16px;overflow-wrap:anywhere}#tree{overflow:auto;padding:4px 0 30px}.branch{margin:0;padding-left:22px;list-style:none;border-left:1px solid var(--line)}#tree>.branch{border:0;padding:0}.branch li{padding:7px 0 0 12px;position:relative}.branch li:before{content:"";position:absolute;left:0;top:29px;width:12px;border-top:1px solid var(--line)}.node{display:flex;gap:12px;align-items:flex-start;max-width:780px;border:1px solid var(--line);border-left:4px solid var(--invalid);background:var(--panel);padding:10px 14px;border-radius:8px;min-width:220px;overflow-wrap:anywhere}.node.RUNNING{border-left-color:var(--run);background:#142b45}.node.SUCCESS{border-left-color:var(--success)}.node.FAILURE{border-left-color:var(--failure)}.node.visited{box-shadow:0 0 0 1px #5fbaff70}.node .body{flex:1;min-width:0}.node b{font-weight:600}.node small{display:block;color:var(--muted);font-size:11px}.node .status{font-size:10px;letter-spacing:.4px;color:var(--invalid);padding-top:3px}.node.RUNNING .status{color:var(--run)}.node.SUCCESS .status{color:var(--success)}.node.FAILURE .status{color:var(--failure)}.node p{font-size:12px;margin-top:3px}.note{padding:14px;background:var(--panel);border-radius:8px;color:var(--muted);font-size:12px;margin-top:20px}.fact{border-bottom:1px solid var(--line);padding:12px 0;font-size:12px;overflow-wrap:anywhere}.fact span{display:block;color:var(--muted);margin-bottom:3px}.empty{border:1px dashed var(--line);border-radius:12px;padding:40px 24px;text-align:center;color:var(--muted)}#timeline{width:100%;accent-color:var(--run)}#detail{white-space:pre-wrap}.subtle{font-size:12px;color:var(--muted)}@media(max-width:760px){header{padding:20px;align-items:flex-start;flex-direction:column}main{display:block}aside{border-right:0;border-bottom:1px solid var(--line);padding:20px}.work{padding:20px}.summary{grid-template-columns:1fr}.node{min-width:190px}.branch{padding-left:14px}.legend{gap:8px}h1{font-size:23px}}
+#tree{max-height:calc(100vh - 395px);min-height:280px;border-bottom:1px solid var(--line);margin-bottom:16px}@media(max-width:760px){#tree{max-height:72vh}}</style></head><body>
+<header><div><div class="brand">COBOT / LIVE OBSERVER</div><h1>실시간 행동 트리</h1><p>주문별 전체 업무와 개별 주행의 실제 실행 상태</p></div><span id="connection" class="pill" role="status">원장 연결 중</span></header>
+<main><aside><h2>실행 트리 선택</h2><label for="selection" class="subtle">주문 BT · 주행 BT</label><select id="selection"><option value="">기록 대기 중</option></select><div class="fact"><span>주문 / 명령 ID</span><b id="identity">—</b></div><div class="fact"><span>로봇</span><b id="robot">—</b></div><div class="fact"><span>현재 원장의 주문 상태</span><b id="order-state">—</b></div><div class="fact"><span>유지 중인 자원 예약 · 기록 시점</span><b id="resources">—</b></div><div class="fact"><span>현재 원장의 상세 내용</span><div id="detail">—</div></div><div class="note">밝은 테두리는 해당 갱신에서 실제 방문한 노드입니다. SUCCESS 상태가 남아 있어도 명령을 다시 실행했다는 뜻은 아닙니다.</div><div class="note">이 화면은 SQLite 실행 원장을 읽습니다. ROS 연결 상태나 장치 정지를 보장하는 화면이 아닙니다. 로봇 제어는 기존 웹 관제에서 수행하세요.</div></aside>
+<section class="work"><div class="controls"><button id="pause" type="button">표시 일시정지</button><button id="focus" type="button">실행 노드로</button><button id="latest" type="button">최신 기록으로</button><span id="mode" class="subtle">실시간 · 0.5초마다 조회</span></div><div class="summary"><div class="metric"><small>선택 기록의 작업 상태</small><strong id="state">대기</strong></div><div class="metric"><small>선택 기록의 실행 단계</small><strong id="stage">—</strong></div><div class="metric"><small>기록 시각 / BT 갱신</small><strong id="stamp">—</strong></div></div><div class="legend"><span><i class="dot" style="background:var(--run)"></i>RUNNING · 실행·대기</span><span><i class="dot" style="background:var(--success)"></i>SUCCESS · 완료</span><span><i class="dot" style="background:var(--failure)"></i>FAILURE · 실패·분기</span><span><i class="dot" style="background:var(--invalid)"></i>INVALID · 미실행·중단</span></div><p id="notice" class="subtle" role="status"></p><div id="tree" aria-live="polite"><p class="empty">아직 BT 실행 기록이 없습니다.<br>중앙 제어기가 주문 또는 주행 작업을 시작하면 자동으로 표시됩니다.</p></div><label for="timeline" class="subtle">수신 이력 탐색 · 트리당 최근 200개</label><input id="timeline" type="range" min="0" max="0" value="0"><p id="history" class="subtle">기록 대기 중</p></section></main>
+<script>
+
+'use strict';
+const $ = id => document.getElementById(id);
+const histories = new Map();
+const orders = new Map();
+let cursor = 0, selected = '', paused = false, polling = false, position = 0, renderedEvent = null;
+
+function identity(snapshot) {
+  return snapshot.type === 'scenario_bt_snapshot' ? snapshot.order_id : snapshot.command_id;
+}
+
+function set(id, value) {
+  $(id).textContent = value ?? '—';
+}
+
+function options() {
+  const old = selected;
+  $('selection').replaceChildren();
+  const sorted = [...histories].sort((a, b) => {
+    const left = a[1].at(-1), right = b[1].at(-1);
+    return Number(right.type === 'scenario_bt_snapshot')
+      - Number(left.type === 'scenario_bt_snapshot') || right.event_id - left.event_id;
+  });
+  for (const [id, list] of sorted) {
+    const snapshot = list.at(-1);
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = (snapshot.type === 'scenario_bt_snapshot' ? '주문 · ' : '주행 · ')
+      + identity(snapshot);
+    $('selection').append(option);
+  }
+  selected = histories.has(old) ? old : (sorted[0]?.[0] || '');
+  $('selection').value = selected;
+}
+
+function drawTree(snapshot) {
+  if (renderedEvent === snapshot.event_id) return;
+  renderedEvent = snapshot.event_id;
+  const scrollTop = $('tree').scrollTop, scrollLeft = $('tree').scrollLeft;
+  const nodes = new Map(snapshot.nodes.map(node => [node.id, node]));
+  const rendered = new Set();
+  function branch(id) {
+    const node = nodes.get(id);
+    if (!node || rendered.has(id)) return document.createElement('span');
+    rendered.add(id);
+    const li = document.createElement('li');
+    const card = document.createElement('div');
+    const valid = ['RUNNING', 'SUCCESS', 'FAILURE', 'INVALID'];
+    card.className = 'node ' + (valid.includes(node.status) ? node.status : 'INVALID')
+      + (node.visited ? ' visited' : '');
+    const body = document.createElement('div');
+    body.className = 'body';
+    const title = document.createElement('b');
+    title.textContent = node.name;
+    const kind = document.createElement('small');
+    kind.textContent = node.kind + (node.stage ? ' · ' + node.stage : '');
+    body.append(title, kind);
+    if (node.feedback) {
+      const feedback = document.createElement('p');
+      feedback.textContent = node.feedback;
+      body.append(feedback);
+    }
+    const status = document.createElement('span');
+    status.className = 'status';
+    status.textContent = node.status;
+    card.append(body, status);
+    li.append(card);
+    if (node.children.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'branch';
+      for (const child of node.children) ul.append(branch(child));
+      li.append(ul);
+    }
+    return li;
+  }
+  const ul = document.createElement('ul');
+  ul.className = 'branch';
+  ul.append(branch(snapshot.root_id));
+  $('tree').replaceChildren(ul);
+  $('tree').scrollTop = scrollTop;
+  $('tree').scrollLeft = scrollLeft;
+}
+
+function render() {
+  const list = histories.get(selected);
+  if (!list?.length) return;
+  if (!paused) position = list.length - 1;
+  position = Math.min(position, list.length - 1);
+  const snapshot = list[position];
+  const order = orders.get(snapshot.order_id);
+  set('identity', identity(snapshot));
+  set('robot', snapshot.robot_id);
+  set('state', snapshot.job_state);
+  set('stage', snapshot.stage || '개별 주행');
+  set('stamp', new Date(snapshot.recorded_at * 1000).toLocaleTimeString('ko-KR')
+    + ' / ' + snapshot.tick);
+  set('order-state', order?.state || '개별 주행');
+  set('detail', order?.detail || '—');
+  set('resources', (snapshot.resources || []).join(', ') || '없음');
+  set('notice', order && order.state !== snapshot.job_state
+    ? `현재 주문은 ${order.state} 상태입니다. 아래 트리는 선택한 과거 기록입니다.` : '');
+  $('timeline').max = list.length - 1;
+  $('timeline').value = position;
+  set('history', `${position + 1} / ${list.length} · ${snapshot.phase} · 수신 기록 탐색`);
+  drawTree(snapshot);
+}
+
+function waiting(detail) {
+  cursor = 0;
+  histories.clear();
+  orders.clear();
+  selected = '';
+  renderedEvent = null;
+  options();
+  const empty = document.createElement('p');
+  empty.className = 'empty';
+  empty.textContent = detail;
+  $('tree').replaceChildren(empty);
+  for (const id of ['identity', 'robot', 'order-state', 'resources', 'detail', 'stage', 'stamp']) {
+    set(id, '—');
+  }
+  set('state', '대기');
+  set('history', '기록 대기 중');
+  set('notice', '');
+  $('timeline').max = 0;
+  $('timeline').value = 0;
+}
+
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    const response = await fetch('/api/snapshots?after=' + cursor, {cache: 'no-store'});
+    const data = await response.json();
+    if (!response.ok) throw Error(data.detail || '조회 실패');
+    if (data.reset) {
+      waiting('원장 변경 감지: 최신 기록을 다시 읽습니다.');
+      set('connection', '원장 변경 감지');
+      return;
+    }
+    if (data.status === 'waiting') {
+      waiting(data.detail);
+      set('connection', '원장 생성 대기');
+      return;
+    }
+    cursor = data.cursor;
+    orders.clear();
+    for (const order of data.orders) orders.set(order.order_id, order);
+    let changed = false;
+    for (const snapshot of data.snapshots) {
+      const id = snapshot.type + ':' + identity(snapshot);
+      const list = histories.get(id) || [];
+      if (list.at(-1)?.event_id === snapshot.event_id) continue;
+      list.push(snapshot);
+      if (list.length > 200) list.shift();
+      histories.set(id, list);
+      changed = true;
+    }
+    if (histories.size > 200) {
+      for (const id of histories.keys()) {
+        if (histories.size <= 200) break;
+        if (id !== selected) histories.delete(id);
+      }
+    }
+    if (changed || !selected) options();
+    set('connection', '원장 조회 연결됨 · ' + new Date().toLocaleTimeString('ko-KR'));
+    if (!paused) render();
+  } catch (error) {
+    set('connection', '조회 중단 · ' + error.message);
+  } finally {
+    polling = false;
+  }
+}
+
+function live() {
+  paused = false;
+  set('pause', '표시 일시정지');
+  set('mode', '실시간 · 0.5초마다 조회');
+  render();
+}
+
+$('selection').addEventListener('change', () => {
+  selected = $('selection').value;
+  position = histories.get(selected).length - 1;
+  render();
+});
+$('pause').addEventListener('click', () => {
+  if (paused) {
+    live();
+    return;
+  }
+  paused = true;
+  set('pause', '실시간 표시 재개');
+  set('mode', '화면 고정 · 기록 수신은 계속됩니다');
+});
+$('latest').addEventListener('click', live);
+$('focus').addEventListener('click', () => {
+  const nodes = $('tree').querySelectorAll('.node.RUNNING');
+  nodes[nodes.length - 1]?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+});
+$('timeline').addEventListener('input', () => {
+  paused = true;
+  position = Number($('timeline').value);
+  set('pause', '실시간 표시 재개');
+  set('mode', '수신 이력 탐색 중');
+  render();
+});
+poll();
+setInterval(poll,500);
+</script></body></html>

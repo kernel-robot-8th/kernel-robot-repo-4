@@ -8,7 +8,7 @@ pinky_patrol_node:
     initial_rotation_sec: 4.0
     restore_pose: true
     idle_return_sec: 120.0
-    # In fleet mode only the central scheduler may initiate a return-home command.
+    # 중앙 관제 모드에서는 중앙 스케줄러만 홈 복귀 명령을 시작할 수 있다.
     central_controlled: true
     status_period_sec: 0.5
     central_timeout_sec: 3.0

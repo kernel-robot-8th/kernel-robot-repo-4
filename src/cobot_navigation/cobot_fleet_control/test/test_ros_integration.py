@@ -1,4 +1,4 @@
-﻿"""ROS-only roundtrip in an explicitly isolated domain; never runs against real robots."""
+﻿"""명시적으로 격리한 도메인에서 ROS 왕복 통신을 시험한다. 실제 로봇에는 접속하지 않는다."""
 
 import json
 import os
@@ -12,7 +12,7 @@ import pytest
     os.environ.get('ROS_DOMAIN_ID') != '77' or os.environ.get('ROS_LOCALHOST_ONLY') != '1',
     reason='requires isolated ROS_DOMAIN_ID=77 and ROS_LOCALHOST_ONLY=1')
 def test_ros_web_request_navigation_result_and_snapshot(tmp_path, monkeypatch):
-    """Exercise the real node with DDS and a fake robot, without HTTP or MQTT."""
+    """DDS와 가짜 로봇으로 실제 노드를 시험한다. HTTP·MQTT는 사용하지 않는다."""
     rclpy = pytest.importorskip('rclpy')
     from rclpy.executors import SingleThreadedExecutor
     from rclpy.node import Node

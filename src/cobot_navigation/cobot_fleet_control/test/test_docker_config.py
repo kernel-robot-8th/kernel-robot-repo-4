@@ -112,3 +112,18 @@ def test_trace_export_rejects_shell_input(runner):
     result, calls = runner('export-bt', 'job;invalid')
     assert result.returncode == 2
     assert not any('exec' in call['args'] for call in calls)
+
+
+def test_live_viewer_reads_running_container_journal(runner):
+    result, calls = runner('view-bt')
+    assert result.returncode == 0
+    assert calls[-1]['args'][-6:] == [
+        'ros2', 'run', 'cobot_fleet_control', 'fleet_bt_viewer',
+        '--db', '/var/lib/cobot/fleet_control.sqlite3']
+    assert not any('up' in call['args'] or 'run' == call['args'][0] for call in calls)
+
+
+def test_direct_database_recovery_command_is_removed(runner):
+    result, calls = runner('resolve-unknown', 'job-001')
+    assert result.returncode == 2
+    assert not any('exec' in call['args'] for call in calls)

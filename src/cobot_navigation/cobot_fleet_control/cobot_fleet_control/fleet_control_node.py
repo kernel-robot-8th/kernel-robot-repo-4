@@ -1,4 +1,4 @@
-"""ROS-only central executor; web transport belongs to cobot_control_center."""
+"""ROS 중앙 실행기. 웹 통신은 cobot_control_center에서 담당한다."""
 
 import json
 from pathlib import Path
@@ -17,10 +17,11 @@ from .control_api import ControlAPI
 from .repository import encode, SqliteRepository
 from .scenario import ScenarioService
 from .service import FleetService
+from .web_profiles import load_profiles
 
 
 class FleetControlNode(Node):
-    """Access SQLite, navigation BTs and scenarios from one ROS executor."""
+    """하나의 ROS 실행기에서 SQLite·주행 행동 트리·시나리오에 접근한다."""
 
     def __init__(self):
         super().__init__('fleet_control')
@@ -35,6 +36,7 @@ class FleetControlNode(Node):
             'tasks_topic': '/control_center/tasks',
             'work_request_topic': '/fleet/work_request',
             'work_result_topic': '/fleet/work_result',
+            'patrol_config_dir': '', 'site': 'lab',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -65,7 +67,9 @@ class FleetControlNode(Node):
         scenario_config = yaml.safe_load(
             Path(config['scenario_config']).read_text(encoding='utf-8'))
         self.scenario = ScenarioService(self.repository, self.service, self, **scenario_config)
-        self.api = ControlAPI(self.scenario, self.service, self)
+        rules = (load_profiles(config['patrol_config_dir'], config['site'], robots)
+                 if config['patrol_config_dir'] else None)
+        self.api = ControlAPI(self.scenario, self.service, self, point_rules=rules)
         self.status_subscriptions = []
         for robot in robots:
             self.status_subscriptions.extend([
@@ -82,13 +86,18 @@ class FleetControlNode(Node):
             '중앙 실행기 시작 (작업 명령 꺼짐). control-center task_manager_node와 동시 실행 금지.')
 
     def send(self, robot_id, payload):
-        """Require one command owner and one robot subscriber before movement."""
+        """이동 전 명령 발행자와 로봇 구독자가 각각 하나인지 확인한다."""
         publisher = self.publishers_by_robot[robot_id]
-        if publisher.get_subscription_count() != 1:
-            raise RuntimeError('로봇 명령 구독자 수가 1이 아님')
-        if self.count_publishers(f'/{robot_id}/patrol_cmd') != 1:
-            raise RuntimeError('중복 patrol_cmd 발행자: task_manager/CLI 동시 실행 금지')
+        if not self.ready(robot_id):
+            raise RuntimeError('명령 실행기·발행자 중복 또는 로봇 명령 구독 연결 미확인')
         publisher.publish(String(data=encode(self._envelope(robot_id, payload))))
+
+    def ready(self, robot_id):
+        """동일 요청을 두 실행기가 동시에 받거나 명령을 중복 발행하면 이동을 거절한다."""
+        return (self.publishers_by_robot[robot_id].get_subscription_count() == 1
+                and self.count_publishers(f'/{robot_id}/patrol_cmd') == 1
+                and self.count_subscribers(self.config['request_topic']) == 1
+                and self.count_publishers(self.config['tasks_topic']) == 1)
 
     def _envelope(self, robot_id, payload):
         self.sequences[robot_id] += 1
@@ -104,7 +113,7 @@ class FleetControlNode(Node):
             publisher.publish(String(data=encode(payload)))
 
     def release(self, robot_id, route=None):
-        """An explicit reconciliation authorizes clearing the onboard stop latch."""
+        """현장 상태를 명시적으로 확인한 뒤 로봇의 정지 잠금을 해제한다."""
         self.send(robot_id, {'command_id': uuid.uuid4().hex, 'command': 'control_reset'})
         if route:
             for target in {route['pickup_arm'], route['dropoff_arm']}:
@@ -112,7 +121,7 @@ class FleetControlNode(Node):
                                target=target, stage='SAFETY', action='release_hold'))
 
     def work(self, payload):
-        """Adapters deduplicate request_id and return measured, final results."""
+        """장치 어댑터는 request_id로 중복을 제거하고 실측한 최종 결과를 반환한다."""
         target = payload['target']
         self.work_sequences[target] = self.work_sequences.get(target, 0) + 1
         payload = dict(payload, session_id=self.session_id, seq=self.work_sequences[target],
@@ -120,7 +129,7 @@ class FleetControlNode(Node):
         self.work_pub.publish(String(data=encode(payload)))
 
     def halt(self, robot_id, route, order_id):
-        """Request software stops without claiming hardware power isolation."""
+        """소프트웨어 정지를 요청한다. 하드웨어 전원 차단을 보장하지는 않는다."""
         self.publishers_by_robot[robot_id].publish(String(data=encode(
             {'command_id': uuid.uuid4().hex, 'command': 'emergency_stop'})))
         routes = list(self.scenario.routes.values()) if route.get('all_arms') else [route]
@@ -185,17 +194,17 @@ class FleetControlNode(Node):
                 payload = dict(type='task', event_id=payload['event_id'],
                                task=self.api._task(self.repository.get(payload['command_id'])))
             self.events_pub.publish(String(data=encode(payload)))
-            # Local journal is durable. ROS publish is not a remote durable acknowledgement.
+            # 로컬 원장은 영속 저장된다. ROS 발행만으로 원격 수신·저장이 확인되지는 않는다.
             self.repository.acknowledge(event['event_id'])
 
     def destroy_node(self):
-        """Close the journal after the executor has stopped."""
+        """실행기가 멈춘 뒤 원장 연결을 닫는다."""
         self.repository.close()
         return super().destroy_node()
 
 
 def main(args=None):
-    """Run the central executor in the existing control ROS domain."""
+    """기존 관제 ROS 도메인에서 중앙 실행기를 시작한다."""
     rclpy.init(args=args)
     node = FleetControlNode()
     executor = SingleThreadedExecutor()

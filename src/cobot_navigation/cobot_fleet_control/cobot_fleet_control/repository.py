@@ -4,27 +4,11 @@ import fcntl
 import json
 import sqlite3
 import time
-from typing import Protocol
 
 
 def encode(value):
     """동일 명령 재수신 비교를 위해 키 순서를 고정한다."""
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
-
-
-class Repository(Protocol):
-    """추후 서버 DB로 교체할 저장소 경계."""
-
-    def get(self, command_id): ...
-    def busy(self, robot_id): ...
-    def create(self, command): ...
-    def transition(self, command_id, state, detail=''): ...
-    def pending(self, limit=100): ...
-    def acknowledge(self, event_id): ...
-    def recover(self): ...
-    def record_status(self, robot_id, status): ...
-    def record_bt_snapshot(self, snapshot): ...
-    def resolve_unknown(self, command_id, robot_id, operator, reason): ...
 
 
 class SqliteRepository:
@@ -57,6 +41,9 @@ class SqliteRepository:
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 payload TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS command_confirmation (
+                command_id TEXT PRIMARY KEY
+            );
         """)
         columns = {row['name'] for row in self.db.execute('PRAGMA table_info(commands)')}
         for column in ('created_at', 'updated_at'):
@@ -75,6 +62,16 @@ class SqliteRepository:
         return self.db.execute(
             'SELECT 1 FROM commands WHERE robot_id=? AND state NOT IN '
             "('SUCCEEDED','FAILED')", (robot_id,)).fetchone() is not None
+
+    def require_confirmation(self, command_id):
+        """운영자 정지 뒤에는 지연 종료 패킷만으로 해제 버튼이 사라지지 않게 한다."""
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO command_confirmation VALUES (?)', (command_id,))
+
+    def confirmation_required(self, command_id):
+        """재시작 뒤에도 현장 확인이 필요한 작업을 구분한다."""
+        return self.db.execute('SELECT 1 FROM command_confirmation WHERE command_id=?',
+                               (command_id,)).fetchone() is not None
 
     def create(self, command):
         """접수 내역이 디스크에 기록된 후에만 BT 실행을 허용한다."""

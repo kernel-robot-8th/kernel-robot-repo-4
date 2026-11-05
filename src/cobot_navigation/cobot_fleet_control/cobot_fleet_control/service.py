@@ -57,9 +57,10 @@ class FleetService:
                 del self.traces[command_id]
 
     def quarantine(self, command_id, detail):
-        """Remove pending local dispatch before requesting a stop at the device boundary."""
+        """장치에 정지를 요청하기 전에 로컬에서 전달 대기 중인 명령을 제거한다."""
         row = self.repository.get(command_id)
         if row and row['state'] not in {'SUCCEEDED', 'FAILED'}:
+            self.repository.require_confirmation(command_id)
             self.repository.transition(command_id, 'UNKNOWN', detail)
             self.active.pop(command_id, None)
             trace = self.traces.pop(command_id, None)
@@ -83,7 +84,8 @@ class FleetService:
             return
         if command_id in self.active:
             self.active[command_id][2].result = status
-        elif row['state'] == 'UNKNOWN':
+        elif (row['state'] == 'UNKNOWN'
+              and not self.repository.confirmation_required(command_id)):
             # 지연 완료가 실제로 도착했을 때만 자동으로 점유를 해제한다.
             self.repository.transition(command_id,
                                        'SUCCEEDED' if status['state'] == 'DONE' else 'FAILED',

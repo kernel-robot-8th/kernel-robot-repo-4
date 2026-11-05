@@ -1,10 +1,11 @@
-"""End-to-end scenario decisions using real SQLite and the real navigation BT."""
+"""실제 SQLite와 주행 행동 트리를 사용해 시나리오 전체의 결정을 검증한다."""
 
 import json
 
 from cobot_fleet_control.control_api import ControlAPI
 from cobot_fleet_control.repository import SqliteRepository
-from cobot_fleet_control.scenario import NAVIGATION, ScenarioService
+from cobot_fleet_control.scenario import ScenarioService
+from cobot_fleet_control.scenario_contracts import NAVIGATION
 from cobot_fleet_control.service import FleetService
 import pytest
 
@@ -14,7 +15,7 @@ ROUTES = {'lab': dict(pickup='ZA', dropoff='ZB', pickup_arm='omx1',
 
 
 class Gateway:
-    """Observe device requests and software stops without moving hardware."""
+    """하드웨어를 움직이지 않고 장치 요청과 소프트웨어 정지를 관찰한다."""
 
     def __init__(self):
         self.sent, self.work_sent, self.halts = [], [], []
@@ -33,7 +34,7 @@ class Gateway:
 
 
 class Environment:
-    """Use an explicit clock and separately refreshed battery/status receipts."""
+    """명시적 시계와 각각 갱신하는 배터리·로봇 상태 수신 시각을 사용한다."""
 
     def __init__(self, path):
         self.path, self.now = str(path), 0.0
@@ -159,7 +160,7 @@ def test_no_assignment_on_unknown_low_stale_battery_or_local_autonomy(env):
     env.scenario.tick()
     assert env.current()['robot_id'] is None
     env.healthy()
-    env.now = 4.0
+    env.now = 11.0
     for robot in env.fleet.robots:
         env.scenario.telemetry(robot, status=dict(state='IDLE', central_controlled=True))
     env.scenario.tick()
@@ -310,7 +311,7 @@ def test_arm_and_raw_manual_web_contract_and_latched_stop_without_order(env):
     env.order()
     env.tick()
     assert env.current()['robot_id'] == 'pinky2'
-    assert env.api.handle(dict(type='raw', command='goto:P1'))['status'] == 400
+    assert env.api.handle(dict(type='raw', command='goto:P1'))['status'] == 403
     assert env.api.snapshot()['holds']['pinky1'] == 'ESTOP'
     assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 400
 
@@ -353,7 +354,7 @@ def test_invalid_orders_do_not_reserve_stock(env, changes):
 
 def test_pause_before_first_bt_tick_prevents_queued_movement(env):
     env.order()
-    env.scenario.tick()  # Registers navigation; nothing has reached the robot yet.
+    env.scenario.tick()  # 주행을 등록한 단계이며 아직 로봇에 전달된 명령은 없다.
     assert env.gateway.sent == []
     env.api.handle(dict(type='pause', robot_id='pinky1'))
     env.fleet.tick()

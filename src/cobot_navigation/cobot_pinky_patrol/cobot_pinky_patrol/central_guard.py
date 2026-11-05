@@ -1,17 +1,17 @@
-"""Receipt watchdog and session/sequence fencing for the existing JSON patrol adapter."""
+"""기존 JSON 순찰 어댑터의 수신 감시와 세션·순번 기반 명령 차단."""
 
 import math
 import time
 
 
 def number(value):
-    """Do not treat bool or NaN as a usable lease value."""
+    """불리언이나 NaN을 유효한 만료 시간으로 취급하지 않는다."""
     return (not isinstance(value, bool) and isinstance(value, (int, float))
             and math.isfinite(value))
 
 
 class CentralGuard:
-    """A heartbeat revives liveness but never clears a local stop latch."""
+    """하트비트는 연결 상태만 복구하며 로컬 정지 잠금은 해제하지 않는다."""
 
     def __init__(self, timeout_sec=3.0, max_ttl_sec=5.0,
                  clock=time.monotonic, wall=time.time):
@@ -24,7 +24,7 @@ class CentralGuard:
 
     @property
     def healthy(self):
-        """Use local receipt time to detect an unavailable central server."""
+        """로컬 수신 시각으로 중앙 서버의 연결 끊김을 감지한다."""
         return self.received is not None and self.clock() - self.received < self.timeout
 
     def _valid_time(self, payload):
@@ -33,7 +33,7 @@ class CentralGuard:
                 and -1.0 <= self.wall() - issued < ttl)
 
     def heartbeat(self, payload):
-        """Return whether a server session change requires a stop."""
+        """서버 세션 변경으로 정지가 필요한지 반환한다."""
         if not isinstance(payload, dict) or not self._valid_time(payload):
             return False
         session, seq = payload.get('session_id'), payload.get('seq')
@@ -53,14 +53,14 @@ class CentralGuard:
         return changed
 
     def expired(self):
-        """Fire once on expiry; the robot must keep publishing its status afterwards."""
+        """만료 시 한 번만 정지를 알린다. 이후에도 로봇 상태는 계속 발행해야 한다."""
         if self.received is not None and not self.healthy and not self.latched:
             self.latched = True
             return True
         return False
 
     def accept(self, payload, reset=False):
-        """Only a fresh, increasing command from the current session may move the base."""
+        """현재 세션에서 유효 시간 안에 수신한 순번이 증가하는 명령만 로봇을 이동시킬 수 있다."""
         if (not self.healthy or not self._valid_time(payload)
                 or payload.get('session_id') != self.session or (self.latched and not reset)):
             return False

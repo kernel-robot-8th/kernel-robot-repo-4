@@ -214,7 +214,7 @@ class PinkyPatrolNode(Node):
             self.get_logger().warning(f'잘못된 명령: {error}')
 
     def _central_heartbeat(self, message):
-        """A server restart invalidates motion; a recovered link does not resume it."""
+        """서버 재시작 시 이동 명령을 무효화한다. 통신이 복구돼도 이동을 재개하지 않는다."""
         if not self.config['central_controlled']:
             return
         try:
@@ -227,7 +227,7 @@ class PinkyPatrolNode(Node):
         """상태 발행과 LED 표시를 같은 executor에서 갱신한다."""
         payload = dict(payload, held_zone=self.controller.held_zone,
                        central_controlled=self.config['central_controlled'], boot_id=self.boot_id,
-                       central_latched=self.central_guard.latched)
+                       central_latched=self.central_guard.latched, busy=self.controller.busy)
         self.status_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
         if (payload.get('command_id') and self.controller.busy
                 and payload['command_id'] != self.controller.command_id):
@@ -246,13 +246,13 @@ class PinkyPatrolNode(Node):
             self._set_led((0, 255, 0), True)
 
     def _heartbeat(self):
-        """Repeat liveness without replaying a terminal command result as new evidence."""
+        """생존 상태는 반복 발행하되 종료된 명령 결과를 새 완료 근거로 다시 보내지 않는다."""
         if self.config['central_controlled'] and self.central_guard.expired():
             self.controller.stop(emergency=True)
         payload = dict(self._last_status, time=time.time(), task_finished=False,
                        held_zone=self.controller.held_zone,
                        command_id=self.controller.command_id,
-                       central_latched=self.central_guard.latched)
+                       central_latched=self.central_guard.latched, busy=self.controller.busy)
         self.status_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
 
     def _set_led(self, color, blink):
