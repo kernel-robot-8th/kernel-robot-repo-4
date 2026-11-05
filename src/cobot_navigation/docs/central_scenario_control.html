@@ -20,7 +20,7 @@
 </style>
 </head>
 <body>
-<aside><div class="brand">COBOT / NAVIGATION<span>중앙 시나리오 제어</span></div><p>SN-01 Activity Diagram v13<br>구현·통합·운영 가이드</p><nav aria-label="문서 목차"><a href="#overview">01 역할과 구조</a><a href="#ui-transport">웹 통신 연결</a><a href="#flow">02 실행 흐름 재생</a><a href="#coverage">03 시나리오 대응표</a><a href="#safety">04 수정한 로직</a><a href="#contract">05 연동 계약</a><a href="#run">06 설치와 실행</a><a href="#code">07 코드와 호출 흐름</a><a href="#code-flow">코드 호출 흐름도</a><a href="#live-bt">실시간 BT 조회 도구</a><a href="#validation">08 검증과 남은 연결</a></nav><div class="nav-foot">웹 전송: control-center<br>중앙 정책: fleet-control<br>로봇 실행: patrol + Nav2<br><br>오프라인 단일 HTML<br>2026.11.05</div></aside>
+<aside><div class="brand">COBOT / NAVIGATION<span>중앙 시나리오 제어</span></div><p>SN-01 Activity Diagram v13<br>구현·통합·운영 가이드</p><nav aria-label="문서 목차"><a href="#overview">01 역할과 구조</a><a href="#ui-transport">웹 통신 연결</a><a href="#flow">02 실행 흐름 재생</a><a href="#coverage">03 시나리오 대응표</a><a href="#safety">04 수정한 로직</a><a href="#contract">05 연동 계약</a><a href="#run">06 설치와 실행</a><a href="#docker-setup">새 환경 Docker 설치</a><a href="#code">07 코드와 호출 흐름</a><a href="#code-flow">코드 호출 흐름도</a><a href="#live-bt">실시간 BT 조회 도구</a><a href="#validation">08 검증과 남은 연결</a></nav><div class="nav-foot">웹 전송: control-center<br>중앙 정책: fleet-control<br>로봇 실행: patrol + Nav2<br><br>오프라인 단일 HTML<br>2026.11.05</div></aside>
 <main>
 <header><div class="eyebrow">SN-01 / CENTRAL ORCHESTRATION</div><h1>주문에서 HOME 복귀까지,<br>단계를 확인하고 다음 명령을 내립니다.</h1><p class="lead">웹 화면은 <b>cobot_control_center</b>가 맡고, <b>cobot_fleet_control</b>이 로봇·팔·비전의 결과를 연결합니다. 명령 접수와 실제 작업 완료를 구분하고, 결과가 불확실하면 주문·로봇·공유 자원의 예약을 유지합니다.</p><div class="meta"><span class="badge">중앙 정책 구현</span><span class="badge gray">기존 domain bridge 재사용</span><span class="badge gray">공용 msg/srv/action 변경 없음</span><span class="badge amber">ROS·실물 연동 검증 필요</span></div></header>
 <div class="stats"><div class="stat"><strong>18</strong><small>PDF 시나리오 대응 검토</small></div><div class="stat"><strong>266</strong><small>자동 테스트 통과</small></div><div class="stat"><strong>1</strong><small>ROS 왕복 시험 미실행</small></div><div class="stat"><strong>0</strong><small>실제 로봇 구동</small></div></div>
@@ -38,13 +38,38 @@
 <tr><td>지도·구역 레이어</td><td>points_dir</td><td>현재 common + site + robot 프로필을 웹의 로봇별 파일 형식으로 자동 내보내기</td></tr>
 </tbody></table></div>
 <p>실제 control-center FastAPI와 TaskStore를 사용해 HTTP 라우트·응답 봉투·WebSocket·지도 프로필을 시험했습니다. ROS 전달만 테스트 콜백으로 대체했으며 실제 DDS 왕복 시험과 구분합니다.</p>
-<details open><summary>새 웹 기동 경로</summary><pre><code># feature/control-center 설치 환경을 source한 Linux 관제 PC
+<details open><summary>새 웹 기동 경로 · 현재 관제 PC</summary><pre><code>cd ~/ws/kernel-robot-repo-4
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+source install/control_center_web/local_setup.bash
 export ROS_DOMAIN_ID=100
 ros2 launch cobot_fleet_control control_center_web.launch.xml \
-  navigation_root:=/ws/kernel-robot-repo-4/src/cobot_navigation
-# 실제 기동은 mode:=execute 추가
-# 기존 fleet_startup / Docker로 fleet이 이미 켜져 있으면 fleet:=existing 추가</code></pre>
-<p>기본은 파일·서버를 시작하지 않는 미리보기입니다. 실제 모드에서는 프로필을 먼저 내보낸 뒤 fleet(선택) → 기존 상태 노드 → 기존 API 노드를 켭니다. task_manager_node는 시작하지 않습니다. API launch가 없는 옛 control-center 패키지는 기동 전에 거절합니다. 현재 브랜치에 없는 웹 소스를 자동 병합하지 않으므로 feature/control-center 패키지가 별도로 설치돼 있어야 합니다.</p></details>
+  navigation_root:=$HOME/ws/kernel-robot-repo-4/src/cobot_navigation \
+  mode:=execute fleet:=existing</code></pre>
+<p>위 명령은 fleet_control이 이미 실행 중인 경우입니다. 아직 실행하지 않았다면 <code>fleet:=start</code>로 바꿉니다. 브라우저 접속 주소는 <a href="http://127.0.0.1:8080">http://127.0.0.1:8080</a>입니다. <code>mode:=execute</code>는 서버를 실제로 시작하며, 로봇 작업 허용은 화면에서 따로 켜야 합니다. mode를 생략하면 파일·서버를 시작하지 않는 미리보기입니다.</p>
+<p>기존 웹 화면·API·상태 수집기를 재사용하고 작업 실행기는 fleet으로 교체합니다. 이 기동기는 기존 <code>fleet_status_node</code>와 <code>fleet_api_node</code>를 시작하며 <code>task_manager_node</code>는 시작하지 않습니다. API launch가 없는 옛 control-center 패키지는 기동 전에 거절합니다. 현재 브랜치에 없는 웹 소스를 자동 병합하지 않으므로 아래 별도 빌드가 필요합니다.</p>
+<p><code>source</code>는 현재 터미널에 프로그램 위치를 알려주는 명령입니다. <code>install/setup.bash</code>로 기존 프로젝트와 기반 환경을 불러온 뒤, <code>install/control_center_web/local_setup.bash</code>로 별도 빌드한 웹 패키지를 추가합니다. 웹 쪽을 나중에 불러와야 웹 기능이 있는 cobot_control_center가 우선 선택됩니다. 새 터미널에서는 이 순서를 다시 적용합니다. setup.bash는 빌드할 때 연결된 기반 환경도 함께 불러오고, local_setup.bash는 해당 설치 경로만 추가합니다.</p></details>
+<details id="startup-fixes" open><summary>2026-11-05 기동 오류 수정 및 기존 웹 설치 내역</summary>
+<ul class="list"><li><code>control_center_web.launch.xml</code>과 <code>fleet_startup.launch.xml</code>에서 <code>$(var ...)</code>를 감싸던 작은따옴표를 제거했습니다. Jazzy의 실행 명령 파서에서 발생하던 <code>No closing quotation</code>을 재현했으며, 수정 후 두 파일 모두 <code>--show-args</code> 로딩을 통과했습니다.</li>
+<li>연동 기준 커밋 <code>b847b8eff2ea3b3ce34faac89a214898dc54345f</code>의 <code>src/cobot_control_center</code>를 <code>build/control_center_overlay/source/src/cobot_control_center</code>에 추출하고 <code>install/control_center_web</code>에 별도 빌드했습니다. 현재 브랜치의 제품 소스에 웹 코드를 병합하지 않았습니다.</li>
+<li>웹 패키지 빌드, API·상태 노드 실행 파일 등록, <code>mode:=preview fleet:=existing</code> 기동 계획 확인까지 통과했습니다. 이 확인에서는 웹 서버와 로봇 프로세스를 시작하지 않았습니다. FastAPI·Uvicorn 설치와 실제 서버 기동·브라우저 접속은 별도 확인이 필요합니다.</li></ul>
+<div class="code-title">Jazzy 관제 PC · 누락 의존성 설치</div><pre><button type="button" class="copy">복사</button><code>sudo apt update
+sudo apt install ros-jazzy-py-trees python3-fastapi python3-uvicorn</code></pre>
+<p><code>ModuleNotFoundError: No module named 'py_trees'</code>는 fleet 실행 의존성이 없다는 뜻입니다. FastAPI·Uvicorn은 기존 웹 백엔드의 실행 의존성입니다. 위 설치 명령은 운영자가 실행할 명령이며 이 문서 갱신 시 설치 완료로 확인한 것은 아닙니다.</p>
+<div class="code-title">다른 설치 환경에서 기존 웹의 별도 빌드를 재현할 때</div><pre><button type="button" class="copy">복사</button><code>cd ~/ws/kernel-robot-repo-4
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+mkdir -p build/control_center_overlay/source
+git archive b847b8eff2ea3b3ce34faac89a214898dc54345f src/cobot_control_center | tar -x -C build/control_center_overlay/source
+colcon --log-base log/control_center_overlay build \
+  --base-paths build/control_center_overlay/source/src/cobot_control_center \
+  --build-base build/control_center_overlay/build \
+  --install-base install/control_center_web \
+  --packages-select cobot_control_center \
+  --allow-overriding cobot_control_center
+source install/control_center_web/local_setup.bash</code></pre>
+<p>현재 관제 PC에서는 별도 빌드를 완료했으므로 재빌드 없이 위의 source 순서를 적용하면 됩니다. 다른 PC에서 재현하려면 해당 Git 커밋과 기존 프로젝트의 빌드 결과가 있어야 합니다. 이 설치 경로는 로컬 빌드 결과이므로 저장소를 새로 받거나 build/install을 지우면 다시 만들어야 합니다.</p>
+</details>
 <p class="sub">현재 단일 작업 화면의 API는 호환됩니다. 주문·수령·시나리오 안전 복구 화면은 기존 웹에 확장할 항목입니다. 로봇 상태 만료 3초와 배터리 만료 10초를 분리해 실제 5초 배터리 발행 주기를 허용합니다.</p>
 </section>
 <section id="flow"><h2>02. 실행 흐름을 직접 확인하세요</h2><p class="sub">실제 주문 전체 BT + SQLite + 하위 주행 BT를 가짜 장치와 실행해 수집한 기록입니다. 아래 재생기는 로봇 명령을 전송하지 않습니다.</p><div class="playback"><div class="play-top"><span class="badge gray">로컬 테스트 기록 재생</span><div class="controls"><select id="trace-select" aria-label="테스트 시나리오 선택"><option value="delivery">정상 배송</option><option value="customer_timeout">수령 120초 초과</option><option value="sku_mismatch">상품 불일치</option><option value="link_loss">통신 단절</option><option value="restart">관제 재시작</option></select><button id="prev" type="button">이전</button><button id="play" type="button" class="primary">재생</button><button id="next" type="button">다음</button></div></div><div class="play-body"><div id="stages" class="stage-grid"></div><input type="range" id="position" min="0" max="1" value="0" aria-label="기록 위치"><div class="trace-info" aria-live="polite"><div><small>현재 상태</small><b id="state"></b></div><div><small>로봇 / 기록 위치</small><b id="robot"></b></div><div><small>판정·확인 내용</small><span id="detail"></span></div></div></div></div><div class="callout info"><b>같은 요청은 다시 실행하지 않습니다.</b> 주문은 <code>order_id</code>, 주행은 <code>command_id</code>, 팔·비전 작업은 단계마다 새 <code>request_id</code>로 추적합니다. 이전 단계·다른 로봇·다른 장치·이전 시도의 응답은 다음 단계를 열지 못합니다.</div></section>
@@ -107,6 +132,32 @@ ros2 launch cobot_fleet_control control_center_web.launch.xml \
   }
 }</code></pre><p>resume은 MOVE_PICKUP / MOVE_DROPOFF / RETURN_HOME / CUSTOMER에만 허용합니다. 팔·피킹 중간 상태는 fail로 정리하고 새 주문을 생성합니다. 여기의 evidence는 운영자 확인 기록이며 센서 측정을 대신하지 않습니다. 실제 확인 없이 true로 채우면 안 됩니다.</p><p>활성 주문이 없는 로봇의 정지 래치·수동 제어권은 <code>release_control</code> 요청에 robot_id, operator, note, 같은 evidence를 담아 반환합니다. 반환 뒤에도 arm 요청이 필요합니다.</p></details></section>
 <section id="run"><h2>06. 현장 실행 순서</h2><div class="callout info"><b>현재 기본값.</b> 관제 도메인 100, 로봇 10/20/30은 기존 설정을 유지했습니다. lab_delivery의 ZA→ZB 및 omx1/omx2 연결은 예시 매핑입니다. 실제 작업 구역·팔 ID를 scenario.yaml에 맞추고 장치 어댑터를 연결해야 합니다. 지도 좌표는 기존 lab.yaml을 재사용하며 새 좌표를 만들지 않았습니다.</div><ol class="list"><li>control-center의 웹·fleet_status는 유지하고, 직접 patrol_cmd를 발행하는 task_manager_node는 중지합니다. 기존 통합 bringup이 이를 다시 띄우지 않게 구성해야 합니다.</li><li>로봇에는 갱신된 patrol과 central_guard를 함께 배포합니다. 중앙 PC에는 갱신된 fleet·bridge·zone_manager를 배포합니다. 로봇과 관제 PC의 시계를 동기화합니다.</li><li>로봇의 central_controlled=true를 사용합니다. 독립 주행 점검에서만 false로 설정하고 중앙 실행기는 함께 사용하지 않습니다.</li><li>bridge → zone_manager → patrol → fleet 순서로 실행합니다. 팔·비전·보정 어댑터는 관제 도메인에서 work_request / result에 연결합니다.</li><li>통신·배터리·지도·작업 구역을 확인하고 웹에서 작업 명령을 켭니다. 재고를 등록한 뒤 주문을 접수합니다.</li></ol>
+<details id="docker-setup" open><summary>새 Ubuntu 24.04 관제 PC · Docker로 의존성부터 웹까지 설치</summary>
+<p>2026-11-05 추가. 기존 Docker는 fleet·bridge·zone-manager만 포함해 새 PC에서도 웹 의존성과 control-center를 호스트에 따로 설치해야 했습니다. 이제 기존 웹 원본과 ROS Jazzy·py_trees·FastAPI·Uvicorn·지도·지점 설정을 하나의 이미지에 포함하고, Compose가 웹까지 함께 시작합니다. 호스트에는 Docker·Compose·Git만 필요하며 ROS 설치나 setup.bash source는 필요 없습니다. 로봇 안의 bringup·Nav2·patrol은 별도로 실행합니다.</p>
+<div class="code-title">저장소를 받은 뒤 최초 설치·이미지 검사</div><pre><button type="button" class="copy">복사</button><code>cd ~/ws/kernel-robot-repo-4/src/cobot_navigation
+sudo bash cobot_fleet_control/config/docker/install_host.sh
+sudo bash cobot_fleet_control/config/docker/install_host.sh --check
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh build
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh config
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh check</code></pre>
+<p>설치기는 <a href="https://docs.docker.com/engine/install/ubuntu/">Docker 공식 Ubuntu apt 설치 절차</a>를 사용합니다. 이미 Docker·Compose가 있으면 버전·데몬 접근만 확인하며 기존 Docker/containerd 패키지를 자동 제거하지 않습니다. Docker 소켓 권한이 있으면 fleet_docker.sh 앞의 sudo는 생략할 수 있습니다. build는 이미지를 만들고, config는 구성을 출력하며, check는 Python·웹 모듈과 기동 계획을 확인합니다. 이 세 명령은 로봇 통신 노드와 웹 서버를 시작하지 않습니다.</p>
+<div class="code-title">작업과 실제 구역 상태를 확인하고 수동 서비스를 정리한 뒤 통합 실행</div><pre><button type="button" class="copy">복사</button><code>sudo bash cobot_fleet_control/config/docker/fleet_docker.sh up
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh ps
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh logs --tail=100
+# 종료: 실행 원장 볼륨 유지
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down</code></pre>
+<p>관제 PC 접속 주소는 <a href="http://127.0.0.1:8080">http://127.0.0.1:8080</a>입니다. 기본은 로컬 접속이며 웹 시작 시 작업 명령은 꺼져 있습니다. 웹 healthcheck는 HTTP 응답만 확인하므로 로봇 온라인·배터리·Nav2 준비 상태와 구분합니다. 수동 bridge·zone_manager·fleet_control·웹 및 기존 task_manager_node가 함께 실행되지 않게 정리합니다. 특히 task_manager_node와 fleet_control은 같은 요청을 동시에 처리하면 안 됩니다.</p>
+<div class="table-wrap"><table><thead><tr><th>서비스</th><th>실행 책임</th><th>중복 방지</th></tr></thead><tbody>
+<tr><td>bridge</td><td>관제 100 ↔ 로봇 10/20/30 중계</td><td>Compose가 한 세트 실행</td></tr>
+<tr><td>zone-manager</td><td>구역 점유·대기열</td><td>Compose가 한 개 실행</td></tr>
+<tr><td>fleet</td><td>작업·시나리오 BT와 실행 원장</td><td>명령 실행기 하나만 유지</td></tr>
+<tr><td>web</td><td>기존 fleet_status_node·fleet_api_node</td><td>fleet:=existing. task_manager_node는 시작하지 않음</td></tr>
+</tbody></table></div>
+<p>기존 웹은 versions.env의 고정 커밋 <code>b847b8eff2ea3b3ce34faac89a214898dc54345f</code>에서 필요한 두 패키지만 <code>.docker-context/control-center</code>로 추출해 빌드합니다. 현재 제품 소스에 병합하지 않으며 Git 인증을 이미지에 복사하지 않습니다. 이 디렉터리는 Git에 포함하지 않는 생성물입니다. 고정 커밋이 없으면 build가 origin에서 가져옵니다. Python lock과 ROS 베이스 digest를 유지하고 apt 설치 버전·웹 커밋은 이미지 안에 기록합니다.</p>
+<p>Linux host network/IPC, SUBNET 탐색, 기본 Cyclone DDS를 사용하고 Fast DDS도 설치합니다. <code>COBOT_RMW_IMPLEMENTATION</code>으로 RMW, <code>COBOT_WEB_HOST</code>·<code>COBOT_WEB_PORT</code>로 웹 주소를 선택할 수 있습니다. Docker가 로봇과 PC 사이의 Wi-Fi·방화벽·DDS 통신 문제를 자동 해결하지는 않습니다.</p>
+<p>실행 원장은 named volume의 <code>/var/lib/cobot/fleet_control.sqlite3</code>에 보존합니다. 호스트의 기존 <code>~/.cobot/fleet_control.sqlite3</code>를 자동 이관하지 않으므로 전환 전 미종료 작업을 확인합니다. 기존 수동 웹 설치 방식은 위의 source 순서로 계속 사용할 수 있습니다. 전체 주문·수령·시나리오 복구 UI 연결은 여전히 추가 작업입니다.</p>
+<p class="sub">검증: 웹·fleet 관련 테스트 145개 통과, 격리 DDS 시험 1개 건너뜀. 실제 Compose CLI로 네 서비스 구성 해석을 확인했고 shell 구문·HTML 구조·변경 Python 파일의 flake8 검사도 통과했습니다. 로컬에 Docker Engine·데몬이 없어 전체 이미지 빌드·컨테이너 웹 접속·실물 DDS 왕복은 완료로 표시하지 않습니다. GitHub Actions에 fleet-docker 작업을 추가해 전체 이미지 빌드와 네트워크 없는 환경의 의존성·기동 계획 검사를 수행하도록 구성했습니다. CI 성공 여부는 별도 확인해야 합니다. <a href="../cobot_fleet_control/config/docker/README.md">설치·운영 상세 안내</a></p>
+</details>
 <div class="code-title">빌드 (각 장치의 기존 ROS / vendor underlay를 먼저 source)</div><pre><button type="button" class="copy">복사</button><code># 관제 PC
 colcon build --packages-select cobot_fleet_control cobot_domain_bridge cobot_zone_traffic_control
 source install/setup.bash
@@ -117,7 +168,8 @@ ros2 launch cobot_domain_bridge bridges.launch.xml
 # 별도 터미널
 ros2 launch cobot_zone_traffic_control zone_manager.launch.xml
 # 별도 터미널: 기본 작업 명령 꺼짐
-ros2 launch cobot_fleet_control fleet_control.launch.xml</code></pre><p class="sub">기존 <code>fleet_startup.launch.xml</code>의 SSH 순차 기동도 유지합니다. 계정과 장치 설정을 채운 후 사용합니다. Docker는 fleet·bridge·zone-manager를 실행하고, 웹 HTTP·WebSocket은 기존 control-center 패키지에서 연결합니다.</p>
+ros2 launch cobot_fleet_control fleet_control.launch.xml</code></pre><p class="sub">기존 <code>fleet_startup.launch.xml</code>의 SSH 순차 기동도 유지합니다. 계정과 장치 설정을 채운 후 사용합니다. Docker 통합 기동은 기존 웹·fleet·bridge·zone-manager 네 서비스를 실행합니다. 웹은 이미지에 포함된 기존 control-center 패키지를 사용하며 fleet:=existing으로 연결합니다. 호스트의 수동 서비스와 중복 실행하지 않습니다.</p>
+<p class="sub">위 세 launch는 각각 별도 터미널에서 실행하며, 각 터미널에서 ROS·프로젝트 setup을 source하고 <code>export ROS_DOMAIN_ID=100</code>을 적용해야 합니다. “기본 작업 명령 꺼짐”은 fleet이 <code>armed=false</code>로 시작한다는 뜻입니다. 노드는 실행되지만 작업 생성 요청은 423으로 거절되며, 웹에서 작업 명령을 켜야 합니다. 이미 실행 중인 노드는 중복 기동하지 않습니다.</p>
 <details><summary>웹 백엔드에서 전달할 준비 요청 예시</summary><pre><code>{"type":"inventory","request_id":"stock1","sku":"SHOE42","available":5}
 {"type":"arm","request_id":"arm1","armed":true,"source":"operator1"}</code></pre><p>available은 예약분을 제외한 가용 수량의 절대값입니다. 실패한 주문의 화물·재고를 확인하기 전에는 재고를 자동 복원하지 않습니다. 기존 웹의 단일 명령 create / arm / stop / resolve 응답 형식은 맞췄으며, 주문 카드·수령·복구·새 이벤트 화면은 웹 담당의 연결 작업이 필요합니다. raw 명령은 제거했습니다.</p></details></section>
 <section id="code"><h2>07. 어떤 코드가 어떻게 실행되는가</h2>
@@ -199,7 +251,7 @@ bash cobot_fleet_control/config/docker/fleet_docker.sh view-bt</code></pre>
 <div class="code-title">특정 주문의 전체 BT를 오프라인으로 분석할 때</div><pre><code>ros2 run cobot_fleet_control fleet_bt_trace \
   --db ~/.cobot/fleet_control.sqlite3 --order-id order1 --output /tmp/order1.json</code></pre></section>
 
-<section id="validation"><h2>08. 검증 결과와 남은 연결</h2><div class="two"><div class="card teal"><h3>확인한 항목</h3><ul class="list"><li><b>266 tests passed</b>: 주문 전체 BT·주행 BT, 실제 SQLite, 실시간 조회·HTTP, 로봇 회귀·기동·Docker 구성</li><li>정상 배송·회수·재고·증거·재시도와 기존 웹 HTTP·WebSocket·지도·해제 요청 호환</li><li>정차 3회 재보정, 출발 간격·구역·팔·통로 점유, 수령 120초, 통신 단절·재시작</li><li>정지 전 대기 명령 격리, 관제·로봇 세션 변경, 하트비트 회복 시 래치 유지, 이전 세션 재생 거절</li><li>Python 패키지 build·flake8·소스 검사, YAML/XML 계약, 실시간 뷰어 데스크톱·모바일 표시</li></ul></div><div class="card amber"><h3>실물 통합 전에 연결할 항목</h3><ul class="list"><li><b>ROS DDS 왕복 1개 미실행</b>: 현재 WSL에 ROS 2 없음. 격리 domain 77용 통합 테스트를 추가</li><li>팔의 pick/load/unload/hold, 비전의 SKU·QR·적재·후미 이탈, 정밀 dock_correct 어댑터</li><li>하드웨어 비상정지·정지 증거, 거리 센서 감속, 텔레옵 구동과 콘솔 임대</li><li>웹의 주문·수령·복구 UI와 신규 시나리오 이벤트 연결</li><li>arm ID와 작업 구역 실측 매핑, 통로 카메라, 배터리 단위·주기·시계 동기화 확인</li></ul></div></div><p class="sub">GitHub Actions의 fleet-control job은 control-center의 고정 커밋을 테스트 참조로 받아 실제 웹 계약을 함께 검사합니다. SQLite는 웹 업무 DB의 복제본이 아니라 실행 복구를 위한 원장입니다. ROS publish는 원격 수신 확인이 아니므로 최근 스냅샷과 로컬 기록을 기준으로 복구합니다. zone_manager 자체의 점유 상태는 메모리에 있으므로 재시작 시 실제 구역을 확인한 뒤 재가동해야 합니다.</p><div class="code-title">격리된 ROS 환경에서 실행할 통합 시험 (실제 로봇 없이)</div><pre><code>ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest \
+<section id="validation"><h2>08. 검증 결과와 남은 연결</h2><div class="two"><div class="card teal"><h3>확인한 항목</h3><ul class="list"><li><b>266 tests passed</b>: 주문 전체 BT·주행 BT, 실제 SQLite, 실시간 조회·HTTP, 로봇 회귀·기동·Docker 구성</li><li>정상 배송·회수·재고·증거·재시도와 기존 웹 HTTP·WebSocket·지도·해제 요청 호환</li><li>정차 3회 재보정, 출발 간격·구역·팔·통로 점유, 수령 120초, 통신 단절·재시작</li><li>정지 전 대기 명령 격리, 관제·로봇 세션 변경, 하트비트 회복 시 래치 유지, 이전 세션 재생 거절</li><li>Python 패키지 build·flake8·소스 검사, YAML/XML 계약, 실시간 뷰어 데스크톱·모바일 표시</li></ul></div><div class="card amber"><h3>실물 통합 전에 연결할 항목</h3><ul class="list"><li><b>ROS DDS 왕복 1개 미실행</b>: 이번 변경에서는 실물 DDS 왕복을 실행하지 않았습니다. 격리 domain 77용 통합 테스트는 별도로 유지합니다</li><li>팔의 pick/load/unload/hold, 비전의 SKU·QR·적재·후미 이탈, 정밀 dock_correct 어댑터</li><li>하드웨어 비상정지·정지 증거, 거리 센서 감속, 텔레옵 구동과 콘솔 임대</li><li>웹의 주문·수령·복구 UI와 신규 시나리오 이벤트 연결</li><li>arm ID와 작업 구역 실측 매핑, 통로 카메라, 배터리 단위·주기·시계 동기화 확인</li></ul></div></div><p class="sub">GitHub Actions의 fleet-control job은 control-center의 고정 커밋을 테스트 참조로 받아 실제 웹 계약을 함께 검사합니다. SQLite는 웹 업무 DB의 복제본이 아니라 실행 복구를 위한 원장입니다. ROS publish는 원격 수신 확인이 아니므로 최근 스냅샷과 로컬 기록을 기준으로 복구합니다. zone_manager 자체의 점유 상태는 메모리에 있으므로 재시작 시 실제 구역을 확인한 뒤 재가동해야 합니다.</p><div class="code-title">격리된 ROS 환경에서 실행할 통합 시험 (실제 로봇 없이)</div><pre><code>ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest \
   src/cobot_navigation/cobot_fleet_control/test/test_ros_integration.py -q</code></pre></section>
 <footer>근거: 사용자 제공 <b>Scenario_UML_Activity_Diagram_v13.drawio.pdf</b> · 표지 + 본문 18쪽<br><span class="hash">SHA-256 4b4733a70fd27e1dd8da24daf58fbe008cc6be8dd968613138559ebabe5e915c</span><br>브랜치 비교: <a href="https://github.com/kernel-robot-8th/kernel-robot-repo-4/tree/feature/control-center">feature/control-center</a> · b847b8eff2ea3b3ce34faac89a214898dc54345f<br>이 문서는 구현·연동 가이드입니다. 과거 문서 URL도 현재 문서로 연결됩니다. 이전 구현은 Git 이력에서 확인할 수 있습니다.</footer>
 </main>

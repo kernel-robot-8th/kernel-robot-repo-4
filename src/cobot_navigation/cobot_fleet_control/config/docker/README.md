@@ -1,66 +1,101 @@
-# ROS 중앙 실행기 Docker
+# 새 관제 PC의 Docker 설치·기동
 
-이 이미지는 `fleet`, `bridge`, `zone-manager`만 실행합니다.
-웹 HTTP·WebSocket 서버는 feature/control-center의 `cobot_control_center`를 사용하고
-이 이미지에 화면·웹 서버를 다시 넣지 않습니다. MQTT 브로커도 사용하지 않습니다.
+Ubuntu 24.04 Linux 관제 PC에서 기존 웹, fleet, bridge, zone-manager를 같은 이미지로 실행합니다.
+호스트에는 ROS·py_trees·FastAPI 설치나 workspace source가 필요 없습니다.
+핑키의 드라이버·Nav2·patrol은 각 로봇에서 실행합니다.
 
-## 명령
+## 최초 설치
 
-```bash
-# src/cobot_navigation에서 실행
-bash cobot_fleet_control/config/docker/fleet_docker.sh build
-bash cobot_fleet_control/config/docker/fleet_docker.sh config
-bash cobot_fleet_control/config/docker/fleet_docker.sh up
-bash cobot_fleet_control/config/docker/fleet_docker.sh logs
-bash cobot_fleet_control/config/docker/fleet_docker.sh down
-```
-
-`build`와 `config`는 로봇 통신 프로세스를 시작하지 않습니다.
-`up`은 관제 도메인 100에서 기존 브릿지·구역 관리자·중앙 실행기를 시작합니다.
-호스트에서 같은 서비스를 중복 실행하지 않습니다.
-`down`은 DB 볼륨을 보존합니다. 데이터 삭제 옵션을 자동으로 붙이지 않습니다.
-
-## 웹 연결
-
-호스트의 ROS·feature/control-center 환경에서 웹만 추가합니다.
+저장소를 내려받은 뒤 다음 순서로 실행합니다. 호스트 설치기는 Docker 공식 apt 저장소를 사용합니다.
+[Docker 공식 Ubuntu 설치 절차](https://docs.docker.com/engine/install/ubuntu/)
 
 ```bash
-export ROS_DOMAIN_ID=100
-ros2 launch cobot_fleet_control control_center_web.launch.xml \
-  navigation_root:=/ws/kernel-robot-repo-4/src/cobot_navigation \
-  fleet:=existing mode:=execute
+cd ~/ws/kernel-robot-repo-4/src/cobot_navigation
+sudo bash cobot_fleet_control/config/docker/install_host.sh
+sudo bash cobot_fleet_control/config/docker/install_host.sh --check
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh build
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh config
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh check
 ```
 
-웹 서버와 컨테이너 fleet은 같은 ROS 도메인과 네트워크에서 세 토픽으로 연결됩니다.
-`task_request`는 웹 → fleet, `task_events`와 `tasks`는 fleet → 웹입니다.
-UI 프로세스에서 로봇 명령을 직접 발행하지 않습니다.
-이미지에는 선택적 웹 기동기에 필요한 cobot_control_center가 포함돼 있지 않으므로
-웹 기동 명령은 해당 패키지가 설치된 호스트/별도 웹 환경에서 실행합니다.
+Docker 소켓 접근 권한이 이미 있으면 fleet_docker.sh의 sudo는 생략할 수 있습니다.
+설치기는 기존 Docker·containerd 패키지를 자동 제거하지 않습니다.
+Docker와 Compose가 이미 있으면 설치 대신 버전·데몬 접근을 확인합니다.
+이미지 빌드에는 Ubuntu/ROS 패키지 저장소와 PyPI 접근이 필요합니다.
+고정 웹 커밋이 로컬 Git에 없으면 build가 호스트에서 origin으로부터 가져옵니다.
+웹 원본은 .docker-context/control-center에 추출하며 Git 인증을 이미지에 전달하지 않습니다.
 
-## 버전·데이터
+`build`, `config`, `check`는 웹 서버나 로봇 통신 노드를 시작하지 않습니다.
+`check`는 이미지의 Python·기존 웹 모듈을 import하고 지도·지점 설정으로 기동 계획을 검증합니다.
 
-- `versions.env`: ROS 베이스 이미지 digest와 관제 이미지 태그
-- `requirements.lock`: py_trees·pydot·pyparsing과 설치 도구의 버전·해시
-- `compose.yaml`: 동일 이미지, host network/IPC, fleet-data named volume
-- `Dockerfile`: 비루트 UID 10001, 소스 revision·의존성 버전 기록
-- `entrypoint.sh`: ROS·워크스페이스 환경을 source한 뒤 실행
+## 실행과 종료
 
-SQLite 실행 원장은 `/var/lib/cobot/fleet_control.sqlite3`에 보존됩니다.
-`fleet_docker.sh versions`로 실행 이미지의 버전 기록을 확인할 수 있습니다.
-코드 변경은 이미지를 다시 빌드하고 작업을 정리한 뒤 재기동해야 반영됩니다.
-
-## 실시간 BT·실행 기록
+수동으로 실행한 bridge·zone_manager·fleet_control·기존 task_manager·웹은 먼저 정리합니다.
+같은 도메인에서 명령을 처리하는 실행기는 fleet 하나만 유지합니다.
+zone_manager가 점유 상태를 메모리에 보관하므로, 전환은 작업을 멈추고 실제 구역 상태를 확인한 뒤 진행합니다.
 
 ```bash
-# 실행 중인 fleet 원장 조회, 브라우저 http://127.0.0.1:8091
-bash cobot_fleet_control/config/docker/fleet_docker.sh view-bt
-
-# 명령별 오프라인 JSON 기록
-bash cobot_fleet_control/config/docker/fleet_docker.sh export-bt command-id
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh up
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh ps
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh logs --tail=100
+# 종료: 실행 원장 볼륨 보존
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 ```
 
-UNKNOWN 해제는 기존 웹 API의 최신 로봇 상태·시나리오 예약 검사를 거칩니다.
-구역·화물이 미확정인 작업을 DB 수정만으로 강제 해제하지 않습니다.
+관제 PC 브라우저: **http://127.0.0.1:8080**.
+`up`은 bridge → zone-manager/fleet → web의 의존 관계에 따라 네 서비스를 실행합니다.
+프로세스 기동 순서이며 로봇 준비 완료를 보장하는 검사는 아닙니다.
+웹은 기존 fleet_api_node·fleet_status_node만 시작하고 `fleet:=existing`으로 fleet에 연결합니다.
+기존 task_manager_node는 시작하지 않습니다. 작업 명령은 시작 시 꺼져 있습니다.
+웹 healthcheck는 HTTP 응답만 확인하며 로봇의 통신·배터리·주행 준비 완료와 구분합니다.
 
-이 환경에서는 Compose 해석과 명령 전달·데이터 보존 계약을 시험했습니다.
-Docker 이미지 전체 빌드·실물 DDS 왕복은 현장 환경에서 별도 확인해야 합니다.
+기본 ROS 도메인은 관제 100, pinky1/2/3은 10/20/30입니다.
+Linux host network/IPC를 사용하며 DDS 탐색 범위는 SUBNET입니다.
+로봇과 같은 네트워크에서 DDS 통신이 가능해야 합니다. Docker가 Wi-Fi·방화벽·DDS 탐색 문제를 자동 해결하지는 않습니다.
+
+기본 RMW는 Cyclone DDS이며 Fast DDS도 이미지에 설치합니다. 필요하면 전 서비스에 동일하게 적용합니다.
+
+```bash
+sudo env COBOT_RMW_IMPLEMENTATION=rmw_fastrtps_cpp bash cobot_fleet_control/config/docker/fleet_docker.sh up
+# 다른 PC에서 웹에 접속하려면 (기본은 관제 PC 내부 전용)
+sudo env COBOT_WEB_HOST=0.0.0.0 COBOT_WEB_PORT=8080 bash cobot_fleet_control/config/docker/fleet_docker.sh up
+```
+
+## 포함되는 코드와 의존성
+
+- 기존 웹: `versions.env`의 control-center 고정 커밋에서 cobot_control_center·cobot_patrol_interfaces를 가져와 수정 없이 빌드
+- ROS Jazzy·C++ 브릿지 의존성, FastAPI·Uvicorn: 이미지 빌드 시 apt 설치
+- py_trees·pydot·pyparsing·설치 도구: requirements.lock의 버전·해시로 venv에 설치
+- 지도: map_view_pc/maps/cobot_map_v9.yaml·pgm
+- 지점: cobot_pinky_patrol/config, 웹 기동 시 원본 설정에서 자동 내보내기
+- fleet: 같은 지점 설정을 사용해 명령 전달 전 목적지 검증
+
+새 PC에서는 호스트의 별도 `install/control_center_web/local_setup.bash`가 필요 없습니다.
+기존 수동 설치 경로는 [전체 HTML](../../../docs/central_scenario_control.html#ui-transport)의 대안으로 유지합니다.
+웹의 개별 이동·정지·해제 계약을 재사용하며 전체 주문·수령·복구 UI 추가 연결은 남아 있습니다.
+
+## 버전·데이터와 조회
+
+`versions.env`는 ROS 이미지 digest·관제 이미지 태그·control-center 커밋을 기록합니다.
+완성 이미지는 같은 ID/digest로 배포하고 apt 설치 버전은 이미지 안 dpkg.tsv에 기록합니다.
+현재 고정한 것은 ROS 베이스·웹 소스·Python lock이며 apt 저장소 전체를 시점 고정한 것은 아닙니다.
+
+```bash
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh versions
+# 브라우저: http://127.0.0.1:8091
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh view-bt
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh export-bt command-id
+```
+
+SQLite 실행 원장은 fleet-data 볼륨의 `/var/lib/cobot/fleet_control.sqlite3`에 보존됩니다.
+기존 호스트의 `~/.cobot/fleet_control.sqlite3`를 자동 이관하지 않습니다.
+전환 전에 기존 미종료 작업을 확인해야 하며, UNKNOWN을 DB 수정으로 강제 해제하지 않습니다.
+코드·지도·지점 설정을 변경하면 이미지를 다시 빌드하고 작업을 정리한 뒤 재기동합니다.
+
+## 검증 범위
+
+웹·fleet 관련 테스트 145개가 통과했고 격리 DDS 시험 1개는 건너뛰었습니다.
+실제 Compose CLI로 네 서비스 구성 해석을 확인했고 shell 구문·HTML 구조·변경 Python 파일의 flake8 검사도 통과했습니다.
+이 작업 환경에는 Docker Engine·데몬이 없어 전체 이미지 빌드·컨테이너 웹 접속·실물 DDS 왕복은 로컬에서 실행하지 못했습니다.
+GitHub Actions의 fleet-docker 작업은 전체 이미지를 빌드하고 `--network none`에서 웹 의존성·기동 계획을 검사합니다.
+CI 성공 전에는 이미지 빌드 완료로 간주하지 않습니다.
