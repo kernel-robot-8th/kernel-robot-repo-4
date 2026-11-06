@@ -101,7 +101,8 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
         '-p', f'fleet_control:db_path:={tmp_path / "fleet.sqlite3"}',
         '-p', f'fleet_control:scenario_config:={dev}',
         '-p', f'anomaly_monitor:db_path:={tmp_path / "monitor.sqlite3"}',
-        '-p', 'anomaly_monitor:console_port:=0'])
+        '-p', 'anomaly_monitor:console_port:=0',
+        '-p', 'anomaly_monitor:console_commands:=true'])
     fleet, monitor, robot, executor = None, None, None, None
     try:
         fleet = fleet_control_node.FleetControlNode()
@@ -161,6 +162,10 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
             assert console.post('control', type='inventory', sku='SHOE42', available=5)[0] == 200
             outcome['completed'] = console.run_order('order1')
             outcome['steps'] = console.wait(lambda live: console.mission(live, 'order1'))
+            assert console.post('control', type='create', robot_id='pinky1', operation='goto',
+                                points=['P1'])[0] == 202
+            outcome['links'] = console.wait(lambda live: live['links'] if any(
+                row['type'] == 'create' and row['status'] == 202 for row in live['log']) else None)
             outcome['load'] = console.run_order('order2', stop_at='LOAD')
             assert console.post('mode', mode='AUTO_HOLD')[0] == 200
             for event_id, camera in (('e_sim', 'sim_ceil_cam'), ('e_real', 'ceil_cam')):
@@ -188,6 +193,11 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
         if 'error' in outcome:
             raise outcome['error']
         assert outcome['completed']['current_step_seq'] == 7
+        assert any(c['command'] == 'goto:P1' for c in commands)
+        links = {row['robot_id']: row for row in outcome['links']}
+        assert links['pinky1']['problems'] == []
+        assert links['pinky1']['status']['state'] and links['pinky1']['ages']['patrol_status'] < 3
+        assert links['pinky2']['problems'] == ['patrol_cmd 구독자 0개 (1개여야 함)']
         assert [c['command'] for c in commands[:5]] == [
             'zone:ZA', 'leave', 'zone:ZC', 'leave', 'home']
         paused = outcome['paused']

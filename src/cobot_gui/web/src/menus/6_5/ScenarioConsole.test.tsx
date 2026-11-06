@@ -81,6 +81,39 @@ const LIVE = {
   ],
   adapter: { enabled: true, blocked: "" },
   allow_mock: true,
+  commands_enabled: true,
+  holds: {},
+  ros: { domain_id: "77", rmw: "rmw_fastrtps_cpp" },
+  zones: [
+    { zone: "A", manager_known: true, manager: "pinky2", robot: null, match: false },
+    { zone: "C", manager_known: false, manager: null, robot: "pinky1", match: null },
+  ],
+  links: [
+    {
+      robot_id: "pinky1",
+      status: { state: "MOVING", detail: "ZC", waypoint: 1, total: 3, busy: true, central_latched: false },
+      ages: { patrol_status: 0.4 },
+      graph: {
+        patrol_status: { publishers: 1, subscribers: 2 },
+        scan: { publishers: 1, subscribers: 0, reliability: ["BEST_EFFORT"] },
+      },
+      problems: ["patrol_cmd 발행자 2개 (1개여야 함)"],
+    },
+  ],
+  log: [
+    {
+      at: 1793790000,
+      type: "create",
+      robot_id: "pinky1",
+      operation: "goto",
+      points: ["P1"],
+      status: 423,
+      rtt_ms: 12.5,
+      detail: "작업 명령 꺼짐",
+    },
+  ],
+  tasks: [{ task_id: "t1", robot_id: "pinky1", command: "zone:ZC", state: "RUNNING", detail: "" }],
+  routes: { pinky1: ["P5", "P6", "ZC"] },
 };
 
 function serve(live: unknown = LIVE) {
@@ -206,6 +239,92 @@ describe("6.5 시나리오 콘솔", () => {
       url: "/api/fms/anomalies",
       body: { vision_class: "box_on_floor", map_x: 0.6, map_y: 0.5 },
     });
+  });
+
+  it("읽기 전용이면 모든 명령 버튼을 막고 이유를 표시한다", async () => {
+    serve({ ...LIVE, commands_enabled: false });
+    render(<ScenarioConsole />);
+    expect(await screen.findByText("읽기 전용")).toBeInTheDocument();
+    for (const label of ["전체 비상 정지 요청", "가동 허용 켜기", "시나리오 A 출고", "명령 요청", "이상 모의 주입"]) {
+      expect(screen.getByText(label)).toBeDisabled();
+    }
+  });
+
+  it("전체 비상 정지는 로봇을 지정하지 않은 관제 요청으로 나간다", async () => {
+    const calls = serve();
+    render(<ScenarioConsole />);
+    fireEvent.click(await screen.findByText("전체 비상 정지 요청"));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toEqual({ url: "/api/fms/control", body: { type: "estop" } });
+  });
+
+  it("정지 상태이면 이동과 출고를 막고 제어권 반환을 내놓는다", async () => {
+    const calls = serve({ ...LIVE, holds: { pinky2: "ESTOP" } });
+    render(<ScenarioConsole />);
+    expect(await screen.findByText(/정지 상태 \(pinky2\)/)).toBeInTheDocument();
+    expect(screen.getByText("명령 요청")).toBeDisabled();
+    expect(screen.getByText("시나리오 A 출고")).toBeDisabled();
+    expect(screen.getByText("pinky2 구역 이탈")).toBeDisabled();
+    const release = screen.getByText("제어권 반환");
+    expect(release).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("운영자"), { target: { value: "kgh" } });
+    for (const label of ["로봇 정지", "팔 퇴피", "화물 확인", "통로·구역 확인"]) {
+      fireEvent.click(screen.getByLabelText(label));
+    }
+    fireEvent.change(screen.getByLabelText("확인 내용"), { target: { value: "정지 확인" } });
+    fireEvent.click(release);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].body).toMatchObject({ type: "release_control", robot_id: "pinky2", operator: "kgh" });
+  });
+
+  it("이동 명령은 로봇 토픽이 아니라 관제 요청으로 나간다", async () => {
+    const calls = serve();
+    render(<ScenarioConsole />);
+    fireEvent.change(await screen.findByLabelText("명령 종류"), { target: { value: "goto" } });
+    fireEvent.change(screen.getByLabelText("지점"), { target: { value: "P1, P2" } });
+    fireEvent.click(screen.getByText("명령 요청"));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toEqual({
+      url: "/api/fms/control",
+      body: { type: "create", robot_id: "pinky1", operation: "goto", points: ["P1", "P2"] },
+    });
+  });
+
+  it("leave는 지점 없이 보낸다", async () => {
+    const calls = serve();
+    render(<ScenarioConsole />);
+    fireEvent.change(await screen.findByLabelText("명령 종류"), { target: { value: "leave" } });
+    expect(screen.getByLabelText("지점")).toBeDisabled();
+    fireEvent.click(screen.getByText("명령 요청"));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].body).toMatchObject({ operation: "leave", points: [] });
+  });
+
+  it("구역 관리자와 로봇이 다르면 불일치로 표시한다", async () => {
+    serve();
+    render(<ScenarioConsole />);
+    expect(await screen.findByText("불일치")).toBeInTheDocument();
+    expect(screen.getByText("관리자 pinky2")).toBeInTheDocument();
+    expect(screen.getByText("관리자 값 없음")).toBeInTheDocument();
+  });
+
+  it("연결 진단은 실제 값과 이동 거절 사유를 표시한다", async () => {
+    serve();
+    render(<ScenarioConsole />);
+    expect(await screen.findByText(/도메인 77/)).toBeInTheDocument();
+    expect(screen.getByText(/이동 거절 사유: patrol_cmd 발행자 2개/)).toBeInTheDocument();
+    expect(screen.getByText(/patrol_status 발행자 1개, 0.4초 전/)).toBeInTheDocument();
+    expect(screen.getByText(/amcl_pose 발행자 \?개, 미수신/)).toBeInTheDocument();
+    expect(screen.getByText(/BEST_EFFORT/)).toBeInTheDocument();
+  });
+
+  it("경유 기록과 요청 응답을 표시한다", async () => {
+    serve();
+    render(<ScenarioConsole />);
+    expect(await screen.findByText("pinky1: P5 > P6 > ZC")).toBeInTheDocument();
+    expect(screen.getByText("423")).toBeInTheDocument();
+    expect(screen.getByText(/12.5 ms 작업 명령 꺼짐/)).toBeInTheDocument();
+    expect(screen.getByText(/zone:ZC RUNNING/)).toBeInTheDocument();
   });
 
   it("관제 스냅샷이 끊기면 끊김을 표시한다", async () => {

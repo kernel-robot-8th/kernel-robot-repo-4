@@ -16,7 +16,7 @@ class Fixture:
         self.reply = {'status': 200, 'body': {'ok': True}}
         self.core = MonitorCore(self.store, {}, ['pinky1'], self._send, clock=lambda: 50.0)
         self.api = ConsoleApi(self.core, None, lambda job: job(), self.core.replies.get,
-                              clock=lambda: 50.0)
+                              clock=lambda: 50.0, commands=True)
 
     def _send(self, payload):
         self.sent.append(payload)
@@ -33,6 +33,32 @@ def fx(tmp_path):
     item = Fixture(tmp_path)
     yield item
     item.store.close()
+
+
+@pytest.mark.parametrize('path,body', [
+    ('control', {'type': 'arm', 'armed': True}), ('mode', {'mode': 'AUTO_HOLD'}),
+    ('anomalies', {'vision_class': 'box_on_floor'}), ('work/r1', {'decision': 'approve'}),
+])
+def test_read_only_by_default_refuses_every_command(tmp_path, path, body):
+    store = MonitorStore(tmp_path / 'r.sqlite3')
+    sent = []
+    core = MonitorCore(store, {}, ['pinky1'], sent.append)
+    api = ConsoleApi(core, None, lambda job: job(), core.replies.get)
+    assert api.handle('POST', '/api/fms/' + path, body)[0] == 403
+    assert sent == [] and core.mode == 'OBSERVE_ONLY' and store.events() == []
+    api.refresh()
+    assert api.handle('GET', '/api/fms/live_state', None)[1]['commands_enabled'] is False
+    store.close()
+
+
+def test_read_only_still_allows_acknowledging_a_record(tmp_path):
+    store = MonitorStore(tmp_path / 'r.sqlite3')
+    core = MonitorCore(store, {}, [], lambda payload: None, clock=lambda: 1.0)
+    core.on_vision_event({'event_id': 'e1', 'camera_id': 'c', 'vision_class': 'box_on_floor'})
+    api = ConsoleApi(core, None, lambda job: job(), core.replies.get)
+    assert api.handle('POST', '/api/fms/anomalies/e1',
+                      {'ack_state': 'FALSE_ALARM', 'operator': 'kgh'})[0] == 200
+    store.close()
 
 
 def test_control_forwards_allowed_requests_and_returns_the_reply(fx):

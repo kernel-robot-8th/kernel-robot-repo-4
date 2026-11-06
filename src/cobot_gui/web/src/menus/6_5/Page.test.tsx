@@ -17,7 +17,8 @@ describe("6.5 시뮬레이션·기능 검증 (SR-22 3D 가상환경 온라인 �
       screen.getByText(/SR-22 3D 물리 시뮬레이션 온라인 실험장/),
     ).toBeInTheDocument();
     expect(screen.getByText(/50.0 Hz ACTIVE/)).toBeInTheDocument();
-    expect(screen.getByText(/DOCKER: CONNECTED/)).toBeInTheDocument();
+    expect(screen.getByText("[SIM]")).toBeInTheDocument();
+    expect(screen.queryByText(/DOCKER: CONNECTED/)).not.toBeInTheDocument();
   });
 
   it("브라우저 내장 3D 뷰포트와 시점 조절 프리셋 버튼을 제공한다", () => {
@@ -39,7 +40,7 @@ describe("6.5 시뮬레이션·기능 검증 (SR-22 3D 가상환경 온라인 �
     expect(screen.getByText(/하차대 도킹 이동/)).toBeInTheDocument();
     expect(screen.getByText(/OMX 3 하차 & 벤치 배치/)).toBeInTheDocument();
     expect(screen.getByText(/전체 시퀀스 연속 실행/)).toBeInTheDocument();
-    expect(screen.getByText(/긴급 정지 \(E-STOP\)/)).toBeInTheDocument();
+    expect(screen.getByText(/화면 모의 정지 \(E-STOP\)/)).toBeInTheDocument();
   });
 
   it("태스크 신호 클릭 시 도커 통신 콘솔에 디스패치 로그가 기록된다", () => {
@@ -52,12 +53,19 @@ describe("6.5 시뮬레이션·기능 검증 (SR-22 3D 가상환경 온라인 �
     expect(screen.getByText(/도커 백엔드 신호 송수신 콘솔/)).toBeInTheDocument();
   });
 
+  it("코드에 박힌 가짜 상태를 표시하지 않는다", () => {
+    render(<Page menu={findMenu("6.5")!} />);
+    expect(screen.queryByText(/GATE\[FREE\]/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ZA\[IDLE\]/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OperatorCommand/)).not.toBeInTheDocument();
+  });
+
   it("긴급 정지(E-STOP) 토글 시 엔진 상태가 즉시 변경된다", () => {
     render(<Page menu={findMenu("6.5")!} />);
-    const eStopBtn = screen.getByText(/긴급 정지 \(E-STOP\)/);
+    const eStopBtn = screen.getByText(/화면 모의 정지 \(E-STOP\)/);
     fireEvent.click(eStopBtn);
 
     expect(screen.getByText(/E-STOPPED/)).toBeInTheDocument();
-    expect(screen.getByText(/E-STOP 해제/)).toBeInTheDocument();
+    expect(screen.getByText(/모의 정지 해제/)).toBeInTheDocument();
   });
 });

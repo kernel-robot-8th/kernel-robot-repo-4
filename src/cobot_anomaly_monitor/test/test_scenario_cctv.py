@@ -189,8 +189,60 @@ def test_tc_scn_05_fail_keeps_the_zone_until_arm_and_leave(stack):
 
 
 def test_console_refuses_other_create_operations(stack):
-    assert stack.control(type='create', robot_id='pinky1', operation='goto')[0] == 400
+    assert stack.control(type='create', robot_id='pinky1', operation='raw')[0] == 400
     assert stack.requests == []
+
+
+def test_debug_move_goes_through_fleet_control(stack):
+    stack.tick()
+    status, body = stack.control(type='create', robot_id='pinky2', operation='goto',
+                                 points=['P1', 'P2'])
+    assert status == 202 and body['command'] == 'goto:P1,P2'
+    stack.tick()
+    assert stack.gateway.sent[-1][0] == 'pinky2'
+    assert stack.gateway.sent[-1][1]['command'] == 'goto:P1,P2'
+
+
+def test_zone_then_leave_returns_the_token(stack):
+    stack.tick()
+    assert stack.control(type='create', robot_id='pinky1', operation='zone',
+                         points=['ZA'])[0] == 202
+    stack.tick()
+    command = stack.gateway.sent[-1][1]
+    stack.status['pinky1'].update(state='HOLDING_ZONE', held_zone='A', detail='ZA')
+    stack.core.on_zone_status('A:occupied_by:pinky1')
+    stack.fleet.on_status('pinky1', {'command_id': command['command_id'], 'state': 'DONE',
+                                     'task_finished': True})
+    stack.tick()
+    assert stack.core.live()['zones'] == [{'zone': 'A', 'manager_known': True, 'manager': 'pinky1',
+                                           'robot': 'pinky1', 'match': True}]
+    assert stack.control(type='create', robot_id='pinky1', operation='leave')[0] == 202
+    stack.tick()
+    command = stack.gateway.sent[-1][1]
+    stack.status['pinky1'].update(state='IDLE_WAIT', held_zone=None, detail='')
+    stack.core.on_zone_status('A:free')
+    stack.fleet.on_status('pinky1', {'command_id': command['command_id'], 'state': 'DONE',
+                                     'task_finished': True})
+    stack.tick()
+    assert stack.core.live()['zones'][0]['manager'] is None
+    assert stack.core.live()['zones'][0]['match'] is True
+
+
+def test_full_estop_blocks_moves_until_control_is_released(stack):
+    assert stack.control(type='estop')[0] == 202
+    stack.tick()
+    assert stack.scenario.armed is False
+    assert sorted(stack.core.holds) == ['pinky1', 'pinky2', 'pinky3']
+    assert sorted(stack.gateway.halts) == ['pinky1', 'pinky2', 'pinky3']
+    assert stack.control(type='create', robot_id='pinky1', operation='home')[0] == 423
+    assert stack.control(type='arm', armed=True, source='test')[0] == 200
+    assert stack.control(type='create', robot_id='pinky1', operation='home')[0] == 409
+    status, _ = stack.control(type='release_control', robot_id='pinky1', operator='kgh',
+                              note='현장 확인', evidence=EVIDENCE)
+    assert status == 200
+    stack.tick()
+    assert 'pinky1' not in stack.core.holds
+    assert stack.control(type='create', robot_id='pinky1', operation='home')[0] == 202
 
 
 def two_robots(stack):

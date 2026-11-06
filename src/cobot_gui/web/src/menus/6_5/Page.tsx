@@ -912,6 +912,9 @@ export default function Page({ menu }: MenuPageProps) {
               }`}
             />
             <span className="font-bold text-sm">SR-22 3D 물리 시뮬레이션 온라인 실험장</span>
+            <Badge variant="outline" className="border-amber-600 text-amber-400 font-mono text-[10px]">
+              [SIM]
+            </Badge>
             <Badge variant="outline" className="border-blue-600 text-blue-400 font-mono text-[10px]">
               관제 기능 구현 및 검증용
             </Badge>
@@ -922,13 +925,7 @@ export default function Page({ menu }: MenuPageProps) {
               variant="outline"
               className={engineStatus === "ACTIVE" ? "border-green-600 text-green-400" : "border-red-600 text-red-400"}
             >
-              엔진: {engineStatus === "ACTIVE" ? "50.0 Hz ACTIVE" : "E-STOPPED"}
-            </Badge>
-            <Badge variant="outline" className="border-cyan-600 text-cyan-400">
-              DOCKER: CONNECTED
-            </Badge>
-            <Badge variant="outline" className="border-emerald-600 text-emerald-400 font-mono">
-              명령 규격: C안 (OperatorCommand.srv)
+              브라우저 모의: {engineStatus === "ACTIVE" ? "50.0 Hz ACTIVE" : "E-STOPPED"}
             </Badge>
             <Badge variant="outline" className="border-purple-600 text-purple-400">
               ROBOTS: 3 AMR + 3 ARMS
@@ -937,8 +934,7 @@ export default function Page({ menu }: MenuPageProps) {
         </AlertTitle>
         <AlertDescription className="text-[#999999] text-xs mt-1.5 flex justify-between items-center">
           <span>
-            본 온라인 실험장은 <b>명령 통신 C안(OperatorCommand.srv, gw_sig 전자서명 및 ConsoleLease 조종권 검증)</b>을 준수하며,
-            브라우저 내장 3D 캔버스에서 핑키와 로봇팔의 물리 모션 및 신호 생명주기(SEND → ACK → DONE)를 사전 검증합니다.
+            위 3D 장면과 제어 버튼은 브라우저 안의 모의이고 실제 로봇이나 시뮬에 신호를 보내지 않습니다. 실제 상태와 관제 요청은 아래 시나리오 콘솔만 다룹니다.
           </span>
           <span className="font-mono text-cyan-400 shrink-0 font-bold ml-2">
             현재 상태: {activeTaskName}
@@ -1051,7 +1047,7 @@ export default function Page({ menu }: MenuPageProps) {
                 className="h-6 px-2 text-[10px] rounded-none font-bold"
                 onClick={handleToggleEStop}
               >
-                {isEStopped ? "E-STOP 해제" : "긴급 정지 (E-STOP)"}
+                {isEStopped ? "모의 정지 해제" : "화면 모의 정지 (E-STOP)"}
               </Button>
             </CardHeader>
             <CardContent className="p-3 space-y-3 font-sans">
@@ -1372,25 +1368,6 @@ export default function Page({ menu }: MenuPageProps) {
               ))}
             </CardContent>
           </Card>
-
-          {/* 3. 하단 디버깅 진단 상태 바 (DDS 도메인 / Zone 뮤텍스 / QoS) */}
-          <div className="p-2 bg-[#121316] border border-border font-mono text-[10px] flex items-center justify-between text-[#888888]">
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-400 font-bold">DDS 도메인:</span>
-              <span className="text-emerald-400">FMS(10)</span>
-              <span>/</span>
-              <span className="text-cyan-400">Nav2(12)</span>
-              <span>/</span>
-              <span className="text-purple-400">Sim(100)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-400 font-bold">구역 락:</span>
-              <span className="text-emerald-400">ZA[IDLE]</span>
-              <span className="text-emerald-400">ZB[IDLE]</span>
-              <span className="text-emerald-400">ZC[IDLE]</span>
-              <span className="text-yellow-400 font-bold">GATE[FREE]</span>
-            </div>
-          </div>
         </div>
       </div>
 

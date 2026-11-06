@@ -71,7 +71,7 @@ class Stack:
                                      self.core._robot_view, clock=self.wall)
         self.adapter.on_heartbeat({'session_id': 's1'})
         self.console = ConsoleApi(self.core, self.adapter, lambda job: job(),
-                                  self.core.replies.get, clock=self.wall)
+                                  self.core.replies.get, clock=self.wall, commands=True)
         self.status = {r: {'state': 'IDLE', 'central_controlled': True} for r in ROBOTS}
         self.scenario.armed = True
         self.scenario.store.set_stock('SHOE42', 10)

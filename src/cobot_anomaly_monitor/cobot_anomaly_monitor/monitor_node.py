@@ -3,6 +3,7 @@
 from concurrent.futures import Future
 import json
 import math
+import os
 from pathlib import Path
 import queue
 import time
@@ -14,6 +15,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, qos_profile_sensor_data, QoSProfile
+from rclpy.utilities import get_rmw_implementation_identifier
 from std_msgs.msg import String
 import yaml
 
@@ -55,6 +57,7 @@ class AnomalyMonitorNode(Node):
             'manual_adapter': True,
             'manual_targets': ['vision', 'navigation', 'omx1', 'omx2', 'omx3'],
             'allow_mock_events': True,
+            'console_commands': False,
             'camera_policy': 'field',
             'event_topic': '/anomaly_monitor/vision_event',
             'request_topic': '/control_center/task_request',
@@ -63,6 +66,7 @@ class AnomalyMonitorNode(Node):
             'work_request_topic': '/fleet/work_request',
             'work_result_topic': '/fleet/work_result',
             'heartbeat_topic': '/fleet/heartbeat',
+            'zone_status_topic': '/zone_manager/status',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -73,12 +77,16 @@ class AnomalyMonitorNode(Node):
             Path(config['scenario_config']).read_text(encoding='utf-8'))['routes']
         self.store = MonitorStore(config['db_path'])
         self.request_pub = self.create_publisher(String, config['request_topic'], 50)
+        self.points = load_points(config['site_config'])
         self.core = MonitorCore(self.store, routes, config['robot_ids'], self._send_request,
-                                config['cctv_control_mode'])
+                                config['cctv_control_mode'], points=self.points)
+        self.core.ros = {'domain_id': os.environ.get('ROS_DOMAIN_ID', '0'),
+                         'rmw': get_rmw_implementation_identifier()}
         self.adapter = self._create_adapter() if config['manual_adapter'] else None
         self.jobs = queue.Queue()
         self.console = ConsoleApi(self.core, self.adapter, self._run, self._wait_reply,
-                                  config['allow_mock_events'])
+                                  config['allow_mock_events'],
+                                  commands=config['console_commands'])
         for robot in config['robot_ids']:
             self.create_subscription(String, f'/{robot}/patrol_status',
                                      lambda m, r=robot: self._status(r, m), 10)
@@ -94,6 +102,8 @@ class AnomalyMonitorNode(Node):
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.create_subscription(String, config['events_topic'], self._task_event, 50)
         self.create_subscription(String, config['event_topic'], self._vision, 50)
+        self.create_subscription(String, config['zone_status_topic'],
+                                 lambda m: self.core.on_zone_status(m.data), 10)
         self.create_timer(0.02, self._drain)
         self.create_timer(1.0, self._refresh)
         self.console.refresh()
@@ -106,7 +116,7 @@ class AnomalyMonitorNode(Node):
         config = self.config
         self.result_pub = self.create_publisher(String, config['work_result_topic'], 50)
         adapter = ManualAdapter(self.store, self._publish_result, config['manual_targets'],
-                                load_points(config['site_config']), self.core._robot_view)
+                                self.points, self.core._robot_view)
         adapter.blocked = '기동 검사 전'
         self.create_subscription(String, config['heartbeat_topic'], self._heartbeat, 10)
         self.create_subscription(String, config['work_request_topic'], self._work_request, 50)
@@ -153,7 +163,25 @@ class AnomalyMonitorNode(Node):
             time.sleep(0.02)
         return None
 
+    def _link(self, topic):
+        return {'publishers': self.count_publishers(topic),
+                'subscribers': self.count_subscribers(topic)}
+
+    def _read_graph(self):
+        """토픽 연결 수와 scan 발행 QoS를 읽는다. 데이터를 구독하지 않는다."""
+        robots = {}
+        for robot in self.config['robot_ids']:
+            scan = f'/{robot}/scan'
+            robots[robot] = {name: self._link(f'/{robot}/{name}')
+                             for name in ('patrol_cmd', 'patrol_status', 'amcl_pose', 'odom')}
+            robots[robot]['scan'] = dict(self._link(scan), reliability=sorted({
+                info.qos_profile.reliability.name
+                for info in self.get_publishers_info_by_topic(scan)}))
+        return {'request': self._link(self.config['request_topic']),
+                'tasks': self._link(self.config['tasks_topic']), 'robots': robots}
+
     def _refresh(self):
+        self.core.graph = self._read_graph()
         self.core.flush()
         self.console.refresh()
 

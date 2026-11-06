@@ -9,22 +9,25 @@ import uuid
 BODY_LIMIT = 16384
 CONTROL_TYPES = ('arm', 'inventory', 'order', 'received', 'resolve', 'pause', 'estop',
                  'release_control', 'create')
-RECOVERY_OPERATIONS = ('leave', 'home')
+CONSOLE_OPERATIONS = ('goto', 'zone', 'leave', 'home')
+WRITE_ROUTES = ('control', 'mode', 'work')
 MOCK_CLASSES = ('box_on_floor', 'box_perched_on_rim', 'box_run_over', 'lid_detached')
 
 
 class ConsoleApi:
     """요청 해석만 맡는다. 저장소와 ROS 접근은 run으로 실행기 스레드에 넘긴다."""
 
-    def __init__(self, core, adapter, run, wait_reply, allow_mock=True, clock=time.time):
+    def __init__(self, core, adapter, run, wait_reply, allow_mock=True, clock=time.time,
+                 commands=False):
         self.core, self.adapter, self.run, self.wait_reply = core, adapter, run, wait_reply
-        self.allow_mock, self.clock = allow_mock, clock
+        self.allow_mock, self.clock, self.commands = allow_mock, clock, commands
         self.cached = {}
 
     def refresh(self):
         """실행기 스레드에서 호출한다. GET은 이 사본만 읽는다."""
         work = self.adapter.pending() if self.adapter else []
         self.cached = dict(self.core.live(), work=work, allow_mock=self.allow_mock,
+                           commands_enabled=self.commands,
                            adapter={'enabled': self.adapter is not None,
                                     'blocked': self.adapter.blocked if self.adapter else ''})
 
@@ -43,6 +46,9 @@ class ConsoleApi:
         if parts[:2] != ['api', 'fms'] or len(parts) < 3:
             return 404, {'detail': '없는 경로'}
         name, rest = parts[2], parts[3:]
+        if (method == 'POST' and not self.commands
+                and (name in WRITE_ROUTES or (name == 'anomalies' and not rest))):
+            return 403, {'detail': '읽기 전용: 시뮬에서 console_commands를 켜야 합니다'}
         try:
             if method == 'GET' and name == 'live_state' and not rest:
                 return 200, self.cached
@@ -72,8 +78,8 @@ class ConsoleApi:
             raise ValueError('허용하지 않는 요청 type')
         request = dict(body)
         if kind == 'create':
-            if request.get('operation') not in RECOVERY_OPERATIONS:
-                raise ValueError('콘솔의 create는 leave 또는 home만 허용')
+            if request.get('operation') not in CONSOLE_OPERATIONS:
+                raise ValueError('콘솔의 create는 ' + ', '.join(CONSOLE_OPERATIONS) + '만 허용')
             request.setdefault('client_request_id', 'console_' + uuid.uuid4().hex)
         if kind == 'order' and isinstance(request.get('order'), dict):
             request['order'] = dict(request['order'])

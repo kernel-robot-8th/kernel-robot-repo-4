@@ -1,11 +1,13 @@
 """관제 스냅샷을 7단계 기록으로 바꾸고 CCTV 이벤트를 판정한다. ROS에 의존하지 않는다."""
 
-from collections import OrderedDict
+from collections import deque, OrderedDict
 import json
 import math
 import time
 import uuid
 
+from .debug_view import (
+    parse_zone_status, ready_problems, RouteTrace, STATUS_FIELDS, zone_table)
 from .judgment import is_duplicate, judge
 from .scenario_view import (
     cargo_of, driving_of, op_state_of, queue_wait_of, RESUMABLE_STAGES, STAGE_STEP,
@@ -17,6 +19,8 @@ BLOCKED = ('UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL')
 ACK_STATES = ('ACKNOWLEDGED', 'RESOLVED', 'FALSE_ALARM')
 STOP_REQUEST = {'PAUSE': 'pause', 'ESTOP': 'estop'}
 REPLY_LIMIT = 200
+LOG_LIMIT = 30
+TASK_LIMIT = 10
 CAMERA_POLICIES = ('field', 'sim')
 
 
@@ -57,7 +61,8 @@ def _number(value):
 class MonitorCore:
     """주문 실행은 관제가 맡고 여기서는 기록·판정과 정지 요청만 한다."""
 
-    def __init__(self, store, routes, robots, send, mode='OBSERVE_ONLY', clock=time.time):
+    def __init__(self, store, routes, robots, send, mode='OBSERVE_ONLY', clock=time.time,
+                 points=None):
         if mode not in MODES:
             raise ValueError('mode: OBSERVE_ONLY 또는 AUTO_HOLD')
         self.store, self.routes, self.robots = store, routes, list(robots)
@@ -68,23 +73,42 @@ class MonitorCore:
         self.steps = {row['mission_id']: row['current_step_seq'] for row in store.scenarios(500)}
         self.replies = OrderedDict()
         self.control_requests = {}
+        self.trace = RouteTrace(points or {})
+        self.zones, self.tasks, self.seen = {}, [], {}
+        self.graph, self.ros = None, {}
+        self.log = deque(maxlen=LOG_LIMIT)
+        self.log_rows = {}
+
+    def _seen(self, robot, topic):
+        self.seen.setdefault(robot, {})[topic] = self.clock()
 
     def on_status(self, robot, status):
         """순찰 상태를 받는다."""
         self.status[robot] = status
+        self._seen(robot, 'patrol_status')
 
     def on_pose(self, robot, x, y, yaw):
         """amcl_pose를 받는다. 정지 중에는 발행이 멈추므로 시간으로 버리지 않는다."""
         self.pose[robot] = (x, y, yaw)
+        self.trace.update(robot, x, y)
+        self._seen(robot, 'amcl_pose')
 
     def on_speed(self, robot, speed):
         """오도메트리 속도를 받는다."""
         self.speed[robot] = speed
+        self._seen(robot, 'odom')
+
+    def on_zone_status(self, text):
+        """구역 관리자의 점유 상태를 받는다. 바뀔 때만 오므로 켜기 전 값은 모른다."""
+        parsed = parse_zone_status(text)
+        if parsed:
+            self.zones[parsed[0]] = parsed[1]
 
     def on_tasks(self, snapshot):
         """관제 스냅샷을 기록에 맞춘다."""
         self.armed, self.tasks_at = snapshot.get('armed'), self.clock()
         self.holds = snapshot.get('holds') or {}
+        self.tasks = (snapshot.get('tasks') or [])[:TASK_LIMIT]
         self.orders = {order['order_id']: order for order in snapshot.get('orders', [])}
         for order in self.orders.values():
             self._sync_order(order)
@@ -207,6 +231,11 @@ class MonitorCore:
         request_id = uuid.uuid4().hex
         if control:
             self.control_requests[request_id] = control
+        row = {'at': self.clock(), 'type': payload.get('type'),
+               'robot_id': payload.get('robot_id'), 'operation': payload.get('operation'),
+               'points': payload.get('points'), 'status': None, 'rtt_ms': None, 'detail': ''}
+        self.log.append(row)
+        self.log_rows[request_id] = row
         self.send(dict(payload, request_id=request_id))
         return request_id
 
@@ -216,11 +245,21 @@ class MonitorCore:
             return
         request_id = event['request_id']
         self.replies[request_id] = event
+        self._log_reply(request_id, event)
         while len(self.replies) > REPLY_LIMIT:
             self.replies.popitem(last=False)
         control = self.control_requests.pop(request_id, None)
         if control:
             self._record_reply(control, event)
+
+    def _log_reply(self, request_id, event):
+        row = self.log_rows.pop(request_id, None)
+        if row:
+            body = event.get('body') or {}
+            row.update(status=event.get('status'), detail=body.get('detail', ''),
+                       rtt_ms=round((self.clock() - row['at']) * 1000.0, 1))
+        while len(self.log_rows) > REPLY_LIMIT:
+            self.log_rows.pop(next(iter(self.log_rows)))
 
     def _record_reply(self, control, event):
         event_id, robot = control
@@ -300,6 +339,13 @@ class MonitorCore:
             if row['linked_mission_id'] == mission_id:
                 self.store.set_ack(row['event_id'], 'RESOLVED', operator, note, self.clock())
 
+    def _link(self, robot, now):
+        status = self.status.get(robot) or {}
+        ages = {topic: now - at for topic, at in self.seen.get(robot, {}).items()}
+        graph = (self.graph or {}).get('robots', {}).get(robot, {})
+        return {'robot_id': robot, 'status': {key: status.get(key) for key in STATUS_FIELDS},
+                'ages': ages, 'graph': graph, 'problems': ready_problems(robot, self.graph)}
+
     def live(self):
         """웹 표시용 현재 상태를 만든다."""
         now = self.clock()
@@ -310,7 +356,10 @@ class MonitorCore:
             if row['mission_state'] in BLOCKED:
                 row['recovery'] = 'resume' if row['current_stage'] in RESUMABLE_STAGES else 'fail'
             missions.append(row)
-        return {'time': now, 'mode': self.mode, 'armed': self.armed,
+        return {'time': now, 'mode': self.mode, 'armed': self.armed, 'ros': self.ros,
+                'zones': zone_table(self.zones, self.status), 'tasks': self.tasks,
+                'log': list(reversed(self.log)), 'routes': self.trace.routes,
+                'links': [self._link(robot, now) for robot in self.robots],
                 'fleet_age_sec': None if self.tasks_at is None else now - self.tasks_at,
                 'robots': [dict(views[r], robot_id=r) for r in self.robots],
                 'holds': self.holds, 'missions': missions, 'anomalies': self.store.events(30)}

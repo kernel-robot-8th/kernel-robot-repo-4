@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+import DebugPanels, { type DebugState } from "./DebugPanels";
+
 interface RobotView {
   robot_id: string;
   op_state: string;
@@ -52,16 +54,18 @@ interface WorkRequest {
   sku: string;
 }
 
-interface LiveState {
+interface LiveState extends DebugState {
   mode: "OBSERVE_ONLY" | "AUTO_HOLD";
   armed: boolean | null;
   fleet_age_sec: number | null;
   robots: RobotView[];
+  holds: Record<string, string>;
   missions: Mission[];
   anomalies: Anomaly[];
   work: WorkRequest[];
   adapter: { enabled: boolean; blocked: string };
   allow_mock: boolean;
+  commands_enabled: boolean;
 }
 
 const STEP_LABELS = ["이동", "접안", "상차", "운송", "접안", "하차", "복귀"];
@@ -213,6 +217,11 @@ export default function ScenarioConsole() {
     (mission) => mission.current_stage === "CUSTOMER" && mission.mission_state === "RUNNING",
   );
   const anomalies = live.anomalies.filter((row) => OPEN_ACKS.includes(row.ack_state));
+  const held = Object.keys(live.holds);
+  const stopped = held.length > 0;
+  const releasable = live.robots.filter(
+    (robot) => held.includes(robot.robot_id) && !robot.order_id,
+  );
 
   return (
     <Card className="rounded-none border border-border bg-[#121316] shadow-none">
@@ -227,13 +236,31 @@ export default function ScenarioConsole() {
           >
             {fleetStale ? "관제 수신 끊김" : "관제 수신 중"}
           </Badge>
+          <Badge
+            variant="outline"
+            className={
+              live.commands_enabled ? "border-amber-600 text-amber-400" : "border-zinc-600 text-zinc-400"
+            }
+          >
+            {live.commands_enabled ? "명령 켜짐 (시뮬 전용)" : "읽기 전용"}
+          </Badge>
           <Badge variant="outline" className="border-purple-600 text-purple-400">
             {live.mode}
           </Badge>
           <Button
+            variant="destructive"
+            size="sm"
+            className="h-7 text-[10px] rounded-none font-bold"
+            disabled={!live.commands_enabled}
+            onClick={() => void send("control", { type: "estop" })}
+          >
+            전체 비상 정지 요청
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             className={BUTTON}
+            disabled={!live.commands_enabled}
             onClick={() =>
               void send("mode", {
                 mode: live.mode === "AUTO_HOLD" ? "OBSERVE_ONLY" : "AUTO_HOLD",
@@ -246,6 +273,7 @@ export default function ScenarioConsole() {
             variant="outline"
             size="sm"
             className={BUTTON}
+            disabled={!live.commands_enabled}
             onClick={() => void send("control", { type: "arm", armed: !live.armed, source: "menu_6_5" })}
           >
             {live.armed ? "가동 허용 끄기" : "가동 허용 켜기"}
@@ -253,12 +281,24 @@ export default function ScenarioConsole() {
         </div>
       </CardHeader>
       <CardContent className="p-3 space-y-3">
+        {!live.commands_enabled && (
+          <div className="text-[10px] text-[#999999]">
+            읽기 전용입니다. 메뉴 6.5에는 실물 명령 경로가 없습니다. 시뮬에서는 monitor_node를 console_commands:=true로
+            띄웁니다.
+          </div>
+        )}
+        {stopped && (
+          <div className="text-[11px] font-bold text-red-400">
+            정지 상태 ({held.join(", ")}): 명령이 거부됩니다. 현장 확인 뒤 아래에서 복구합니다.
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {live.robots.map((robot) => (
             <RobotCard key={robot.robot_id} robot={robot} />
           ))}
         </div>
 
+        <fieldset disabled={!live.commands_enabled} className="m-0 min-w-0 space-y-3 border-0 p-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             aria-label="운영자"
@@ -295,6 +335,7 @@ export default function ScenarioConsole() {
               variant="outline"
               size="sm"
               className={BUTTON}
+              disabled={stopped}
               onClick={() => void send("control", { type: "order", order: { sku, route: route.id } })}
             >
               {route.label}
@@ -401,7 +442,7 @@ export default function ScenarioConsole() {
           ))}
         </section>
 
-        {blocked.length > 0 && (
+        {(blocked.length > 0 || releasable.length > 0) && (
           <section className="space-y-1">
             <h3 className="text-[11px] font-bold text-amber-400">복구 요청</h3>
             <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#cccccc]">
@@ -453,6 +494,30 @@ export default function ScenarioConsole() {
                 </Button>
               </div>
             ))}
+            {releasable.map((robot) => (
+              <div key={robot.robot_id} className="flex flex-wrap items-center gap-1.5 text-[10px] text-[#cccccc]">
+                <span className="font-mono">
+                  {robot.robot_id} 정지 ({live.holds[robot.robot_id]})
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={BUTTON}
+                  disabled={!named || !confirmed}
+                  onClick={() =>
+                    void send("control", {
+                      type: "release_control",
+                      robot_id: robot.robot_id,
+                      operator,
+                      note,
+                      evidence,
+                    })
+                  }
+                >
+                  제어권 반환
+                </Button>
+              </div>
+            ))}
             <div className="text-[9px] text-[#888888]">
               재개는 가동 허용을 켠 뒤 누릅니다. 상·하차 단계는 재개할 수 없어 실패 처리 뒤 새 주문을 냅니다.
             </div>
@@ -468,6 +533,7 @@ export default function ScenarioConsole() {
                 variant="outline"
                 size="sm"
                 className={BUTTON}
+                disabled={stopped}
                 onClick={() =>
                   void send("control", {
                     type: "create",
@@ -522,7 +588,18 @@ export default function ScenarioConsole() {
           )}
         </div>
 
+        </fieldset>
+
         {message && <div className="font-mono text-[10px] text-[#999999]">{message}</div>}
+
+        <fieldset disabled={!live.commands_enabled} className="m-0 min-w-0 border-0 p-0">
+          <DebugPanels
+            debug={live}
+            robots={live.robots.map((robot) => robot.robot_id)}
+            blocked={stopped}
+            send={send}
+          />
+        </fieldset>
       </CardContent>
     </Card>
   );

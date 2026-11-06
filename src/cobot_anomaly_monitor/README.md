@@ -11,6 +11,7 @@
 | `manual_adapter.py` | 사람 승인으로 `/fleet/work_request`에 답합니다 |
 | `console_api.py` | 메뉴 6.5용 HTTP. 표준 라이브러리만 씁니다 |
 | `pixel_map.py` | 픽셀 bbox를 map 좌표로 바꿉니다. 확신이 없으면 null입니다 |
+| `debug_view.py` | 메뉴 6.5 디버그 표시용 순수 계산 |
 | `monitor_node.py`, `pixel_event_node.py` | 위 모듈을 ROS에 연결합니다 |
 
 ## 지키는 규칙
@@ -33,8 +34,30 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml
 | `console_host` | `127.0.0.1` | `fms-web-server` 컨테이너에서 부르면 `172.17.0.1` |
 | `mode` | `OBSERVE_ONLY` | `AUTO_HOLD`는 판정 뒤 `pause` 또는 `estop`을 요청합니다 |
 | `manual_adapter` | `true` | 시뮬 어댑터를 쓸 때는 `false` |
+| `console_commands` | `false` | 콘솔 명령. 시뮬에서만 `true` |
 | `camera_policy` | `field` | `field`는 `sim_` 카메라를 거절하고, `sim`은 `sim_`만 받습니다 |
 | `db_path` | `~/.cobot/anomaly_monitor.sqlite3` | 기록 파일 |
+
+## 메뉴 6.5 디버그
+
+메뉴 6.5의 3D 장면과 그 옆 버튼은 브라우저 안의 모의입니다. 실제 값과 관제 요청은 시나리오 콘솔만 다룹니다.
+
+콘솔은 기본이 읽기 전용입니다. 메뉴 등록부가 6.5에 실물 명령 경로를 두지 않기 때문입니다. 시뮬에서만 켭니다.
+
+```bash
+ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=true manual_adapter:=false camera_policy:=sim
+```
+
+| 패널 | 보는 것 |
+|---|---|
+| 이동 명령 | `zone`, `goto`, `leave`, `home`을 관제 `create` 요청으로 보냅니다 |
+| 전체 비상 정지 | 관제 `estop` 요청입니다. 복구는 `resolve` 또는 `release_control`입니다 |
+| 구역 점유 | 구역 관리자와 로봇이 말하는 점유자를 나란히 놓습니다. 다르면 불일치입니다 |
+| 연결 진단 | 도메인, 순찰 상태, 토픽 발행자와 수신 나이, `ready()`가 이동을 거절할 이유 |
+| 경유 기록 | `amcl_pose`가 지점 0.15 m 안을 지난 순서입니다 |
+| 요청과 응답 | 관제 요청의 상태 코드와 왕복 시간, 관제 작업 상태 |
+
+웹과 이 패키지는 로봇 토픽을 발행하지 않습니다(`fms_dev_rules` R7). 그래서 `cmd_vel`, `initialpose`는 콘솔에 없습니다.
 
 ## 입력
 
