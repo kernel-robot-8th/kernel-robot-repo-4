@@ -88,12 +88,21 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest test/test_ros_roundtrip.
   - bbox가 프레임을 벗어날 때
   - 클래스 기준이 없을 때
   - 기준 마커가 부족하거나 움직였을 때
+  - 상자가 렌즈 모델의 유효 범위 밖일 때
 - 호모그래피는 측정으로 한 번 만들어 고정합니다. 실행 중에 다시 계산하지 않습니다.
+- 렌즈 왜곡을 먼저 뺍니다. 호모그래피는 직선을 직선으로만 보내므로 이 단계가 없으면 화면 가장자리에서 오차가 커집니다. 내부값은 체커보드로 잰 값을 씁니다.
+- bbox는 중심을 쓰고 `height_m`은 그 중심의 실제 높이입니다. bbox 아래 변은 카메라 직하점을 지나면 상자 윗면 쪽이 됩니다.
 
-`config/camera_calibration.yaml`은 측정 전이라 `PENDING`입니다. 값을 손으로 넣지 말고 `config/camera_measurement_template.yaml`을 채워 만듭니다. 검증점 오차가 상한을 넘으면 파일을 만들지 않습니다.
+`config/camera_calibration.yaml`은 측정 전이라 `PENDING`입니다. 값을 손으로 넣지 말고 `config/camera_measurement_template.yaml`을 채워 만듭니다. 아래 경우에는 파일을 만들지 않습니다.
+
+- 검증점 오차가 상한을 넘을 때
+- 검증점이 화면 네 사분면에 없을 때
+- `required_zones`의 구역 0.45 m 안에 검증점이 없을 때
+
+왜곡 오차는 화면 중앙과 마커 옆에서는 드러나지 않아서 검증점을 넓게 요구합니다.
 
 ```bash
 ros2 run cobot_anomaly_monitor build_camera_calibration measured.yaml camera_calibration.yaml
 ```
 
-현장 감지기는 아직 이 입력을 내지 않습니다. `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다.
+현장 감지기는 아직 이 입력을 내지 않습니다. 지금 `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다. `image_size`와 `reference_markers`를 내는 코드와 이 토픽의 발행자도 없습니다. 원본 프레임 bbox를 내는 검출기는 `~/yolo_edge/inbox/homelab-20261102/`에 전달돼 있고 미적용입니다.

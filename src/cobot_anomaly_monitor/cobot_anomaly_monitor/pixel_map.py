@@ -11,12 +11,15 @@ from cobot_amcl_corrector.vision_ingest import transform_xy
 import numpy as np
 import yaml
 
-POINTS = ('center', 'bottom_center')
+from .judgment import NEAR_WORK_M
+
 FRAME_MODES = {'v9': 'identity', 'canonical': 'canonical_to_v9'}
+LENS_KEYS = ('fx', 'fy', 'cx', 'cy', 'k1', 'k2')
 MIN_REFERENCES = 4
+NEWTON_STEPS = 30
 MEASURED = 'MEASURED'
-REQUIRED = ('camera_id', 'image_size', 'plane_height_m', 'reference', 'limits', 'classes',
-            'homography', 'check_error_m', 'sha256')
+REQUIRED = ('camera_id', 'image_size', 'lens', 'plane_height_m', 'reference', 'limits',
+            'classes', 'homography', 'check_error_m', 'sha256')
 
 
 def _number(value):
@@ -66,6 +69,29 @@ def _apply(matrix, points):
     return stacked[:, :2] / stacked[:, 2:3]
 
 
+def undistort(lens, pixel):
+    """
+    렌즈 왜곡을 뺀 픽셀을 돌려준다. r_d = r(1 + k1 r² + k2 r⁴)을 뉴턴법으로 푼다.
+
+    k가 음수이면 이 식은 반경이 커질 때 접힌다. 접힌 바깥은 답이 없으므로 None이다.
+    """
+    fx, fy, cx, cy, k1, k2 = (lens[key] for key in LENS_KEYS)
+    x, y = (pixel[0] - cx) / fx, (pixel[1] - cy) / fy
+    distorted = math.hypot(x, y)
+    radius = distorted
+    for _ in range(NEWTON_STEPS):
+        square = radius * radius
+        slope = 1.0 + 3.0 * k1 * square + 5.0 * k2 * square * square
+        if slope <= 0.0:
+            return None
+        error = radius * (1.0 + k1 * square + k2 * square * square) - distorted
+        if abs(error) < 1e-10:
+            scale = radius / distorted if distorted else 1.0
+            return (fx * x * scale + cx, fy * y * scale + cy)
+        radius -= error / slope
+    return None
+
+
 def project(homography, pixel):
     """픽셀 한 점을 기준면 map 좌표로 바꾼다. 무한대로 가면 None이다."""
     u, v = pixel
@@ -110,19 +136,40 @@ def _validate_measured(measured):
     if not all(_number(limits.get(key)) and limits[key] > 0 for key in (
             'min_markers', 'max_marker_shift_px', 'max_check_error_m')):
         raise ValueError('limits의 세 값은 사용자가 정한 양수여야 합니다')
+    lens = measured.get('lens') or {}
+    if not all(_number(lens.get(key)) for key in LENS_KEYS) or min(lens['fx'], lens['fy']) <= 0:
+        raise ValueError('lens: 체커보드로 잰 fx, fy, cx, cy, k1, k2 필요')
     if not measured.get('check_points'):
         raise ValueError('check_points 필요: 마커가 아닌 지점으로 검증합니다')
+    if not measured.get('required_zones'):
+        raise ValueError('required_zones 필요: 작업 구역 근처를 검증합니다')
+
+
+def _check_coverage(measured, mode):
+    """검증점이 넓게 퍼졌는지 본다. 왜곡 오차는 중앙이나 마커 옆에서는 드러나지 않는다."""
+    width, height = measured['image_size']
+    points = measured['check_points']
+    quadrants = {(row['pixel'][0] >= width / 2.0, row['pixel'][1] >= height / 2.0)
+                 for row in points}
+    if len(quadrants) < 4:
+        raise ValueError(f'검증점이 화면 네 사분면에 필요합니다: {len(quadrants)}곳뿐입니다')
+    maps = [_to_v9(row['map'], mode) for row in points]
+    for zone in measured['required_zones']:
+        if min(math.dist(point, zone['map']) for point in maps) > NEAR_WORK_M:
+            raise ValueError(f"구역 {zone['name']} 근처에 검증점이 없습니다")
 
 
 def build_calibration(measured):
     """측정값에서 보정 파일 내용을 만든다. 검증점 오차가 상한을 넘으면 만들지 않는다."""
     _validate_measured(measured)
     mode = FRAME_MODES[measured['frame']]
+    _check_coverage(measured, mode)
+    lens = dict(measured['lens'])
     reference = [{'id': int(row['id']), 'pixel': [float(value) for value in row['pixel']],
                   'map': _to_v9(row['map'], mode)} for row in measured.get('reference') or []]
     calibration = {
         'status': MEASURED, 'camera_id': measured['camera_id'], 'frame': 'v9',
-        'image_size': list(measured['image_size']),
+        'image_size': list(measured['image_size']), 'lens': lens,
         'plane_height_m': measured['plane_height_m'], 'reference': reference,
         'limits': dict(measured['limits']), 'classes': dict(measured.get('classes') or {}),
         'camera': None,
@@ -134,14 +181,17 @@ def build_calibration(measured):
             raise ValueError('카메라 높이는 물체 높이보다 높아야 합니다')
         calibration['camera'] = {'map_xy': _to_v9(camera['map_xy'], mode),
                                  'height_m': camera['height_m']}
-    homography = solve_homography([row['pixel'] for row in reference],
-                                  [row['map'] for row in reference])
+    ideal = [undistort(lens, row['pixel']) for row in reference]
+    if None in ideal:
+        raise ValueError('기준 마커가 렌즈 모델 범위 밖입니다')
+    homography = solve_homography(ideal, [row['map'] for row in reference])
     calibration['homography'] = homography
     errors = []
     for row in measured['check_points']:
-        point = lift(project(homography, row['pixel']), row['height_m'], calibration)
+        pixel = undistort(lens, row['pixel'])
+        point = lift(project(homography, pixel), row['height_m'], calibration) if pixel else None
         if point is None:
-            raise ValueError('검증점을 계산할 수 없습니다: 높이가 다르면 camera 필요')
+            raise ValueError('검증점을 계산할 수 없습니다: 렌즈 범위와 camera 값을 확인하세요')
         errors.append(math.dist(point, _to_v9(row['map'], mode)))
     calibration['check_error_m'] = max(errors)
     if calibration['check_error_m'] > measured['limits']['max_check_error_m']:
@@ -188,11 +238,6 @@ def marker_problem(calibration, observed):
     return ''
 
 
-def _bbox_point(bbox, name):
-    x1, y1, x2, y2 = bbox
-    return ((x1 + x2) / 2.0, y2 if name == 'bottom_center' else (y1 + y2) / 2.0)
-
-
 def to_map(calibration, vision_class, bbox, image_size, markers):
     """
     검출 상자 하나를 map 좌표로 바꾼다.
@@ -210,12 +255,16 @@ def to_map(calibration, vision_class, bbox, image_size, markers):
             or not 0 <= bbox[0] < bbox[2] <= width or not 0 <= bbox[1] < bbox[3] <= height):
         return None, 'bbox 오류'
     rule = calibration['classes'].get(vision_class) or {}
-    if rule.get('point') not in POINTS or not _number(rule.get('height_m')):
+    if not _number(rule.get('height_m')):
         return None, f'클래스 기준 없음: {vision_class}'
     problem = marker_problem(calibration, markers)
     if problem:
         return None, problem
-    point = project(calibration['homography'], _bbox_point(bbox, rule['point']))
+    # bbox 아래 변은 카메라 직하점을 지나면 상자 윗면 쪽이 된다. 중심과 중심 높이를 쓴다.
+    pixel = undistort(calibration['lens'], ((bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0))
+    if pixel is None:
+        return None, '렌즈 모델 범위 밖'
+    point = project(calibration['homography'], pixel)
     if point is None:
         return None, '투영 실패'
     point = lift(point, rule['height_m'], calibration)
