@@ -7,6 +7,7 @@ Nav2 AMCL 구조(/pinkyN/amcl_pose 비교 -> /pinkyN/initialpose 원샷 재초�
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import json
 import math
 import time
 from typing import Dict, Iterable, Optional, Tuple
@@ -19,8 +20,38 @@ from .vision_ingest import (
 )
 
 STATIONARY_STATES = frozenset(
-    {"IDLE", "QUEUEING", "HOLDING_ZONE", "STOPPED", "WAITING", "READY"}
+    {
+        "IDLE",
+        "IDLE_WAIT",
+        "DONE",
+        "QUEUEING",
+        "HOLDING_ZONE",
+        "STOPPED",
+        "WAITING",
+        "READY",
+    }
 )
+STATE_UNKNOWN = "UNKNOWN"
+SPEED_MAX_AGE_SEC = 1.0
+
+
+def parse_patrol_state(raw: Optional[str]) -> str:
+    """순찰 상태 문자열에서 state 를 읽는다. 못 읽으면 UNKNOWN 이라 보정하지 않는다.
+
+    순찰 노드는 JSON 을 낸다. "HOLDING_ZONE:zone_A" 형식은 예전 입력 호환용이다.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return STATE_UNKNOWN
+    if text.startswith("{"):
+        try:
+            state = json.loads(text).get("state")
+        except (ValueError, AttributeError):
+            return STATE_UNKNOWN
+        if isinstance(state, str) and state.strip():
+            return state.strip().upper()
+        return STATE_UNKNOWN
+    return text.split(":")[0].strip().upper() or STATE_UNKNOWN
 
 
 def wrap_angle(angle_rad: float) -> float:
@@ -65,8 +96,9 @@ class RobotCorrectionTracker:
     robot_id: str
     amcl_pose: Optional[Tuple[float, float, float]] = None
     amcl_updated_sec: float = 0.0
-    patrol_state: str = "IDLE"
+    patrol_state: str = STATE_UNKNOWN
     linear_speed_mps: float = 0.0
+    speed_updated_sec: Optional[float] = None
     confirm_streak: int = 0
     last_correction_sec: float = -1e9
     corrections_emitted: int = 0
@@ -96,6 +128,7 @@ class AmclVisionCorrector:
         confirm_count: int = 3,
         cooldown_sec: float = 5.0,
         max_stationary_speed_mps: float = 0.03,
+        max_speed_age_sec: float = SPEED_MAX_AGE_SEC,
         frame_mode: str = "identity",
         target_frame_id: str = "map",
         cov_x: float = 0.04,
@@ -111,6 +144,7 @@ class AmclVisionCorrector:
         self.confirm_count = max(1, int(confirm_count))
         self.cooldown_sec = float(cooldown_sec)
         self.max_stationary_speed_mps = float(max_stationary_speed_mps)
+        self.max_speed_age_sec = float(max_speed_age_sec)
         self.frame_mode = frame_mode
         self.target_frame_id = target_frame_id
         self.cov_x = float(cov_x)
@@ -134,23 +168,51 @@ class AmclVisionCorrector:
         tr.amcl_updated_sec = float(now)
 
     def update_robot_state(
-        self, robot_id: str, patrol_state: str, linear_speed_mps: float = 0.0
+        self,
+        robot_id: str,
+        patrol_state: str,
+        linear_speed_mps: Optional[float] = None,
+        now_sec: Optional[float] = None,
+    ) -> None:
+        """상태를 갱신한다. 속도를 안 주면 마지막 측정값을 그대로 둔다."""
+        if robot_id not in self.trackers:
+            return
+        self.trackers[robot_id].patrol_state = parse_patrol_state(patrol_state)
+        if linear_speed_mps is not None:
+            self.update_robot_speed(robot_id, linear_speed_mps, now_sec)
+
+    def update_robot_speed(
+        self, robot_id: str, linear_speed_mps: float, now_sec: Optional[float] = None
     ) -> None:
         if robot_id not in self.trackers:
             return
         tr = self.trackers[robot_id]
-        # patrol_status 문자열이 "HOLDING_ZONE:zone_A" 형태일 경우 앞 토큰 추출
-        state_token = (patrol_state or "IDLE").split(":")[0].strip().upper()
-        tr.patrol_state = state_token
         tr.linear_speed_mps = abs(float(linear_speed_mps))
+        tr.speed_updated_sec = float(
+            now_sec if now_sec is not None else self._clock_sec()
+        )
 
-    def is_robot_stationary(self, robot_id: str) -> bool:
+    def _motion_block(self, tr: RobotCorrectionTracker, now: float) -> Optional[str]:
+        """보정을 막는 이유. 정지가 확인되면 None 이다."""
+        if tr.patrol_state not in STATIONARY_STATES:
+            return f"MOVING({tr.patrol_state})"
+        if (
+            tr.speed_updated_sec is None
+            or (now - tr.speed_updated_sec) > self.max_speed_age_sec
+        ):
+            return "SPEED_STALE"
+        if tr.linear_speed_mps > self.max_stationary_speed_mps:
+            return f"MOVING({tr.patrol_state},v={tr.linear_speed_mps:.3f})"
+        return None
+
+    def is_robot_stationary(
+        self, robot_id: str, now_sec: Optional[float] = None
+    ) -> bool:
         tr = self.trackers.get(robot_id)
         if tr is None:
             return False
-        if tr.linear_speed_mps > self.max_stationary_speed_mps:
-            return False
-        return tr.patrol_state in STATIONARY_STATES
+        now = now_sec if now_sec is not None else self._clock_sec()
+        return self._motion_block(tr, now) is None
 
     def _converted_vision_pose(self, raw_pose: dict) -> Tuple[float, float, float]:
         vx, vy = transform_xy(raw_pose["x"], raw_pose["y"], self.frame_mode)
@@ -190,9 +252,10 @@ class AmclVisionCorrector:
             tr.last_reason = "AUTO_DISABLED"
             return None
 
-        if not self.is_robot_stationary(robot_id):
+        block = self._motion_block(tr, now)
+        if block is not None:
             tr.confirm_streak = 0
-            tr.last_reason = f"MOVING({tr.patrol_state})"
+            tr.last_reason = block
             return None
 
         if (now - tr.last_correction_sec) < self.cooldown_sec:
@@ -255,11 +318,12 @@ class AmclVisionCorrector:
                 None,
             )
 
-        if not force_while_moving and not self.is_robot_stationary(robot_id):
-            tr.last_reason = f"MANUAL_REJECT_MOVING({tr.patrol_state})"
+        block = self._motion_block(tr, now)
+        if not force_while_moving and block is not None:
+            tr.last_reason = f"MANUAL_REJECT_{block}"
             return (
                 False,
-                f"{robot_id} is currently moving ({tr.patrol_state}); stop or wait for IDLE/HOLDING_ZONE",
+                f"{robot_id} is not confirmed stationary ({block}); stop or wait for IDLE/HOLDING_ZONE",
                 None,
             )
 
@@ -296,6 +360,7 @@ class AmclVisionCorrector:
         return True, "ok", cmd
 
     def status_snapshot(self) -> dict:
+        now = self._clock_sec()
         vision_snap = self.store.snapshot()
         robots_out = {}
         for rid, tr in self.trackers.items():
@@ -321,7 +386,18 @@ class AmclVisionCorrector:
                     else None
                 ),
                 "patrol_state": tr.patrol_state,
-                "stationary": self.is_robot_stationary(rid),
+                "stationary": self.is_robot_stationary(rid, now),
+                "linear_speed_mps": round(tr.linear_speed_mps, 4),
+                "speed_age_sec": (
+                    round(now - tr.speed_updated_sec, 3)
+                    if tr.speed_updated_sec is not None
+                    else None
+                ),
+                "amcl_age_sec": (
+                    round(now - tr.amcl_updated_sec, 3)
+                    if tr.amcl_pose is not None
+                    else None
+                ),
                 "drift_dist_m": round(tr.last_drift_dist_m, 4),
                 "drift_yaw_deg": round(math.degrees(tr.last_drift_yaw_rad), 2),
                 "confirm_streak": tr.confirm_streak,

@@ -7,7 +7,8 @@
    - ROS 2 /pinky1~3/overhead_pose (geometry_msgs/PoseStamped)
 2. 로봇 상태 및 AMCL 추정 포즈 수신 (cobot_domain_bridge 경유):
    - /pinky1~3/amcl_pose (geometry_msgs/PoseWithCovarianceStamped)
-   - /pinky1~3/patrol_status (std_msgs/String)
+   - /pinky1~3/patrol_status (std_msgs/String, JSON)
+   - /pinky1~3/odom (nav_msgs/Odometry, 정지 판정용 속도)
 3. 보정 판정 및 원샷 재초기화 발행:
    - 자동 보정(500ms 신선도 + 정지/대기 상태 + 0.15m/20deg 3회 연속 확인 + 5초 쿨다운)
    - 수동 동기화(/amcl_corrector/trigger 토픽 또는 POST /api/vision/sync_amcl)
@@ -24,8 +25,15 @@ import time
 from typing import Dict, Optional
 
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import (
+    DurabilityPolicy,
+    QoSProfile,
+    qos_profile_sensor_data,
+    ReliabilityPolicy,
+)
 from std_msgs.msg import String
 
 from .pose_corrector import AmclVisionCorrector, InitialPoseCommand
@@ -54,14 +62,15 @@ class AmclCorrectorNode(Node):
         self.declare_parameter("confirm_count", 3)
         self.declare_parameter("cooldown_sec", 5.0)
         self.declare_parameter("max_stationary_speed_mps", 0.03)
+        self.declare_parameter("max_speed_age_sec", 1.0)
         self.declare_parameter("frame_mode", "identity")
         self.declare_parameter("target_frame_id", "map")
         self.declare_parameter("cov_x", 0.04)
         self.declare_parameter("cov_y", 0.04)
         self.declare_parameter("cov_yaw", 0.05)
-        self.declare_parameter("auto_correct_enabled", True)
+        self.declare_parameter("auto_correct_enabled", False)
         self.declare_parameter("enable_http", True)
-        self.declare_parameter("http_host", "0.0.0.0")
+        self.declare_parameter("http_host", "127.0.0.1")
         self.declare_parameter("http_port", 8785)
 
         robot_names = tuple(
@@ -74,6 +83,7 @@ class AmclCorrectorNode(Node):
         confirm_count = int(self.get_parameter("confirm_count").value)
         cooldown_sec = float(self.get_parameter("cooldown_sec").value)
         max_speed = float(self.get_parameter("max_stationary_speed_mps").value)
+        max_speed_age = float(self.get_parameter("max_speed_age_sec").value)
         frame_mode = str(self.get_parameter("frame_mode").value)
         target_frame_id = str(self.get_parameter("target_frame_id").value)
         cov_x = float(self.get_parameter("cov_x").value)
@@ -94,6 +104,7 @@ class AmclCorrectorNode(Node):
             confirm_count=confirm_count,
             cooldown_sec=cooldown_sec,
             max_stationary_speed_mps=max_speed,
+            max_speed_age_sec=max_speed_age,
             frame_mode=frame_mode,
             target_frame_id=target_frame_id,
             cov_x=cov_x,
@@ -102,16 +113,31 @@ class AmclCorrectorNode(Node):
             auto_correct_enabled=auto_correct,
         )
 
+        self._last_reasons: Dict[str, str] = {}
+        # AMCL 은 멈춰 있으면 amcl_pose 를 새로 내지 않는다. 지속 구독은 브릿지가 TRANSIENT_LOCAL 일 때
+        # 마지막 값을 받고, sensor 구독은 어떤 QoS 로도 연결된다. 둘이 같은 콜백을 쓴다.
+        latched = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
         self.initialpose_pubs: Dict[str, object] = {}
         for rid in robot_names:
             self.initialpose_pubs[rid] = self.create_publisher(
                 PoseWithCovarianceStamped, f"/{rid}/initialpose", 10
             )
+            for qos in (qos_profile_sensor_data, latched):
+                self.create_subscription(
+                    PoseWithCovarianceStamped,
+                    f"/{rid}/amcl_pose",
+                    lambda msg, r=rid: self._on_amcl_pose(r, msg),
+                    qos,
+                )
             self.create_subscription(
-                PoseWithCovarianceStamped,
-                f"/{rid}/amcl_pose",
-                lambda msg, r=rid: self._on_amcl_pose(r, msg),
-                10,
+                Odometry,
+                f"/{rid}/odom",
+                lambda msg, r=rid: self._on_odom(r, msg),
+                qos_profile_sensor_data,
             )
             self.create_subscription(
                 String,
@@ -157,6 +183,11 @@ class AmclCorrectorNode(Node):
     def _on_patrol_status(self, robot_id: str, msg: String) -> None:
         with self._lock:
             self.corrector.update_robot_state(robot_id, msg.data)
+
+    def _on_odom(self, robot_id: str, msg: Odometry) -> None:
+        v = msg.twist.twist.linear
+        with self._lock:
+            self.corrector.update_robot_speed(robot_id, math.hypot(v.x, v.y))
 
     def _on_overhead_pose(self, robot_id: str, msg: PoseStamped) -> None:
         p = msg.pose.position
@@ -275,6 +306,15 @@ class AmclCorrectorNode(Node):
         out = String()
         out.data = json.dumps(snap, ensure_ascii=False)
         self.status_pub.publish(out)
+        for rid, row in snap["robots"].items():
+            reason = row["last_reason"]
+            if self._last_reasons.get(rid) != reason:
+                self._last_reasons[rid] = reason
+                self.get_logger().info(
+                    f"[{rid}] reason={reason} state={row['patrol_state']} "
+                    f"vision={row['vision_status']} drift={row['drift_dist_m']}m/"
+                    f"{row['drift_yaw_deg']}deg speed={row['linear_speed_mps']}"
+                )
 
     def _start_http_server(self, host: str, port: int) -> None:
         node_ref = self

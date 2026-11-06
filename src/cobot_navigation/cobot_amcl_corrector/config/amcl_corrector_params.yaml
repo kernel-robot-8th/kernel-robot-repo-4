@@ -12,6 +12,8 @@ amcl_corrector_node:
     cooldown_sec: 5.0
     # 정지 판정 최대 선속도(m/s)
     max_stationary_speed_mps: 0.03
+    # 이 시간 안에 받은 odom 속도만 정지 근거로 쓴다(초)
+    max_speed_age_sec: 1.0
     # 좌표계 모드:
     # - "identity" / "v9": 항공뷰 Homography 기준점이 대상 맵과 동일한 경우 (시뮬 또는 v9 직접 캘리브레이션)
     # - "canonical_to_v9": 항공뷰가 정본(2.5x2.4m gate67) 좌표이고 실물 로봇이 cobot_map_v9를 쓰는 경우 (-1.415, -1.639 변환)
@@ -21,8 +23,10 @@ amcl_corrector_node:
     cov_x: 0.04
     cov_y: 0.04
     cov_yaw: 0.05
-    auto_correct_enabled: true
+    # 기본은 끔이다. 기준 마커 4개와 좌표를 확인한 뒤 /amcl_corrector/trigger 에 auto:on 으로 켠다.
+    auto_correct_enabled: false
     # 태블릿 HTTP 수신 게이트웨이 설정
     enable_http: true
-    http_host: "0.0.0.0"
+    # 인증이 없는 포트라 기본은 이 장비 안에서만 연다. 태블릿 HTTP 입력은 이 값으로는 닿지 않는다.
+    http_host: "127.0.0.1"
     http_port: 8785

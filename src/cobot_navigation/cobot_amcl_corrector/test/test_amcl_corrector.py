@@ -238,15 +238,33 @@ def test_amcl_corrector_three_step_confirm_moving_guard_and_cooldown():
     assert abs(manual_cmd.x - 0.0) < 1e-4
 
 
+def test_field_defaults_stay_closed():
+    """인증 없는 포트와 자동 보정은 현장 기본값에서 닫혀 있어야 한다."""
+    from pathlib import Path
+
+    import yaml
+
+    path = Path(__file__).parents[1] / "config" / "amcl_corrector_params.yaml"
+    params = yaml.safe_load(path.read_text(encoding="utf-8"))
+    params = params["amcl_corrector_node"]["ros__parameters"]
+    assert params["auto_correct_enabled"] is False
+    assert params["http_host"] == "127.0.0.1"
+
+
 def test_amcl_corrector_ros2_node_integration():
     """AmclCorrectorNode가 /amcl_pose, /overhead_pose를 수신해 /initialpose를 발행하는지 검증한다."""
     import rclpy
     from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+    from nav_msgs.msg import Odometry
+    from std_msgs.msg import String
     from cobot_amcl_corrector.amcl_corrector_node import AmclCorrectorNode
 
     rclpy.init()
     try:
         node = AmclCorrectorNode()
+        assert node.corrector.auto_correct_enabled is False
+        node._on_trigger(String(data="auto:on"))
+        assert node.corrector.auto_correct_enabled is True
         received = []
         sub = node.create_subscription(
             PoseWithCovarianceStamped,
@@ -262,6 +280,8 @@ def test_amcl_corrector_ros2_node_integration():
         amcl_msg.pose.pose.position.y = 2.054
         amcl_msg.pose.pose.orientation.w = 1.0
         node._on_amcl_pose("pinky1", amcl_msg)
+        node._on_patrol_status("pinky1", String(data='{"state": "HOLDING_ZONE"}'))
+        node._on_odom("pinky1", Odometry())
 
         # 오버헤드 실제 포즈 3회 연속 주입 (confirm_count=3)
         ov_msg = PoseStamped()
