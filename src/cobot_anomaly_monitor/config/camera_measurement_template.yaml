@@ -1,0 +1,17 @@
+# 현장 측정값을 채우는 양식. 비어 있으면 보정 파일을 만들지 않는다. 추정값을 넣지 않는다.
+camera_id: CAM_CEILING_01
+image_size: null          # [폭, 높이] px. 검출 bbox와 같은 원본 프레임 기준
+frame: null               # v9 또는 canonical. canonical이면 v9로 바꿔 저장한다
+plane_height_m: null      # 기준 마커 면의 높이. 바닥이면 0.0
+reference: []             # - {id: 마커 ID, pixel: [u, v], map: [x, y]}. 마커 중심, 4개 이상
+check_points: []          # - {pixel: [u, v], map: [x, y], height_m: 높이}. 마커가 아닌 지점
+limits:
+  min_markers: null           # 판정 때 보여야 하는 기준 마커 수
+  max_marker_shift_px: null   # 이보다 움직이면 좌표를 내지 않는다
+  max_check_error_m: null     # 검증점 오차 상한. 사용자 결정 값
+camera: null              # {map_xy: [x, y], height_m: 높이}. 물체 높이가 기준면과 다르면 필요
+classes:                  # point: center 또는 bottom_center, height_m: 그 점의 실제 높이
+  box_on_floor: {point: bottom_center, height_m: null}
+  box_run_over: {point: bottom_center, height_m: null}
+  box_perched_on_rim: {point: center, height_m: null}
+  lid_detached: {point: center, height_m: null}

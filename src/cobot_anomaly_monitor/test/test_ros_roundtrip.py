@@ -206,3 +206,46 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
             if node:
                 node.destroy_node()
         rclpy.shutdown()
+
+
+@pytest.mark.skipif(
+    os.environ.get('ROS_DOMAIN_ID') != '77' or os.environ.get('ROS_LOCALHOST_ONLY') != '1',
+    reason='requires isolated ROS_DOMAIN_ID=77 and ROS_LOCALHOST_ONLY=1')
+def test_pixel_event_is_forwarded_without_position_while_pending(monkeypatch):
+    rclpy = pytest.importorskip('rclpy')
+    from cobot_anomaly_monitor import pixel_event_node
+    from rclpy.executors import SingleThreadedExecutor
+    from rclpy.node import Node
+    from std_msgs.msg import String
+
+    monkeypatch.setattr(pixel_event_node, 'get_package_share_directory',
+                        lambda name: str(PACKAGE))
+    rclpy.init()
+    converter, peer, executor = None, None, None
+    try:
+        converter = pixel_event_node.PixelEventNode()
+        peer = Node('isolated_detector')
+        received = []
+        source = peer.create_publisher(String, '/anomaly_monitor/pixel_event', 50)
+        peer.create_subscription(String, '/anomaly_monitor/vision_event',
+                                 lambda m: received.append(json.loads(m.data)), 50)
+        executor = SingleThreadedExecutor()
+        executor.add_node(converter)
+        executor.add_node(peer)
+        deadline = time.monotonic() + 10
+        while not received:
+            assert time.monotonic() < deadline
+            if source.get_subscription_count():
+                source.publish(String(data=json.dumps({
+                    'stream_id': 'CAM_CEILING_01', 'event_type': 'box_on_floor',
+                    'confidence': 0.9, 'timestamp': time.time(), 'bbox': [1, 2, 3, 4]})))
+            executor.spin_once(timeout_sec=0.05)
+        assert received[0]['map_x'] is None and received[0]['map_y'] is None
+        assert received[0]['vision_class'] == 'box_on_floor'
+    finally:
+        if executor:
+            executor.shutdown()
+        for node in (converter, peer):
+            if node:
+                node.destroy_node()
+        rclpy.shutdown()

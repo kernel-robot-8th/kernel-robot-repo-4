@@ -16,5 +16,7 @@ setup(
     description='Scenario records, CCTV judgment and manual work adapter for the relay laptop',
     license='Apache-2.0',
     entry_points={'console_scripts': [
-        'monitor_node = cobot_anomaly_monitor.monitor_node:main']},
+        'monitor_node = cobot_anomaly_monitor.monitor_node:main',
+        'pixel_event_node = cobot_anomaly_monitor.pixel_event_node:main',
+        'build_camera_calibration = cobot_anomaly_monitor.pixel_map:main']},
 )

@@ -10,7 +10,8 @@
 | `monitor_core.py` | 스냅샷 기록, 판정, 모드별 조치 |
 | `manual_adapter.py` | 사람 승인으로 `/fleet/work_request`에 답합니다 |
 | `console_api.py` | 메뉴 6.5용 HTTP. 표준 라이브러리만 씁니다 |
-| `monitor_node.py` | 위 모듈을 ROS에 연결합니다 |
+| `pixel_map.py` | 픽셀 bbox를 map 좌표로 바꿉니다. 확신이 없으면 null입니다 |
+| `monitor_node.py`, `pixel_event_node.py` | 위 모듈을 ROS에 연결합니다 |
 
 ## 지키는 규칙
 
@@ -45,7 +46,7 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml
  "map_x": 0.6, "map_y": 0.5}
 ```
 
-`VisionEvent.msg`에는 클래스와 맵 좌표가 없어서 현장 감지기가 이 토픽으로 보내는 경로는 아직 정해지지 않았습니다.
+`VisionEvent.msg`에는 클래스와 맵 좌표가 없습니다. 현장 픽셀 검출은 아래 `pixel_event_node`가 이 형식으로 바꿉니다.
 
 ## 시험
 
@@ -67,3 +68,32 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest test/test_ros_roundtrip.
 - `armed`가 꺼진 채 300초를 넘겨 장치 결과가 오면 그 주문은 `UNKNOWN`과 비상 정지로 갑니다.
 - `dock_xy_m` 0.05는 개발용 임시값입니다. 팀 기본은 0.01입니다.
 - 개발 경로 둘은 `ZC`와 주행 통로를 함께 써서 두 로봇이 동시에 달리지 않습니다.
+
+## 픽셀→map 좌표 변환
+
+`pixel_event_node`가 `/anomaly_monitor/pixel_event`(String JSON)의 검출을 받아 `/anomaly_monitor/vision_event`로 냅니다. 변환 규칙은 `pixel_map.py`의 순수 함수에 있습니다.
+
+```json
+{"stream_id": "CAM_CEILING_01", "event_type": "box_on_floor", "confidence": 0.9,
+ "timestamp": 1793790000.0, "bbox": [100, 200, 140, 260], "image_size": [1280, 720],
+ "reference_markers": {"40": [10.0, 20.0], "42": [1200.0, 700.0]}}
+```
+
+`bbox`와 `reference_markers`는 `image_size` 원본 프레임의 픽셀입니다. 값은 예시입니다.
+
+- 출력 좌표는 로봇 AMCL과 같은 `cobot_map_v9`의 map 좌표입니다. `canonical`로 잰 값은 보정 파일을 만들 때 v9로 바꿉니다.
+- 아래 경우에는 `map_x`, `map_y`가 null이고 판정은 `NO_POSITION`입니다. 이유는 노드 로그에 남습니다.
+  - 보정값이 없거나 지문이 맞지 않을 때
+  - 카메라나 프레임 크기가 보정값과 다를 때
+  - bbox가 프레임을 벗어날 때
+  - 클래스 기준이 없을 때
+  - 기준 마커가 부족하거나 움직였을 때
+- 호모그래피는 측정으로 한 번 만들어 고정합니다. 실행 중에 다시 계산하지 않습니다.
+
+`config/camera_calibration.yaml`은 측정 전이라 `PENDING`입니다. 값을 손으로 넣지 말고 `config/camera_measurement_template.yaml`을 채워 만듭니다. 검증점 오차가 상한을 넘으면 파일을 만들지 않습니다.
+
+```bash
+ros2 run cobot_anomaly_monitor build_camera_calibration measured.yaml camera_calibration.yaml
+```
+
+현장 감지기는 아직 이 입력을 내지 않습니다. `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다.
