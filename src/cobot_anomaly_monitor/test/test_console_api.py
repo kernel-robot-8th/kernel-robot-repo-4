@@ -1,0 +1,137 @@
+"""콘솔 HTTP 시험. 허용 범위 밖 요청이 관제로 나가면 실패해야 한다."""
+
+import json
+from urllib import error, request
+
+from cobot_anomaly_monitor.console_api import ConsoleApi, serve
+from cobot_anomaly_monitor.monitor_core import MonitorCore
+from cobot_anomaly_monitor.monitor_store import MonitorStore
+import pytest
+
+
+class Fixture:
+    def __init__(self, path):
+        self.store = MonitorStore(path / 'm.sqlite3')
+        self.sent = []
+        self.reply = {'status': 200, 'body': {'ok': True}}
+        self.core = MonitorCore(self.store, {}, ['pinky1'], self._send, clock=lambda: 50.0)
+        self.api = ConsoleApi(self.core, None, lambda job: job(), self.core.replies.get,
+                              clock=lambda: 50.0)
+
+    def _send(self, payload):
+        self.sent.append(payload)
+        if self.reply:
+            self.core.on_task_event(dict(self.reply, type='reply',
+                                         request_id=payload['request_id']))
+
+    def post(self, path, **body):
+        return self.api.handle('POST', path, body)
+
+
+@pytest.fixture
+def fx(tmp_path):
+    item = Fixture(tmp_path)
+    yield item
+    item.store.close()
+
+
+def test_control_forwards_allowed_requests_and_returns_the_reply(fx):
+    assert fx.post('/api/fms/control', type='arm', armed=True, source='test') == (
+        200, {'ok': True})
+    assert fx.sent[0]['type'] == 'arm' and fx.sent[0]['request_id']
+
+
+@pytest.mark.parametrize('kind', ['raw', 'stop', 'manual', None])
+def test_control_refuses_other_types(fx, kind):
+    assert fx.post('/api/fms/control', type=kind)[0] == 400
+    assert fx.sent == []
+
+
+def test_order_gets_an_id(fx):
+    fx.post('/api/fms/control', type='order', order={'sku': 'SHOE42', 'route': 'wh_a_to_store'})
+    assert fx.sent[0]['order']['order_id'].startswith('scn_')
+
+
+def test_no_reply_is_reported_not_hidden(fx):
+    fx.reply = None
+    status, body = fx.post('/api/fms/control', type='arm', armed=True)
+    assert status == 504 and '관제 응답 없음' in body['detail']
+
+
+def test_mode_rejects_unknown_values(fx):
+    assert fx.post('/api/fms/mode', mode='AUTO_HOLD') == (200, {'mode': 'AUTO_HOLD'})
+    assert fx.post('/api/fms/mode', mode='OFF')[0] == 400
+    assert fx.core.mode == 'AUTO_HOLD'
+
+
+def test_mock_event_is_judged_and_can_be_turned_off(fx):
+    status, row = fx.post('/api/fms/anomalies', vision_class='box_on_floor', map_x=0.0, map_y=0.0)
+    assert status == 200 and row['judgment'] == 'LANE_OBSTACLE'
+    assert row['camera_id'] == 'console_mock'
+    assert fx.post('/api/fms/anomalies', vision_class='box_on_tray')[0] == 400
+    fx.api.allow_mock = False
+    assert fx.post('/api/fms/anomalies', vision_class='box_on_floor')[0] == 403
+
+
+def test_acknowledge(fx):
+    _, row = fx.post('/api/fms/anomalies', vision_class='box_on_floor', map_x=0.0, map_y=0.0)
+    path = '/api/fms/anomalies/' + row['event_id']
+    assert fx.post(path, ack_state='OPEN', operator='kgh')[0] == 400
+    assert fx.post(path, ack_state='FALSE_ALARM')[0] == 400
+    status, row = fx.post(path, ack_state='FALSE_ALARM', operator='kgh', note='그림자')
+    assert status == 200 and row['ack_state'] == 'FALSE_ALARM' and row['resolved_by'] == 'kgh'
+    assert fx.post('/api/fms/anomalies/none', ack_state='RESOLVED', operator='kgh')[0] == 404
+
+
+def test_work_needs_the_adapter(fx):
+    assert fx.post('/api/fms/work/r1', decision='approve', operator='kgh')[0] == 409
+
+
+def test_unknown_paths(fx):
+    assert fx.api.handle('GET', '/api/fms/ArmMode', None)[0] == 404
+    assert fx.api.handle('GET', '/other', None)[0] == 404
+
+
+def test_live_state_reads_the_cached_copy(fx):
+    assert fx.api.handle('GET', '/api/fms/live_state', None) == (200, {})
+    fx.api.refresh()
+    status, body = fx.api.handle('GET', '/api/fms/live_state?t=1', None)
+    assert status == 200 and body['mode'] == 'OBSERVE_ONLY' and body['robots'][0]['robot_id']
+    assert body['adapter'] == {'enabled': False, 'blocked': ''}
+
+
+@pytest.fixture
+def server(fx):
+    fx.api.refresh()
+    # 실제 노드는 실행기 스레드에서 갱신한다. 여기서는 소켓 처리만 본다.
+    fx.api.refresh = lambda: None
+    item = serve(fx.api, '127.0.0.1', 0)
+    yield f'http://127.0.0.1:{item.server_address[1]}'
+    item.shutdown()
+    item.server_close()
+
+
+def call(url, data=None, content_type='application/json'):
+    item = request.Request(url, data=data, headers={'Content-Type': content_type})
+    try:
+        with request.urlopen(item, timeout=3) as reply:
+            return reply.status, json.loads(reply.read())
+    except error.HTTPError as reply:
+        return reply.code, json.loads(reply.read())
+
+
+def test_http_get_and_post(server, fx):
+    assert call(server + '/api/fms/live_state')[1]['mode'] == 'OBSERVE_ONLY'
+    body = json.dumps({'mode': 'AUTO_HOLD'}).encode()
+    assert call(server + '/api/fms/mode', body) == (200, {'mode': 'AUTO_HOLD'})
+
+
+def test_http_refuses_form_posts(server, fx):
+    status, _ = call(server + '/api/fms/mode', b'mode=AUTO_HOLD', 'text/plain')
+    assert status == 415 and fx.core.mode == 'OBSERVE_ONLY'
+
+
+def test_http_refuses_bad_and_large_bodies(server):
+    assert call(server + '/api/fms/mode', b'{')[0] == 400
+    assert call(server + '/api/fms/mode', b'[1]')[0] == 400
+    assert call(server + '/api/fms/mode', b' ' * 16385)[0] == 413

@@ -22,6 +22,7 @@
 │   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
 │   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
+│   ├── cobot_anomaly_monitor/  # [관제] 시나리오 기록, CCTV 이상 판정, 수동 어댑터 (중계 장비)
 │   ├── cobot_simulation/       # [시뮬레이션] 경량 다중 로봇 & 아레나 통합 시뮬레이션
 │   └── cobot_gui/              # [GUI] 사용자/관제 화면 (웹 화면 자원은 web/ → 3-7 참고)
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
@@ -49,7 +50,7 @@
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
 | 로봇 수행 관제 | `cobot_gui`, `cobot_control_center` | 김지혜 |
-| 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
+| 이상 감지 관제 | `cobot_gui`, `cobot_control_center`, `cobot_anomaly_monitor` | 강건한 |
 | 시뮬레이션 | `cobot_simulation` | 강건한 (공통 테스트베드) |
 | 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
 

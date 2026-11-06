@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MenuHeader from "@/shell/MenuHeader";
 import type { MenuPageProps } from "@/shell/types";
 
+import ScenarioConsole from "./ScenarioConsole";
+
 // 경기장 치수 및 웨이포인트 정의 (정본: 2.4m x 2.4m)
 interface Point3D {
   x: number;
@@ -1391,6 +1393,9 @@ export default function Page({ menu }: MenuPageProps) {
           </div>
         </div>
       </div>
+
+      <ScenarioConsole />
+      {/* AMCL 보조 패널 자리: 시험 C 통과 뒤 AmclAssistPanel 패치로 채운다 */}
     </div>
   );
 }

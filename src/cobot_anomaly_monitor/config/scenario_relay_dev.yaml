@@ -1,0 +1,14 @@
+# 개발 전용 fleet_control scenario_config. 팀 scenario.yaml은 고치지 않고 파라미터로 넘긴다.
+routes:
+  wh_a_to_store: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx3, lane: main}
+  wh_b_to_store: {pickup: ZB, dropoff: ZC, pickup_arm: omx2, dropoff_arm: omx3, lane: main}
+max_retries: 3
+step_timeout_sec: 300.0
+customer_timeout_sec: 120.0
+stale_sec: 3.0
+battery_stale_sec: 10.0
+battery_min: 20.0
+departure_gap_sec: 3.0
+dock_xy_m: 0.05    # 임시값. 시뮬 값이 정해지면 맞춘다. 팀 기본은 0.01
+dock_yaw_deg: 15.0
+allow_returns: false
