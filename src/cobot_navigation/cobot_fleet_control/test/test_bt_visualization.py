@@ -9,7 +9,7 @@ import pytest
 
 
 def snapshots(repo):
-    """MQTT로 보낼 outbox 중 BT 관측 이벤트만 추린다."""
+    """ROS로 통지할 실행 원장 이벤트 중 BT 관측만 추린다."""
     return [event for row in repo.pending()
             if (event := json.loads(row['payload']))['type'] == 'bt_snapshot']
 
@@ -60,7 +60,7 @@ def test_actual_tick_paths_and_terminal_snapshot(tmp_path, result, job_state, ro
         'status'] == root_status
     assert len(sent) == 1
     assert not service.traces
-    # PUBACK 처리 뒤에도 이력 내보내기에 남아 있어야 한다.
+    # ROS 발행 처리 뒤에도 이력 내보내기에 남아 있어야 한다.
     for event in repo.pending():
         repo.acknowledge(event['event_id'])
     repo.close()

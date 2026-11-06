@@ -4,6 +4,7 @@ import json
 import math
 import os
 import time
+import uuid
 
 from cobot_zone_traffic_control.zone_gate_client import ZoneGateClient
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
@@ -20,6 +21,7 @@ from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String
 
 from .async_navigation import AsyncNavigation
+from .central_guard import CentralGuard
 from .patrol_controller import PatrolController
 from .patrol_points_utils import (optional_general_names, parse_points, parse_zone_names,
                                   parse_zone_points, PointsConfigError, required_names,
@@ -32,7 +34,9 @@ class PinkyPatrolNode(Node):
     def __init__(self):
         super().__init__('pinky_patrol_node')
         defaults = {
-            'robot_id': '', 'idle_return_sec': 120.0,
+            'robot_id': '', 'idle_return_sec': 120.0, 'central_controlled': False,
+            'status_period_sec': 0.5,
+            'central_timeout_sec': 3.0, 'command_ttl_sec': 5.0,
             'tick_sec': 0.05, 'nav_retries': 3, 'nav_ready_timeout_sec': 60.0,
             'lifecycle_nodes': ['amcl', 'bt_navigator'], 'lifecycle_poll_sec': 0.5,
             'lifecycle_response_timeout_sec': 2.0,
@@ -46,13 +50,15 @@ class PinkyPatrolNode(Node):
         self.config = {name: self.get_parameter(name).value for name in defaults}
         positive = ('tick_sec', 'nav_retries', 'nav_ready_timeout_sec',
                     'lifecycle_poll_sec', 'lifecycle_response_timeout_sec',
-                    'initialpose_timeout_sec', 'led_blink_sec')
+                    'initialpose_timeout_sec', 'led_blink_sec', 'status_period_sec',
+                    'central_timeout_sec', 'command_ttl_sec')
         if any(not math.isfinite(self.config[key]) or self.config[key] <= 0
                for key in positive):
             raise ValueError('주기·타임아웃·재시도 횟수는 양수여야 합니다')
         if self.config['initial_rotation_sec'] < 0 or self.config['initialpose_settle_sec'] < 0:
             raise ValueError('초기화 시간은 0 이상이어야 합니다')
         self.robot_id = self.config['robot_id']
+        self.boot_id = uuid.uuid4().hex
         if not self.robot_id or ':' in self.robot_id:
             raise PointsConfigError(
                 'robot_id를 지정하세요. 공통 launch의 robot_id 인자 또는 '
@@ -61,6 +67,10 @@ class PinkyPatrolNode(Node):
         self.pose_file = os.path.expanduser(self.config['pose_file'])
         self.status_pub = self.create_publisher(String, 'patrol_status', 10)
         self.command_sub = self.create_subscription(String, 'patrol_cmd', self._cmd_cb, 10)
+        self.central_guard = CentralGuard(self.config['central_timeout_sec'],
+                                          self.config['command_ttl_sec'])
+        self.central_sub = self.create_subscription(
+            String, 'fleet_heartbeat', self._central_heartbeat, 10)
         self.initial_pub = self.create_publisher(PoseWithCovarianceStamped, 'initialpose', 10)
         self.velocity_pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.pose_sub = self.create_subscription(
@@ -89,10 +99,13 @@ class PinkyPatrolNode(Node):
         self.controller = PatrolController(
             self.points, self.home_name, self.zone_points, self.navigation, self.gate,
             self._emit, self._prepare, self._ready, self._abort_preparation,
-            idle_return_sec=self.config['idle_return_sec'], retries=self.config['nav_retries'],
+            idle_return_sec=(0.0 if self.config['central_controlled']
+                             else self.config['idle_return_sec']),
+            retries=self.config['nav_retries'],
             ready_timeout_sec=self.config['nav_ready_timeout_sec'])
         self.timer = self.create_timer(self.config['tick_sec'], self._tick)
         self._emit({'state': 'IDLE', 'waypoint': -1, 'detail': '', 'time': time.time()})
+        self.status_timer = self.create_timer(self.config['status_period_sec'], self._heartbeat)
 
     def _load_points(self):
         """
@@ -178,23 +191,48 @@ class PinkyPatrolNode(Node):
 
     def _cmd_cb(self, message):
         """명령을 검증·등록하고 즉시 반환한다."""
-        raw, command_id = message.data, None
+        raw, command_id, envelope = message.data, None, None
         try:
             if raw.lstrip().startswith('{'):
                 envelope = json.loads(raw)
                 command_id, raw = envelope['command_id'], envelope['command']
                 if not isinstance(command_id, str) or not command_id or not isinstance(raw, str):
                     raise ValueError('명령 봉투 형식 오류')
+            stop = raw.strip().lower() in {'stop', 'emergency_stop'}
+            if self.config['central_controlled']:
+                if stop:
+                    self.central_guard.latched = True
+                elif raw == 'control_reset':
+                    if self.controller.busy or not self.central_guard.accept(envelope or {}, True):
+                        raise ValueError('정지 완료·현재 세션의 유효한 복구 명령 필요')
+                    self._emit({'state': 'IDLE', 'detail': 'control reset', 'time': time.time()})
+                    return
+                elif not self.central_guard.accept(envelope or {}):
+                    raise ValueError('중앙 하트비트·세션·seq·TTL·정지 래치 확인 필요')
             self.controller.submit(raw, command_id)
         except (ValueError, KeyError, TypeError) as error:
             self.get_logger().warning(f'잘못된 명령: {error}')
 
+    def _central_heartbeat(self, message):
+        """서버 재시작 시 이동 명령을 무효화한다. 통신이 복구돼도 이동을 재개하지 않는다."""
+        if not self.config['central_controlled']:
+            return
+        try:
+            if self.central_guard.heartbeat(json.loads(message.data)):
+                self.controller.stop(emergency=True)
+        except (ValueError, TypeError):
+            self.get_logger().warning('잘못된 중앙 하트비트')
+
     def _emit(self, payload):
         """상태 발행과 LED 표시를 같은 executor에서 갱신한다."""
+        payload = dict(payload, held_zone=self.controller.held_zone,
+                       central_controlled=self.config['central_controlled'], boot_id=self.boot_id,
+                       central_latched=self.central_guard.latched, busy=self.controller.busy)
         self.status_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
         if (payload.get('command_id') and self.controller.busy
                 and payload['command_id'] != self.controller.command_id):
             return
+        self._last_status = payload
         if payload.get('task_finished'):
             self._save_pose()
         state = payload['state']
@@ -206,6 +244,16 @@ class PinkyPatrolNode(Node):
             self._set_led((255, 255, 0), True)
         elif state in ('IDLE', 'DONE', 'STOPPED', 'FAILED'):
             self._set_led((0, 255, 0), True)
+
+    def _heartbeat(self):
+        """생존 상태는 반복 발행하되 종료된 명령 결과를 새 완료 근거로 다시 보내지 않는다."""
+        if self.config['central_controlled'] and self.central_guard.expired():
+            self.controller.stop(emergency=True)
+        payload = dict(self._last_status, time=time.time(), task_finished=False,
+                       held_zone=self.controller.held_zone,
+                       command_id=self.controller.command_id,
+                       central_latched=self.central_guard.latched, busy=self.controller.busy)
+        self.status_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
 
     def _set_led(self, color, blink):
         self._led_color, self._led_blink = color, blink

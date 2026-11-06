@@ -1,3 +1,17 @@
+# 중앙 제어 모드 변경 안내 (2026-11-04)
+
+공통 설정의 `central_controlled=true`에서는 관제만 주행을 지시합니다.
+자동 유휴 복귀는 억제하고 `/fleet_heartbeat` 단절 시 소프트 정지와 래치를 유지합니다.
+중앙 명령에는 세션·증가 seq·발행 시각·TTL이 필요하며, 일반 문자열 이동 명령은 거절합니다.
+정지 명령은 계속 받습니다. 통신 회복만으로 재개하지 않고 중앙의 명시적 복구가 필요합니다.
+
+[중앙 시나리오·배포·복구·장치 계약](../docs/central_scenario_control.html)
+
+독립 주행 점검에서만 `central_controlled=false`로 설정하면 아래의 기존 CLI·유휴 복귀 동작을 사용합니다.
+이때 중앙 실행기와 동시에 주행 명령을 내리지 않습니다.
+
+---
+
 # cobot_pinky_patrol
 
 각 Pinky에서 같은 Python 실행기를 사용하고 공통·현장·로봇 설정을 조합합니다. 로봇 한 대마다 프로세스 하나가 실행됩니다. 관제 PC는 `patrol_cmd`로 요청하고 로봇은 Nav2로 주행한 뒤 `patrol_status`로 결과를 보고합니다.
@@ -19,6 +33,7 @@ cobot_pinky_patrol/
 │   └── pinky{1,2,3}_patrol.launch.xml  # 기존 명령 호환용 include
 └── cobot_pinky_patrol/
     ├── pinky_patrol_node.py # 공통 ROS 입출력·초기화·LED
+    ├── robot_startup.py    # bringup → Nav2 → patrol 단계 기동·프로세스 관리
     ├── patrol_controller.py # 명령·구역·정지·유휴 복귀 상태 기계
     ├── async_navigation.py  # 비동기 Nav2 목표 접수·취소·최종 결과
     └── patrol_points_utils.py # 좌표·구역·명령 검증
@@ -86,11 +101,11 @@ ros2 run cobot_pinky_patrol pinky_patrol_node --ros-args \
   --params-file "$PATROL_SHARE/config/robots/pinky1.yaml"
 ```
 
-## 명령과 상태
-
-### 관제의 원격 통합 기동
+## 관제의 원격 통합 기동
 
 관제는 이 패키지의 `robot_startup` 실행기를 SSH로 호출해 `pinky_bringup/bringup_robot.launch.xml` → `pinky_navigation/bringup_launch.xml map:=...` → 공통 패트롤 launch를 순서대로 시작할 수 있습니다. 각 단계의 최소 간격과 준비 검사·시간 제한을 적용하며 세 프로세스를 계속 관리합니다. [관제 통합 기동·IP·SSH 설정](../cobot_fleet_control/README.md#관제에서-로봇까지-순차-기동)을 참고하세요.
+
+관제의 `fleet_startup.launch.xml`은 기본 미리보기이므로 이때는 로봇의 `robot_startup`이 실행되지 않습니다. `execute:=true`를 지정하고 SSH 설정·설치 검사가 통과하면 자동 호출됩니다. 로봇마다 Python 파일을 따로 만들거나 SSH 접속 후 다시 실행할 필요는 없습니다. [두 기동기의 역할과 실행 순서](../docs/control_server_bt_report.html#startup-flow)를 참고하세요.
 
 기본 workspace는 `/ws/kernel-robot-repo-4`, 지도는 로봇의 `~/cobot_map_v9.yaml`입니다. 기존 vendor setup과 이 workspace의 setup을 source한 환경에서 로봇 한 대를 직접 순차 기동하려면 다음 명령을 사용합니다. 이 명령은 실제 프로세스를 시작합니다.
 
@@ -99,6 +114,8 @@ ros2 run cobot_pinky_patrol robot_startup --robot-id pinky1 --domain-id 10
 ```
 
 지도 YAML·이미지·vendor 패키지 존재를 먼저 확인합니다. SSH 세션 종료 또는 Ctrl+C 시 이 실행기가 시작한 프로세스를 역순 정리합니다. 이미 수동으로 실행한 bringup·Nav2·패트롤과 함께 중복 실행하지 않습니다.
+
+## 명령과 상태
 
 ### 업무 명령
 

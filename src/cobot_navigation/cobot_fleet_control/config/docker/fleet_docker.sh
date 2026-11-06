@@ -9,14 +9,14 @@ usage() {
 사용법: bash cobot_fleet_control/config/docker/fleet_docker.sh <명령> [Compose 옵션]
   build         고정 의존성과 현재 코드를 이미지로 빌드
   config        해석된 Compose 구성 확인
-  up            기존 브로커를 사용해 관제·구역 매니저·브릿지 실행
-  up-local      개발용 로컬 브로커까지 함께 실행
+  up            웹·중앙 제어기·구역 매니저·브릿지 실행
+  check         이미지의 의존성·웹 기동 계획 확인 (ROS 노드·웹 서버 실행 안 함)
+  ps            컨테이너와 웹 상태 확인
   down          컨테이너 중지·제거, DB 볼륨은 보존
   logs          서비스 로그 확인
   versions      실행 중 fleet의 이미지 내부 버전 기록 확인
   export-bt ID  명령별 BT 기록을 표준 출력 JSON으로 내보내기
-  resolve-unknown ID ROBOT OPERATOR REASON --confirm-stopped
-               fleet 중지 및 로봇 정지 확인 후 UNKNOWN 작업 1건 해제
+  view-bt      실행 중인 fleet의 원장으로 실시간 BT 뷰어 실행 (127.0.0.1:8091)
 배포 이미지 선택: COBOT_IMAGE 환경변수. 이 도구는 호스트 패키지를 설치하지 않습니다.
 HELP
 }
@@ -34,21 +34,46 @@ operation="$1"
 shift
 case "$operation" in
   build)
-    revision="$(git -C "$nav_root" rev-parse HEAD 2>/dev/null || printf unknown)"
+    # 현재 브랜치의 옛 control-center 대신 검증 기준 커밋의 원본을 빌드한다.
+    repo_root="$(cd -- "${nav_root}/../.." && pwd)"
+    # sudo 기동도 사용자가 지정한 이 저장소 하나만 신뢰한다.
+    git_repo=(git -c "safe.directory=${repo_root}" -C "$repo_root")
+    reference_revision="${CONTROL_CENTER_REVISION:-$(sed -n 's/^CONTROL_CENTER_REVISION=//p' "${config_dir}/versions.env")}"
+    if [[ ! "$reference_revision" =~ ^[a-f0-9]{40}$ ]]; then
+      echo 'CONTROL_CENTER_REVISION은 40자리 Git 커밋이어야 합니다.' >&2; exit 2
+    fi
+    if ! "${git_repo[@]}" cat-file -e "${reference_revision}^{commit}" 2>/dev/null; then
+      "${git_repo[@]}" fetch origin "$reference_revision"
+    fi
+    context_root="${nav_root}/.docker-context"
+    mkdir -p "$context_root"
+    control_center_stage="$(mktemp -d "${context_root}/control-center.XXXXXX")"
+    trap 'rm -rf -- "$control_center_stage"' EXIT
+    "${git_repo[@]}" archive "$reference_revision" src/cobot_control_center src/cobot_patrol_interfaces \
+      | tar -x -C "$control_center_stage"
+    printf '%s\n' "$reference_revision" > "${control_center_stage}/revision.txt"
+    rm -rf -- "${context_root}/control-center"
+    mv -- "$control_center_stage" "${context_root}/control-center"
+    revision="$("${git_repo[@]}" rev-parse HEAD 2>/dev/null || printf unknown)"
     dirty=false
-    if [[ -n "$(git -C "$nav_root" status --porcelain -- . 2>/dev/null)" ]]; then dirty=true; fi
+    if [[ -n "$("${git_repo[@]}" status --porcelain -- "$nav_root" 2>/dev/null)" ]]; then dirty=true; fi
     export COBOT_SOURCE_REVISION="$revision" COBOT_SOURCE_DIRTY="$dirty"
     "${compose[@]}" build "$@" fleet
     ;;
   config) "${compose[@]}" config "$@" ;;
-  up) "${compose[@]}" up -d "$@" bridge zone-manager fleet ;;
-  up-local) "${compose[@]}" --profile local-broker up -d "$@" broker bridge zone-manager fleet ;;
-  down) "${compose[@]}" --profile local-broker down "$@" ;;
-  logs) "${compose[@]}" --profile local-broker logs "$@" ;;
+  up) "${compose[@]}" up -d "$@" bridge zone-manager fleet web ;;
+  check)
+    if [[ $# -ne 0 ]]; then usage >&2; exit 2; fi
+    "${compose[@]}" run --rm --no-deps web /opt/cobot/entrypoint.sh bash -c \
+      'python -c "import py_trees, fastapi, uvicorn; import cobot_control_center.fleet_api_node; import cobot_control_center.fleet_status_node" && ros2 run cobot_fleet_control control_center_web --navigation-root /opt/cobot_ws/src --mode preview --fleet existing'
+    ;;
+  ps) "${compose[@]}" ps "$@" ;;
+  down) "${compose[@]}" down "$@" ;;
+  logs) "${compose[@]}" logs "$@" ;;
   versions)
     "${compose[@]}" images fleet
     "${compose[@]}" exec -T fleet bash -c \
-      'cat /opt/cobot/build-versions/source-revision.txt /opt/cobot/build-versions/source-dirty.txt /opt/cobot/build-versions/python.txt /opt/cobot/build-versions/dpkg.tsv'
+      'cat /opt/cobot/build-versions/source-revision.txt /opt/cobot/build-versions/source-dirty.txt /opt/cobot/build-versions/control-center-revision.txt /opt/cobot/build-versions/python.txt /opt/cobot/build-versions/dpkg.tsv'
     ;;
   export-bt)
     if [[ $# -ne 1 || ! "$1" =~ ^[A-Za-z0-9_-]{1,80}$ ]]; then
@@ -58,16 +83,11 @@ case "$operation" in
       'ros2 run cobot_fleet_control fleet_bt_trace --db /var/lib/cobot/fleet_control.sqlite3 --command-id "$1" --output /tmp/bt_trace.json && cat /tmp/bt_trace.json' \
       bash "$1"
     ;;
-  resolve-unknown)
-    if [[ $# -ne 5 || "$5" != --confirm-stopped ]]; then
-      echo '사용법: resolve-unknown ID ROBOT OPERATOR REASON --confirm-stopped' >&2
-      exit 2
-    fi
-    "${compose[@]}" run --rm --no-deps -T fleet \
-      ros2 run cobot_fleet_control fleet_resolve_unknown \
-      --db /var/lib/cobot/fleet_control.sqlite3 \
-      --command-id "$1" --robot-id "$2" --operator "$3" --reason "$4" \
-      --confirm-stopped
+  view-bt)
+    if [[ $# -ne 0 ]]; then usage >&2; exit 2; fi
+    "${compose[@]}" exec -T fleet /opt/cobot/entrypoint.sh \
+      ros2 run cobot_fleet_control fleet_bt_viewer \
+      --db /var/lib/cobot/fleet_control.sqlite3
     ;;
   *) usage >&2; exit 2 ;;
 esac

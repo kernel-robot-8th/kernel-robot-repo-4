@@ -29,7 +29,7 @@ def ros_env(tmp_path, monkeypatch):
     from cobot_pinky_patrol.pinky_patrol_node import PinkyPatrolNode
 
     params = load_parameters('pinky1')
-    params.update(restore_pose=False, idle_return_sec=0.0, tick_sec=0.01,
+    params.update(restore_pose=False, idle_return_sec=0.0, tick_sec=0.01, central_controlled=False,
                   pose_file=str(tmp_path / 'pose.json'))
     param_file = tmp_path / 'params.yaml'
     param_file.write_text(yaml.safe_dump({'pinky_patrol_node': {'ros__parameters': params}}))

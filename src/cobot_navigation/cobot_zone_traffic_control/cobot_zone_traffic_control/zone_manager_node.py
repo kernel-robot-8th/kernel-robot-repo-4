@@ -34,7 +34,7 @@ zone_manager_node.py(v1)를 복사해 만든 독립 파일입니다. 기존 파�
   - ROS 노드  : ZoneManagerNode  (토픽 입출력, 락, 타이머, 슬롯 발행 타이밍 제어), ZoneState (구역 1개의 상태)
 
 [안전장치]
-- max_hold_sec        : 점유자가 notify_exit 를 못 보내도 강제 해제 (v1과 동일)
+- max_hold_sec        : 점유 시간 초과 경고. notify_exit 전까지 점유 유지
 - queue_stale_sec     : 대기자의 request_entry 재전송이 끊기면 큐에서 제거
 - queue_max           : 대기자 수 상한 (넘으면 k=-1 거부, 슬롯 겹침 금지)
 - queue_advance_delay : 앞 로봇이 앵커를 떠날 시간을 주고 나서 뒤 로봇을 전진시킴
@@ -199,7 +199,7 @@ class ZoneQueue:
 
     # ---점유 시간 초과 검사---
     # [기능] 점유자가 max_hold_sec 보다 오래 점유 중인지 검사한다.
-    #        초과 시 경과 초를, 아니면 None 을 반환한다. (notify_exit 유실 시 강제 해제용)
+    #        초과 시 경과 초를, 아니면 None 을 반환한다. (notify_exit 유실 시 경고용)
     def hold_exceeded(self, now, max_hold_sec):
         """점유 시간이 max_hold_sec 를 넘었으면 경과 초, 아니면 None. (notify_exit 유실 대비 안전장치)"""
         if self.occupant is None or self.occupant_since is None:
@@ -227,6 +227,7 @@ class ZoneState:
         self.sent_k = {}
         # 이 시각 전에는 슬롯을 "앞으로 당기지" 않는다 (선두가 앵커를 떠날 시간 확보)
         self.advance_after = 0.0
+        self.hold_warning = None
 
 
 class ZoneManagerNode(Node):
@@ -429,9 +430,9 @@ class ZoneManagerNode(Node):
     # ---주기 감시 (1초: 유령 대기자 + 점유 초과)---
     # [기능] 1초 주기 감시 타이머. 구역마다
     #        (1) request_entry 재전송이 끊긴 stale 대기자를 제거하고 뒤 로봇을 전진시킨다.
-    #        (2) 점유 시간이 max_hold_sec 를 넘으면 notify_exit 유실로 보고 강제 해제한다.
+    #        (2) 점유 시간이 max_hold_sec 를 넘으면 경고하고 점유를 유지한다.
     def _check_timeout(self):
-        """1초 주기 감시: (1) stale 대기자 제거 (2) 점유 시간 초과 시 강제 해제."""
+        """1초 주기 감시: (1) stale 대기자 제거 (2) 점유 시간 초과 경고·점유 유지."""
         with self._lock:
             now = time.time()
             for z in self.zones.values():
@@ -446,11 +447,13 @@ class ZoneManagerNode(Node):
                     self._sync_slots_locked(z)
 
                 held = z.zq.hold_exceeded(now, self.max_hold_sec)
-                if held is not None:
+                owner = (z.zq.occupant, z.zq.occupant_since)
+                if held is not None and z.hold_warning != owner:
+                    z.hold_warning = owner
                     self.get_logger().warn(
                         f'[{z.name}][{z.zq.occupant}] {held:.0f}초 동안 notify_exit 없음 '
-                        f'-> 강제 해제 (max_hold_sec={self.max_hold_sec})')
-                    self._after_release(z, z.zq.release_and_advance(now))
+                        f'-> 점유 유지·현장 확인 필요 (max_hold_sec={self.max_hold_sec})')
+                    # A timeout proves no physical exit. Keep the owner until notify_exit.
 
     # ---보류된 전진 반영 (0.2초)---
     # [기능] 0.2초 주기 타이머. advance_delay 때문에 보류해 둔 "전진" 슬롯을

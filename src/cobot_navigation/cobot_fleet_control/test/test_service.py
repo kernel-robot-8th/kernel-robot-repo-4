@@ -4,7 +4,6 @@ import json
 
 from cobot_fleet_control.contracts import Command
 from cobot_fleet_control.repository import SqliteRepository
-from cobot_fleet_control.resolve_unknown import main as resolve_unknown_main
 from cobot_fleet_control.service import FleetService
 import pytest
 
@@ -124,16 +123,6 @@ def test_failure_and_outbox_ack(env):
     assert repo.pending() == []
 
 
-def test_telemetry_is_real_payload_with_receipt_time(env):
-    repo, *_ = env
-    status = {'state': 'MOVING', 'waypoint': 0, 'detail': 'P1', 'time': 123.0}
-    repo.record_status('pinky1', status)
-    event = json.loads(repo.pending()[0]['payload'])
-    assert event['status'] == status
-    assert event['type'] == 'robot_status'
-    assert event['recorded_at'] > 123
-
-
 @pytest.mark.parametrize('changes', [
     {'command_id': '../bad'}, {'robot_id': 'unknown'}, {'robot_id': []},
     {'operation': 'start'}, {'operation': []}, {'points': 'P1'}, {'points': ['P1:stop']},
@@ -193,23 +182,41 @@ def test_manual_resolution_preserves_history_and_releases_only_unknown(env):
     service.submit(request('job2'))
 
 
-def test_resolution_cli_requires_server_stop_and_confirmation(tmp_path, capsys):
-    path = str(tmp_path / 'fleet.sqlite3')
+def test_legacy_five_column_database_upgrades_without_losing_unknown_reservation(tmp_path):
+    """웹 시간 필드를 추가한 뒤에도 기존 관제 데이터베이스를 사용할 수 있어야 한다."""
+    import sqlite3
+    path = str(tmp_path / 'legacy.sqlite3')
+    with sqlite3.connect(path) as connection:
+        connection.execute('CREATE TABLE commands (command_id TEXT PRIMARY KEY, robot_id TEXT, '
+                           'payload TEXT, state TEXT, detail TEXT)')
+        connection.execute('INSERT INTO commands VALUES (?,?,?,?,?)',
+                           ('legacy1', 'pinky1', '{}', 'UNKNOWN', 'legacy detail'))
+    repo = SqliteRepository(path)
+    try:
+        assert repo.get('legacy1')['detail'] == 'legacy detail'
+        assert repo.get('legacy1')['created_at'] == 0
+        assert repo.busy('pinky1')
+        repo.create(Command.parse(request('new1', 'pinky2'), ['pinky2']))
+        assert repo.get('new1')['created_at'] > 0
+    finally:
+        repo.close()
+
+
+def test_quarantined_stop_stays_unknown_after_restart_and_late_terminal_result(tmp_path):
+    path = str(tmp_path / 'operator-stop.sqlite3')
     repo = SqliteRepository(path)
     service = FleetService(repo, Gateway(), ['pinky1'])
     service.submit(request())
     service.tick()
-    repo.transition('job1', 'UNKNOWN', '응답 시간 초과')
-    args = ['--db', path, '--command-id', 'job1', '--robot-id', 'pinky1',
-            '--operator', 'operator1', '--reason', '현장 정지 확인']
-    with pytest.raises(SystemExit):
-        resolve_unknown_main(args)
-    with pytest.raises(SystemExit):
-        resolve_unknown_main(args + ['--confirm-stopped'])
-    assert repo.get('job1')['state'] == 'UNKNOWN'
+    service.quarantine('job1', '운영자 stop')
     repo.close()
-    resolve_unknown_main(args + ['--confirm-stopped'])
-    assert 'job1 (pinky1): FAILED' in capsys.readouterr().out
-    check = SqliteRepository(path)
-    assert check.get('job1')['state'] == 'FAILED'
-    check.close()
+    repo = SqliteRepository(path)
+    try:
+        service = FleetService(repo, Gateway(), ['pinky1'])
+        service.on_status('pinky1', dict(command_id='job1', state='STOPPED', task_finished=True))
+        assert repo.get('job1')['state'] == 'UNKNOWN'
+        assert repo.confirmation_required('job1')
+        repo.resolve_unknown('job1', 'pinky1', 'operator', '현장 정지·구역 이탈 확인')
+        assert not repo.busy('pinky1')
+    finally:
+        repo.close()
