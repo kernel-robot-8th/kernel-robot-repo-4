@@ -52,7 +52,11 @@ def test_map_symlink_uses_the_same_image_directory_as_nav2(tmp_path):
 def test_readiness_distinguishes_inactive_zero_servers_and_wrong_robot():
     """프로세스가 존재해도 비활성 Nav2와 다른 로봇은 준비로 판정하지 않는다."""
     checks = module.readiness_checks('pinky2', ['/scan', '/odom', '/tf'])
-    assert checks[0][0][0] == ['ros2', 'topic', 'echo', '--once', '/scan']
+    assert checks[0][0][0] == [
+        'ros2', 'topic', 'echo', '--once', '/scan', 'sensor_msgs/msg/LaserScan',
+        '--qos-reliability', 'best_effort']
+    assert 'nav_msgs/msg/Odometry' in checks[0][1][0]
+    assert 'tf2_msgs/msg/TFMessage' in checks[0][2][0]
     assert re.search(checks[1][0][1], 'active [3]\n')
     assert not re.search(checks[1][0][1], 'inactive [2]\n')
     assert not re.search(checks[1][2][1], 'Action servers: 0\n')
@@ -122,6 +126,23 @@ def test_probe_timeout_is_not_ready(monkeypatch):
 
     monkeypatch.setattr(module.subprocess, 'run', timed_out)
     assert not module.RobotStartup().probe(['probe'], None, 1)
+
+
+def test_custom_topic_keeps_type_discovery_and_sensor_qos():
+    """사용자 지정 토픽도 best-effort 센서와 호환되며 타입은 동적으로 조회한다."""
+    checks = module.readiness_checks('pinky2', ['/front_scan'])
+    assert checks[0][0][0] == [
+        'ros2', 'topic', 'echo', '--once', '/front_scan',
+        '--qos-reliability', 'best_effort']
+
+
+def test_failed_probe_keeps_bounded_diagnostic(monkeypatch):
+    """ROS CLI 오류를 준비 실패 사유로 남겨 시간 초과의 원인을 확인할 수 있다."""
+    monkeypatch.setattr(module.subprocess, 'run', lambda *a, **k: SimpleNamespace(
+        returncode=1, stdout='', stderr='missing type support'))
+    runner = module.RobotStartup()
+    assert not runner.probe(['probe'], None, 1)
+    assert runner.last_probe_error == 'missing type support'
 
 
 def test_missing_map_does_not_start_any_process(tmp_path, monkeypatch):

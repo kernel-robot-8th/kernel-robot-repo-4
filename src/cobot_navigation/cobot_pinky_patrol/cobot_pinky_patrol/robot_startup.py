@@ -29,8 +29,17 @@ def startup_commands(robot_id, map_path, site='lab'):
 
 def readiness_checks(robot_id, topics):
     """프로세스 시작과 ROS 준비 완료를 구분할 검사 목록을 만든다."""
+    types = {'/scan': 'sensor_msgs/msg/LaserScan', '/odom': 'nav_msgs/msg/Odometry',
+             '/tf': 'tf2_msgs/msg/TFMessage'}
+    topic_checks = []
+    for topic in topics:
+        command = ['ros2', 'topic', 'echo', '--once', topic]
+        if topic in types:
+            command.append(types[topic])
+        command += ['--qos-reliability', 'best_effort']
+        topic_checks.append((command, None))
     return [
-        [(['ros2', 'topic', 'echo', '--once', topic], None) for topic in topics],
+        topic_checks,
         [(['ros2', 'lifecycle', 'get', node], r'(?m)^active \[3\]\s*$')
          for node in ('/amcl', '/bt_navigator')]
         + [(['ros2', 'action', 'info', '/navigate_to_pose', '--count'],
@@ -91,10 +100,11 @@ def startup_lock(robot_id):
 class RobotStartup:
     """각 단계의 준비·시간 제한·종료를 담당하는 로봇 로컬 감독기."""
 
-    def __init__(self, delay=5.0, timeout=90.0, probe_timeout=5.0):
+    def __init__(self, delay=5.0, timeout=90.0, probe_timeout=15.0):
         """단계 간격·시간 제한과 소유 프로세스 목록을 초기화한다."""
         self.delay, self.timeout, self.probe_timeout = delay, timeout, probe_timeout
         self.processes = []
+        self.last_probe_error = ''
 
     def check_alive(self):
         """먼저 기동한 단계가 종료되면 이후 기동을 중단한다."""
@@ -107,11 +117,15 @@ class RobotStartup:
         try:
             result = subprocess.run(
                 command, stdout=subprocess.PIPE if pattern else subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, text=True, timeout=timeout, check=False)
+                stderr=subprocess.PIPE, text=True, timeout=timeout, check=False)
         except subprocess.TimeoutExpired:
+            self.last_probe_error = f'조회 제한 시간 {timeout:g}초 초과'
             return False
-        return result.returncode == 0 and (
+        ready = result.returncode == 0 and (
             pattern is None or re.search(pattern, result.stdout) is not None)
+        self.last_probe_error = '' if ready else (
+            result.stderr.strip()[-500:] or '준비 상태 응답 불일치')
+        return ready
 
     def wait_ready(self, checks):
         """최소 간격을 둔 뒤 준비 검사를 통과한 단계만 다음으로 진행한다."""
@@ -132,7 +146,8 @@ class RobotStartup:
                 pending.pop(0)
             else:
                 time.sleep(0.2)
-        raise TimeoutError(f'준비 시간 초과: {pending[0][0] if pending else "최소 간격"}')
+        detail = f' ({self.last_probe_error})' if self.last_probe_error else ''
+        raise TimeoutError(f'준비 시간 초과: {pending[0][0] if pending else "최소 간격"}{detail}')
 
     def run(self, robot_id, commands, checks):
         """준비 완료 표시 이후에도 프로세스를 감독하며 SSH 세션 수명을 유지한다."""
@@ -184,6 +199,8 @@ def main(args=None):
     parser.add_argument('--site', default='lab')
     parser.add_argument('--stage-delay', type=float, default=5.0)
     parser.add_argument('--stage-timeout', type=float, default=90.0)
+    parser.add_argument('--probe-timeout', type=float, default=15.0,
+                        help='ROS CLI 조회 한 번의 제한 시간(초)')
     parser.add_argument('--topic', action='append', help='bringup 준비 확인 토픽; 반복 지정')
     options = parser.parse_args(args)
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', options.robot_id):
@@ -198,6 +215,8 @@ def main(args=None):
         parser.error('stage-timeout은 유한한 양수이며 stage-delay보다 커야 합니다')
     if options.topic and any(not re.fullmatch(r'/[A-Za-z0-9_/]+', t) for t in options.topic):
         parser.error('topic은 절대 ROS 토픽 이름이어야 합니다')
+    if not math.isfinite(options.probe_timeout) or options.probe_timeout <= 0:
+        parser.error('probe-timeout은 유한한 양수여야 합니다')
     try:
         workspace, map_path = validate_files(options.workspace, options.map)
         validate_ros_packages()
@@ -214,7 +233,7 @@ def main(args=None):
         signal.signal(sig, stop)
     try:
         with startup_lock(options.robot_id):
-            RobotStartup(options.stage_delay, options.stage_timeout).run(
+            RobotStartup(options.stage_delay, options.stage_timeout, options.probe_timeout).run(
                 options.robot_id, startup_commands(options.robot_id, map_path, options.site),
                 readiness_checks(options.robot_id, options.topic or ['/scan', '/odom', '/tf']))
     except KeyboardInterrupt:
