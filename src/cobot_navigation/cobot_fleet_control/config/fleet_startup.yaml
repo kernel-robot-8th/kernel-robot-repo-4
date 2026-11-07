@@ -1,0 +1,31 @@
+# SSH 계정은 실제 계정을 받은 뒤 입력한다. 기본 launch는 접속 없는 미리보기다.
+defaults:
+  workspace: /ws/kernel-robot-repo-4
+  ros_setup: /opt/ros/jazzy/setup.bash
+  # 관제 PC가 아닌 SSH 접속 계정의 로봇 HOME에서 확장한다.
+  map: ~/cobot_map_v9.yaml
+  site: lab
+  # pinky_bringup/pinky_navigation이 별도 workspace에 있으면 setup.bash 절대 경로 추가.
+  underlay_setups: []
+  stage_delay_sec: 5.0
+  stage_timeout_sec: 90.0
+  readiness_topics: [/scan, /odom, /tf]
+  # 장비에서 쓰는 DDS 설정을 확인한 뒤 로봇별로도 덮어쓸 수 있다.
+  environment: {}
+  ssh_port: 22
+
+# 한 로봇의 기동 검사가 끝난 후 다음 로봇을 시작하기 전 추가 간격.
+robot_delay_sec: 3.0
+robots:
+  pinky1:
+    host: 192.168.45.21
+    ssh_user: ''
+    domain_id: 10
+  pinky2:
+    host: 192.168.45.22
+    ssh_user: ''
+    domain_id: 20
+  pinky3:
+    host: 192.168.45.23
+    ssh_user: ''
+    domain_id: 30

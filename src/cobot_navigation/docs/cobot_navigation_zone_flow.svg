@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 780" width="1000" height="780" role="img" aria-labelledby="t d">
+  <title id="t">동작 흐름: 구역으로 이동해서 나오기까지</title>
+  <desc id="d">pinky_control_client가 zone ZA 명령을 보낸 뒤 구역이 비어 있을 때와 점유 중일 때 순찰 노드와 zone_manager_node가 주고받는 메시지의 순서</desc>
+  <style>
+    .sans { font-family: 'Noto Sans CJK KR','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo','Noto Sans CJK SC',sans-serif; }
+    .mono { font-family: 'SFMono-Regular','Menlo','Consolas','DejaVu Sans Mono',monospace; }
+    .ink { fill: #1f2937; }
+    .sub { fill: #6b7280; }
+    .acc { fill: #1d4ed8; }
+    .head { fill: #ffffff; stroke: #8a94a3; stroke-width: 1.4; }
+    .headacc { fill: #e8f0fd; stroke: #2f6fde; stroke-width: 2; }
+    .life { stroke: #c9ced6; stroke-width: 1.4; stroke-dasharray: 5 5; }
+    .msg { stroke: #5b6573; stroke-width: 1.6; fill: none; }
+    .note { fill: #fff8e6; stroke: #e0b84c; stroke-width: 1.2; }
+    .frame { fill: none; stroke: #c9ced6; stroke-width: 1.4; stroke-dasharray: 6 4; }
+    .tag { fill: #eef0f3; stroke: #c9ced6; stroke-width: 1.2; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5b6573"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="780" fill="#ffffff"/>
+
+  <text x="24" y="34" class="sans ink" font-size="18" font-weight="700">동작 흐름: 구역으로 이동해서 나오기까지</text>
+  <text x="24" y="54" class="sans sub" font-size="12.5">pinky_control_client.py pinky1 zone ZA 를 보낸 경우입니다. 모든 메시지는 cobot_domain_bridge 를 지나므로 그림에서는 생략했습니다</text>
+
+  <!-- 생명선 머리 -->
+  <rect class="head" x="50" y="72" width="200" height="46" rx="8"/>
+  <text x="150" y="92" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">pinky_control_client</text>
+  <text x="150" y="108" text-anchor="middle" class="sans sub" font-size="11.5">관제 PC</text>
+  <rect class="head" x="400" y="72" width="200" height="46" rx="8"/>
+  <text x="500" y="92" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">pinky_patrol_node</text>
+  <text x="500" y="108" text-anchor="middle" class="sans sub" font-size="11.5">로봇 (ZoneGateClient 포함)</text>
+  <rect class="headacc" x="750" y="72" width="200" height="46" rx="8"/>
+  <text x="850" y="92" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">zone_manager_node</text>
+  <text x="850" y="108" text-anchor="middle" class="sans sub" font-size="11.5">관제 PC</text>
+
+  <line class="life" x1="150" y1="118" x2="150" y2="744"/>
+  <line class="life" x1="500" y1="118" x2="500" y2="744"/>
+  <line class="life" x1="850" y1="118" x2="850" y2="744"/>
+
+  <!-- 1, 2 -->
+  <line class="msg" x1="150" y1="156" x2="500" y2="156" marker-end="url(#arrow)"/>
+  <text x="162" y="147" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">1</tspan><tspan class="mono" dx="8">zone:ZA</tspan><tspan class="sans sub" font-size="11.5" dx="8">(/pinkyN/patrol_cmd)</tspan></text>
+  <line class="msg" x1="500" y1="196" x2="850" y2="196" marker-end="url(#arrow)"/>
+  <text x="512" y="187" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">2</tspan><tspan class="mono" dx="8">request_entry</tspan><tspan class="sans sub" font-size="11.5" dx="8">(1초마다 재전송)</tspan></text>
+
+  <!-- 구역이 비어 있을 때 -->
+  <rect class="frame" x="30" y="222" width="940" height="108" rx="8"/>
+  <rect class="tag" x="30" y="222" width="170" height="22" rx="6"/>
+  <text x="42" y="238" class="sans ink" font-size="12" font-weight="700">구역이 비어 있을 때</text>
+  <line class="msg" x1="850" y1="278" x2="500" y2="278" marker-end="url(#arrow)"/>
+  <text x="512" y="269" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">3a</tspan><tspan class="mono" dx="8">grant_entry</tspan><tspan class="sans sub" font-size="11.5" dx="8">(즉시 허가)</tspan></text>
+  <rect class="note" x="355" y="294" width="290" height="26" rx="6"/>
+  <text x="369" y="311" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">4a</tspan><tspan class="sans" dx="8">구역 지점 ZA 로 이동 →</tspan><tspan class="mono" dx="6">HOLDING_ZONE</tspan></text>
+
+  <!-- 다른 로봇이 점유 중일 때 -->
+  <rect class="frame" x="30" y="346" width="940" height="236" rx="8"/>
+  <rect class="tag" x="30" y="346" width="210" height="22" rx="6"/>
+  <text x="42" y="362" class="sans ink" font-size="12" font-weight="700">다른 로봇이 점유 중일 때</text>
+  <line class="msg" x1="850" y1="404" x2="500" y2="404" marker-end="url(#arrow)"/>
+  <text x="512" y="395" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">3b</tspan><tspan class="mono" dx="8">queue_slot</tspan><tspan class="sans sub" font-size="11.5" dx="8">(순번 k, 슬롯 x·y·yaw)</tspan></text>
+  <rect class="note" x="385" y="420" width="240" height="26" rx="6"/>
+  <text x="399" y="437" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">4b</tspan><tspan class="sans" dx="8">슬롯으로 이동 →</tspan><tspan class="mono" dx="6">QUEUEING</tspan></text>
+  <rect class="note" x="335" y="460" width="330" height="26" rx="6"/>
+  <text x="349" y="477" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">5</tspan><tspan class="sans" dx="8">앞 로봇이 나가면 대기열을 한 칸씩 전진</tspan></text>
+  <line class="msg" x1="850" y1="520" x2="500" y2="520" marker-end="url(#arrow)"/>
+  <text x="512" y="511" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">6</tspan><tspan class="mono" dx="8">grant_entry</tspan><tspan class="sans sub" font-size="11.5" dx="8">(선두가 되면 허가)</tspan></text>
+  <rect class="note" x="365" y="536" width="270" height="26" rx="6"/>
+  <text x="379" y="553" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">7</tspan><tspan class="sans" dx="8">ZA 로 이동 →</tspan><tspan class="mono" dx="6">HOLDING_ZONE</tspan></text>
+
+  <!-- 나오기 -->
+  <line class="msg" x1="150" y1="622" x2="500" y2="622" marker-end="url(#arrow)"/>
+  <text x="162" y="613" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">8</tspan><tspan class="mono" dx="8">leave</tspan></text>
+  <rect class="note" x="345" y="638" width="310" height="26" rx="6"/>
+  <text x="359" y="655" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">9</tspan><tspan class="mono" dx="8">ZA_EXIT</tspan><tspan class="sans" dx="6">로 이동, 도착한 뒤 토큰 반납</tspan></text>
+  <line class="msg" x1="500" y1="696" x2="850" y2="696" marker-end="url(#arrow)"/>
+  <text x="512" y="687" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">10</tspan><tspan class="mono" dx="8">notify_exit</tspan></text>
+  <rect class="note" x="705" y="712" width="270" height="26" rx="6"/>
+  <text x="719" y="729" class="ink" font-size="12"><tspan class="mono acc" font-weight="700">11</tspan><tspan class="sans" dx="8">락 해제 → 대기열 선두가 점유</tspan></text>
+
+  <text x="24" y="766" class="sans sub" font-size="11.5">안전장치: 반납이 없어도 max_hold_sec(240초) 뒤 강제 해제, 재요청이 queue_stale_sec(5초) 끊기면 대기열에서 제거, 대기자가 queue_max(3명)를 넘으면 queue_full 로 FAILED</text>
+</svg>
