@@ -167,7 +167,15 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 
 ## 시나리오와 외부 추론 PC
 
-`config/scenario.yaml`의 작업점·팔 매핑은 예시입니다. 실제 설치에 맞춰야 합니다.
+`config/scenario.yaml`의 배송 경로는 다음과 같습니다. 두 경로 모두 상차는 omx1, 하차는 omx2를 사용합니다.
+
+| 주문의 route | 상차 지점 | 하차 지점 |
+|---|---|---|
+| `lab_delivery` | ZA | ZC |
+| `lab_delivery_zb` | ZB | ZC |
+
+두 주문은 각각 접수할 수 있으며, 같은 팔·ZC·통로 예약을 사용하는 단계는 자원을 기다립니다.
+좌표는 `cobot_pinky_patrol/config/sites/lab.yaml`에서 관리합니다.
 주문·수령·시나리오 복구는 내부 요청 타입이 준비돼 있고, 해당 HTTP 엔드포인트·화면은 기존 웹에 추가해야 합니다.
 별도 추론 PC에는 아직 ROS·통신 API가 없으며 원격 HTTP 추론 제어는 별도 연동 작업입니다.
 추론 코드·가중치·LeRobot·GPU 라이브러리를 이 패키지에 넣지 않습니다.
