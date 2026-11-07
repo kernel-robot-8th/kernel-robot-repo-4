@@ -35,7 +35,7 @@ setup(
     zip_safe=True,
     maintainer='Pinky Team4 vision',
     maintainer_email='vision@example.com',
-    description='Pinky Pro Best Effort raw camera topic test',
+    description='Pinky Pro Best Effort JPEG and raw camera topic test',
     license='Apache-2.0',
     entry_points={'console_scripts': [
         'camera_publisher = cobot_camera_topic_test.camera_publisher_node:main',

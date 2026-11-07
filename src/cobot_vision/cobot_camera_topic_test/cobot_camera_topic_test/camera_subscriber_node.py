@@ -12,62 +12,76 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Subscribe to Image topic and display or save frames."""
+"""Monitor JPEG or raw Pinky Pro camera topics and report receive throughput."""
 
-import cv2
-import numpy as np
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+import math
+import time
 
 from cobot_camera_topic_test.camera_runtime import camera_qos, run_node
+from cobot_camera_topic_test.camera_utils import (
+    jpeg_shape, StreamStats, transport_topic, validate_image,
+)
+from rclpy.node import Node
+from sensor_msgs.msg import CompressedImage, Image
 
 
 class CameraSubscriberNode(Node):
-    """Subscribe to camera topic and display frames."""
+    """Check image metadata and payload size and report receive throughput."""
 
     def __init__(self, **kwargs):
-        """Subscribe to camera topic."""
+        """Subscribe to the selected transport with explicit Best Effort QoS."""
         super().__init__('camera_subscriber', **kwargs)
-        topic = self.declare_parameter('topic', 'camera/image_raw').value
-        self.display = self.declare_parameter('display', False).value
-        self.report_interval = self.declare_parameter('report_interval', 2.0).value
-
-        self.bridge = CvBridge()
-        self.subscription = self.create_subscription(
-            Image, topic, self.image_callback, camera_qos())
-        self.frame_count = 0
-        self.last_report_time = self.get_clock().now().nanoseconds / 1e9
-
-        self.get_logger().info(f'Subscribed to {topic}, display={self.display}')
-
-    def image_callback(self, msg):
-        """Process received image."""
         try:
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            topic = self.declare_parameter('topic', '/camera/image_raw').value
+            self.transport = self.declare_parameter('transport', 'compressed').value
+            topic = transport_topic(topic, self.transport)
+            message_type = CompressedImage if self.transport == 'compressed' else Image
+            interval = self.declare_parameter('report_interval', 2.0).value
+            if not math.isfinite(interval) or interval <= 0:
+                raise ValueError('report_interval must be finite and positive')
+            self.stats = StreamStats(time.monotonic())
+            self.total_frames = 0
+            self.invalid_frames = 0
+            self.last_shape = None
+            self.subscription = self.create_subscription(
+                message_type, topic, self.receive_frame, camera_qos())
+            self.timer = self.create_timer(interval, self.report)
+            self.get_logger().info(
+                f'topic={self.subscription.topic_name}, '
+                'QoS=BEST_EFFORT / VOLATILE / KEEP_LAST(1)')
+        except Exception:
+            self.destroy_node()
+            raise
 
-            if frame is None:
-                self.get_logger().warning('Failed to convert image')
-                return
+    def receive_frame(self, message):
+        """Count valid images and measure their transmitted payload size."""
+        try:
+            if self.transport == 'compressed':
+                height, width = jpeg_shape(message.format, message.data)
+            else:
+                validate_image(message.width, message.height, message.step,
+                               message.encoding, message.data)
+                height, width = message.height, message.width
+        except ValueError:
+            self.invalid_frames += 1
+            return
+        self.stats.record(len(message.data))
+        self.total_frames += 1
+        self.last_shape = (height, width)
 
-            self.frame_count += 1
-
-            if self.display:
-                cv2.imshow('Camera Feed', frame)
-                cv2.waitKey(1)
-
-            current_time = self.get_clock().now().nanoseconds / 1e9
-            if current_time - self.last_report_time >= self.report_interval:
-                self.get_logger().info(f'Received {self.frame_count} frames')
-                self.last_report_time = current_time
-
-        except Exception as e:
-            self.get_logger().error(f'Error processing image: {e}')
-
-    def destroy_node(self):
-        """Clean up on shutdown."""
-        cv2.destroyAllWindows()
-        return super().destroy_node()
+    def report(self):
+        """Report local receive rates and warn about missing valid frames."""
+        frames, fps, kib_per_second = self.stats.sample(time.monotonic())
+        if frames == 0:
+            self.get_logger().warning(
+                f'No valid frames: total={self.total_frames}, invalid={self.invalid_frames}; '
+                'check publisher, topic, domain, network and QoS')
+            return
+        height, width = self.last_shape
+        self.get_logger().info(
+            f'received={self.total_frames}, fps={fps:.1f}, '
+            f'KiB/s={kib_per_second:.1f}, size={width}x{height}, '
+            f'invalid={self.invalid_frames}')
 
 
 def main(args=None):

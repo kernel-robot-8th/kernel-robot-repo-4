@@ -1,11 +1,13 @@
 /**:
   ros__parameters:
     topic: /camera/image_raw
+    transport: compressed
 
 /**/camera_publisher:
   ros__parameters:
     source: pinky
     fps: 10.0
+    jpeg_quality: 85
     encoding: bgr8
     frame_id: front_camera_link
     max_read_failures: 30

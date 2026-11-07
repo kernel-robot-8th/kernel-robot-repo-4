@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Validate raw images and measure receive throughput without imaging dependencies."""
+"""Validate camera settings, encode JPEG images and measure receive throughput."""
 
 from dataclasses import dataclass
 import math
@@ -33,11 +33,16 @@ class CameraSettings:
     frame_id: str = 'front_camera_link'
     max_read_failures: int = 30
     jpeg_quality: int = 85
+    transport: str = 'compressed'
 
     def validate(self):
         """Reject invalid settings before opening a camera or creating a timer."""
         if self.source not in ('pinky', 'synthetic'):
             raise ValueError('source must be pinky or synthetic')
+        if self.transport not in ('compressed', 'raw'):
+            raise ValueError('transport must be compressed or raw')
+        if type(self.jpeg_quality) is not int or not 1 <= self.jpeg_quality <= 100:
+            raise ValueError('jpeg_quality must be an integer from 1 to 100')
         for name in ('width', 'height', 'max_read_failures'):
             value = getattr(self, name)
             if type(value) is not int or value <= 0:
@@ -49,6 +54,58 @@ class CameraSettings:
         if not self.frame_id.strip():
             raise ValueError('frame_id must not be empty')
         return self
+
+
+def transport_topic(topic, transport):
+    """Resolve a base image topic to the selected ROS image transport."""
+    if transport not in ('compressed', 'raw'):
+        raise ValueError('transport must be compressed or raw')
+    if not isinstance(topic, str) or not topic.strip() or not topic.rstrip('/'):
+        raise ValueError('topic must be a nonempty base image topic')
+    topic = topic.rstrip('/')
+    if topic.endswith('/compressed'):
+        raise ValueError('topic must be the base topic without /compressed')
+    return f'{topic}/compressed' if transport == 'compressed' else topic
+
+
+def jpeg_payload(width, height, step, encoding, data, quality):
+    """Encode vendor pixels as JPEG while preserving the actual frame dimensions."""
+    import cv2
+    import numpy as np
+
+    validate_image(width, height, step, encoding, data)
+    channels = CHANNELS[encoding]
+    frame = np.ndarray((height, width, channels), dtype=np.uint8,
+                       buffer=data, strides=(step, channels, 1))
+    conversions = {
+        'rgb8': cv2.COLOR_RGB2BGR,
+        'bgra8': cv2.COLOR_BGRA2BGR,
+        'rgba8': cv2.COLOR_RGBA2BGR,
+    }
+    if encoding in conversions:
+        frame = cv2.cvtColor(frame, conversions[encoding])
+    ok, encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise RuntimeError('JPEG encoding failed')
+    pixels = 'mono8' if channels == 1 else 'bgr8'
+    return f'{pixels}; jpeg compressed {pixels}', encoded.tobytes()
+
+
+def jpeg_shape(image_format, data):
+    """Decode JPEG to reject corrupt frames and return the received dimensions."""
+    import cv2
+    import numpy as np
+
+    if ('jpeg' not in image_format.lower() or len(data) < 4
+            or bytes(data[:2]) != b'\xff\xd8' or bytes(data[-2:]) != b'\xff\xd9'):
+        raise ValueError('Expected a complete JPEG image')
+    try:
+        frame = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    except cv2.error as error:
+        raise ValueError('JPEG decoding failed') from error
+    if frame is None:
+        raise ValueError('JPEG decoding failed')
+    return frame.shape[:2]
 
 
 def validate_image(width, height, step, encoding, data):
