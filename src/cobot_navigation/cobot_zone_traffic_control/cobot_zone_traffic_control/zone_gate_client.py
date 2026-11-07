@@ -27,7 +27,6 @@ zone_gate_client.py  (주석 정리본 - 로직은 원본과 동일)
 import time
 import uuid
 
-import rclpy
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
@@ -285,52 +284,6 @@ class ZoneGateClient:
         """요청 실제 발행 + 재전송 타이머 갱신 (send/resend가 공통으로 사용)."""
         self.request_pub.publish(String(data=f'{self._zone}:{self.robot_id}:{self._token}'))
         self._retry.mark(self._clock())   # '방금 보냈음' 기록
-
-    # ------------------------------------------------------------------
-    # 블로킹 API (v1 과 동일): 허가가 날 때까지 "멈춰서 기다림"
-    # ------------------------------------------------------------------
-    def wait_for_entry(self, timeout_sec=None, stop_check=None):
-        """
-        허가가 날 때까지 블로킹(그 자리에서 대기).
-
-        stop_check : 인자 없이 호출해 True/False를 돌려주는 콜백.
-                     True면 즉시 대기 중단 (예: patrol 노드의 stop 명령 처리)
-        반환값     : 허가받았으면 True, timeout 또는 stop_check로 중단되면 False
-
-        reset(zone) 으로 구역을 먼저 지정해야 한다.
-
-        구조: 바깥 루프(요청 발행) 안에 안쪽 루프(1초간 응답 확인)가 있는 이중 루프
-          바깥: 요청 발행 -> 안쪽 진입
-          안쪽: 0.1초씩 spin_once 로 메시지 처리 -> 허가/중단/타임아웃 검사 -> 1초 지나면 바깥으로
-        """
-        if self._zone is None:
-            raise RuntimeError('wait_for_entry 전에 reset(zone) 으로 구역을 지정해야 합니다')
-        token = uuid.uuid4().hex[:8]
-        self._granted_token = None
-        start = time.time()
-
-        while rclpy.ok():                       # ROS가 살아있는 동안 반복
-            if stop_check is not None and stop_check():
-                return False
-
-            msg = String()
-            msg.data = f'{self._zone}:{self.robot_id}:{token}'
-            self.request_pub.publish(msg)       # 요청 발행
-
-            end_wait = time.time() + self.retry_period   # 이번 라운드 종료 시각
-            while time.time() < end_wait:
-                # spin_once: 들어온 메시지를 최대 0.1초 동안 처리 (콜백이 여기서 실행됨!)
-                rclpy.spin_once(self.node, timeout_sec=0.1)
-                if self._granted_token == token:         # 허가 도착
-                    self.node.get_logger().info(
-                        f'[{self.robot_id}] zone {self._zone} 진입 허가 받음')
-                    return True
-                if stop_check is not None and stop_check():   # 외부 중단 요청
-                    return False
-                if timeout_sec is not None and (time.time() - start) > timeout_sec:
-                    return False                              # 시간 초과
-
-        return False
 
     def notify_exit(self):
         """현재 구역(reset 으로 지정한 구역)을 완전히 벗어났음을 매니저에 통보 (락 즉시 해제)."""

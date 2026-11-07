@@ -1,0 +1,5 @@
+# 로봇별 식별 정보만 관리한다. 좌표는 sites/<site>.yaml에서 읽는다.
+pinky_patrol_node:
+  ros__parameters:
+    robot_id: pinky3
+    home_name: I3

@@ -6,7 +6,7 @@ zone_manager_node:
     max_hold_sec: 240.0   # 유휴 복귀(idle_return_sec 120초) + EXIT 이동 시간 동안 매니저가 토큰을 먼저 회수하지 않도록 120 -> 240 (2026-10-27)
 
     # ---- 위험구역 (구역마다 락·대기열·앵커가 따로) ----
-    # 구역 이름은 로봇 config/pinkyN.yaml 의 zone_names 와 같아야 한다 (':' 사용 불가).
+    # 구역 이름은 순찰 config/sites/<site>.yaml 의 zone_names 와 같아야 한다 (':' 사용 불가).
     zone_names: ["A", "B", "C"]
 
     # ---- 대기열 (map 좌표계) ----
