@@ -157,6 +157,16 @@ class ScenarioService:
                 runtime = ScenarioRuntime(self, order)
                 self.trees[order['order_id']] = runtime
             runtime.tick()
+            latest = self.store.get(order['order_id'])
+            pending = latest.get('manual_load_pending')
+            status = self.health.get(latest['robot_id'], {}).get('status', {})
+            if (pending and latest['state'] == 'RUNNING' and latest['stage'] == 'PICKUP_EXIT'
+                    and status.get('held_zone') and status.get('busy') is False):
+                try:
+                    self.confirm_loaded(latest['order_id'], pending['operator'],
+                                        pending['note'], pending['evidence'])
+                except ValueError as error:
+                    self.interrupt(latest['order_id'], 'UNKNOWN', '수동 상차 재확인 실패: ' + str(error))
             if self.store.get(order['order_id'])['state'] in TERMINAL | BLOCKED:
                 self.trees.pop(order['order_id'], None)
 
@@ -187,6 +197,10 @@ class ScenarioService:
     def interrupt(self, order_id, state, detail):
         """실행 중인 트리를 무효화하고 장치 정지와 예약 보류를 요청한다."""
         return scenario_safety.interrupt(self, order_id, state, detail)
+
+    def confirm_loaded(self, order_id, operator, note, evidence):
+        """운영자가 직접 확인한 적재·팔 퇴피·통로 이탈로 상차 후 체크포인트를 연다."""
+        return scenario_safety.confirm_loaded(self, order_id, operator, note, evidence)
 
     def recover(self, order_id, operator, note, decision, evidence):
         """현장 확인을 기록한 뒤 허용된 체크포인트에서만 새 트리를 구성한다."""
