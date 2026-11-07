@@ -1,6 +1,6 @@
 # omx_train
 
-ROBOTIS OMX 로봇팔 모방학습(LeRobot 0.6.1) 학습·평가·로봇 추론 코드입니다.
+ROBOTIS OMX 로봇팔 모방학습(LeRobot 0.4.4) 학습·평가·로봇 추론 코드입니다.
 
 | 폴더 | 정책 | 특징 |
 |---|---|---|
@@ -10,7 +10,7 @@ ROBOTIS OMX 로봇팔 모방학습(LeRobot 0.6.1) 학습·평가·로봇 추론 
 두 폴더는 각각 단독으로 쓸 수 있게 필요한 스크립트를 모두 담고 있습니다.
 
 - `train.sh`: Docker 학습. lerobot-train 옵션 전체가 들어 있고, 주석 없는 줄 = 마지막 학습에 쓴 값
-- `inference.sh`: 로봇 PC에서 설치된 lerobot으로 추론. lerobot-rollout 옵션 전체가 들어 있고, 주석 없는 줄 = 기본 실행 값
+- `inference.sh`: 로봇 PC에서 설치된 lerobot으로 추론. lerobot-record 옵션 전체가 들어 있고, 주석 없는 줄 = 기본 실행 값 (0.4.4에는 lerobot-rollout이 없음)
 
 ## 데이터와 모델 (Hugging Face)
 
