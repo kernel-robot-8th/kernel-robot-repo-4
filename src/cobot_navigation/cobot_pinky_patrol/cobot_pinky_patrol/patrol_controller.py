@@ -33,6 +33,7 @@ class PatrolController:
         self.operation = None
         self.names = ()
         self.held_zone = None
+        self.arrived_zone = None
         self.last_point = None
         self.idle_deadline = None
         self.steps = deque()
@@ -196,6 +197,8 @@ class PatrolController:
             self._begin_move()
 
     def _begin_move(self):
+        # 토큰은 진입 전 예약이며, 도착 증거는 이동을 시작하면 다시 확인해야 한다.
+        self.arrived_zone = None
         name = exit_name(self.step.target) if self.step.kind == 'exit' else self.step.target
         state = ('RETREATING' if self._stop else 'LEAVING_ZONE') if self.step.kind == 'exit' else (
             'RETURNING' if self.step.kind == 'home' else 'MOVING')
@@ -228,6 +231,9 @@ class PatrolController:
             self.last_point = None
         else:
             self.last_point = self.step.target
+            zone = zone_of(self.zone_points, self.step.target)
+            if zone == self.held_zone:
+                self.arrived_zone = zone
             self._report('ARRIVED', self.step.target, self.step.index)
         self.phase = 'NEXT'
 
@@ -299,7 +305,9 @@ class PatrolController:
         self.steps.clear()
         self._report(state, detail, finished=True)
         self.command_id = None
-        if self.held_zone is not None:
+        # 실패·정지 결과를 토큰 보유 표시로 덮어쓰지 않는다.
+        if (state == 'DONE' and self.held_zone is not None
+                and self.arrived_zone == self.held_zone):
             self._report('HOLDING_ZONE', self.held_zone)
         if state == 'DONE' and self.idle_return_sec > 0 and (
                 self.held_zone is not None or self.last_point != self.home_name):

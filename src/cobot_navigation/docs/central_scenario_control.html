@@ -137,6 +137,16 @@ source install/control_center_web/local_setup.bash</code></pre>
 <pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/venv/bin/python -c \
   'import sqlite3,json; c=sqlite3.connect("file:/var/lib/cobot/fleet_control.sqlite3?mode=ro",uri=True); print(json.dumps([json.loads(r[0]) for r in c.execute("SELECT payload FROM outbox WHERE json_extract(payload, ?)=? ORDER BY event_id DESC LIMIT 10", ("$.type","operator_load_confirmed"))],ensure_ascii=False,indent=2))'</code></pre>
 </details>
+<details id="manual-load-history" open><summary>실제 전송 기록 — 2026-11-07 (KST)</summary>
+<p>주문 <code>order-20261107-7e80503e-za</code>·pinky2·SHOE42의 기록입니다. 기존 주문과 재고를 유지한 채 <code>manual_load_confirmation</code>을 설정했습니다.</p>
+<div class="table-wrap"><table><thead><tr><th>시각 / 요청</th><th>확인한 결과</th></tr></thead><tbody>
+<tr><td>20:01:06 · <code>loaded-pinky2-param-002</code></td><td>파라미터 설정 성공, 관제 응답 200. 운영자 <code>operator1</code>, 적재·omx1 퇴피·후미 이탈 확인을 기록. 재기동 후 구역 정보가 없어 <code>manual_load_pending</code> 및 <code>operator_load_confirmation_pending</code>으로 접수.</td></tr>
+<tr><td>구역 재확인 이동 · <code>0883c5659f6d497f8e2f32c3366de329</code></td><td>같은 주문에서 <code>zone:ZA</code> 실행. A 토큰은 예약됐지만 이번 이동의 도착 성공은 확인되지 않음.</td></tr>
+<tr><td>20:01:19 · 주행 결과</td><td><code>FAILED</code>. Nav2 로그에 TF 변환 오류와 전방 충돌 감지. 주문은 <code>UNKNOWN / MOVE_PICKUP</code>. 최종 <code>operator_load_confirmed</code>는 기록되지 않았으며, 상차장 이탈·ZC 도착 완료로 처리하지 않음.</td></tr>
+<tr><td>실패 확인 후</td><td>작업 명령 <code>armed=false</code> 확인. 주문·자원 예약을 보존. 관제·로봇 재기동만으로 물리 위치나 통로 이탈을 확인할 수 없음.</td></tr>
+</tbody></table></div>
+<div class="callout"><b>토큰 예약과 실제 도착을 구분합니다.</b> 매니저의 <code>occupied_by:pinky2</code>와 patrol의 <code>held_zone=A</code>는 다른 로봇의 진입을 막기 위한 토큰 보유입니다. 빈 구역은 대기 위치에 도착하기 전에도 허가할 수 있습니다. 실제 구역 도착은 해당 명령의 Nav2 성공 결과로 판단합니다. 수정된 patrol은 <code>arrived_zone</code>을 별도로 발행하고, 주행·후퇴 실패나 정지를 <code>HOLDING_ZONE</code>으로 덮어쓰지 않습니다. 이전 실행 코드의 <code>HOLDING_ZONE</code>만으로 도착을 판단하면 안 됩니다.</div>
+</details>
 <details open><summary>팔·비전 결과를 받아야 다음 단계로 넘어갑니다</summary>
 <p>어댑터는 <code>/fleet/work_request</code>에서 현재 요청을 받아 실제 작업·측정을 수행하고 <code>/fleet/work_result</code>로 결과를 보냅니다. 어댑터가 연결되지 않으면 상차 구역 도착 직후의 <code>PICKUP_EXIT</code>부터 결과를 기다립니다. 수동 진행도 각 단계의 실제 확인 결과가 필요합니다.</p>
 <div class="code-title">장치 연결과 현재 요청 확인 — 관제 PC</div>
