@@ -177,6 +177,13 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 두 주문은 각각 접수할 수 있으며, 같은 팔·ZC·통로 예약을 사용하는 단계는 자원을 기다립니다.
 좌표는 `cobot_pinky_patrol/config/sites/lab.yaml`에서 관리합니다.
 주문·수령·시나리오 복구는 내부 요청 타입이 준비돼 있고, 해당 HTTP 엔드포인트·화면은 기존 웹에 추가해야 합니다.
+운영자가 실물 상차를 끝낸 경우 `/fleet_control`의 `manual_load_confirmation` 문자열 파라미터에
+주문 ID·operator·note·evidence JSON을 넣어 기존 주문에 확인값만 반영합니다.
+내부 `type=confirm_loaded` ROS 요청도 같은 경로를 사용합니다. 주문 ID·operator·note와
+`evidence.sku`, `load_present=true`, `arm_safe=true`, `pickup_path_clear=true`를 전달합니다.
+상차장 도착·정지·최신 통신·구역과 예약을 검증한 뒤 실제 구역 이탈부터 재개하며,
+센서 결과와 구분한 `operator_load_confirmation`·`operator_completed` 및 감사 이벤트를 보존합니다.
+수동 확인 명령·응답·감사 이력 조회 예시는 HTML의 [수동 상차 확인](../docs/central_scenario_control.html#manual-load)에 있습니다.
 별도 추론 PC에는 아직 ROS·통신 API가 없으며 원격 HTTP 추론 제어는 별도 연동 작업입니다.
 추론 코드·가중치·LeRobot·GPU 라이브러리를 이 패키지에 넣지 않습니다.
 

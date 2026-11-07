@@ -6,6 +6,7 @@ import time
 import uuid
 
 from ament_index_python.packages import get_package_share_directory
+from rcl_interfaces.msg import SetParametersResult
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
@@ -13,7 +14,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Float32, String
 import yaml
 
-from .control_api import ControlAPI
+from .control_api import ControlAPI, manual_load_request
 from .repository import encode, SqliteRepository
 from .scenario import ScenarioService
 from .service import FleetService
@@ -36,6 +37,7 @@ class FleetControlNode(Node):
             'tasks_topic': '/control_center/tasks',
             'work_request_topic': '/fleet/work_request',
             'work_result_topic': '/fleet/work_result',
+            'manual_load_confirmation': '',
             'patrol_config_dir': '', 'site': 'lab',
         }
         for name, value in defaults.items():
@@ -70,6 +72,9 @@ class FleetControlNode(Node):
         rules = (load_profiles(config['patrol_config_dir'], config['site'], robots)
                  if config['patrol_config_dir'] else None)
         self.api = ControlAPI(self.scenario, self.service, self, point_rules=rules)
+        self.manual_load_inbox = []
+        self.add_on_set_parameters_callback(self._validate_manual_load)
+        self.add_post_set_parameters_callback(self._queue_manual_load)
         self.status_subscriptions = []
         for robot in robots:
             self.status_subscriptions.extend([
@@ -177,7 +182,29 @@ class FleetControlNode(Node):
     def _snapshot(self):
         self.tasks_pub.publish(String(data=encode(self.api.snapshot())))
 
+    def _validate_manual_load(self, parameters):
+        """값만 검증하고 파라미터 확정 전에는 주문을 변경하지 않는다."""
+        try:
+            for parameter in parameters:
+                if parameter.name == 'manual_load_confirmation':
+                    manual_load_request(parameter.value)
+            return SetParametersResult(successful=True)
+        except (ValueError, TypeError) as error:
+            return SetParametersResult(successful=False, reason=str(error))
+
+    def _queue_manual_load(self, parameters):
+        """확정된 파라미터 변경만 타이머의 주문 처리 큐로 전달한다."""
+        for parameter in parameters:
+            if parameter.name == 'manual_load_confirmation':
+                request = manual_load_request(parameter.value)
+                if request:
+                    self.manual_load_inbox.append(request)
+
     def _tick(self):
+        for request in self.manual_load_inbox:
+            reply = self.api.handle(request)
+            self.events_pub.publish(String(data=encode(reply)))
+        self.manual_load_inbox.clear()
         for robot_id in self.service.robots:
             if not self.scenario._fresh(robot_id):
                 for row in list(self.repository.db.execute(

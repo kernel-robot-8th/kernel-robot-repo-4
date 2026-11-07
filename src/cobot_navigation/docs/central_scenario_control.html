@@ -117,6 +117,26 @@ source install/control_center_web/local_setup.bash</code></pre>
 <div class="callout"><b>경고와 처리 실패를 구분합니다.</b> <code>ROS_LOCALHOST_ONLY is deprecated</code> 경고는 설정 방식의 변경 안내이며, 그 문구만으로 발행 실패를 뜻하지 않습니다. <code>publishing #1</code> 뒤에는 대응하는 관제 <code>reply</code>와 주문 스냅샷을 확인합니다.</div>
 </details>
 
+<details id="manual-load" open><summary>수동 상차 확인: 파라미터 변경과 감사 이력</summary>
+<p><b>기존 주문을 유지한 채 확인값만 변경합니다.</b> <code>manual_load_confirmation</code>은 주문 ID·SKU·운영자·확인 근거를 묶은 JSON 문자열 파라미터입니다. 전역 true/false가 다음 주문에 자동 적용되지 않으며, 같은 주문에 반복 적용해도 피킹·상차를 다시 실행하지 않습니다. 새 주문이나 재고 등록 요청을 보낼 필요가 없습니다.</p>
+<div class="code-title">권장: 기존 주문 ID에 수동 상차 확인 파라미터 설정</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 param set /fleet_control manual_load_confirmation \
+  '"{\"order_id\":\"order-001\",\"request_id\":\"loaded-param-001\",\"operator\":\"operator1\",\"note\":\"상품 적재·팔 퇴피·후미 이탈을 현장에서 확인\",\"evidence\":{\"sku\":\"SHOE42\",\"load_present\":true,\"arm_safe\":true,\"pickup_path_clear\":true}}"'</code></pre>
+<p>JSON을 ROS 문자열 파라미터로 전달하기 위해 바깥 따옴표까지 포함해 복사합니다. <code>Set parameter successful</code>은 파라미터 검증·접수 성공이며, 실제 반영은 다음 관제 타이머에서 수행합니다. <code>task_events</code>의 <code>loaded-param-001</code> 응답과 기존 주문 스냅샷으로 적용 결과를 확인합니다.</p>
+<p>재기동 후 로봇의 구역 보유 정보가 없으면 같은 주문으로 상차 지점의 구역 허가·위치를 다시 확인합니다. 이때 <code>manual_load_pending</code>과 <code>operator_load_confirmation_pending</code> 이벤트로 대기 상태를 기록하고, 구역 도착 후 수동 확인을 적용합니다. 새로운 주문을 만들거나 실제 팔 피킹·상차 명령을 반복하지 않습니다.</p>
+<p>실물 상차를 운영자가 마쳤다면 <code>type=confirm_loaded</code>로 확인합니다. <b>상품 일치·적재 완료·상차 팔 퇴피·진입 통로 후미 이탈</b>을 직접 확인한 뒤 보내야 합니다. <code>received</code>는 하차 후 고객 수령 확인용입니다.</p>
+<p>서버는 상차장 도착 완료, 최신 patrol·배터리, 중앙 제어, 정지·구역 보유, 해당 주문의 작업장·팔 예약을 검사합니다. 상차 검증 중인 <code>RUNNING</code>·<code>UNKNOWN</code> 주문에만 적용하며, 센서의 정차 오차나 <code>measured=true</code> 결과를 만들어 넣지 않습니다.</p>
+<div class="code-title">대안: 같은 확인 내용을 내부 ROS 요청으로 전달 — 새 주문 생성 아님</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
+  '{data: "{\"type\":\"confirm_loaded\",\"request_id\":\"loaded-001\",\"order_id\":\"order-001\",\"operator\":\"operator1\",\"note\":\"상품 적재·팔 퇴피·후미 이탈을 현장에서 확인\",\"evidence\":{\"sku\":\"SHOE42\",\"load_present\":true,\"arm_safe\":true,\"pickup_path_clear\":true}}"}'</code></pre>
+<ol class="list"><li><code>task_events</code>에서 같은 요청 ID의 <code>reply.status=200</code>과 반환 주문을 확인합니다. 거절이면 <code>body.detail</code>을 확인합니다.</li><li>주문에 <code>operator_load_confirmation</code>으로 운영자·근거·확인 값·시각·이전 단계·요청 ID를 기록합니다. 수동으로 충족한 단계는 <code>operator_completed</code>에 분리해 저장합니다.</li><li><code>operator_load_confirmed</code> 감사 이벤트를 원장과 <code>task_events</code>에 남깁니다. 같은 주문의 중복 확인은 다시 피킹하거나 팔 동작을 실행하지 않습니다.</li><li>단계는 <code>LEAVE_PICKUP</code>으로 이동합니다. 정지 래치가 있으면 <code>control_reset</code> 반향을 먼저 기다리고, 실제 <code>leave</code> 종료를 확인한 뒤 상차장·상차 팔 예약을 해제합니다.</li><li>이후 하차장 이동·하차·고객 수령·HOME 복귀는 기존 BT와 실제 결과 확인을 계속 사용합니다. 하차장·하차 팔·공유 통로를 일괄 해제하지 않습니다.</li></ol>
+<div class="callout info"><b>설명 HTML에는 점유 해제 버튼이 없습니다.</b> 이 파일의 버튼은 명령 텍스트 복사용이며 실제 제어 요청을 보내지 않습니다. 기존 관제 웹의 개별 작업 해제로 전체 주문 예약을 풀 수 없고, 상차 확인은 위 ROS 요청과 단계별 실제 이탈 확인으로 처리합니다.</div>
+<div class="code-title">DB에서 수동 상차 확인 기록을 읽기 전용 조회</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/venv/bin/python -c \
+  'import sqlite3,json; c=sqlite3.connect("file:/var/lib/cobot/fleet_control.sqlite3?mode=ro",uri=True); print(json.dumps([json.loads(r[0]) for r in c.execute("SELECT payload FROM outbox WHERE json_extract(payload, ?)=? ORDER BY event_id DESC LIMIT 10", ("$.type","operator_load_confirmed"))],ensure_ascii=False,indent=2))'</code></pre>
+</details>
 <details open><summary>팔·비전 결과를 받아야 다음 단계로 넘어갑니다</summary>
 <p>어댑터는 <code>/fleet/work_request</code>에서 현재 요청을 받아 실제 작업·측정을 수행하고 <code>/fleet/work_result</code>로 결과를 보냅니다. 어댑터가 연결되지 않으면 상차 구역 도착 직후의 <code>PICKUP_EXIT</code>부터 결과를 기다립니다. 수동 진행도 각 단계의 실제 확인 결과가 필요합니다.</p>
 <div class="code-title">장치 연결과 현재 요청 확인 — 관제 PC</div>
