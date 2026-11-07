@@ -53,6 +53,7 @@ class FleetApiNode(Node):
         self.declare_parameter('map_yaml', '')
         self.declare_parameter('web_dir', '')
         self.declare_parameter('points_dir', '')
+        self.declare_parameter('site', 'lab')
         self.declare_parameter('zone_params', '')
         self.declare_parameter('events_max', 500)
         self.declare_parameter('task_stale_sec', 3.0)
@@ -68,7 +69,8 @@ class FleetApiNode(Node):
                                    events_max=self.get_parameter('events_max').value)
         self.map_data = self._load_map(self.get_parameter('map_yaml').value)
         self.layers = self._load_layers(self.get_parameter('points_dir').value,
-                                        self.get_parameter('zone_params').value)
+                                        self.get_parameter('zone_params').value,
+                                        self.get_parameter('site').value)
         self.web_dir = (self.get_parameter('web_dir').value
                         or os.path.join(get_package_share_directory('cobot_control_center'),
                                         'web'))
@@ -126,13 +128,13 @@ class FleetApiNode(Node):
                                f'{info["resolution"]} m/px)')
         return data
 
-    def _load_layers(self, points_dir, zone_params):
+    def _load_layers(self, points_dir, zone_params, site):
         # 구역 표시는 덧그림이라 없어도 화면은 쓸 수 있다. 경고만 하고 계속한다.
         if not points_dir or not zone_params:
             self.get_logger().warning('points_dir·zone_params 가 비어 있음: 구역 표시 없이 시작')
             return None
         try:
-            layers = load_map_layers(points_dir, zone_params)
+            layers = load_map_layers(points_dir, zone_params, site)
         except LayerError as error:
             self.get_logger().warning(f'{error}: 구역 표시 없이 시작')
             return None

@@ -14,7 +14,8 @@
 <launch>
   <arg name="points_dir"
        default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_navigation/cobot_pinky_patrol/config"
-       description="순찰 설정 pinkyN.yaml 폴더 (지점 검사)"/>
+       description="순찰 설정 폴더 (common.yaml·sites/·robots/, 또는 합친 pinkyN.yaml)"/>
+  <arg name="site" default="lab" description="순찰 설정 sites/ 의 현장 이름"/>
   <arg name="db_path" default="~/.ros/cobot_control_center/tasks.db"
        description="작업 기록 SQLite 파일 (가짜 핑키는 다른 파일)"/>
   <arg name="spec_mode" default="auto" description="auto / v1 / v2"/>
@@ -26,6 +27,7 @@
   <node pkg="cobot_control_center" exec="task_manager_node" name="task_manager_node" output="screen">
     <param from="$(find-pkg-share cobot_control_center)/config/task_manager_node.yaml"/>
     <param name="points_dir" value="$(var points_dir)"/>
+    <param name="site" value="$(var site)"/>
     <param name="db_path" value="$(var db_path)"/>
     <param name="spec_mode" value="$(var spec_mode)"/>
     <param name="allow_raw_cmd" value="$(var allow_raw_cmd)"/>

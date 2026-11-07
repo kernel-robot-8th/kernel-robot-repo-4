@@ -5,6 +5,7 @@
 - 로봇 명령 토픽(`/pinkyN/patrol_cmd`, v2 `/pinkyN/patrol_command`)에 발행하는 것은 **`task_manager_node` 하나**입니다.
 - **`task_manager_node` 는 bringup 이 함께 띄우지만 작업 명령이 꺼진 채로 시작합니다.** 화면 상단 **작업 명령 켜기**를 눌러야 이동·구역·나가기·홈이 나갑니다. 정지·비상정지는 꺼져 있어도 됩니다 ([명령 켜기](#명령-켜기)).
 - `/pinkyN/cmd_vel`·`goal_pose`·`initialpose` 는 쓰지 않습니다.
+- **`task_manager_node` 의 v1 명령은 로봇이 `central_controlled: false` 일 때만 받습니다.** 순찰 설정 `common.yaml` 의 기본값은 `true`(`cobot_fleet_control` 전용)입니다. 시뮬은 `false` 로 띄우고, 가짜 핑키는 이 검사가 없습니다. 실물은 `true` 면 명령이 거절됩니다.
 
 담당: 김지혜 (로봇 수행 관제)
 환경: Ubuntu 24.04 / ROS 2 Jazzy / Python 3.12

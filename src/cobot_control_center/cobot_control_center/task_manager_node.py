@@ -56,7 +56,7 @@ class TaskManagerNode(Node):
         p = {
             'robots': ['pinky1', 'pinky2', 'pinky3'],
             'db_path': '~/.ros/cobot_control_center/tasks.db',
-            'points_dir': '', 'ack_timeout_sec': 3.0, 'task_timeout_sec': 300.0,
+            'points_dir': '', 'site': 'lab', 'ack_timeout_sec': 3.0, 'task_timeout_sec': 300.0,
             'fleet_stale_sec': 3.0, 'retention_days': 30.0, 'spec_mode': 'auto',
             'v2_fresh_sec': 3.0, 'tick_period_sec': 0.2, 'publish_period_sec': 1.0,
             'list_limit': 50, 'allow_raw_cmd': False, 'start_armed': False,
@@ -71,7 +71,7 @@ class TaskManagerNode(Node):
         self.db = TaskDB(db_path)
         pruned = self.db.prune(float(cfg['retention_days']))
         self.tm = TaskManager(
-            self.db, robots, self._load_rules(cfg['points_dir'], robots),
+            self.db, robots, self._load_rules(cfg['points_dir'], robots, cfg['site']),
             ack_timeout_sec=cfg['ack_timeout_sec'], task_timeout_sec=cfg['task_timeout_sec'],
             fleet_stale_sec=cfg['fleet_stale_sec'], spec_mode=cfg['spec_mode'],
             v2_fresh_sec=cfg['v2_fresh_sec'], allow_raw_cmd=cfg['allow_raw_cmd'],
@@ -120,13 +120,13 @@ class TaskManagerNode(Node):
                 '수동 명령(allow_raw_cmd) 켜짐: 화면에서 검사 없이 patrol_cmd 에 문자열을 보낼 수 있다 (개발용)')
         self._flush()
 
-    def _load_rules(self, points_dir, robots):
+    def _load_rules(self, points_dir, robots, site):
         # 지점 규칙이 없어도 로봇이 다시 검사하므로 돌 수는 있다. 하지만 미실측 지점을 못 막아 경고한다.
         if not points_dir:
             self.get_logger().warning('points_dir 가 비어 있음: 지점 검사 없이 로봇 검사에만 맡긴다')
             return {}
         try:
-            rules = load_robot_points(points_dir, robots)
+            rules = load_robot_points(points_dir, robots, site)
         except LayerError as error:
             self.get_logger().warning(f'{error}: 지점 검사 없이 로봇 검사에만 맡긴다')
             return {}

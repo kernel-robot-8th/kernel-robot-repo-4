@@ -31,7 +31,7 @@ import sqlite3
 import time
 import uuid
 
-from cobot_control_center.fleet_api_utils import _ros_params
+from cobot_control_center.fleet_api_utils import DEFAULT_SITE, load_robot_params
 
 OPERATIONS = ('goto', 'zone', 'leave', 'home')
 STOP_OPERATIONS = ('stop', 'emergency_stop')
@@ -65,9 +65,9 @@ class TaskError(Exception):
 # 지점 규칙 (순찰 노드 _cmd_cb 와 같은 검사 + 미실측 지점 거절)
 # ---------------------------------------------------------------------------
 
-def load_robot_points(points_dir, robots):
+def load_robot_points(points_dir, robots, site=DEFAULT_SITE):
     """
-    로봇별 지점 규칙. <points_dir>/<robot>.yaml 을 읽기만 한다.
+    로봇별 지점 규칙. 순찰 설정을 load_robot_params 로 읽기만 한다.
 
     {robot: {'points': 모든 지점, 'zone': 구역 지점, 'goto': goto 허용, 'placeholder': 미실측 P}}.
     goto 허용 = 일반 지점(P*) + 자기 홈 - 구역 지점 (순찰 노드의 goto_allowed 와 같다).
@@ -75,7 +75,7 @@ def load_robot_points(points_dir, robots):
     """
     rules = {}
     for robot in robots:
-        params = _ros_params(os.path.join(points_dir, f'{robot}.yaml'))
+        params = load_robot_params(points_dir, robot, site)
         points = {str(k): [float(v) for v in value]
                   for k, value in (params.get('points') or {}).items()}
         zone = {str(n) for names in (params.get('zone_points') or {}).values()

@@ -87,6 +87,9 @@ def load_map(yaml_path):
     return info, data
 
 
+DEFAULT_SITE = 'lab'   # 순찰 설정 sites/<site>.yaml 의 기본 현장
+
+
 class LayerError(Exception):
     """구역·지점 설정 파일을 찾거나 읽지 못함."""
 
@@ -101,6 +104,25 @@ def _ros_params(path):
         raise LayerError(f'설정을 읽지 못함: {path}') from error
     if not isinstance(params, dict):
         raise LayerError(f'ros__parameters 가 없음: {path}')
+    return params
+
+
+def load_robot_params(points_dir, robot, site=DEFAULT_SITE):
+    """
+    로봇 한 대의 순찰 설정을 읽는다. 주행 설정 파일은 읽기만 한다.
+
+    <points_dir>/<robot>.yaml 이 있으면 그 파일이 전부다 (합쳐 내보낸 프로필, 예전 구조).
+    없고 common.yaml 이 있으면 순찰 launch 와 같은 순서로 공통 → 현장 → 로봇 파일을 합친다.
+    같은 키는 뒤 파일이 이긴다. 지점 표는 현장 파일에만 있어서 키 단위로 덮어써도 된다.
+    """
+    flat = os.path.join(points_dir, f'{robot}.yaml')
+    common = os.path.join(points_dir, 'common.yaml')
+    if os.path.exists(flat) or not os.path.exists(common):
+        return _ros_params(flat)
+    params = {}
+    for path in (common, os.path.join(points_dir, 'sites', f'{site}.yaml'),
+                 os.path.join(points_dir, 'robots', f'{robot}.yaml')):
+        params.update(_ros_params(path))
     return params
 
 
@@ -132,12 +154,12 @@ def _general_points(params):
     return dict(sorted(points.items(), key=lambda item: (number(item[0]), item[0]))), hidden
 
 
-def load_map_layers(points_dir, zone_params_path):
+def load_map_layers(points_dir, zone_params_path, site=DEFAULT_SITE):
     """
     순찰·zone_manager 설정에서 지도에 겹쳐 그릴 구역 지점·출구·대기 슬롯·홈·일반 지점을 만든다.
 
     주행 설정 파일을 읽기만 한다. 로봇 목록은 zone_params 의 robot_ids, 로봇별 지점은
-    <points_dir>/<robot>.yaml 이다. 구역 좌표는 로봇끼리 같아야 하므로 첫 로봇 값을 쓰고,
+    load_robot_params 로 읽는다. 구역 좌표는 로봇끼리 같아야 하므로 첫 로봇 값을 쓰고,
     다른 로봇의 값이 다르면 warnings 에 남긴다. 대기 슬롯 k = 앵커 + k * 간격 * 방향
     (zone_manager 와 같은 식). 좌표는 map 좌표계 [m], yaw [rad].
     """
@@ -150,7 +172,7 @@ def load_map_layers(points_dir, zone_params_path):
     configs = {}
     for robot in robots:
         try:
-            configs[robot] = _ros_params(os.path.join(points_dir, f'{robot}.yaml'))
+            configs[robot] = load_robot_params(points_dir, robot, site)
         except LayerError as error:
             warnings.append(str(error))
     if not configs:

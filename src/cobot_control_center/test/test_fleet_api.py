@@ -24,7 +24,8 @@ import threading
 
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    CameraStore, LayerError, load_map, load_map_layers, MapError, mjpeg_part, SnapshotStore,
+    CameraStore, LayerError, load_map, load_map_layers, load_robot_params,
+    MapError, mjpeg_part, SnapshotStore,
     TaskStore)
 from fastapi.testclient import TestClient
 import pytest
@@ -345,6 +346,42 @@ def test_load_map_layers_warns_on_mismatch_and_missing_robot(tmp_path):
     layers = load_map_layers(points_dir, zone_params)
     assert 'pinky2' not in layers['homes']
     assert any('pinky2.yaml' in w for w in layers['warnings'])
+
+
+def write_split_config(tmp_path):
+    """순찰 설정의 나뉜 구조: common.yaml, sites/lab.yaml, robots/<robot>.yaml."""
+    (tmp_path / 'sites').mkdir()
+    (tmp_path / 'robots').mkdir()
+    head = 'pinky_patrol_node:\n  ros__parameters:\n'
+    (tmp_path / 'common.yaml').write_text(
+        head + '    idle_return_sec: 120.0\n    home_name: X\n', encoding='utf-8')
+    (tmp_path / 'sites' / 'lab.yaml').write_text(
+        head + '    zone_points:\n      A: [ZA]\n    points:\n      I1: [0.0, 0.0, 0.0]\n'
+        '      ZA: [0.6, 0.5, -1.5]\n      P1: [0.17, -0.6, 0.0]\n', encoding='utf-8')
+    (tmp_path / 'robots' / 'pinky1.yaml').write_text(
+        head + '    robot_id: pinky1\n    home_name: I1\n', encoding='utf-8')
+    return str(tmp_path)
+
+
+def test_load_robot_params_merges_split_files_in_launch_order(tmp_path):
+    params = load_robot_params(write_split_config(tmp_path), 'pinky1')
+    assert params['idle_return_sec'] == 120.0
+    assert params['home_name'] == 'I1'   # 뒤 파일(로봇)이 공통 값을 덮어쓴다
+    assert set(params['points']) == {'I1', 'ZA', 'P1'}
+
+
+def test_load_robot_params_prefers_flat_profile(tmp_path):
+    points_dir = write_split_config(tmp_path)
+    (tmp_path / 'pinky1.yaml').write_text(robot_yaml('pinky1', 'I1'), encoding='utf-8')
+    assert 'P10' in load_robot_params(points_dir, 'pinky1')['points']
+
+
+def test_load_robot_params_reports_missing_split_file(tmp_path):
+    points_dir = write_split_config(tmp_path)
+    with pytest.raises(LayerError, match='pinky2.yaml'):
+        load_robot_params(points_dir, 'pinky2')
+    with pytest.raises(LayerError, match='other.yaml'):
+        load_robot_params(points_dir, 'pinky1', 'other')
 
 
 def test_load_map_layers_errors(tmp_path):
