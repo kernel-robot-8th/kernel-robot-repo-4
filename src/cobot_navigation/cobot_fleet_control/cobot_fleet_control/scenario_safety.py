@@ -64,6 +64,8 @@ def confirm_loaded(service, order_id, operator, note, evidence):
     if (not service._fresh(robot) or status.get('busy') is not False
             or status.get('central_controlled') is not True
             or (not restoring and not status.get('held_zone'))
+            or (not restoring and 'arrived_zone' in status
+                and status['arrived_zone'] != status.get('held_zone'))
             or (not restoring and status.get('state') not in {
                 'HOLDING_ZONE', 'IDLE_WAIT', 'STOPPED'})
             or service.fleet.repository.busy(robot)):

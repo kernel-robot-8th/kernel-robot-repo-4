@@ -88,6 +88,16 @@ def test_busy_or_stale_robot_cannot_confirm_load(env):
     assert env.api.handle(request())['status'] == 400
 
 
+def test_reserved_token_without_arrival_cannot_confirm_load(env):
+    """최신 로봇이 토큰만 보유하면 과거 주문 도착 이력으로 재확인을 통과하지 않는다."""
+    status = env.scenario.health['pinky1']['status']
+    status['arrived_zone'] = None
+    assert env.api.handle(request())['status'] == 400
+    assert env.current()['stage'] == 'PICKUP_EXIT'
+    status['arrived_zone'] = 'A'
+    assert env.api.handle(request())['status'] == 200
+
+
 def test_restart_reacquires_pickup_zone_before_consuming_manual_confirmation(env):
     """재기동으로 구역 기억이 사라지면 같은 주문으로 구역을 재확인하고 이탈한다."""
     env.scenario.interrupt('order1', 'UNKNOWN', '관제 재시작')

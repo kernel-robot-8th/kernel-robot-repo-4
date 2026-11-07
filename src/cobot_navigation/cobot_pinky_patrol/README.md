@@ -79,6 +79,15 @@ ROS_DOMAIN_ID=10 ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pink
 
 관제 PC에서는 기존 도메인 브릿지와 zone_manager를 실행합니다. 도메인은 관제 100, 로봇 10/20/30입니다. [전체 실행 안내](../README.md), [MQTT·관제 계약](../cobot_fleet_control/README.md)을 참고하세요.
 
+### 구역 예약과 도착 상태
+
+`held_zone`은 진입 전에 받은 배타적 구역 토큰입니다. 구역이나 대기 지점에
+도착했다는 뜻이 아닙니다. 빈 구역은 대기 슬롯을 거치지 않고 즉시 허가할 수 있습니다.
+`arrived_zone`은 해당 구역 목표의 Nav2 성공 결과를 받은 경우에만 설정하며,
+다음 이동이 시작되면 비웁니다. 정상 도착 후에만 `HOLDING_ZONE`을 발행합니다.
+주행·후퇴 실패나 비상정지는 `FAILED`·`STOPPED` 상태를 유지하며, 이탈이 확인되지
+않은 토큰은 계속 보유합니다. 매니저의 `occupied_by` 표시는 이 토큰 소유자입니다.
+
 ### 기존 실행 명령과 설정 경로 이전
 
 아래 launch 명령은 계속 사용할 수 있으며 공통 launch에 로봇 ID를 전달합니다. `site`와 `start_led` 옵션도 전달됩니다.
