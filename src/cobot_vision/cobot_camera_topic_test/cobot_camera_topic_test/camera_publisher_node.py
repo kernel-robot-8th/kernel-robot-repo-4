@@ -45,13 +45,17 @@ class CameraPublisherNode(Node):
             self.sequence = 0
             self.read_failures = 0
             if self.settings.source == 'camera':
-                device = self.settings.device
-                self.capture = cv2.VideoCapture(int(device) if device.isdecimal() else device)
-                if not self.capture.isOpened():
-                    raise RuntimeError(f'Cannot open camera: {device}')
-                self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.settings.width)
-                self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.settings.height)
-                self.capture.set(cv2.CAP_PROP_FPS, self.settings.fps)
+                try:
+                    from picamera2 import Picamera2
+                except ImportError as e:
+                    raise RuntimeError('picamera2 not available') from e
+                self.capture = Picamera2()
+                config = self.capture.create_preview_configuration(
+                    main={"size": (self.settings.width, self.settings.height),
+                          "format": "BGR888"}
+                )
+                self.capture.configure(config)
+                self.capture.start()
             self.timer = self.create_timer(1.0 / self.settings.fps, self.publish_frame)
             self.get_logger().info(
                 f'source={self.settings.source}, topic={self.publisher.topic_name}, '
@@ -70,15 +74,23 @@ class CameraPublisherNode(Node):
             cv2.putText(frame, f'ROS 2 camera test: {self.sequence}', (10, 35),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         else:
-            ok, frame = self.capture.read()
-            if not ok or frame is None:
+            try:
+                frame = self.capture.capture_array()
+                if frame is None:
+                    self.read_failures += 1
+                    if self.read_failures == 1:
+                        self.get_logger().warning('Camera read failed; retrying')
+                    if self.read_failures >= settings.max_read_failures:
+                        raise RuntimeError('Camera read failure limit reached; check device')
+                    return
+                self.read_failures = 0
+            except Exception as e:
                 self.read_failures += 1
                 if self.read_failures == 1:
-                    self.get_logger().warning('Camera read failed; retrying')
+                    self.get_logger().warning(f'Camera read failed: {e}; retrying')
                 if self.read_failures >= settings.max_read_failures:
                     raise RuntimeError('Camera read failure limit reached; check device')
                 return
-            self.read_failures = 0
         stamp = self.get_clock().now().to_msg()
         if frame.shape[:2] != (settings.height, settings.width):
             frame = cv2.resize(frame, (settings.width, settings.height))
@@ -97,7 +109,7 @@ class CameraPublisherNode(Node):
     def destroy_node(self):
         """Release the camera on normal shutdown and startup errors."""
         if self.capture is not None:
-            self.capture.release()
+            self.capture.stop()
             self.capture = None
         return super().destroy_node()
 
