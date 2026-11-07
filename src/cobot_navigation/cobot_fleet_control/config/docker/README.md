@@ -68,6 +68,13 @@ Linux host network/IPC를 사용하며 DDS 탐색 범위는 SUBNET입니다.
 
 기본 RMW는 Cyclone DDS이며 Fast DDS도 이미지에 설치합니다. 필요하면 전 서비스에 동일하게 적용합니다.
 
+Cyclone DDS는 이미지의 `/opt/cobot/cyclonedds.xml`로 로봇망 `192.168.45.0`에 해당하는
+관제 PC 인터페이스를 선택하고 핑키 IP `.21`·`.22`·`.23`을 피어로 등록합니다.
+유선 인터넷과 로봇 Wi-Fi를 함께 쓰는 PC에서도 로봇망으로 DDS 주소를 알리기 위한 설정입니다.
+다른 현장이면 `config/docker/cyclonedds.xml`의 네트워크·피어를 수정하고 이미지를 재빌드합니다.
+`COBOT_CYCLONEDDS_URI`로 컨테이너 안의 다른 설정 경로나 인라인 XML을 지정할 수도 있습니다.
+호스트 셸의 `CYCLONEDDS_URI`는 컨테이너에 자동 전달되지 않습니다.
+
 ```bash
 sudo env COBOT_RMW_IMPLEMENTATION=rmw_fastrtps_cpp bash cobot_fleet_control/config/docker/fleet_docker.sh up
 # 다른 PC에서 웹에 접속하려면 (기본은 관제 PC 내부 전용)
