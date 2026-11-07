@@ -67,12 +67,26 @@ def _ros_params(path):
 
 
 def load_robot_config(path):
+    """합쳐진 순찰 설정 파일 하나(pinkyN.yaml)에서 지점·구역·홈을 읽는다."""
+    return _robot_config(_ros_params(path), path)
+
+
+def _split_params(points_dir, robot, site):
+    """순찰 launch 와 같은 순서로 공통 → 현장 → 로봇 파일을 합친다. 같은 키는 뒤 파일이 이긴다."""
+    params = {}
+    for path in (os.path.join(points_dir, 'common.yaml'),
+                 os.path.join(points_dir, 'sites', f'{site}.yaml'),
+                 os.path.join(points_dir, 'robots', f'{robot}.yaml')):
+        params.update(_ros_params(path))
+    return params
+
+
+def _robot_config(params, path):
     """
-    순찰 노드 설정(pinkyN.yaml)에서 지점·구역·홈을 읽는다.
+    순찰 설정 값에서 지점·구역·홈을 뽑는다.
 
     (0, 0, 0) 인 P 지점은 미실측 예비 점이라 뺀다 (지도 뷰어와 같은 규칙).
     """
-    params = _ros_params(path)
     points = {}
     for name, value in (params.get('points') or {}).items():
         x, y = float(value[0]), float(value[1])
@@ -88,9 +102,20 @@ def load_robot_config(path):
             'points': points, 'zone_points': zone_points}
 
 
-def load_robot_configs(points_dir, robots):
-    """로봇 이름마다 <points_dir>/<이름>.yaml 을 읽는다."""
-    return {r: load_robot_config(os.path.join(points_dir, f'{r}.yaml')) for r in robots}
+def load_robot_configs(points_dir, robots, site='lab'):
+    """
+    로봇 이름마다 설정을 읽는다.
+
+    <points_dir>/<이름>.yaml 이 있으면 그 파일을, 없으면 common·sites·robots 를 합쳐 쓴다.
+    """
+    configs = {}
+    for robot in robots:
+        flat = os.path.join(points_dir, f'{robot}.yaml')
+        if os.path.exists(flat) or not os.path.exists(os.path.join(points_dir, 'common.yaml')):
+            configs[robot] = load_robot_config(flat)
+        else:
+            configs[robot] = _robot_config(_split_params(points_dir, robot, site), points_dir)
+    return configs
 
 
 def load_zone_params(path):

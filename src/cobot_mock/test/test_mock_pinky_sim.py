@@ -265,3 +265,17 @@ def test_auto_command_is_always_valid(fleet):
         assert not any(e['state'] == 'FAILED' for e in events), cmd
         sim.steps.clear()
         sim.running = False
+
+
+def test_load_robot_configs_reads_split_patrol_config():
+    configs = load_robot_configs(POINTS_DIR, ROBOTS)
+    assert [configs[r]['home'] for r in ROBOTS] == ['I1', 'I2', 'I3']
+    assert configs['pinky2']['robot_id'] == 'pinky2'
+    assert configs['pinky1']['zone_points']['A'] == ['ZA']
+
+
+def test_load_robot_configs_prefers_flat_profile(tmp_path):
+    (tmp_path / 'pinky1.yaml').write_text(
+        'pinky_patrol_node:\n  ros__parameters:\n    robot_id: pinky1\n    home_name: H\n'
+        '    points:\n      H: [1.0, 2.0, 0.0]\n', encoding='utf-8')
+    assert load_robot_configs(str(tmp_path), ['pinky1'])['pinky1']['home'] == 'H'

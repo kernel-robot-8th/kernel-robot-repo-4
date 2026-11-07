@@ -37,7 +37,8 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 | `with_control_center` | `true` | 관제 노드를 함께 띄울지 |
 | `allow_raw_cmd` | `true` | 관제 화면의 개발용 수동 명령 칸 (검사 없이 `patrol_cmd` 에 문자열). 실물 관제는 기본 꺼짐 |
 | `port` | `8081` | 관제 화면 포트. 실물 관제(8080)와 한 PC 에서 함께 띄울 수 있게 나눔 |
-| `points_dir` | `cobot_pinky_patrol/config` (install) | `pinkyN.yaml` 폴더 |
+| `points_dir` | `cobot_pinky_patrol/config` (install) | 순찰 설정 폴더 (`common.yaml`·`sites/`·`robots/`, 또는 합친 `pinkyN.yaml`) |
+| `site` | `lab` | `sites/` 의 현장 이름 |
 | `zone_params` | `cobot_zone_traffic_control/config/zone_params.yaml` (install) | 구역 대기 슬롯 설정 |
 
 ## 흉내 내는 것
@@ -62,7 +63,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 v1·v2 어느 쪽 명령이든 같은 가짜 로봇이 움직이고, 상태는 두 규격으로 동시에 나갑니다.
 v2 로 거절된 명령은 v1 `FAILED` 상태를 내지 않습니다 (ack 가 대신함).
 
-- 지점 좌표는 실제 `pinkyN.yaml` 의 `points`·`zone_points`·`home_name` 을 읽습니다. 대기 슬롯은 `zone_params.yaml` 의 앵커·간격으로 계산합니다.
+- 지점 좌표는 실제 순찰 설정(`sites/<site>.yaml`, `robots/pinkyN.yaml`)의 `points`·`zone_points`·`home_name` 을 읽습니다. 대기 슬롯은 `zone_params.yaml` 의 앵커·간격으로 계산합니다.
 - 상태 순서는 실제 순찰 노드와 같습니다.
   - goto: `STARTING` → (구역 보유 시 `LEAVING_ZONE`) → 지점마다 `MOVING`·`ARRIVED` → `DONE` → `IDLE_WAIT`
   - zone: `STARTING` → (점유 중이면 슬롯으로 `MOVING`(`slot`) → `QUEUEING`(`slot{k}`)) → `MOVING` → `ARRIVED` → `DONE` → `HOLDING_ZONE` → `IDLE_WAIT`
@@ -98,7 +99,7 @@ ros2 topic echo /pinky1/patrol_status
 python -m colcon test --packages-select cobot_mock && python -m colcon test-result --verbose
 ```
 
-실제 `pinkyN.yaml`·`zone_params.yaml` 을 읽어 시험하므로, 그 파일 형식이 바뀌면 여기서 먼저 깨집니다.
+실제 순찰 설정·`zone_params.yaml` 을 읽어 시험하므로, 그 파일 형식이 바뀌면 여기서 먼저 깨집니다.
 
 ## 빼는 법
 

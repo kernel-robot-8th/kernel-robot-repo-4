@@ -12,7 +12,8 @@
 -->
 <launch>
   <arg name="points_dir" default="$(find-pkg-share cobot_pinky_patrol)/config"
-       description="pinkyN.yaml 이 있는 폴더"/>
+       description="순찰 설정 폴더 (common.yaml·sites/·robots/, 또는 합친 pinkyN.yaml)"/>
+  <arg name="site" default="lab" description="순찰 설정 sites/ 의 현장 이름"/>
   <arg name="zone_params" default="$(find-pkg-share cobot_zone_traffic_control)/config/zone_params.yaml"
        description="zone_manager 설정 파일"/>
   <arg name="auto_patrol" default="true" description="가짜 핑키가 스스로 돌아다닐지"/>
@@ -26,6 +27,7 @@
   <node pkg="cobot_mock" exec="mock_pinky_node" name="mock_pinky_node" output="screen">
     <param from="$(find-pkg-share cobot_mock)/config/mock_pinky_node.yaml"/>
     <param name="points_dir" value="$(var points_dir)"/>
+    <param name="site" value="$(var site)"/>
     <param name="zone_params" value="$(var zone_params)"/>
     <param name="auto_patrol" value="$(var auto_patrol)"/>
   </node>

@@ -59,7 +59,7 @@ class MockPinkyNode(Node):
         super().__init__('mock_pinky_node')
         p = {
             'robots': ['pinky1', 'pinky2', 'pinky3'],
-            'points_dir': '', 'zone_params': '',
+            'points_dir': '', 'site': 'lab', 'zone_params': '',
             'speed_mps': 0.15, 'idle_return_sec': 40.0,
             'auto_patrol': True, 'auto_interval_sec': 8.0, 'auto_pause_after_cmd_sec': 60.0,
             'drain_moving_per_min': 1.0, 'drain_idle_per_min': 0.2, 'charge_per_min': 5.0,
@@ -72,7 +72,7 @@ class MockPinkyNode(Node):
         robots = list(cfg['robots'])
         self.cfg = cfg
 
-        configs = load_robot_configs(cfg['points_dir'], robots)
+        configs = load_robot_configs(cfg['points_dir'], robots, cfg['site'])
         self.book = ZoneBook(load_zone_params(cfg['zone_params']))
         self.sims = {}
         for i, name in enumerate(robots):
