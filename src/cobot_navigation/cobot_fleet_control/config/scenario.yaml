@@ -1,8 +1,14 @@
-# 기존 실험실 경유 지점을 이용한 현장 매핑 예시. 로봇팔·작업장 매핑은 현장에서 확인한다.
+# 현장 배송 경로: ZA 또는 ZB에서 omx1으로 상차하고 ZC에서 omx2로 하차한다.
 routes:
   lab_delivery:
     pickup: ZA
-    dropoff: ZB
+    dropoff: ZC
+    pickup_arm: omx1
+    dropoff_arm: omx2
+    lane: main
+  lab_delivery_zb:
+    pickup: ZB
+    dropoff: ZC
     pickup_arm: omx1
     dropoff_arm: omx2
     lane: main
