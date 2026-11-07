@@ -32,6 +32,7 @@ class CameraSettings:
     encoding: str = 'bgr8'
     frame_id: str = 'front_camera_link'
     max_read_failures: int = 30
+    jpeg_quality: int = 85
 
     def validate(self):
         """Reject invalid settings before opening a camera or creating a timer."""
