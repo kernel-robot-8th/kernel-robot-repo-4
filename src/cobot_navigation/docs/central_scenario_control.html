@@ -17,10 +17,11 @@
 .cf-canvas a{text-decoration:none}.cf-canvas a:hover rect{stroke-width:2.5}.cf-canvas a:focus rect{stroke:#172637;stroke-width:3}.cf-foot{margin:0;padding:16px 24px;border-top:1px solid var(--line);background:#f7f9fc;font-size:12px;color:var(--muted)}
 @media(max-width:700px){.cf-head{padding:18px}.cf-toolbar{padding:12px}.cf-tabs{width:100%}.cf-tabs button{font-size:12px;padding:8px 10px}.cf-legend{padding:12px 15px 0;gap:10px}.cf-foot{padding:14px 16px}.cf-canvas{padding:5px}}
 @media print{.cf-toolbar{display:none}.code-flow [hidden]{display:block!important}.cf-canvas{overflow:visible}.cf-canvas svg{min-width:0!important}.code-flow{break-inside:auto}.cf-panel{break-before:page}}
+.order-journey{list-style:none;padding:0;margin:20px 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;counter-reset:order-step}.order-journey li{position:relative;background:white;border:1px solid var(--line);border-top:4px solid var(--blue);border-radius:11px;padding:18px;font-size:13px}.order-journey li::before{counter-increment:order-step;content:counter(order-step,decimal-leading-zero);display:block;color:var(--blue);font-size:12px;font-weight:800;letter-spacing:2px;margin-bottom:7px}.order-journey h3{font-size:16px}.order-journey p{margin-bottom:0}.order-journey .device{border-top-color:#ce962d}.order-journey .device::before{color:var(--amber)}.order-journey .finish{border-top-color:var(--teal)}.order-journey .finish::before{color:var(--teal)}@media(max-width:1100px){.order-journey{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.order-journey{grid-template-columns:1fr}}@media print{.order-journey{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
-<aside><div class="brand">COBOT / NAVIGATION<span>중앙 시나리오 제어</span></div><p>SN-01 Activity Diagram v13<br>구현·통합·운영 가이드</p><nav aria-label="문서 목차"><a href="#overview">01 역할과 구조</a><a href="#ui-transport">웹 통신 연결</a><a href="#flow">02 실행 흐름 재생</a><a href="#coverage">03 시나리오 대응표</a><a href="#safety">04 수정한 로직</a><a href="#contract">05 연동 계약</a><a href="#run">06 설치와 실행</a><a href="#docker-setup">새 환경 Docker 설치</a><a href="#code">07 코드와 호출 흐름</a><a href="#code-flow">코드 호출 흐름도</a><a href="#live-bt">실시간 BT 조회 도구</a><a href="#validation">08 검증과 남은 연결</a></nav><div class="nav-foot">웹 전송: control-center<br>중앙 정책: fleet-control<br>로봇 실행: patrol + Nav2<br><br>오프라인 단일 HTML<br>2026.11.05</div></aside>
+<aside><div class="brand">COBOT / NAVIGATION<span>중앙 시나리오 제어</span></div><p>SN-01 Activity Diagram v13<br>구현·통합·운영 가이드</p><nav aria-label="문서 목차"><a href="#overview">01 역할과 구조</a><a href="#ui-transport">웹 통신 연결</a><a href="#order-runbook">전체 주문 실행 예시</a><a href="#flow">02 실행 흐름 재생</a><a href="#coverage">03 시나리오 대응표</a><a href="#safety">04 수정한 로직</a><a href="#contract">05 연동 계약</a><a href="#run">06 설치와 실행</a><a href="#docker-setup">새 환경 Docker 설치</a><a href="#code">07 코드와 호출 흐름</a><a href="#code-flow">코드 호출 흐름도</a><a href="#live-bt">실시간 BT 조회 도구</a><a href="#validation">08 검증과 남은 연결</a></nav><div class="nav-foot">웹 전송: control-center<br>중앙 정책: fleet-control<br>로봇 실행: patrol + Nav2<br><br>오프라인 단일 HTML<br>2026.11.07</div></aside>
 <main>
 <header><div class="eyebrow">SN-01 / CENTRAL ORCHESTRATION</div><h1>주문에서 HOME 복귀까지,<br>단계를 확인하고 다음 명령을 내립니다.</h1><p class="lead">웹 화면은 <b>cobot_control_center</b>가 맡고, <b>cobot_fleet_control</b>이 로봇·팔·비전의 결과를 연결합니다. 명령 접수와 실제 작업 완료를 구분하고, 결과가 불확실하면 주문·로봇·공유 자원의 예약을 유지합니다.</p><div class="meta"><span class="badge">중앙 정책 구현</span><span class="badge gray">기존 domain bridge 재사용</span><span class="badge gray">공용 msg/srv/action 변경 없음</span><span class="badge amber">ROS·실물 연동 검증 필요</span></div></header>
 <div class="stats"><div class="stat"><strong>18</strong><small>PDF 시나리오 대응 검토</small></div><div class="stat"><strong>266</strong><small>자동 테스트 통과</small></div><div class="stat"><strong>1</strong><small>ROS 왕복 시험 미실행</small></div><div class="stat"><strong>0</strong><small>실제 로봇 구동</small></div></div>
@@ -71,6 +72,93 @@ source install/control_center_web/local_setup.bash</code></pre>
 <p>현재 관제 PC에서는 별도 빌드를 완료했으므로 재빌드 없이 위의 source 순서를 적용하면 됩니다. 다른 PC에서 재현하려면 해당 Git 커밋과 기존 프로젝트의 빌드 결과가 있어야 합니다. 이 설치 경로는 로컬 빌드 결과이므로 저장소를 새로 받거나 build/install을 지우면 다시 만들어야 합니다.</p>
 </details>
 <p class="sub">현재 단일 작업 화면의 API는 호환됩니다. 주문·수령·시나리오 안전 복구 화면은 기존 웹에 확장할 항목입니다. 로봇 상태 만료 3초와 배터리 만료 10초를 분리해 실제 5초 배터리 발행 주기를 허용합니다.</p>
+</section>
+<section id="order-runbook">
+<h2>전체 주문: 재고 등록부터 HOME 복귀까지</h2>
+<p class="sub">전체 주문은 <b>fleet_control</b>이 실행합니다. 현재 웹은 개별 이동·가동 허용을 제공하며, 전체 주문은 관제 PC에서 <code>type=order</code> ROS 요청으로 접수할 수 있습니다. 아래는 오프라인 설명과 수동 실행 예시입니다. 이 HTML은 로봇 명령을 전송하지 않습니다.</p>
+<ol class="order-journey" aria-label="전체 배송 주문의 8단계 큰 흐름">
+  <li><h3>가용 재고 등록</h3><p><code>inventory</code><br>SKU별 예약분 제외 가용 수량을 등록합니다. 예시: SHOE42 2개.</p></li>
+  <li><h3>전체 주문 접수</h3><p><code>order → WAITING</code><br>주문 ID·SKU·수량·운송 경로를 검증하고 재고를 원자적으로 예약합니다.</p></li>
+  <li><h3>가동 허용·자동 배정</h3><p>작업 명령 켜짐, 최신 상태·배터리, 중앙 제어 모드·정지 래치·예약을 확인해 준비된 로봇을 배정합니다.</p></li>
+  <li class="device"><h3>ZA 도착·상차</h3><p>상차 구역 이동 → 후미 이탈 → 정차 실측·보정 → 상품 마커 → 피킹 → 상차. 단계별 실제 결과를 기다립니다.</p></li>
+  <li class="device"><h3>적재·팔 퇴피 확인</h3><p><code>VERIFY_LOAD</code><br>같은 결과의 <code>data</code>에서 <code>load_present=true</code>, <code>arm_safe=true</code>를 확인합니다.</p></li>
+  <li class="device"><h3>ZB 운반·하차</h3><p>ZA 이탈 → ZB 이동 → 후미 이탈·정차·QR 확인 → 피킹·하차 → 배치·빈 적재함·팔 퇴피 검증.</p></li>
+  <li><h3>고객 수령 대기</h3><p><code>CUSTOMER</code><br><code>received</code> 입력 또는 기본 120초 제한 시간까지 기다립니다. 무응답은 수령 미확인으로 기록합니다.</p></li>
+  <li class="finish"><h3>HOME 복귀·주문 종결</h3><p>ZB 이탈 → 로봇별 HOME → 후미 이탈 확인. 필수 단계와 자원 정리가 끝나면 <code>COMPLETED</code>로 종결합니다.</p></li>
+</ol>
+<div class="callout info"><b>요청 접수와 실행 완료를 각각 확인합니다.</b> CLI의 <code>publishing #1</code>은 ROS 발행 출력입니다. 관제의 <code>reply.status=200</code>은 재고 등록 처리, <code>202</code>는 신규 주문 접수를 뜻합니다. 주문의 실제 단계·종결 상태는 <code>/control_center/tasks</code>의 <code>orders</code>에서 확인합니다.</div>
+<div class="table-wrap"><table><thead><tr><th>요청 종류</th><th>지정하는 값</th><th>진행 범위</th></tr></thead><tbody>
+<tr><td>개별 이동</td><td><code>type=create</code>, <code>robot_id</code>, <code>operation=goto</code>, <code>points=["P1"]</code></td><td>현재 로봇 위치에서 등록된 웨이포인트까지 주행. 웹의 <code>POST /api/tasks</code>로 접수 가능.</td></tr>
+<tr><td>전체 주문</td><td><code>type=order</code>, <code>order_id</code>, <code>sku</code>, <code>quantity</code>, <code>route</code></td><td>재고 예약·로봇 자동 배정·상차·운반·하차·수령·복귀. 현재는 내부 ROS 요청으로 접수.</td></tr>
+<tr><td>임의 좌표</td><td>주문 입력에 <code>x / y / yaw</code> 필드는 없음</td><td>현장 웨이포인트와 운송 경로를 먼저 등록·배포해야 함. 현재 전체 주문의 이동 단계는 구역 지점을 사용.</td></tr>
+</tbody></table></div>
+<p>예시 경로 <code>lab_delivery</code>는 <a href="../cobot_fleet_control/config/scenario.yaml">scenario.yaml</a>의 <b>ZA → ZB</b>와 <b>omx1 → omx2</b> 매핑을 사용합니다. <a href="../cobot_pinky_patrol/config/sites/lab.yaml">lab.yaml</a> 기준 ZA는 <code>[0.6, 0.5, -1.5]</code>, ZB는 <code>[0.6, -0.15, -1.5]</code>이며 단위는 map 좌표의 m·rad입니다. 주문을 보낸 PC의 위치를 출발점으로 입력하는 기능은 없습니다.</p>
+
+<details open><summary>관제 PC에서 전체 주문을 접수하는 명령</summary>
+<p>Docker 서비스가 실행된 상태에서 사용합니다. 상품·수량·경로는 실제 현장 값으로 바꿉니다. 예시는 SHOE42의 가용 재고가 2개인 경우입니다. 재고를 등록한 뒤 주문을 접수하고, 현장 준비와 접수 응답을 확인한 후 웹에서 <b>작업 명령 켜기</b>를 누릅니다. 이미 가동 허용이 켜져 있으면 준비된 주문은 접수 후 실행될 수 있습니다.</p>
+<div class="code-title">별도 터미널: 관제의 처리 응답을 먼저 관찰</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic echo /control_center/task_events std_msgs/msg/String</code></pre>
+<div class="code-title">1. 예약분을 제외한 가용 재고를 절대값으로 등록</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
+  '{data: "{\"type\":\"inventory\",\"request_id\":\"stock-001\",\"sku\":\"SHOE42\",\"available\":2}"}'</code></pre>
+<p class="sub"><code>request_id=stock-001</code>의 <code>reply.status=200</code>을 확인합니다. <code>available=2</code>는 2개를 더하는 요청이 아니라 가용 수량을 2개로 설정하는 요청입니다. 주문 접수 후 같은 재고 등록을 반복하면 가용 수량을 다시 설정하므로 실제 재고를 확인해야 합니다.</p>
+<div class="code-title">2. 전체 주문 접수 — ZA 상차 → ZB 하차 → HOME</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
+  '{data: "{\"type\":\"order\",\"request_id\":\"submit-001\",\"order\":{\"order_id\":\"order-001\",\"sku\":\"SHOE42\",\"quantity\":1,\"route\":\"lab_delivery\"}}"}'</code></pre>
+<p class="sub"><code>request_id=submit-001</code>의 <code>reply.status=202</code>와 주문 내용을 확인합니다. 재고 부족·필드 오류는 거절됩니다. 같은 <code>order_id</code>와 동일 내용의 재전송은 기존 주문을 반환하며, 새로운 주문에는 새로운 주문 ID를 사용합니다.</p>
+<div class="code-title">3. 전체 주문의 현재 단계와 배정 로봇 조회</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic echo /control_center/tasks std_msgs/msg/String \
+  --qos-durability transient_local --once</code></pre>
+<p><code>orders</code>의 <code>order_id</code>, <code>robot_id</code>, <code>state</code>, <code>stage</code>, <code>request_id</code>, <code>detail</code>을 확인합니다. 작업 명령이 꺼져 있거나 배정 조건이 충족되지 않으면 <code>WAITING</code>으로 남습니다. 웹의 <code>/api/tasks</code>는 개별 주행 목록이므로 전체 주문 확인에는 위 스냅샷이나 <a href="#live-bt">실시간 BT 조회 도구</a>를 사용합니다.</p>
+<div class="callout"><b>경고와 처리 실패를 구분합니다.</b> <code>ROS_LOCALHOST_ONLY is deprecated</code> 경고는 설정 방식의 변경 안내이며, 그 문구만으로 발행 실패를 뜻하지 않습니다. <code>publishing #1</code> 뒤에는 대응하는 관제 <code>reply</code>와 주문 스냅샷을 확인합니다.</div>
+</details>
+
+<details open><summary>팔·비전 결과를 받아야 다음 단계로 넘어갑니다</summary>
+<p>어댑터는 <code>/fleet/work_request</code>에서 현재 요청을 받아 실제 작업·측정을 수행하고 <code>/fleet/work_result</code>로 결과를 보냅니다. 어댑터가 연결되지 않으면 상차 구역 도착 직후의 <code>PICKUP_EXIT</code>부터 결과를 기다립니다. 수동 진행도 각 단계의 실제 확인 결과가 필요합니다.</p>
+<div class="code-title">장치 연결과 현재 요청 확인 — 관제 PC</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic info /fleet/work_request
+docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic info /fleet/work_result
+docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic echo /fleet/work_request std_msgs/msg/String</code></pre>
+<p>관찰용 echo를 켜기 전 <code>work_request</code>의 구독자가 0개이면 요청을 처리할 어댑터가 없습니다. echo 자체도 구독자로 집계되므로 구독자 수만으로 작업 어댑터의 준비를 확정할 수는 없습니다. <code>work_result</code>의 발행자도 확인합니다.</p>
+<div class="code-title">VERIFY_LOAD 결과의 JSON 예시 — 현재 요청 ID·주문·로봇과 일치시킴</div>
+<pre><button type="button" class="copy">복사</button><code>{
+  "request_id": "현재_VERIFY_LOAD_work_request의_ID",
+  "order_id": "order-001",
+  "robot_id": "현재_배정된_로봇_ID",
+  "stage": "VERIFY_LOAD",
+  "source": "vision",
+  "measured": true,
+  "finished": true,
+  "success": true,
+  "data": {
+    "load_present": true,
+    "arm_safe": true
+  }
+}</code></pre>
+<p><code>load_present</code>와 <code>arm_safe</code>는 같은 결과의 <code>data</code> 안에 불리언으로 넣습니다. 주문·로봇·단계·출처·현재 요청 ID가 맞아야 하며, 실제 확인 없이 완료 값으로 채우면 안 됩니다. 적재 확인이 끝나도 가동 허용·최신 통신·통로 예약 조건이 충족돼야 ZA 이탈과 ZB 이동을 전달합니다. 기본 단계 제한 시간 300초를 넘기면 <code>UNKNOWN</code>으로 보류합니다.</p>
+<p>하차의 <code>VERIFY_UNLOAD</code>는 <code>data.placed=true</code>, <code>data.load_absent=true</code>, <code>data.arm_safe=true</code>를 함께 확인합니다. 정차·SKU·후미 이탈 등 나머지 단계의 필수 값은 <a href="#contract">장치 연동 계약</a>을 참고합니다.</p>
+<div class="code-title">CUSTOMER 단계에서 실제 고객 수령을 확인한 경우</div>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
+  '{data: "{\"type\":\"received\",\"request_id\":\"received-001\",\"order_id\":\"order-001\"}"}'</code></pre>
+<p>현재 <code>CUSTOMER</code>에서 대기 중인 주문만 수령 확인을 받습니다. 기본 120초 무응답도 복귀를 허용하지만 <code>customer_received=false</code>, <code>customer_timed_out=true</code>로 기록합니다.</p>
+</details>
+
+<details><summary>핑키 1·2에 주문 두 개를 넣으면 동시에 진행되나요?</summary>
+<p>전체 주문은 준비된 로봇에 자동 배정합니다. 현재 주문 입력에는 <code>robot_id</code> 지정 필드가 없으므로 핑키 1·2로 고정되지 않으며, 조건이 맞으면 핑키3도 배정 대상입니다. 웹의 온라인 표시는 위치·배터리 수신 기준이고, 배정에는 최신 patrol 상태·배터리·중앙 제어·정지 잠금 해제와 자원 조건이 추가로 필요합니다.</p>
+<p>가용 재고가 남아 있다면 <code>order-002</code>로 두 번째 주문을 접수할 수 있습니다. 재고 등록 요청을 다시 보낼 필요는 없습니다.</p>
+<pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
+  ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
+  '{data: "{\"type\":\"order\",\"request_id\":\"submit-002\",\"order\":{\"order_id\":\"order-002\",\"sku\":\"SHOE42\",\"quantity\":1,\"route\":\"lab_delivery\"}}"}'</code></pre>
+<p>배정 간격은 기본 3초입니다. 실제 출발은 별도로 자원 확보를 기다립니다. 같은 경로의 주문은 출발 전에 양쪽 작업장·팔·공유 통로를 예약하므로 뒤 주문이 자원 대기 상태에 머물 수 있습니다. 두 주문의 접수는 가능하지만 같은 경로의 전체 과정을 동시 진행한다고 보장하지 않습니다. 별도 자원을 쓰는 경로는 병행할 수 있고, 로봇 지정·경로·자원 정책 변경은 추가 구현 대상입니다.</p>
+</details>
 </section>
 <section id="flow"><h2>02. 실행 흐름을 직접 확인하세요</h2><p class="sub">실제 주문 전체 BT + SQLite + 하위 주행 BT를 가짜 장치와 실행해 수집한 기록입니다. 아래 재생기는 로봇 명령을 전송하지 않습니다.</p><div class="playback"><div class="play-top"><span class="badge gray">로컬 테스트 기록 재생</span><div class="controls"><select id="trace-select" aria-label="테스트 시나리오 선택"><option value="delivery">정상 배송</option><option value="customer_timeout">수령 120초 초과</option><option value="sku_mismatch">상품 불일치</option><option value="link_loss">통신 단절</option><option value="restart">관제 재시작</option></select><button id="prev" type="button">이전</button><button id="play" type="button" class="primary">재생</button><button id="next" type="button">다음</button></div></div><div class="play-body"><div id="stages" class="stage-grid"></div><input type="range" id="position" min="0" max="1" value="0" aria-label="기록 위치"><div class="trace-info" aria-live="polite"><div><small>현재 상태</small><b id="state"></b></div><div><small>로봇 / 기록 위치</small><b id="robot"></b></div><div><small>판정·확인 내용</small><span id="detail"></span></div></div></div></div><div class="callout info"><b>같은 요청은 다시 실행하지 않습니다.</b> 주문은 <code>order_id</code>, 주행은 <code>command_id</code>, 팔·비전 작업은 단계마다 새 <code>request_id</code>로 추적합니다. 이전 단계·다른 로봇·다른 장치·이전 시도의 응답은 다음 단계를 열지 못합니다.</div></section>
 <section id="coverage"><h2>03. PDF 각 흐름이 연결되는 위치</h2><p class="sub">“중앙 구현”은 정책·상태 전이·요청·결과 판정을 뜻합니다. 장치 모션과 센서 측정이 구현되었다는 뜻은 아닙니다.</p><div class="table-wrap"><table><thead><tr><th>PDF</th><th>흐름</th><th>중앙 처리</th><th>현장 연결 / 적용한 해석</th></tr></thead><tbody>
