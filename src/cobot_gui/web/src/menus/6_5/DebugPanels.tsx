@@ -128,7 +128,7 @@ function ZonePanel({ zones }: { zones: ZoneRow[] }) {
     <section className="space-y-1">
       <h3 className={TITLE}>구역 점유</h3>
       {zones.length === 0 && (
-        <div className="text-[10px] text-[#888888]">점유 정보 없음. 구역 관리자는 바뀔 때만 알립니다.</div>
+        <div className="text-[10px] text-[#888888]">점유 정보 없음. 시작 뒤 몇 초는 비어 있을 수 있습니다.</div>
       )}
       <table className="text-[10px] font-mono text-[#cccccc]">
         <tbody>
@@ -196,6 +196,9 @@ function RoutePanel({ routes }: { routes: DebugState["routes"] }) {
   return (
     <section className="space-y-1">
       <h3 className={TITLE}>경유 기록</h3>
+      <div className="text-[9px] text-[#888888]">
+        amcl_pose 기준입니다. 로봇이 믿는 위치라서 실제 경로와 다를 수 있고, 지나간 지점이 빠질 수 있습니다.
+      </div>
       {robots.length === 0 && <div className="text-[10px] text-[#888888]">기록 없음</div>}
       {robots.map((robot) => (
         <div key={robot} className="font-mono text-[10px] text-[#cccccc] break-all">

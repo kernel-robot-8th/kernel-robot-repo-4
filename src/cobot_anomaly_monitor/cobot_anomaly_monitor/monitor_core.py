@@ -99,7 +99,7 @@ class MonitorCore:
         self._seen(robot, 'odom')
 
     def on_zone_status(self, text):
-        """구역 관리자의 점유 상태를 받는다. 바뀔 때만 오므로 켜기 전 값은 모른다."""
+        """구역 관리자의 점유 상태를 받는다."""
         parsed = parse_zone_status(text)
         if parsed:
             self.zones[parsed[0]] = parsed[1]

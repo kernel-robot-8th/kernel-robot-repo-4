@@ -54,7 +54,7 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 | 전체 비상 정지 | 관제 `estop` 요청입니다. 복구는 `resolve` 또는 `release_control`입니다 |
 | 구역 점유 | 구역 관리자와 로봇이 말하는 점유자를 나란히 놓습니다. 다르면 불일치입니다 |
 | 연결 진단 | 도메인, 순찰 상태, 토픽 발행자와 수신 나이, `ready()`가 이동을 거절할 이유 |
-| 경유 기록 | `amcl_pose`가 지점 0.15 m 안을 지난 순서입니다 |
+| 경유 기록 | `amcl_pose`가 지점 0.15 m 안을 지난 순서입니다. 믿는 위치라서 실제 경로와 다를 수 있습니다 |
 | 요청과 응답 | 관제 요청의 상태 코드와 왕복 시간, 관제 작업 상태 |
 
 웹과 이 패키지는 로봇 토픽을 발행하지 않습니다(`fms_dev_rules` R7). 그래서 `cmd_vel`, `initialpose`는 콘솔에 없습니다.
