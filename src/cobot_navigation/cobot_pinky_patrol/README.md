@@ -113,6 +113,11 @@ ros2 run cobot_pinky_patrol pinky_patrol_node --ros-args \
 ros2 run cobot_pinky_patrol robot_startup --robot-id pinky1 --domain-id 10
 ```
 
+워크스페이스가 `~/ws/kernel-robot-repo-4`이면 `--workspace "$HOME/ws/kernel-robot-repo-4"`를 추가합니다.
+센서 준비 검사는 scan·odom·tf의 메시지 타입과 best-effort 구독을 사용해 실제 수신을 확인합니다.
+ROS CLI 한 번의 조회 제한은 기본 15초(`--probe-timeout`), 단계 전체 제한은 기본 90초(`--stage-timeout`)입니다.
+시간 초과 시 마지막 조회의 오류도 출력하며, 준비 검사를 생략하고 다음 단계로 넘어가지는 않습니다.
+
 지도 YAML·이미지·vendor 패키지 존재를 먼저 확인합니다. SSH 세션 종료 또는 Ctrl+C 시 이 실행기가 시작한 프로세스를 역순 정리합니다. 이미 수동으로 실행한 bringup·Nav2·패트롤과 함께 중복 실행하지 않습니다.
 
 ## 명령과 상태
