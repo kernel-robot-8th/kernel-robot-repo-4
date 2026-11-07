@@ -147,6 +147,22 @@ def test_image_check_does_not_start_dependencies_or_ros_nodes(runner):
     assert not any('up' in call['args'] for call in calls)
 
 
+def test_smoke_isolates_network_and_does_not_mount_operational_data(runner):
+    """실제 기동 검사는 외부 통신과 운영 원장을 연결하지 않는 임시 컨테이너를 쓴다."""
+    result, calls = runner('smoke')
+    assert result.returncode == 0
+    args = calls[-1]['args']
+    assert args[:3] == ['run', '--rm', '--init']
+    assert args[args.index('--network') + 1] == 'none'
+    assert args[args.index('--cap-drop') + 1] == 'ALL'
+    assert 'ROS_DOMAIN_ID=77' in args
+    assert 'ROS_LOCALHOST_ONLY=1' in args
+    assert 'ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST' in args
+    assert args[-2:] == ['python', '/opt/cobot/smoke_check.py']
+    assert not any(arg in args for arg in ('--volume', '-v', '--mount', '--publish', '-p'))
+    assert not any('up' in call['args'] for call in calls)
+
+
 def test_host_installer_help_does_not_install_packages():
     """설치기 도움말은 시스템 변경 없이 읽을 수 있다."""
     result = subprocess.run(['bash', str(CONFIG / 'install_host.sh'), '--help'],
