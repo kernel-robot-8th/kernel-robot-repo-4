@@ -27,10 +27,12 @@ import os
 import random
 import sys
 import time
+import uuid
 
-from cobot_mock.mock_pinky_sim import (ack_for, check_domain, choose_auto_command,
-                                       load_robot_configs, load_zone_params, MockConfigError,
-                                       RobotSim, v2_to_v1, ZoneBook)
+from cobot_mock.mock_pinky_sim import (ack_for, central_command, CentralGuard, check_domain,
+                                       choose_auto_command, load_robot_configs,
+                                       load_zone_params, MockConfigError, RobotSim, v2_to_v1,
+                                       ZoneBook)
 from cobot_patrol_interfaces.msg import PatrolCommand, PatrolCommandAck, PatrolState
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import rclpy
@@ -45,6 +47,7 @@ POSE_PERIOD_SEC = 0.2
 BATTERY_PERIOD_SEC = 1.0
 ZONE_PERIOD_SEC = 1.0
 STATE_PERIOD_SEC = 1.0
+STATUS_PERIOD_SEC = 1.0   # v1 상태 주기 발행 (실제 순찰 노드 status_period_sec 와 같은 역할)
 
 
 def battery_voltage(percent):
@@ -64,13 +67,25 @@ class MockPinkyNode(Node):
             'auto_patrol': True, 'auto_interval_sec': 8.0, 'auto_pause_after_cmd_sec': 60.0,
             'drain_moving_per_min': 1.0, 'drain_idle_per_min': 0.2, 'charge_per_min': 5.0,
             'dropout_robot': 'pinky3', 'dropout_period_sec': 60.0, 'dropout_sec': 12.0,
-            'seed': 0, 'spec_versions': ['v1', 'v2'],
+            'seed': 0, 'spec_versions': ['v1'],
+            # 중앙 관제(fleet_control) 규칙: 하트비트·세션·순번·TTL 을 통과한 명령만 받는다.
+            'central_controlled': True, 'heartbeat_timeout_sec': 3.0, 'command_ttl_max_sec': 5.0,
         }
         for name, value in p.items():
             self.declare_parameter(name, value)
         cfg = {name: self.get_parameter(name).value for name in p}
         robots = list(cfg['robots'])
         self.cfg = cfg
+        self.central = bool(cfg['central_controlled'])
+        if self.central and cfg['auto_patrol']:
+            # 중앙 모드에서는 fleet 만 명령한다. 로봇이 스스로 움직이면 배정과 어긋난다.
+            self.get_logger().warning('central_controlled 라 auto_patrol 을 끈다')
+            cfg['auto_patrol'] = False
+        self.boot_id = uuid.uuid4().hex
+        # rclpy Node 에 guards 속성이 있어 이름을 central_guards 로 둔다
+        self.central_guards = {
+            name: CentralGuard(cfg['heartbeat_timeout_sec'], cfg['command_ttl_max_sec'])
+            for name in robots}
 
         configs = load_robot_configs(cfg['points_dir'], robots, cfg['site'])
         self.book = ZoneBook(load_zone_params(cfg['zone_params']))
@@ -103,6 +118,9 @@ class MockPinkyNode(Node):
                     String, f'/{name}/patrol_status', 10)
                 self.create_subscription(String, f'/{name}/patrol_cmd',
                                          lambda msg, r=name: self._on_cmd(r, msg), 10)
+            if self.central:
+                self.create_subscription(String, f'/{name}/fleet_heartbeat',
+                                         lambda msg, r=name: self._on_heartbeat(r, msg), 10)
             # 규격 v2: 작업 ID 메시지 (cobot_patrol_interfaces). v1 과 다른 이름이라 겹치지 않는다
             if self.v2:
                 self.pub[name]['state'] = self.create_publisher(
@@ -118,6 +136,7 @@ class MockPinkyNode(Node):
         self.start = time.monotonic()
         self.last = self.start
         self.next_pose = self.next_battery = self.next_zone = self.next_state = self.start
+        self.next_status = self.start
         self.zone_lines = None
         self.create_timer(TICK_SEC, self._tick)
 
@@ -125,17 +144,39 @@ class MockPinkyNode(Node):
             self._emit(name, [{'state': 'IDLE', 'waypoint': -1, 'detail': ''}])
             self.get_logger().info(f'{name}: 홈 {sim.home} {sim.pose[:2]}')
         self.get_logger().info(
-            f'가짜 핑키 시작 (robots={robots}, auto_patrol={cfg["auto_patrol"]}, '
-            f'dropout={cfg["dropout_robot"] or "없음"})')
+            f'가짜 핑키 시작 (robots={robots}, central={self.central}, '
+            f'auto_patrol={cfg["auto_patrol"]}, dropout={cfg["dropout_robot"] or "없음"})')
 
     # ---------- 입력 ----------
 
     def _on_cmd(self, robot, msg):
         now = time.monotonic()
         self.manual_until[robot] = now + self.cfg['auto_pause_after_cmd_sec']
-        events = self.sims[robot].command(msg.data, now)
+        raw = msg.data
+        if self.central:
+            raw, result = central_command(self.central_guards[robot], msg.data)
+            if result == 'reset':
+                self.get_logger().info(f'{robot}: 정지 잠금 해제 (control_reset)')
+                self._emit(robot, [{'state': 'IDLE', 'waypoint': -1, 'detail': 'control reset'}])
+                return
+            if raw is None:
+                self.get_logger().warning(
+                    f'{robot}: 명령 거절 (하트비트·세션·순번·TTL·정지 잠금): {msg.data!r}')
+                return
+        events = self.sims[robot].command(raw, now)
         self.get_logger().info(f'{robot}: 명령 {msg.data!r} -> {len(events)}개 이벤트')
         self._emit(robot, events)
+
+    def _on_heartbeat(self, robot, msg):
+        """서버 세션이 바뀌면 비상정지한다. 연결이 돌아와도 이동을 다시 시작하지 않는다."""
+        try:
+            changed = self.central_guards[robot].heartbeat(json.loads(msg.data))
+        except (ValueError, TypeError):
+            self.get_logger().warning(f'{robot}: 잘못된 중앙 하트비트')
+            return
+        if changed:
+            self.get_logger().warning(f'{robot}: 관제 세션 바뀜 -> 비상정지·잠금')
+            self._emit(robot, self.sims[robot].command('emergency_stop', time.monotonic()))
 
     def _on_command_v2(self, robot, msg):
         """v2 명령은 v1 명령으로 바꿔 같은 로봇을 움직이고, 받음/거절을 ack 로 알린다."""
@@ -165,6 +206,9 @@ class MockPinkyNode(Node):
         dt, self.last = now - self.last, now
         self.book.tick(now)
         for name, sim in self.sims.items():
+            if self.central and self.central_guards[name].expired():
+                self.get_logger().warning(f'{name}: 관제 하트비트 끊김 -> 비상정지·잠금')
+                self._emit(name, sim.command('emergency_stop', now))
             if self.cfg['auto_patrol'] and not sim.running and now >= self.manual_until[name]:
                 if self.next_auto[name] is None:
                     # 로봇마다 쉬는 시간을 0.5~1.5배로 흩어 3대가 같은 박자로 움직이지 않게 한다
@@ -193,10 +237,14 @@ class MockPinkyNode(Node):
             if self._silent(robot, time.monotonic()):
                 continue        # 끊긴 동안의 상태는 실제 네트워크처럼 잃는다
             if self.v1:
-                payload = dict(ev, time=time.time())
-                self.pub[robot]['status'].publish(String(data=json.dumps(payload)))
+                self._publish_status(robot, self.sims[robot].status(ev))
             if self.v2:
                 self._publish_state(robot, ev)
+
+    def _publish_status(self, robot, payload):
+        payload = dict(payload, time=time.time(), central_controlled=self.central,
+                       central_latched=self.central_guards[robot].latched, boot_id=self.boot_id)
+        self.pub[robot]['status'].publish(String(data=json.dumps(payload)))
 
     def _publish_state(self, robot, ev=None):
         msg = PatrolState(robot_id=robot, **self.sims[robot].v2_state(ev))
@@ -227,6 +275,12 @@ class MockPinkyNode(Node):
                 self.pub[name]['percent'].publish(Float32(data=float(sim.battery)))
                 self.pub[name]['voltage'].publish(
                     Float32(data=float(battery_voltage(sim.battery))))
+        if self.v1 and now >= self.next_status:
+            # 실제 순찰 노드처럼 상태를 주기적으로 낸다. fleet 은 3초 안에 상태가 와야 배정한다
+            self.next_status = now + STATUS_PERIOD_SEC
+            for name, sim in self.sims.items():
+                if not self._silent(name, now):
+                    self._publish_status(name, sim.status())
         if self.v2 and now >= self.next_state:
             # v2 상태는 바뀔 때 + 1초마다 (수신 간격으로 연결을 판단할 수 있게)
             self.next_state = now + STATE_PERIOD_SEC

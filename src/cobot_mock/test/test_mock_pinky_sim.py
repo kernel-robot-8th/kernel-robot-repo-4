@@ -18,12 +18,14 @@
 지점·구역은 실제 순찰·zone_manager 설정 파일을 읽는다. 그 파일 형식이 바뀌면 여기서 먼저 깨진다.
 """
 
+import json
 import os
 import random
 
-from cobot_mock.mock_pinky_sim import (ack_for, check_domain, choose_auto_command,
-                                       load_robot_configs, load_zone_params, parse_command,
-                                       RobotSim, v2_to_v1, ZoneBook)
+from cobot_mock.mock_pinky_sim import (ack_for, central_command, CentralGuard, check_domain,
+                                       choose_auto_command, load_robot_configs,
+                                       load_zone_params, parse_command, RobotSim, v2_to_v1,
+                                       ZoneBook)
 import pytest
 
 NAV = os.path.join(os.path.dirname(__file__), '..', '..', 'cobot_navigation')
@@ -279,3 +281,94 @@ def test_load_robot_configs_prefers_flat_profile(tmp_path):
         'pinky_patrol_node:\n  ros__parameters:\n    robot_id: pinky1\n    home_name: H\n'
         '    points:\n      H: [1.0, 2.0, 0.0]\n', encoding='utf-8')
     assert load_robot_configs(str(tmp_path), ['pinky1'])['pinky1']['home'] == 'H'
+
+
+# ---------- 중앙 관제(fleet_control) 규칙 ----------
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+@pytest.fixture
+def guard():
+    clock = Clock()
+    return CentralGuard(timeout_sec=3.0, max_ttl_sec=5.0, clock=clock, wall=clock), clock
+
+
+def beat(clock, seq, session='s1', ttl=3.0):
+    return {'session_id': session, 'seq': seq, 'issued_at': clock.now, 'ttl_sec': ttl}
+
+
+def envelope(clock, seq, command='goto:P1', session='s1', ttl=5.0):
+    return json.dumps({'command_id': f'c{seq}', 'command': command, 'session_id': session,
+                       'seq': seq, 'issued_at': clock.now, 'ttl_sec': ttl})
+
+
+def test_central_guard_accepts_only_current_session_fresh_increasing(guard):
+    g, clock = guard
+    # 하트비트 전에는 아무 명령도 받지 않는다
+    assert central_command(g, envelope(clock, 1)) == (None, 'rejected')
+    assert g.heartbeat(beat(clock, 1)) is False
+    raw, result = central_command(g, envelope(clock, 1))
+    assert result == 'accepted' and json.loads(raw)['command'] == 'goto:P1'
+    # 같은·작은 순번, 다른 세션, 봉투 없는 글자, 너무 긴 TTL 은 거절
+    assert central_command(g, envelope(clock, 1))[1] == 'rejected'
+    assert central_command(g, envelope(clock, 2, session='other'))[1] == 'rejected'
+    assert central_command(g, 'goto:P1')[1] == 'rejected'
+    assert central_command(g, envelope(clock, 3, ttl=10.0))[1] == 'rejected'
+    # 유효 시간이 지난 명령은 거절
+    old = envelope(clock, 4)
+    clock.now += 6.0
+    g.heartbeat(beat(clock, 2))
+    assert central_command(g, old)[1] == 'rejected'
+
+
+def test_central_guard_stop_latches_until_reset(guard):
+    g, clock = guard
+    g.heartbeat(beat(clock, 1))
+    # 정지는 봉투가 없어도 늘 받고 잠근다
+    assert central_command(g, '{"command_id": "x", "command": "emergency_stop"}')[1] == 'stop'
+    assert g.latched
+    assert central_command(g, envelope(clock, 1))[1] == 'rejected'
+    assert central_command(g, envelope(clock, 2, command='control_reset')) == (None, 'reset')
+    assert not g.latched
+    assert central_command(g, envelope(clock, 3))[1] == 'accepted'
+
+
+def test_central_guard_session_change_and_heartbeat_loss_latch(guard):
+    g, clock = guard
+    g.heartbeat(beat(clock, 1))
+    # 서버가 다시 켜져 세션이 바뀌면 정지해야 한다
+    assert g.heartbeat(beat(clock, 1, session='s2')) is True and g.latched
+    # 예전 세션의 하트비트는 다시 받지 않는다
+    assert g.heartbeat(beat(clock, 5, session='s1')) is False
+    central_command(g, envelope(clock, 1, command='control_reset', session='s2'))
+    assert not g.latched and g.expired() is False
+    clock.now += 3.5
+    assert g.expired() is True and g.latched
+    assert g.expired() is False      # 한 번만 알린다
+
+
+def test_status_carries_zone_and_busy_fields(fleet):
+    sims, _ = fleet
+    sim = sims['pinky1']
+    assert sim.status() == dict(sim.last_event, task_finished=False, held_zone=None,
+                                arrived_zone=None, busy=False)
+    sim.command('{"command_id": "job-z", "command": "zone:ZA"}', 0.0)
+    status = sim.status()
+    assert status['busy'] is True and status['command_id'] == 'job-z'
+    assert status['task_finished'] is False
+    run(sims, 10)
+    status = sim.status()
+    # 구역 목표에 도착해야 arrived_zone 이 생긴다. 주기 상태는 끝난 작업을 다시 완료로 알리지 않는다
+    assert status['held_zone'] == 'A' and status['arrived_zone'] == 'A'
+    assert status['busy'] is False and status['task_finished'] is False
+    assert 'command_id' not in status
+    sim.command('leave', 20.0)
+    assert sim.arrived_zone is None and sim.held_zone == 'A'
+    run(sims, 10, start=20.0)
+    assert sim.held_zone is None and sim.arrived_zone is None

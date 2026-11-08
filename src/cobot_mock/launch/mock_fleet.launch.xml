@@ -3,7 +3,9 @@
   Copyright 2026 Pinky_Team4
   Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 
-  가짜 핑키 + 관제(fleet_status, fleet_api, task_manager) 를 함께 띄운다. 로봇 없이 관제 화면을 시험할 때 쓴다.
+  가짜 핑키 + 관제(fleet_status, fleet_api, 작업 노드) 를 함께 띄운다. 로봇 없이 관제 화면을 시험할 때 쓴다.
+  작업 노드는 실물과 같은 fleet_control 이 기본이다. 가짜 핑키도 실물처럼 하트비트·세션·순번을 지킨다.
+  예전 방식(task_manager, 다음에 제거 예정)은 controller:=task_manager.
   반드시 격리 도메인에서 실행한다 (실물 0·10·12·20·30·100 이면 가짜 핑키가 시작을 거부한다):
     export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
     ros2 launch cobot_mock mock_fleet.launch.xml
@@ -16,10 +18,13 @@
   <arg name="site" default="lab" description="순찰 설정 sites/ 의 현장 이름"/>
   <arg name="zone_params" default="$(find-pkg-share cobot_zone_traffic_control)/config/zone_params.yaml"
        description="zone_manager 설정 파일"/>
-  <arg name="auto_patrol" default="true" description="가짜 핑키가 스스로 돌아다닐지"/>
-  <arg name="with_control_center" default="true" description="fleet_status·fleet_api·task_manager 도 함께 띄울지"/>
+  <arg name="controller" default="fleet" description="작업 노드: fleet (기본, 실물과 같음) / task_manager (예전 방식)"/>
+  <arg name="auto_patrol" default="false"
+       description="가짜 핑키가 스스로 돌아다닐지 (task_manager 일 때만. fleet 에서는 fleet 만 명령한다)"/>
+  <arg name="dropout_robot" default="" description="주기적으로 끊기는 로봇 (끊김 화면 시험용, 기본 없음)"/>
+  <arg name="with_control_center" default="true" description="fleet_status·fleet_api·작업 노드도 함께 띄울지"/>
   <arg name="port" default="8081" description="관제 화면 포트 (실물 관제 8080 과 겹치지 않게)"/>
-  <arg name="spec_mode" default="auto" description="관제 명령 규격 (auto: v2 상태가 오면 v2, v1, v2)"/>
+  <arg name="spec_mode" default="auto" description="task_manager 의 명령 규격 (auto: v2 상태가 오면 v2, v1, v2)"/>
   <arg name="allow_raw_cmd" default="true" description="관제 화면의 개발용 수동 명령 칸 (가짜 핑키라 기본 켬)"/>
   <arg name="start_armed" default="true"
        description="관제 작업 명령 켜진 상태로 시작 (가짜 핑키라 기본 켬, false 면 화면에서 켬)"/>
@@ -30,6 +35,8 @@
     <param name="site" value="$(var site)"/>
     <param name="zone_params" value="$(var zone_params)"/>
     <param name="auto_patrol" value="$(var auto_patrol)"/>
+    <param name="dropout_robot" value="$(var dropout_robot)"/>
+    <param name="central_controlled" value="$(eval '\'$(var controller)\' == \'fleet\'')"/>
   </node>
 
   <group if="$(var with_control_center)">
@@ -38,7 +45,16 @@
       <arg name="port" value="$(var port)"/>
     </include>
     <!-- 명령 기록은 실물과 다른 파일에 둔다 -->
-    <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml">
+    <include file="$(find-pkg-share cobot_fleet_control)/launch/fleet_control.launch.xml"
+             if="$(eval '\'$(var controller)\' == \'fleet\'')">
+      <arg name="patrol_config_dir" value="$(var points_dir)"/>
+      <arg name="site" value="$(var site)"/>
+      <arg name="db_path" value="~/.ros/cobot_control_center/fleet_mock.sqlite3"/>
+      <arg name="allow_raw_cmd" value="$(var allow_raw_cmd)"/>
+      <arg name="start_armed" value="$(var start_armed)"/>
+    </include>
+    <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml"
+             if="$(eval '\'$(var controller)\' == \'task_manager\'')">
       <arg name="points_dir" value="$(var points_dir)"/>
       <arg name="db_path" value="~/.ros/cobot_control_center/tasks_mock.db"/>
       <arg name="spec_mode" value="$(var spec_mode)"/>

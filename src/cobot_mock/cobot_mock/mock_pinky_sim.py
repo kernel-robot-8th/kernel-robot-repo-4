@@ -26,6 +26,7 @@ from collections import deque
 import json
 import math
 import os
+import time
 
 import yaml
 
@@ -158,6 +159,109 @@ def parse_command(raw):
     if kind not in ('goto', 'zone', 'leave', 'home', 'stop', 'emergency_stop', 'start'):
         return None, names, command_id
     return kind, names, command_id
+
+
+class CentralGuard:
+    """
+    중앙 관제(fleet_control) 명령 허용 규칙. 실제 순찰 노드의 central_guard.py 와 같게 맞춘다.
+
+    패키지끼리 import 하지 않는 규칙(CLAUDE.md 3-6) 때문에 복사해 둔다. 실제 파일이 바뀌면 같이 고친다.
+    - 하트비트는 연결 상태만 살린다. 정지 잠금(latched)은 풀지 않는다.
+    - 명령은 현재 세션, 유효 시간(TTL) 안, 순번이 늘어나는 것만 받는다. 잠긴 동안은 control_reset 만.
+    - 서버 세션이 바뀌거나 하트비트가 끊기면 잠근다.
+    """
+
+    def __init__(self, timeout_sec=3.0, max_ttl_sec=5.0, clock=time.monotonic, wall=time.time):
+        self.timeout, self.max_ttl, self.clock, self.wall = timeout_sec, max_ttl_sec, clock, wall
+        self.session = None
+        self.heartbeat_seq = self.command_seq = 0
+        self.received = None
+        self.latched = False
+        self.retired_sessions = set()
+
+    @property
+    def healthy(self):
+        return self.received is not None and self.clock() - self.received < self.timeout
+
+    def _valid_time(self, payload):
+        issued, ttl = payload.get('issued_at'), payload.get('ttl_sec')
+        return (_number(issued) and _number(ttl) and 0 < ttl <= self.max_ttl
+                and -1.0 <= self.wall() - issued < ttl)
+
+    def heartbeat(self, payload):
+        """서버 세션이 바뀌어 정지해야 하면 True."""
+        if not isinstance(payload, dict) or not self._valid_time(payload):
+            return False
+        session, seq = payload.get('session_id'), payload.get('seq')
+        if (not isinstance(session, str) or not session or isinstance(seq, bool)
+                or not isinstance(seq, int) or seq <= 0 or session in self.retired_sessions):
+            return False
+        changed = self.session is not None and session != self.session
+        if session == self.session and seq <= self.heartbeat_seq:
+            return False
+        if session != self.session:
+            if self.session:
+                self.retired_sessions.add(self.session)
+            self.session, self.heartbeat_seq, self.command_seq = session, 0, 0
+        if changed:
+            self.latched = True
+        self.heartbeat_seq, self.received = seq, self.clock()
+        return changed
+
+    def expired(self):
+        """하트비트가 끊기면 한 번만 True (그때 잠근다)."""
+        if self.received is not None and not self.healthy and not self.latched:
+            self.latched = True
+            return True
+        return False
+
+    def accept(self, payload, reset=False):
+        """현재 세션·유효 시간·늘어나는 순번의 명령만 받는다. reset 이면 잠금을 푼다."""
+        if (not self.healthy or not self._valid_time(payload)
+                or payload.get('session_id') != self.session or (self.latched and not reset)):
+            return False
+        seq = payload.get('seq')
+        if isinstance(seq, bool) or not isinstance(seq, int) or seq <= self.command_seq:
+            return False
+        self.command_seq = seq
+        if reset:
+            self.latched = False
+        return True
+
+
+def _number(value):
+    """불리언·NaN·무한대를 유효한 시각으로 보지 않는다."""
+    return (not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value))
+
+
+def central_command(guard, raw):
+    """
+    중앙 모드에서 patrol_cmd 를 거른다. (로봇에 넘길 명령 또는 None, 처리 결과) 를 돌려준다.
+
+    결과: 'stop' (정지는 늘 받고 잠금), 'reset' (잠금 해제, 로봇에 넘기지 않음),
+    'accepted', 'rejected'. 실제 순찰 노드 _cmd_cb 와 같은 순서다.
+    """
+    envelope = None
+    text = raw.strip() if isinstance(raw, str) else ''
+    if text.startswith('{'):
+        try:
+            envelope = json.loads(text)
+            command = envelope['command']
+        except (ValueError, KeyError, TypeError):
+            return None, 'rejected'
+        if not isinstance(command, str):
+            return None, 'rejected'
+    else:
+        command = text
+    if command.strip().lower() in ('stop', 'emergency_stop'):
+        guard.latched = True
+        return raw, 'stop'
+    if command == 'control_reset':
+        return None, 'reset' if guard.accept(envelope or {}, True) else 'rejected'
+    if not guard.accept(envelope or {}):
+        return None, 'rejected'
+    return raw, 'accepted'
 
 
 V2_OPERATIONS = ('goto', 'zone', 'leave', 'home', 'stop', 'emergency_stop')
@@ -311,6 +415,7 @@ class RobotSim:
         self.battery = float(battery)
         self.charging = False
         self.held_zone = None
+        self.arrived_zone = None     # 구역 목표에 실제로 도착했을 때만 (held_zone 은 예약 토큰)
         self.last_point = self.home
         self.steps = deque()
         self.running = False
@@ -342,6 +447,19 @@ class RobotSim:
         if self.command_id is not None:
             ev['command_id'] = self.command_id
             ev['task_finished'] = final
+        return ev
+
+    def status(self, ev=None):
+        """v1 patrol_status 에 실을 값. 실제 순찰 노드처럼 구역·바쁨 상태를 함께 싣는다."""
+        if ev is None:
+            # 주기 발행: 끝난 작업의 완료 표시를 새 완료 근거로 다시 보내지 않는다 (실제 노드와 같게)
+            ev = dict(self.last_event, task_finished=False)
+            ev.pop('command_id', None)
+            if self.command_id is not None:
+                ev['command_id'] = self.command_id
+        else:
+            ev = dict(ev)
+        ev.update(held_zone=self.held_zone, arrived_zone=self.arrived_zone, busy=self.running)
         return ev
 
     def v2_state(self, ev=None):
@@ -400,6 +518,8 @@ class RobotSim:
         return ev
 
     def _start(self, plan, command_id, now):
+        # 도착 증거는 이동을 시작하면 다시 확인해야 한다 (실제 patrol_controller 와 같게)
+        self.arrived_zone = None
         self.command_id = command_id
         self.last_task_id = command_id or ''
         self.steps = deque(plan)
@@ -501,11 +621,14 @@ class RobotSim:
             elif kind == 'arrive':
                 if step[1] is not None:
                     self.last_point = step[1]
+                    if self.held_zone is not None and self.zone_of(step[1]) == self.held_zone:
+                        self.arrived_zone = self.held_zone
                 else:
                     self.last_point = None
             elif kind == 'release':
                 self.book.release(step[1], self.name, now)
                 self.held_zone = None
+                self.arrived_zone = None
             elif kind in ('enter', 'queued'):
                 # PROCEED: 이 단계를 끝내고 다음으로 / WAIT: 다음 틱에 다시 / REPLACED: 단계를 바꿔 끼움
                 handler = self._enter if kind == 'enter' else self._wait_grant
@@ -599,6 +722,7 @@ class RobotSim:
             return self._run(now, 0.0)
         if emergency:
             self.held_zone = None      # 실제 노드처럼 토큰은 매니저에 남고 노드는 잊는다
+            self.arrived_zone = None
         return self._finish('STOPPED', idx, detail, now, arm=False)
 
     def _finish(self, state, idx, detail, now, arm):

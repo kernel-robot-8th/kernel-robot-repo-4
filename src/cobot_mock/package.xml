@@ -11,7 +11,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <!-- 순찰 규격 v2 메시지 (v1 String 규격과 함께 낸다) -->
+  <!-- 순찰 규격 v2 메시지 (spec_versions 에 v2 를 넣을 때만. 기본은 v1) -->
   <exec_depend>cobot_patrol_interfaces</exec_depend>
   <exec_depend>ros2launch</exec_depend>
   <!-- 지점·구역 설정 파일만 읽는다 (코드는 import 하지 않음) -->
@@ -19,6 +19,7 @@
   <exec_depend>cobot_zone_traffic_control</exec_depend>
   <!-- mock_fleet.launch.xml 이 관제 노드를 함께 띄운다 -->
   <exec_depend>cobot_control_center</exec_depend>
+  <exec_depend>cobot_fleet_control</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
