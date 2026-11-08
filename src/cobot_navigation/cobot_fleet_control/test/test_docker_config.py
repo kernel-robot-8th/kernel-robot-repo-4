@@ -22,6 +22,8 @@ def test_compose_uses_one_image_and_persistent_db():
         assert services[name]['image'] == config['x-runtime']['image']
         assert services[name]['network_mode'] == 'host'
         assert services[name]['environment']['ROS_DOMAIN_ID'] == '100'
+        assert services[name]['environment']['CYCLONEDDS_URI'] == (
+            '${COBOT_CYCLONEDDS_URI:-file:///opt/cobot/cyclonedds.xml}')
     assert services['fleet']['volumes'] == ['fleet-data:/var/lib/cobot']
     assert 'db_path:=/var/lib/cobot/fleet_control.sqlite3' in services['fleet']['command']
     assert 'broker' not in services
@@ -144,6 +146,23 @@ def test_image_check_does_not_start_dependencies_or_ros_nodes(runner):
     assert args[args.index('run'):args.index('run') + 5] == [
         'run', '--rm', '--no-deps', 'web', '/opt/cobot/entrypoint.sh']
     assert '--mode preview --fleet existing' in args[-1]
+    assert not any('up' in call['args'] for call in calls)
+
+
+def test_smoke_isolates_network_and_does_not_mount_operational_data(runner):
+    """실제 기동 검사는 외부 통신과 운영 원장을 연결하지 않는 임시 컨테이너를 쓴다."""
+    result, calls = runner('smoke')
+    assert result.returncode == 0
+    args = calls[-1]['args']
+    assert args[:3] == ['run', '--rm', '--init']
+    assert args[args.index('--network') + 1] == 'none'
+    assert args[args.index('--cap-drop') + 1] == 'ALL'
+    assert 'ROS_DOMAIN_ID=77' in args
+    assert 'ROS_LOCALHOST_ONLY=1' in args
+    assert 'ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST' in args
+    assert not any(arg.startswith('CYCLONEDDS_URI=') for arg in args)
+    assert args[-2:] == ['python', '/opt/cobot/smoke_check.py']
+    assert not any(arg in args for arg in ('--volume', '-v', '--mount', '--publish', '-p'))
     assert not any('up' in call['args'] for call in calls)
 
 

@@ -110,7 +110,8 @@ class ScenarioContext:
     def finish(self, mandatory):
         """필수 작업 완료와 실제 후미 이탈을 확인한 뒤 주문과 자원 예약을 닫는다."""
         order = self.order
-        if not order['failure'] and not mandatory <= set(order['completed']):
+        confirmed = set(order['completed']) | set(order.get('operator_completed', []))
+        if not order['failure'] and not mandatory <= confirmed:
             self.interrupt('필수 완료 단계 누락')
             return False
         order.update(state='FAILED' if order['failure'] else 'COMPLETED', request_id=None,

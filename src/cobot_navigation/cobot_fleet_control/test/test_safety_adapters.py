@@ -53,7 +53,7 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
     sent = []
     node = SimpleNamespace(
         _last_status=dict(state='DONE', task_finished=True, command_id='old', boot_id='boot1'),
-        controller=SimpleNamespace(command_id=None, held_zone='A', busy=False),
+        controller=SimpleNamespace(command_id=None, held_zone='A', arrived_zone=None, busy=False),
         config={'central_controlled': True},
         central_guard=SimpleNamespace(expired=lambda: False, latched=False),
         status_pub=SimpleNamespace(publish=sent.append))
@@ -62,3 +62,4 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
     assert status['task_finished'] is False
     assert status['command_id'] is None
     assert status['held_zone'] == 'A' and status['boot_id'] == 'boot1'
+    assert status['arrived_zone'] is None

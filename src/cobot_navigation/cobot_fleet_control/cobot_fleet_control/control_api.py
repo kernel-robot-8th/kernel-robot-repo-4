@@ -8,6 +8,31 @@ from .contracts import Command
 from .scenario_contracts import identifier
 
 
+def manual_load_request(value):
+    """주문에 묶인 파라미터 값을 검증하고 수동 확인 요청으로 변환한다."""
+    if not isinstance(value, str) or len(value.encode('utf-8')) > 8192:
+        raise ValueError('manual_load_confirmation은 8 KiB 이하 JSON 문자열')
+    if not value:
+        return None
+    data = json.loads(value)
+    allowed = {'order_id', 'operator', 'note', 'evidence', 'request_id'}
+    if not isinstance(data, dict) or set(data) - allowed:
+        raise ValueError('수동 상차 파라미터 필드 오류')
+    for key in ('order_id', 'operator'):
+        identifier(data.get(key), key)
+    if not isinstance(data.get('note'), str) or not data['note'].strip():
+        raise ValueError('실제 확인 근거 note 필요')
+    evidence = data.get('evidence')
+    if (not isinstance(evidence, dict)
+            or any(evidence.get(key) is not True for key in (
+                'load_present', 'arm_safe', 'pickup_path_clear'))):
+        raise ValueError('적재·팔 퇴피·후미 이탈 확인값 true 필요')
+    identifier(evidence.get('sku'), 'sku')
+    data.setdefault('request_id', 'loaded-' + uuid.uuid4().hex)
+    identifier(data['request_id'], 'request_id')
+    return dict(data, type='confirm_loaded')
+
+
 class ApiError(ValueError):
     """웹 백엔드가 그대로 전달할 HTTP 상태와 오류 본문."""
 
@@ -66,6 +91,10 @@ class ControlAPI:
             return 202, scenario.submit(request.get('order'))
         if kind == 'received':
             return 200, scenario.received(identifier(request.get('order_id'), 'order_id'))
+        if kind == 'confirm_loaded':
+            return 200, scenario.confirm_loaded(
+                request.get('order_id'), request.get('operator'),
+                request.get('note'), request.get('evidence'))
         if kind == 'resolve':
             return 200, scenario.recover(request.get('order_id'), request.get('operator'),
                                          request.get('note'), request.get('decision'),

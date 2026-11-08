@@ -65,6 +65,8 @@ RUN source /opt/ros/jazzy/setup.bash \
 RUN printf '%s\n' "${CONTROL_CENTER_REVISION}" > /opt/cobot/build-versions/control-center-revision.txt
 
 COPY cobot_fleet_control/config/docker/entrypoint.sh /opt/cobot/entrypoint.sh
+COPY cobot_fleet_control/config/docker/smoke_check.py /opt/cobot/smoke_check.py
+COPY cobot_fleet_control/config/docker/cyclonedds.xml /opt/cobot/cyclonedds.xml
 RUN chmod 755 /opt/cobot/entrypoint.sh \
     && groupadd --gid 10001 cobot \
     && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash cobot \

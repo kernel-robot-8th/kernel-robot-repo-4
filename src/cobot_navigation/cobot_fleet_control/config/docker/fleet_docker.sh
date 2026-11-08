@@ -11,6 +11,7 @@ usage() {
   config        해석된 Compose 구성 확인
   up            웹·중앙 제어기·구역 매니저·브릿지 실행
   check         이미지의 의존성·웹 기동 계획 확인 (ROS 노드·웹 서버 실행 안 함)
+  smoke         격리 컨테이너에서 웹·중앙 실행기·HTTP·WebSocket 확인 후 종료
   ps            컨테이너와 웹 상태 확인
   down          컨테이너 중지·제거, DB 볼륨은 보존
   logs          서비스 로그 확인
@@ -66,6 +67,16 @@ case "$operation" in
     if [[ $# -ne 0 ]]; then usage >&2; exit 2; fi
     "${compose[@]}" run --rm --no-deps web /opt/cobot/entrypoint.sh bash -c \
       'python -c "import py_trees, fastapi, uvicorn; import cobot_control_center.fleet_api_node; import cobot_control_center.fleet_status_node" && ros2 run cobot_fleet_control control_center_web --navigation-root /opt/cobot_ws/src --mode preview --fleet existing'
+    ;;
+  smoke)
+    if [[ $# -ne 0 ]]; then usage >&2; exit 2; fi
+    image_ref="${COBOT_IMAGE:-$(sed -n 's/^COBOT_IMAGE=//p' "${config_dir}/versions.env")}"
+    docker run --rm --init --network none --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      --env ROS_DOMAIN_ID=77 --env ROS_LOCALHOST_ONLY=1 \
+      --env ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST \
+      --env RMW_IMPLEMENTATION="${COBOT_RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}" \
+      "$image_ref" python /opt/cobot/smoke_check.py
     ;;
   ps) "${compose[@]}" ps "$@" ;;
   down) "${compose[@]}" down "$@" ;;

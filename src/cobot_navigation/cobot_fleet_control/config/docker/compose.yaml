@@ -23,6 +23,7 @@ x-runtime: &runtime
     ROS_AUTOMATIC_DISCOVERY_RANGE: SUBNET
     ROS_LOCALHOST_ONLY: "0"
     RMW_IMPLEMENTATION: ${COBOT_RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+    CYCLONEDDS_URI: ${COBOT_CYCLONEDDS_URI:-file:///opt/cobot/cyclonedds.xml}
 
 services:
   bridge:

@@ -226,6 +226,7 @@ class PinkyPatrolNode(Node):
     def _emit(self, payload):
         """상태 발행과 LED 표시를 같은 executor에서 갱신한다."""
         payload = dict(payload, held_zone=self.controller.held_zone,
+                       arrived_zone=self.controller.arrived_zone,
                        central_controlled=self.config['central_controlled'], boot_id=self.boot_id,
                        central_latched=self.central_guard.latched, busy=self.controller.busy)
         self.status_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
@@ -251,6 +252,7 @@ class PinkyPatrolNode(Node):
             self.controller.stop(emergency=True)
         payload = dict(self._last_status, time=time.time(), task_finished=False,
                        held_zone=self.controller.held_zone,
+                       arrived_zone=self.controller.arrived_zone,
                        command_id=self.controller.command_id,
                        central_latched=self.central_guard.latched, busy=self.controller.busy)
         self.status_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))

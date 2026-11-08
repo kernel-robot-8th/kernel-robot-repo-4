@@ -1,13 +1,17 @@
 """실제 SQLite와 주행 행동 트리를 사용해 시나리오 전체의 결정을 검증한다."""
 
 import json
+from pathlib import Path
 
 from cobot_fleet_control.control_api import ControlAPI
 from cobot_fleet_control.repository import SqliteRepository
 from cobot_fleet_control.scenario import ScenarioService
 from cobot_fleet_control.scenario_contracts import NAVIGATION
 from cobot_fleet_control.service import FleetService
+
 import pytest
+
+import yaml
 
 
 ROUTES = {'lab': dict(pickup='ZA', dropoff='ZB', pickup_arm='omx1',
@@ -133,6 +137,27 @@ def test_delivery_requires_all_device_results_customer_and_home(env):
         'zone:ZA', 'leave', 'zone:ZB', 'leave', 'home']
     assert not env.scenario.store.resources('order1')
     assert env.stock('SHOE42') == 9
+
+
+@pytest.mark.parametrize('route,pickup', [('lab_delivery', 'ZA'), ('lab_delivery_zb', 'ZB')])
+def test_configured_lab_routes_load_with_omx1_and_deliver_to_zc_with_omx2(env, route, pickup):
+    """실제 배포 설정의 두 상차 경로가 ZC 하차와 올바른 팔 요청으로 끝나는지 검증한다."""
+    config = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / 'config/scenario.yaml').read_text())
+    env.scenario = ScenarioService(env.repo, env.fleet, env.gateway,
+                                   clock=lambda: env.now, **config)
+    env.api = ControlAPI(env.scenario, env.fleet, env.gateway)
+    env.scenario.armed = True
+    env.order(route=route)
+    for _ in range(80):
+        env.step()
+        if env.current()['state'] == 'COMPLETED':
+            break
+    assert env.current()['state'] == 'COMPLETED'
+    assert [payload['command'] for _, payload in env.gateway.sent] == [
+        f'zone:{pickup}', 'leave', 'zone:ZC', 'leave', 'home']
+    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'LOAD') == 'omx1'
+    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'UNLOAD') == 'omx2'
 
 
 def test_qos_duplicate_conflict_inventory_atomicity_and_no_available_robot(env):

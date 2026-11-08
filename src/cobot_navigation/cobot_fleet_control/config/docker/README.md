@@ -16,6 +16,7 @@ sudo bash cobot_fleet_control/config/docker/install_host.sh --check
 sudo bash cobot_fleet_control/config/docker/fleet_docker.sh build
 sudo bash cobot_fleet_control/config/docker/fleet_docker.sh config
 sudo bash cobot_fleet_control/config/docker/fleet_docker.sh check
+sudo bash cobot_fleet_control/config/docker/fleet_docker.sh smoke
 ```
 
 Docker 소켓 접근 권한이 이미 있으면 fleet_docker.sh의 sudo는 생략할 수 있습니다.
@@ -27,6 +28,18 @@ Docker와 Compose가 이미 있으면 설치 대신 버전·데몬 접근을 확
 
 `build`, `config`, `check`는 웹 서버나 로봇 통신 노드를 시작하지 않습니다.
 `check`는 이미지의 Python·기존 웹 모듈을 import하고 지도·지점 설정으로 기동 계획을 검증합니다.
+
+`smoke`는 외부 네트워크가 없는 임시 컨테이너(`--network none`)에서 도메인 77·localhost로
+중앙 실행기·상태 수집기·웹 서버를 시작합니다. 웹 화면·지도·작업 목록의 HTTP 응답과
+`/ws/fleet`·`/ws/tasks`의 실제 WebSocket 연결, 작업 명령 꺼짐 상태를 확인한 뒤 종료합니다.
+운영 DB 볼륨과 호스트 포트를 연결하지 않으며, 테스트 DB는 컨테이너 종료 시 제거됩니다.
+
+## Python 가상환경
+
+Docker 빌드는 이미지 안에 `/opt/cobot/venv`를 자동 생성하고 `requirements.lock`의
+의존성을 설치합니다. FastAPI·Uvicorn과 ROS는 이미지의 apt 패키지 경로를 공유합니다.
+호스트의 `.venv`나 `build/fleet_runtime/venv`는 컨테이너 실행에 필요하지 않습니다.
+Git에는 Dockerfile·설치 스크립트·의존성 목록을 저장하며 가상환경 파일 자체는 저장하지 않습니다.
 
 ## 실행과 종료
 
@@ -54,6 +67,13 @@ Linux host network/IPC를 사용하며 DDS 탐색 범위는 SUBNET입니다.
 로봇과 같은 네트워크에서 DDS 통신이 가능해야 합니다. Docker가 Wi-Fi·방화벽·DDS 탐색 문제를 자동 해결하지는 않습니다.
 
 기본 RMW는 Cyclone DDS이며 Fast DDS도 이미지에 설치합니다. 필요하면 전 서비스에 동일하게 적용합니다.
+
+Cyclone DDS는 이미지의 `/opt/cobot/cyclonedds.xml`로 로봇망 `192.168.45.0`에 해당하는
+관제 PC 인터페이스를 선택하고 핑키 IP `.21`·`.22`·`.23`을 피어로 등록합니다.
+유선 인터넷과 로봇 Wi-Fi를 함께 쓰는 PC에서도 로봇망으로 DDS 주소를 알리기 위한 설정입니다.
+다른 현장이면 `config/docker/cyclonedds.xml`의 네트워크·피어를 수정하고 이미지를 재빌드합니다.
+`COBOT_CYCLONEDDS_URI`로 컨테이너 안의 다른 설정 경로나 인라인 XML을 지정할 수도 있습니다.
+호스트 셸의 `CYCLONEDDS_URI`는 컨테이너에 자동 전달되지 않습니다.
 
 ```bash
 sudo env COBOT_RMW_IMPLEMENTATION=rmw_fastrtps_cpp bash cobot_fleet_control/config/docker/fleet_docker.sh up
@@ -94,11 +114,13 @@ SQLite 실행 원장은 fleet-data 볼륨의 `/var/lib/cobot/fleet_control.sqlit
 
 ## 검증 범위
 
-웹·fleet 관련 테스트 145개가 통과했고 격리 DDS 시험 1개는 건너뛰었습니다.
-실제 Compose CLI로 네 서비스 구성 해석을 확인했고 shell 구문·HTML 구조·변경 Python 파일의 flake8 검사도 통과했습니다.
-이 작업 환경에는 Docker Engine·데몬이 없어 전체 이미지 빌드·컨테이너 웹 접속·실물 DDS 왕복은 로컬에서 실행하지 못했습니다.
+2026-11-07 관제 테스트 142개가 통과했으며 도메인 77·localhost의 격리 DDS 시험도 포함합니다.
+Docker Engine에서 전체 이미지를 빌드하고 `check`와 `smoke`를 통과했습니다.
+`smoke`에서 웹 화면·지도·작업 목록은 HTTP 200, 두 WebSocket은 101 응답과 초기 JSON을
+확인했습니다. 작업 명령은 꺼진 상태였으며, 임시 실행기와 테스트 컨테이너는 종료했습니다.
+Compose 구성 해석·shell 구문·변경 Python 파일의 flake8 검사도 통과했습니다.
 GitHub Actions의 fleet-docker 작업은 전체 이미지를 빌드하고 `--network none`에서 웹 의존성·기동 계획을 검사합니다.
 커밋 `903bbb6`은 전체 이미지 빌드와 컨테이너 내부 의존성·기동 계획 검사까지 통과했습니다.
 같은 실행의 fleet-control·fms-contract·fms-web도 모두 통과했습니다.
 [CI 검증 결과](https://github.com/kernel-robot-8th/kernel-robot-repo-4/actions/runs/42024585369)
-실제 웹 서버 접속·로봇 DDS 왕복은 별도 현장 검증이 필요합니다.
+실제 로봇과의 DDS 왕복·물리 주행은 별도 현장 검증이 필요합니다.

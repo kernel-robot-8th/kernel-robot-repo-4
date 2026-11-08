@@ -165,11 +165,14 @@ def test_empty_zone_grant_before_motion_holds_token(env):
     assert env.gate.requests == 1 and not env.nav.goals
     env.gate.grant = True
     env.c.tick()
+    assert env.c.held_zone == 'A' and env.c.arrived_zone is None
+    assert not any(e['state'] in {'ARRIVED', 'HOLDING_ZONE'} for e in env.events)
     advance(env, 'NAVIGATING')
     assert env.nav.goals == [env.points['ZA']]
     env.nav.finish()
     advance(env, 'IDLE')
     assert env.c.held_zone == 'A' and not env.gate.exits
+    assert env.c.arrived_zone == 'A'
     assert any(e['state'] == 'HOLDING_ZONE' for e in env.events)
 
 
@@ -289,11 +292,48 @@ def test_failed_exit_retains_token_and_is_retryable(env):
         env.nav.finish('FAILED')
         env.c.tick()
     assert not env.c.busy and env.c.held_zone == 'A' and not env.gate.exits
+    assert env.events[-1]['state'] == 'FAILED'
+    assert env.c.arrived_zone is None
     env.c.submit('leave', 'job2')
     advance(env, 'NAVIGATING')
     env.nav.finish()
     advance(env, 'IDLE')
     assert env.c.held_zone is None
+
+
+def test_failed_entry_and_retreat_never_report_arrival_or_holding(env):
+    """진입·후퇴 모두 실패하면 토큰만 유지하고 최종 실패 상태를 보존한다."""
+    env.c.submit('zone:ZA', 'job1')
+    advance(env, 'QUEUEING')
+    env.gate.grant = True
+    env.c.tick()
+    advance(env, 'NAVIGATING')
+    for _ in range(3):
+        env.nav.finish('FAILED')
+        env.c.tick()
+    advance(env, 'NAVIGATING')
+    for _ in range(3):
+        env.nav.finish('FAILED')
+        env.c.tick()
+    assert not env.c.busy and env.c.held_zone == 'A' and not env.gate.exits
+    assert env.c.arrived_zone is None
+    assert env.events[-1]['state'] == 'FAILED'
+    assert not any(e['state'] in {'ARRIVED', 'HOLDING_ZONE'} for e in env.events)
+
+
+def test_emergency_at_arrived_zone_preserves_stopped_state(env):
+    """이미 도착했어도 비상정지 상태를 홀딩 표시로 덮어쓰지 않는다."""
+    env.c.submit('zone:ZA', 'job1')
+    advance(env, 'QUEUEING')
+    env.gate.grant = True
+    env.c.tick()
+    advance(env, 'NAVIGATING')
+    env.nav.finish()
+    advance(env, 'IDLE')
+    env.c.stop(emergency=True)
+    advance(env, 'IDLE')
+    assert env.c.held_zone == env.c.arrived_zone == 'A'
+    assert env.events[-1]['state'] == 'STOPPED' and not env.gate.exits
 
 
 def test_zone_navigation_failure_retreats_before_reporting_failure(env):
