@@ -15,6 +15,7 @@
 | `POST /api/commands/arm` | `type=arm` | 켜기·끄기 200, 꺼진 상태의 작업 요청 423 |
 | `POST /api/robots/{id}/stop` | `type=stop` | 202, 실제 사용한 소프트 정지 동작·작업 ID 반환 |
 | `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | UNKNOWN만 해제, 최신 정지·취소·구역 상태 확인 |
+| `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사 |
 | `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
 | `GET /api/tasks`, `WS /ws/tasks` | `tasks`, `task` | 현재 작업 목록·개별 변경 |
 

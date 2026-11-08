@@ -207,6 +207,7 @@ ros2 launch cobot_control_center task_manager.launch.xml
 - fleet 전용 API (task_manager 일 때 409):
   - `POST /api/commands/estop` — 전체 비상정지 (로봇·팔 모두).
   - `POST /api/robots/{id}/release_control` — body `{operator, note, evidence:{base_stopped, arms_safe, cargo_reconciled, resources_clear}}`. 검사는 fleet 이 하고 거절 사유를 그대로 돌려줍니다.
+  - `POST /api/orders/{order_id}/confirm_loaded` — 수동 상차 확인. body `{operator, note, evidence:{sku, load_present, arm_safe, pickup_path_clear}}`. fleet 이 상차장 도착·정지·예약을 검사하고 통과하면 상차 구역 이탈부터 재개합니다. 화면 버튼은 아직 없습니다.
 - 화면은 상단 '작업 노드' 옆에 종류를, 카드 상태 줄에 **정지 잠금**(로봇 `central_latched` 또는 fleet 보류, 점유 구역)을 표시합니다.
   fleet 모드에서 그 빨간 줄을 누르면 **제어권 복구 띠**(`web/release.js`)가 뜹니다: 현장 확인 체크 하나(멈춤·팔·화물·구역 비움, fleet 이 요구하는 4가지를 함께 보냄) + 운영자 + 메모 → `release_control`.
   결과 모름 작업이 있으면 그 해제가 먼저입니다. 복구 뒤에도 작업 명령은 꺼져 있어 상단에서 다시 켭니다.

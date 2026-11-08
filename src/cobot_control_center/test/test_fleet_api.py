@@ -629,6 +629,9 @@ FLEET_SNAPSHOT = {'time': 1.0, 'armed': False, 'allow_raw_cmd': False,
 RELEASE_BODY = {'operator': 'jihye', 'note': '현장 확인',
                 'evidence': {'base_stopped': True, 'arms_safe': True,
                              'cargo_reconciled': True, 'resources_clear': True}}
+LOADED_BODY = {'operator': 'jihye', 'note': '실물 상차 확인',
+               'evidence': {'sku': 'box_a', 'load_present': True, 'arm_safe': True,
+                            'pickup_path_clear': True}}
 
 
 def test_health_reports_controller_and_holds():
@@ -680,6 +683,31 @@ def test_fleet_estop_all_and_release_control_pass_through():
     assert sent[1] == dict(sent[1], type='release_control', robot_id='pinky1', **RELEASE_BODY)
 
 
+def test_fleet_confirm_loaded_passes_through():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_task_manager(tasks, 200, {'order_id': 'o1', 'stage': 'LEAVE_PICKUP'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/orders/o1/confirm_loaded',
+                      json=dict(LOADED_BODY, client_request_id='c1'))
+    assert res.status_code == 200 and res.json()['stage'] == 'LEAVE_PICKUP'
+    assert sent[0] == dict(sent[0], type='confirm_loaded', order_id='o1',
+                           client_request_id='c1', **LOADED_BODY)
+
+
+def test_fleet_confirm_loaded_returns_rejection_reason():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    reason = '상차장 도착 완료 후 상차 검증 중인 주문만 수동 확인 가능'
+    publish, _ = fake_task_manager(tasks, 400, {'detail': reason})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/orders/o1/confirm_loaded', json=LOADED_BODY)
+    # fleet 의 거절 사유를 그대로 돌려준다
+    assert res.status_code == 400 and res.json()['detail'] == reason
+
+
 def test_fleet_only_routes_refused_under_task_manager():
     store, _ = make_store()
     tasks, _ = make_task_store()
@@ -687,7 +715,8 @@ def test_fleet_only_routes_refused_under_task_manager():
     publish, sent = fake_task_manager(tasks, 202, {})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     for url, body in (('/api/commands/estop', {}),
-                      ('/api/robots/pinky1/release_control', RELEASE_BODY)):
+                      ('/api/robots/pinky1/release_control', RELEASE_BODY),
+                      ('/api/orders/o1/confirm_loaded', LOADED_BODY)):
         res = client.post(url, json=body)
         assert res.status_code == 409 and 'fleet_control' in res.json()['detail'], url
     assert sent == []

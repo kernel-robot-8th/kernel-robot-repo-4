@@ -23,7 +23,8 @@
 작업 노드는 둘 중 하나다 (/api/health 의 controller):
   task_manager   cobot_control_center 의 task_manager_node (개발·시뮬·가짜 핑키)
   fleet          cobot_fleet_control 의 fleet_control_node (실물 중앙 관제, 하트비트로 로봇 명령 허용)
-fleet 에서는 비상정지를 estop 으로 넘기고, 정지 잠금 복구(release_control)를 받는다.
+fleet 에서는 비상정지를 estop 으로 넘기고, 정지 잠금 복구(release_control)와
+수동 상차 확인(confirm_loaded)을 받는다.
 """
 
 import asyncio
@@ -254,6 +255,17 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         require_fleet()
         return call_task_manager({
             'type': 'release_control', 'robot_id': robot_id,
+            'client_request_id': body.get('client_request_id'),
+            'operator': body.get('operator'), 'note': body.get('note'),
+            'evidence': body.get('evidence')})
+
+    @app.post('/api/orders/{order_id}/confirm_loaded')
+    def confirm_loaded(order_id: str, body: dict = Body(default={})):
+        # 수동 상차 확인 (fleet 전용). 운영자가 실물 상차를 끝냈을 때 기존 주문에 확인값을 넣는다.
+        # SKU·적재·팔 퇴피·통로·상차장 상태 검사는 fleet_control 이 하고, 통과하면 구역 이탈부터 재개한다.
+        require_fleet()
+        return call_task_manager({
+            'type': 'confirm_loaded', 'order_id': order_id,
             'client_request_id': body.get('client_request_id'),
             'operator': body.get('operator'), 'note': body.get('note'),
             'evidence': body.get('evidence')})
