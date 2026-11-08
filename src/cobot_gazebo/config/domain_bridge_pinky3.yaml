@@ -100,3 +100,10 @@ topics:
     from_domain: 143
     to_domain: 140
     remap: /pinky3/battery/voltage
+
+  # 중앙 관제(fleet_control) 하트비트. 순찰 노드가 central_controlled 라 이것이 없으면 명령을 받지 않는다
+  /pinky3/fleet_heartbeat:
+    type: std_msgs/msg/String
+    from_domain: 140
+    to_domain: 143
+    remap: /fleet_heartbeat

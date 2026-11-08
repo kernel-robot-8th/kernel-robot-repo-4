@@ -32,6 +32,8 @@
   <!-- 실제 순찰·구역·브릿지 (코드는 import 하지 않고 실행·설정 파일만 쓴다) -->
   <exec_depend>cobot_pinky_patrol</exec_depend>
   <exec_depend>cobot_zone_traffic_control</exec_depend>
+  <!-- sim_fleet.launch.xml 의 작업 노드 (실물과 같은 fleet_control) -->
+  <exec_depend>cobot_fleet_control</exec_depend>
   <exec_depend>cobot_domain_bridge</exec_depend>
   <!-- sim_fleet.launch.xml 이 관제 노드를 함께 띄운다 (with_control_center:=false 면 안 띄움) -->
   <exec_depend>cobot_control_center</exec_depend>

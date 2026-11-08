@@ -61,7 +61,9 @@ def test_non_localhost_refused(rng):
 
 def _launch_lets():
     root = ET.parse(os.path.join(PKG, 'launch', 'sim_fleet.launch.xml')).getroot()
-    return {e.get('name'): int(e.get('value')) for e in root.iter('let')}
+    # 도메인 숫자만 본다 (central_controlled 같은 다른 let 은 숫자가 아니다)
+    return {e.get('name'): int(e.get('value')) for e in root.iter('let')
+            if e.get('name').endswith('_domain')}
 
 
 def test_launch_domains_match_bridge_configs():
@@ -87,3 +89,13 @@ def test_bridge_carries_battery(robot):
     for name in ('/battery/percent', '/battery/voltage'):
         assert topics[name]['remap'] == f'/{robot}{name}'
         assert topics[name]['type'] == 'std_msgs/msg/Float32'
+
+
+@pytest.mark.parametrize('robot', sorted(ROBOTS))
+def test_bridge_carries_fleet_heartbeat(robot):
+    """순찰 노드가 central_controlled 라, 관제 하트비트가 없으면 fleet_control 명령을 거절한다."""
+    with open(os.path.join(PKG, 'config', f'domain_bridge_{robot}.yaml'), encoding='utf-8') as f:
+        topics = yaml.safe_load(f)['topics']
+    spec = topics[f'/{robot}/fleet_heartbeat']
+    assert spec['remap'] == '/fleet_heartbeat' and spec['type'] == 'std_msgs/msg/String'
+    assert spec['from_domain'] == 140 and spec['to_domain'] == ROBOTS[robot]

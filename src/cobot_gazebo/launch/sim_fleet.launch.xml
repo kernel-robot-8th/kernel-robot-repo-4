@@ -18,7 +18,10 @@
   <arg name="pinky2" default="true" description="pinky2 를 띄울지"/>
   <arg name="pinky3" default="true" description="pinky3 를 띄울지"/>
   <arg name="headless" default="false" description="true 면 가제보 화면 없이"/>
-  <arg name="with_control_center" default="true" description="관제(fleet_status·fleet_api·task_manager)도 띄울지"/>
+  <arg name="with_control_center" default="true" description="관제(fleet_status·fleet_api·작업 노드)도 띄울지"/>
+  <arg name="controller" default="fleet"
+       description="작업 노드: fleet (기본, 실물과 같은 fleet_control) / task_manager (예전 방식, 다음에 제거 예정)"/>
+  <let name="central_controlled" value="$(eval '\'$(var controller)\' == \'fleet\'')"/>
   <arg name="port" default="8082" description="관제 화면 포트 (실물 8080, 가짜 핑키 8081 과 겹치지 않게)"/>
 
   <let name="control_domain" value="140"/>
@@ -57,8 +60,16 @@
       <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
         <arg name="port" value="$(var port)"/>
       </include>
-      <!-- 명령 기록은 실물·가짜 핑키와 다른 파일에 둔다 -->
-      <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml">
+      <!-- 명령 기록은 실물·가짜 핑키와 다른 파일에 둔다. 격리 도메인(140)이라 작업 명령 켜진 채로 시작한다 -->
+      <include file="$(find-pkg-share cobot_fleet_control)/launch/fleet_control.launch.xml"
+               if="$(var central_controlled)">
+        <arg name="patrol_config_dir" value="$(find-pkg-share cobot_pinky_patrol)/config"/>
+        <arg name="db_path" value="~/.ros/cobot_control_center/fleet_gazebo.sqlite3"/>
+        <arg name="allow_raw_cmd" value="true"/>
+        <arg name="start_armed" value="true"/>
+      </include>
+      <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml"
+               unless="$(var central_controlled)">
         <arg name="db_path" value="~/.ros/cobot_control_center/tasks_gazebo.db"/>
         <!-- 격리 도메인(140)이라 가짜 핑키처럼 작업 명령 켜진 채로 시작한다 -->
         <arg name="start_armed" value="true"/>
@@ -73,18 +84,21 @@
   <!-- 홈 위치 = config/pinkyN.yaml 의 I1 / I2 / I3 -->
   <include file="$(find-pkg-share cobot_gazebo)/launch/sim_robot.launch.xml" if="$(var pinky1)">
     <arg name="robot" value="pinky1"/>
+    <arg name="central_controlled" value="$(var central_controlled)"/>
     <arg name="domain" value="$(var pinky1_domain)"/>
     <arg name="x" value="0.0"/>
     <arg name="y" value="0.0"/>
   </include>
   <include file="$(find-pkg-share cobot_gazebo)/launch/sim_robot.launch.xml" if="$(var pinky2)">
     <arg name="robot" value="pinky2"/>
+    <arg name="central_controlled" value="$(var central_controlled)"/>
     <arg name="domain" value="$(var pinky2_domain)"/>
     <arg name="x" value="0.0"/>
     <arg name="y" value="-0.2"/>
   </include>
   <include file="$(find-pkg-share cobot_gazebo)/launch/sim_robot.launch.xml" if="$(var pinky3)">
     <arg name="robot" value="pinky3"/>
+    <arg name="central_controlled" value="$(var central_controlled)"/>
     <arg name="domain" value="$(var pinky3_domain)"/>
     <arg name="x" value="0.0"/>
     <arg name="y" value="-0.4"/>

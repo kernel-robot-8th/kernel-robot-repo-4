@@ -1,6 +1,6 @@
 # cobot_gazebo
 
-가제보(Harmonic) 시뮬레이션입니다. v9 지도 월드에 핑키 3대를 띄우고, 로봇마다 **Nav2 + 실제 순찰 노드**(`cobot_pinky_patrol`, 코드 수정 없음)를 돌립니다. 순찰 설정은 `common.yaml`·`sites/lab.yaml`·`robots/pinkyN.yaml` 을 읽고, `task_manager` 명령을 받도록 `central_controlled` 만 `false` 로 바꿉니다.
+가제보(Harmonic) 시뮬레이션입니다. v9 지도 월드에 핑키 3대를 띄우고, 로봇마다 **Nav2 + 실제 순찰 노드**(`cobot_pinky_patrol`, 코드 수정 없음)를 돌립니다. 순찰 설정은 `common.yaml`·`sites/lab.yaml`·`robots/pinkyN.yaml` 을 그대로 읽습니다. 작업 노드는 실물과 같은 `fleet_control` 이고 순찰 노드도 실물처럼 `central_controlled: true` 입니다 (예전 방식은 `controller:=task_manager`, 이때만 `central_controlled: false`).
 실제 `cobot_domain_bridge`·`zone_manager` 로 관제 도메인에 연결하므로 관제는 실물과 같은 `/pinkyN/patrol_status`·`/pinkyN/patrol_cmd`·`/zone_manager/*` 를 봅니다.
 목적·범위는 [docs/prd.md](docs/prd.md) 를 봅니다.
 
@@ -11,7 +11,7 @@
  ├─ pinky1 ── 도메인 141: ros_gz_bridge, robot_state_publisher, Nav2, fake_led, fake_battery, 순찰 노드
  ├─ pinky2 ── 도메인 142: (같음)
  └─ pinky3 ── 도메인 143: (같음)
-관제 도메인 140: domain_bridge ×3, zone_manager, sim_guard, (관제 fleet_status·fleet_api·task_manager)
+관제 도메인 140: domain_bridge ×3 (관제 하트비트 `/pinkyN/fleet_heartbeat` 포함), zone_manager, sim_guard, (관제 fleet_status·fleet_api·fleet_control)
 ```
 
 | 실물 | 시뮬 |

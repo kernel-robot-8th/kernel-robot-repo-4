@@ -15,6 +15,8 @@
   <arg name="y" default="0.0"/>
   <arg name="yaw" default="0.0" description="[rad]"/>
   <arg name="world" default="cobot_sim" description="SDF world name (map_to_world_utils.WORLD_NAME)"/>
+  <arg name="central_controlled" default="true"
+       description="순찰 노드 중앙 모드 (fleet_control 이 작업 노드일 때 true, task_manager 면 false)"/>
 
   <group>
     <set_env name="ROS_DOMAIN_ID" value="$(var domain)"/>
@@ -68,8 +70,8 @@
       <param from="$(find-pkg-share cobot_pinky_patrol)/config/common.yaml"/>
       <param from="$(find-pkg-share cobot_pinky_patrol)/config/sites/lab.yaml"/>
       <param from="$(find-pkg-share cobot_pinky_patrol)/config/robots/$(var robot).yaml"/>
-      <!-- 시뮬은 task_manager 가 v1 명령을 보낸다. 중앙 모드(fleet_control 전용)를 끈다 -->
-      <param name="central_controlled" value="false"/>
+      <!-- 작업 노드가 fleet_control 이면 실물과 같은 중앙 모드(하트비트·세션·순번·TTL). task_manager 면 끈다 -->
+      <param name="central_controlled" value="$(var central_controlled)"/>
       <param name="use_sim_time" value="true"/>
       <!-- HOME 만 바꾸고 ROS 로그·파이썬 사용자 패키지 자리는 원래대로 둔다 -->
       <env name="HOME" value="$(var patrol_home)"/>
