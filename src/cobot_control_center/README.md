@@ -189,6 +189,30 @@ export ROS_DOMAIN_ID=100
 ros2 launch cobot_control_center task_manager.launch.xml
 ```
 
+## 작업 노드 두 가지 (task_manager / fleet_control)
+
+화면 명령은 `/control_center/task_request` 로 작업 노드에 넘어갑니다. 작업 노드는 둘 중 **하나만** 띄웁니다 (같은 요청 토픽을 받으므로).
+
+| | `task_manager_node` (이 패키지) | `fleet_control_node` (`cobot_fleet_control`) |
+|---|---|---|
+| 쓰는 곳 | 가짜 핑키·가제보 시뮬·개발 | 실물 중앙 관제 (`central_controlled: true` 로봇) |
+| 로봇 명령 허용 | 로봇이 `central_controlled: false` 일 때 | 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번·TTL |
+| 정지 | 작업 중단 (구역 안이면 나와 반납) | 제자리 소프트 정지 · **작업 명령 전체 꺼짐** · 로봇 보류 |
+| 비상정지 | `stop` + `emergency` | `estop` (백엔드가 바꿔 보냄) |
+| 정지 잠금 복구 | 없음 | `release_control` (아래 API) 또는 UNKNOWN 작업 `resolve` |
+| 수동 명령 칸 | `allow_raw_cmd` 일 때 | 늘 숨김 (fleet 이 403) |
+
+- `/api/health` 의 `controller` 가 `task_manager` / `fleet` / `null`(꺼짐) 을, `holds` 가 fleet 이 보류한 로봇 → 사유(`STOP`·`ESTOP` 등)를 알립니다.
+  fleet 여부는 작업 목록(`/control_center/tasks`)에 `holds` 키가 있는지로 가립니다 (fleet `ControlAPI.snapshot()` 만 냄). 명시 필드가 생기면 그것으로 바꿉니다.
+- fleet 전용 API (task_manager 일 때 409):
+  - `POST /api/commands/estop` — 전체 비상정지 (로봇·팔 모두).
+  - `POST /api/robots/{id}/release_control` — body `{operator, note, evidence:{base_stopped, arms_safe, cargo_reconciled, resources_clear}}`. 검사는 fleet 이 하고 거절 사유를 그대로 돌려줍니다.
+- 화면은 상단 '작업 노드' 옆에 종류를, 카드 상태 줄에 **정지 잠금**(로봇 `central_latched` 또는 fleet 보류, 점유 구역)을 표시합니다.
+  fleet 모드에서 그 빨간 줄을 누르면 **제어권 복구 띠**(`web/release.js`)가 뜹니다: 현장 확인 체크 하나(멈춤·팔·화물·구역 비움, fleet 이 요구하는 4가지를 함께 보냄) + 운영자 + 메모 → `release_control`.
+  결과 모름 작업이 있으면 그 해제가 먼저입니다. 복구 뒤에도 작업 명령은 꺼져 있어 상단에서 다시 켭니다.
+  확인 4가지는 지금 fleet 이 늘 요구합니다 (규격이 바뀌면 시나리오 작업일 때만 묻게 바꿈).
+- 구역 안에서 잠긴 경우(`held_zone`)는 fleet 이 해제를 거절하며, 아직 복구 절차가 없습니다 (`cobot_fleet_control/README.md`).
+
 ## 실물 시험 순서
 
 2026-11-02 실물 pinky1~3 으로 처음 돌려 보며 정리한 순서입니다. 처음에는 로봇 한 대로 시작합니다.

@@ -435,6 +435,12 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .resolve-bar .cmd-route { color: var(--bad); }
 .resolve-warn { margin: 0; font-size: 12px; color: var(--text); }
 .resolve-bar input { cursor: text; width: 100%; font-size: 13px; padding: 5px 8px; }
+/* 제어권 복구 띠: 카드 몸통 높이 안에 들어가게 줄 수를 줄이고, 넘치면 스크롤 */
+.release-bar { gap: 6px; overflow-y: auto; }
+.release-check { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.release-bar .release-check input { width: auto; padding: 0; cursor: pointer; }
+.release-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 6px; }
+.release-bar .release-fields input { padding: 3px 8px; font-size: 12px; }
 .pick-bar .danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .pick-bar .danger:hover:not(:disabled) { filter: brightness(1.1); }
 .cmd-head[data-level="bad"] { cursor: pointer; }

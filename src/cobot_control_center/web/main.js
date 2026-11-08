@@ -56,6 +56,14 @@ async function pollHealth() {
     renderRawPanel();
     view.cameras = health.cameras || {};
     view.spec = health.spec ?? null;
+    const controller = health.controller ?? null;
+    const holds = health.holds || {};
+    if (view.controller !== controller || JSON.stringify(view.holds) !== JSON.stringify(holds)) {
+      view.controller = controller;
+      view.holds = holds;
+      render();
+    }
+    renderController();
     updateCamera();
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
@@ -75,6 +83,9 @@ async function pollHealth() {
     $("stop-all").disabled = true;
     view.rawEnabled = false;
     renderRawPanel();
+    view.controller = null;
+    view.holds = {};
+    renderController();
     view.cameras = {};
     updateCamera();
     renderInfra(view.snapshot ? view.snapshot.infra : null, false);
@@ -93,6 +104,7 @@ setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 setupPick();
 setupRaw();
 setupResolve();
+setupRelease();
 setupDetail();
 loadMap();
 loadLayers();

@@ -217,6 +217,22 @@
     </div>
   </div>
 
+  <!-- 제어권 복구 (fleet_control 정지 잠금 해제, release.js). 결과 모름 해제 띠와 같은 자리에 뜬다. -->
+  <div class="pick-bar resolve-bar release-bar" id="release-bar" hidden>
+    <div class="pick-head"><strong id="release-title"></strong><span class="cmd-route" id="release-what"></span></div>
+    <!-- 카드 몸통 높이에 맞게 한 줄로: fleet 이 요구하는 4가지를 한 번에 확인한다 (release.js EVIDENCE_KEYS) -->
+    <label class="release-check" title="현장에서 직접 확인했을 때만: 로봇 멈춤 · 로봇팔 안전 · 실은 물건 확인 · 구역·작업대 비움 (로봇이 구역 밖). 복구한 뒤에도 작업 명령은 꺼져 있다 (상단에서 켬)">
+      <input type="checkbox" id="release-confirm"> 현장 확인: 멈춤·팔·화물·구역 비움</label>
+    <div class="release-fields">
+      <input id="release-operator" maxlength="40" aria-label="운영자" placeholder="운영자 이름">
+      <input id="release-note" maxlength="200" aria-label="확인 내용" placeholder="확인 내용 (기록에 남음)">
+    </div>
+    <div class="cmd-buttons">
+      <button type="button" id="release-cancel" title="Esc 로도 닫힌다">취소</button>
+      <button type="button" id="release-ok" class="danger">현장 확인함 · 복구</button>
+    </div>
+  </div>
+
   <template id="card-template">
     <article class="card">
       <!-- 상태·명령 부분. 지점 고르기는 이 위를 덮고, 아래 정지 줄은 늘 보인다. -->
@@ -294,6 +310,7 @@
   <script src="events.js"></script>
   <script src="commands.js"></script>
   <script src="tasks.js"></script>
+  <script src="release.js"></script>
   <script src="map.js"></script>
   <script src="raw.js"></script>
   <script src="detail.js"></script>

@@ -129,10 +129,8 @@ function setupHead() {
     });
   });
   // 빨간 '결과 모름' 줄을 누르면 해제 확인을 연다 (카드와 같다).
-  box.querySelector(".cmd-head").addEventListener("click", () => {
-    const unknown = view.detailRobot && robotTask(view.detailRobot, new Set(["UNKNOWN"]));
-    if (unknown) openResolve(unknown);
-  });
+  // 정지 잠금이면 제어권 복구 띠 (release.js).
+  box.querySelector(".cmd-head").addEventListener("click", () => onCmdHeadClick(view.detailRobot));
 }
 
 // ---------- 요약 칸 ----------

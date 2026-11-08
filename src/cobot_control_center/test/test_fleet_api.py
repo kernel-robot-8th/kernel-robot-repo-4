@@ -255,7 +255,8 @@ def test_installed_web_files_exist():
     # 화면 파일이 패키지 소스에 있는지 본다 (setup.py data_files 가 web/* 를 설치한다).
     web = os.path.join(os.path.dirname(__file__), '..', 'web')
     for name in ('index.html', 'style.css', 'core.js', 'cards.js', 'events.js',
-                 'commands.js', 'tasks.js', 'map.js', 'raw.js', 'detail.js', 'main.js'):
+                 'commands.js', 'tasks.js', 'release.js', 'map.js', 'raw.js', 'detail.js',
+                 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
 
 
@@ -617,3 +618,76 @@ def test_websocket_tasks_sends_list_then_changes():
         done = dict(TASK, state='SUCCEEDED')
         tasks.put_event(json.dumps({'type': 'task', 'task': done}))
         assert ws.receive_json() == {'type': 'task', 'task': done}
+
+
+# ---------- 작업 노드 종류 (task_manager / fleet_control) ----------
+
+# cobot_fleet_control 의 ControlAPI.snapshot() 모양 (orders·holds 를 함께 낸다)
+FLEET_SNAPSHOT = {'time': 1.0, 'armed': False, 'allow_raw_cmd': False,
+                  'robots': ['pinky1', 'pinky2'], 'spec': {'pinky1': 'v1', 'pinky2': 'v1'},
+                  'tasks': [], 'orders': [], 'holds': {'pinky1': 'ESTOP'}}
+RELEASE_BODY = {'operator': 'jihye', 'note': '현장 확인',
+                'evidence': {'base_stopped': True, 'arms_safe': True,
+                             'cargo_reconciled': True, 'resources_clear': True}}
+
+
+def test_health_reports_controller_and_holds():
+    store, _ = make_store()
+    tasks, clock = make_task_store()
+    client = TestClient(create_app(store, tasks=tasks, publish_request=lambda text: None))
+    health = client.get('/api/health').json()
+    assert health['controller'] is None and health['holds'] == {}
+    tasks.put_snapshot(json.dumps({'tasks': [], 'allow_raw_cmd': True}))
+    health = client.get('/api/health').json()
+    assert health['controller'] == 'task_manager' and health['holds'] == {}
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    health = client.get('/api/health').json()
+    assert health['controller'] == 'fleet' and health['holds'] == {'pinky1': 'ESTOP'}
+    # fleet 은 수동 명령을 받지 않으므로 칸이 숨는다
+    assert health['raw_cmd_enabled'] is False
+    clock.now = 3.5
+    health = client.get('/api/health').json()
+    assert health['controller'] is None and health['holds'] == {}
+
+
+def test_fleet_emergency_stop_becomes_estop():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_task_manager(tasks, 202, {'robot_id': 'pinky1', 'armed': False})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    assert client.post('/api/robots/pinky1/stop',
+                       json={'client_request_id': 'c1', 'emergency': True}).status_code == 202
+    assert sent[0] == dict(sent[0], type='estop', robot_id='pinky1', client_request_id='c1')
+    assert 'emergency' not in sent[0]
+    # 일반 정지는 그대로 stop
+    client.post('/api/robots/pinky1/stop', json={'emergency': False})
+    assert sent[1] == dict(sent[1], type='stop', robot_id='pinky1', emergency=False)
+
+
+def test_fleet_estop_all_and_release_control_pass_through():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_task_manager(tasks, 409, {'detail': '해제 불가: 구역 이탈 미확인'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    client.post('/api/commands/estop', json={'client_request_id': 'e1'})
+    assert sent[0] == dict(sent[0], type='estop', client_request_id='e1')
+    assert 'robot_id' not in sent[0]
+    res = client.post('/api/robots/pinky1/release_control', json=RELEASE_BODY)
+    # fleet 의 거절 사유를 그대로 돌려준다
+    assert res.status_code == 409 and res.json()['detail'] == '해제 불가: 구역 이탈 미확인'
+    assert sent[1] == dict(sent[1], type='release_control', robot_id='pinky1', **RELEASE_BODY)
+
+
+def test_fleet_only_routes_refused_under_task_manager():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': []}))
+    publish, sent = fake_task_manager(tasks, 202, {})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    for url, body in (('/api/commands/estop', {}),
+                      ('/api/robots/pinky1/release_control', RELEASE_BODY)):
+        res = client.post(url, json=body)
+        assert res.status_code == 409 and 'fleet_control' in res.json()['detail'], url
+    assert sent == []

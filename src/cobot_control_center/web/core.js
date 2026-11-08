@@ -45,6 +45,7 @@ const view = {
   cardMsg: new Map(), // robot_id → {text, bad, until}: 명령 결과를 카드 상태 줄에 잠깐
   rawEnabled: false, // 개발용 수동 명령 칸을 보일지 (/api/health)
   resolving: null,  // 결과 모름 해제 확인 중인 작업
+  releasing: null,  // 제어권 복구(정지 잠금 해제) 띠를 연 로봇 id (release.js)
   pick: null,       // 명령 지점 고르는 중 {robotId, cmd, choices, route, ...}
   robotHits: [],    // 지도 위 로봇 위치 {robotId, x, y, r} (지도 클릭으로 카드 찾기)
   mapScale: 0,      // 지도 1 px 의 화면 크기 (layoutMap 이 정함)
@@ -52,6 +53,8 @@ const view = {
   detailRobot: null, // 상세 화면(#/robot/<id>)에서 보는 로봇, 전체 화면이면 null
   cameras: {},      // /api/health 의 cameras: 로봇별 {age_sec, frames}
   spec: null,       // /api/health 의 spec: 로봇별 명령 규격 v1/v2 (작업 노드가 없으면 null)
+  controller: null, // /api/health 의 controller: 작업 노드 "task_manager" / "fleet" (꺼져 있으면 null)
+  holds: {},        // /api/health 의 holds: fleet_control 이 보류한 로봇 → 사유 (STOP·ESTOP 등)
 };
 
 // 화면의 시각은 모두 24시간 HH:MM:SS 로 쓴다. sec 는 UNIX 시각 [s], 없으면 지금.

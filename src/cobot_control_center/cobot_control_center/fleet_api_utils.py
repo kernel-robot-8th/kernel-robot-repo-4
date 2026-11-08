@@ -436,17 +436,38 @@ class TaskStore:
         with self._cond:
             return self._received is not None and self.clock() - self._received <= self.stale_sec
 
+    @staticmethod
+    def _controller_of(snapshot):
+        """
+        작업 노드 종류: 'fleet' (cobot_fleet_control 의 fleet_control_node), 'task_manager', 없으면 None.
+
+        둘 다 같은 토픽(/control_center/tasks)을 내므로 목록 모양으로 가린다.
+        fleet_control 의 ControlAPI.snapshot() 만 orders·holds 를 낸다 (명시 필드가 생기면 그것으로 바꾼다).
+        """
+        if snapshot is None:
+            return None
+        return 'fleet' if 'holds' in snapshot else 'task_manager'
+
+    def controller(self):
+        with self._cond:
+            return self._controller_of(self._snapshot)
+
     def health(self):
         with self._cond:
             age = None if self._received is None else round(self.clock() - self._received, 3)
             spec = (self._snapshot or {}).get('spec')
             raw = bool((self._snapshot or {}).get('allow_raw_cmd'))
             armed = bool((self._snapshot or {}).get('armed'))
+            controller = self._controller_of(self._snapshot)
+            holds = (self._snapshot or {}).get('holds') if controller == 'fleet' else None
         online = age is not None and age <= self.stale_sec
         # 수동 명령 칸은 작업 노드가 켜져 있고 allow_raw_cmd 가 켜져 있을 때만 화면에 보인다.
         # commands_armed: 화면 상단 '작업 명령 켜기/끄기'. 꺼져 있으면 작업 명령 버튼이 잠긴다 (정지는 항상).
+        # holds: fleet_control 이 보류한 로봇 → 사유 (정지·estop 뒤 현장 확인 복구 전까지 명령 거절).
         return {'task_manager_online': online, 'task_manager_age': age, 'spec': spec,
-                'raw_cmd_enabled': online and raw, 'commands_armed': online and armed}
+                'raw_cmd_enabled': online and raw, 'commands_armed': online and armed,
+                'controller': controller if online else None,
+                'holds': holds if online and isinstance(holds, dict) else {}}
 
     def request(self, payload, publish):
         """

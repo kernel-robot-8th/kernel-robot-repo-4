@@ -10,9 +10,12 @@
 const PICK_HIT_PX = 14;        // 지도에서 지점을 누른 것으로 볼 거리 [화면 px]
 
 // ---------- 명령 ----------
-// 화면은 요청만 한다. 검증·기록·발행은 task_manager_node 가 하고, 결과는 /ws/tasks 로 온다.
+// 화면은 요청만 한다. 검증·기록·발행은 작업 노드가 하고, 결과는 /ws/tasks 로 온다.
+// 작업 노드는 task_manager_node(개발·시뮬) 또는 fleet_control_node(실물 중앙 관제) 다 (/api/health 의 controller).
 // 정지는 항상 누를 수 있다. 다른 명령은 연결돼 있고, 작업 중이 아니고, 작업 노드가 살아 있고,
 // 상단 '작업 명령 켜기'로 켜져 있을 때만 (작업 노드는 bringup 에서 늘 켜져 있어 사람이 따로 켠다).
+// fleet 에서 정지·비상정지는 로봇을 보류(정지 잠금)하고 작업 명령을 모두 끈다.
+// 잠긴 카드의 빨간 줄을 누르면 제어권 복구 띠가 뜬다 (release.js, release_control API).
 
 const ACTIVE_TASK = new Set(["ACCEPTED", "SENT", "RUNNING"]);
 // 로봇이 이 상태면 관제 작업이 없어도 움직이는 중이다 (유휴 복귀 등). task_manager 와 같은 목록.
@@ -27,6 +30,18 @@ const TASK_TEXT = {
   STOPPED: "중단", REJECTED: "거절", UNKNOWN: "결과 모름",
 };
 const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈" };
+const CONTROLLER_TEXT = { task_manager: "task_manager", fleet: "fleet_control" };
+// fleet_control 보류 사유: 운영자 정지(STOP·ESTOP·PAUSE·MANUAL), 시나리오 중단(PAUSED·ESTOP·MANUAL),
+// 상태·배터리 수신 만료(LINK_LOST). 모르는 사유는 그대로 보인다.
+const HOLD_TEXT = {
+  STOP: "정지", ESTOP: "비상정지", PAUSE: "일시정지", PAUSED: "일시정지", MANUAL: "수동",
+  LINK_LOST: "통신 끊김",
+};
+// fleet 에서 정지 버튼이 실제로 하는 일 (task_manager 일 때는 index.html 의 원래 설명)
+const FLEET_STOP_TITLE = {
+  stop: "제자리 소프트 정지 · 작업 명령 전체 꺼짐 · 현장 확인 후 해제 필요",
+  emergency_stop: "비상정지(estop): 그 자리 정지, 주문 ESTOP · 현장 확인 후 해제 필요",
+};
 const TASK_LIST_MAX = 50;   // 작업 목록에 보이는 최대 줄 수 (목록은 높이 고정, 스크롤)
 const MSG_MS = 6000;
 
@@ -47,11 +62,8 @@ function setupCommands(card, robotId) {
   card.querySelectorAll(".cmd-row button, .stop-row button").forEach((button) => {
     button.addEventListener("click", () => onCommand(robotId, button.dataset.cmd));
   });
-  // 빨간 '결과 모름' 줄을 누르면 해제 확인을 연다.
-  card.querySelector(".cmd-head").addEventListener("click", () => {
-    const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
-    if (unknown) openResolve(unknown);
-  });
+  // 빨간 줄을 누르면 결과 모름 해제, 아니면 정지 잠금 복구를 연다 (release.js).
+  card.querySelector(".cmd-head").addEventListener("click", () => onCmdHeadClick(robotId));
 }
 
 // 지점 고르기·결과 모름 해제 띠를 붙일 자리. 상세 화면이면 상태줄 아래, 아니면 그 로봇 카드 위.
@@ -59,6 +71,32 @@ function barHost(robotId) {
   if (view.detailRobot === robotId) return $("detail-bar-host");
   const card = view.cards.get(robotId);
   return card ? card.querySelector(".card-body") : null;
+}
+
+// 상단 '작업 노드' 표시에 지금 작업 노드 종류를 붙인다.
+function renderController() {
+  const link = $("link-tasks");
+  const name = CONTROLLER_TEXT[view.controller];
+  link.lastChild.textContent = name ? `작업 노드 · ${name}` : "작업 노드";
+  link.title = view.controller === "fleet"
+    ? "fleet_control_node (중앙 관제: 하트비트·명령, cobot_fleet_control)"
+    : view.controller === "task_manager" ? "task_manager_node (명령)"
+    : "작업 노드 꺼짐 (task_manager_node 또는 fleet_control_node)";
+}
+
+// 정지 잠금: 로봇이 중앙 하트비트 단절·관제 재시작·정지로 잠겼거나(central_latched),
+// fleet_control 이 보류 중(holds). 잠겨 있으면 이동 명령은 거절된다. 아니면 null.
+// hint 가 참이면 푸는 방법을 붙인다 (카드 상태 줄), 거짓이면 상태만 (복구 띠 제목 옆).
+function latchText(robotId, robot, hint = false) {
+  const extra = robot.extra || {};
+  const hold = view.holds[robotId];
+  if (extra.central_latched !== true && !hold) return null;
+  const parts = ["정지 잠금"];
+  if (hold) parts[0] += ` (${HOLD_TEXT[hold] || hold})`;
+  if (extra.held_zone) parts.push(`구역 ${extra.held_zone} 점유`);
+  // 복구 요청은 fleet_control 만 받는다. task_manager 인데 로봇이 잠겼으면 화면에서 풀 수 없다.
+  if (hint) parts.push(view.controller === "fleet" ? "눌러서 현장 확인 후 복구" : "복구는 fleet_control 필요");
+  return parts.join(" · ");
 }
 
 // 이 로봇이 잡고 있는 구역 이름 목록. 구역 상태를 못 받았으면 null (모름).
@@ -71,11 +109,14 @@ function heldZones(robotId) {
 function renderCommands(card, robotId, robot) {
   const active = robotTask(robotId, ACTIVE_TASK);
   const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
+  const latched = latchText(robotId, robot, true);
+  // 잠금은 '작업 명령 켜기'보다 먼저 알린다 (fleet 은 정지하면 작업 명령도 끄므로 켜기만으로는 안 풀린다).
   const reason = view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
     : !view.taskManagerOnline ? "작업 노드 꺼짐"
-    : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
     : !robot.online ? "연결 끊김"
     : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 해제`
+    : latched ? latched
+    : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
     : active ? `작업 중 ${active.task_id}`
     : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
   // 구역·나가기는 보유 구역에 맞춰 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
@@ -94,17 +135,26 @@ function renderCommands(card, robotId, robot) {
   });
   card.querySelectorAll(".stop-row button").forEach((button) => {
     button.disabled = !view.taskManagerOnline || view.readOnly;
+    if (button.dataset.baseTitle === undefined) button.dataset.baseTitle = button.title;
+    button.title = (view.controller === "fleet" && FLEET_STOP_TITLE[button.dataset.cmd])
+      || button.dataset.baseTitle;
   });
   // 아이콘 옆 한 줄: 명령을 보낼 수 있는지, 관제 작업이 있으면 그 내용 (마우스를 올리지 않아도 보이게).
   const why = card.querySelector(".cmd-reason");
   let text;
   let level;
-  if (view.readOnly || !view.taskManagerOnline || !view.commandsArmed || !robot.online) {
+  if (view.readOnly || !view.taskManagerOnline || !robot.online) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
   } else if (unknown) {
     text = `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`;
     level = "bad";
+  } else if (latched) {
+    text = latched;
+    level = "bad";
+  } else if (!view.commandsArmed) {
+    text = `명령 잠김: ${reason}`;
+    level = "warn";
   } else if (active) {
     text = `작업 중: ${active.command} · ${TASK_TEXT[active.state] || active.state}`
       + (active.detail ? ` · ${active.detail}` : "");
@@ -196,6 +246,15 @@ async function toggleArm() {
 // 전체 비상정지: 모든 로봇을 그 자리에 세운다. 확인 창 없이 한꺼번에 보낸다.
 async function stopAll() {
   const robots = Object.keys((view.snapshot && view.snapshot.robots) || {});
+  if (view.controller === "fleet") {
+    // fleet_control 은 로봇 지정 없는 estop 한 번으로 전 로봇·팔을 세운다.
+    cancelPick();
+    const r = await postJson("/api/commands/estop", { client_request_id: newRequestId() });
+    const text = r.ok ? "전체 비상정지(estop) 보냄" : `전체 비상정지 실패 (${r.status}): ${errorText(r)}`;
+    if (robots.length === 0) alert(text);
+    robots.forEach((robotId) => showMessage(robotId, text, !r.ok));
+    return;
+  }
   if (robots.length === 0) {
     alert("전체 비상정지 실패: 로봇 목록을 아직 받지 못함");
     return;

@@ -18,8 +18,12 @@
 브라우저는 ROS 토픽 이름을 모르고 이 API 만 본다. 안쪽(ROS 토픽, 나중의 MQTT·DB)이 바뀌어도
 여기 경로와 응답 모양을 유지한다.
 
-명령(/api/tasks, 정지, 해제, 개발용 수동 명령)은 직접 로봇에 보내지 않는다. task_manager_node 에 요청 토픽으로 넘기고
-그 응답을 HTTP 로 바꾸기만 한다. 검증·기록·발행은 task_manager_node 가 한다.
+명령(/api/tasks, 정지, 해제, 개발용 수동 명령)은 직접 로봇에 보내지 않는다. 작업 노드에 요청 토픽으로 넘기고
+그 응답을 HTTP 로 바꾸기만 한다. 검증·기록·발행은 작업 노드가 한다.
+작업 노드는 둘 중 하나다 (/api/health 의 controller):
+  task_manager   cobot_control_center 의 task_manager_node (개발·시뮬·가짜 핑키)
+  fleet          cobot_fleet_control 의 fleet_control_node (실물 중앙 관제, 하트비트로 로봇 명령 허용)
+fleet 에서는 비상정지를 estop 으로 넘기고, 정지 잠금 복구(release_control)를 받는다.
 """
 
 import asyncio
@@ -35,6 +39,7 @@ WS_WAIT_SEC = 1.0
 
 
 READ_ONLY_DETAIL = '읽기 전용 백엔드: 명령은 실물 관제 화면(bringup, 8080)에서'
+FLEET_ONLY_DETAIL = 'fleet_control 모드 전용 (지금 작업 노드: task_manager_node)'
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -188,17 +193,18 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         finally:
             watcher.cancel()
 
-    # ---------- 명령 (task_manager_node 경유) ----------
+    # ---------- 명령 (작업 노드 경유: task_manager_node 또는 fleet_control_node) ----------
 
     def call_task_manager(payload):
         if tasks is None or publish_request is None:
             raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         if not tasks.online():
             raise HTTPException(status_code=503,
-                                detail='task_manager_node 응답 없음 (작업 노드를 켜 주세요)')
+                                detail='작업 노드 응답 없음 '
+                                       '(task_manager_node 또는 fleet_control_node 를 켜 주세요)')
         result = tasks.request(payload, publish_request)
         if result is None:
-            raise HTTPException(status_code=503, detail='task_manager_node 가 제때 답하지 않음')
+            raise HTTPException(status_code=503, detail='작업 노드가 제때 답하지 않음')
         status, body = result
         body = body if isinstance(body, dict) else {}
         if status >= 400 and 'task_id' in body:
@@ -214,12 +220,43 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'robot_id': body.get('robot_id'), 'operation': body.get('operation'),
             'points': body.get('points') or []})
 
+    def is_fleet():
+        return tasks is not None and tasks.controller() == 'fleet'
+
+    def require_fleet():
+        if not is_fleet():
+            raise HTTPException(status_code=409, detail=FLEET_ONLY_DETAIL)
+
     @app.post('/api/robots/{robot_id}/stop')
     def stop_robot(robot_id: str, body: dict = Body(default={})):
+        emergency = bool(body.get('emergency', False))
+        if emergency and is_fleet():
+            # fleet_control 은 stop 의 emergency 를 보지 않는다. 비상정지는 estop 요청이다.
+            return call_task_manager({
+                'type': 'estop', 'robot_id': robot_id,
+                'client_request_id': body.get('client_request_id')})
         return call_task_manager({
             'type': 'stop', 'robot_id': robot_id,
             'client_request_id': body.get('client_request_id'),
-            'emergency': bool(body.get('emergency', False))})
+            'emergency': emergency})
+
+    @app.post('/api/commands/estop')
+    def estop_all(body: dict = Body(default={})):
+        # 전체 비상정지 (fleet 전용): 로봇 지정 없이 한 번 내면 fleet 이 전 로봇·팔을 세운다.
+        # task_manager 에서는 화면이 로봇별 정지를 보낸다.
+        require_fleet()
+        return call_task_manager({
+            'type': 'estop', 'client_request_id': body.get('client_request_id')})
+
+    @app.post('/api/robots/{robot_id}/release_control')
+    def release_control(robot_id: str, body: dict = Body(default={})):
+        # 정지 잠금·보류 복구 (fleet 전용). 현장 확인 증거 검사는 fleet_control 이 한다.
+        require_fleet()
+        return call_task_manager({
+            'type': 'release_control', 'robot_id': robot_id,
+            'client_request_id': body.get('client_request_id'),
+            'operator': body.get('operator'), 'note': body.get('note'),
+            'evidence': body.get('evidence')})
 
     @app.post('/api/robots/{robot_id}/raw_cmd')
     def raw_command(robot_id: str, body: dict = Body(default={})):
