@@ -71,6 +71,16 @@ ros2 launch cobot_fleet_control control_center_web.launch.xml \
 이 빌드는 현재 체크아웃의 `cobot_control_center`를 설치하므로, 웹 기동에는 위에서 설명한
 feature/control-center의 웹 실행 파일이 있는 소스가 필요합니다.
 
+개발 설정 두 개는 `fleet_control.launch.xml` 인자로 줍니다. 실물은 둘 다 `false`(기본)입니다.
+
+| 인자 | 기본 | 뜻 |
+|---|---|---|
+| `allow_raw_cmd` | `false` | 개발용 수동 명령(`type=raw`). 켜면 작업 명령 켜짐·로봇 보류 없음·연결 확인 뒤 세션 봉투를 붙여 `patrol_cmd` 로 보냄. 결과는 추적하지 않음 |
+| `start_armed` | `false` | 작업 명령 켜진 채로 시작. 격리 도메인 시뮬 전용 |
+| `db_path` | `~/.cobot/fleet_control.sqlite3` | 실행 원장. 가짜 핑키·가제보는 다른 파일 |
+
+가짜 핑키(`cobot_mock` `mock_fleet.launch.xml`)·가제보(`cobot_gazebo` `sim_fleet.launch.xml`)·`cobot_bringup` 은 이 노드를 작업 노드로 띄웁니다.
+
 이미 fleet이 실행 중이면 `fleet:=existing`을 추가합니다. 브릿지·zone_manager·로봇은 이 기동기가 중복 실행하지 않습니다.
 `host`·`port` 인자로 화면 접속 주소를 바꿀 수 있고 기본은 `127.0.0.1:8080`입니다.
 

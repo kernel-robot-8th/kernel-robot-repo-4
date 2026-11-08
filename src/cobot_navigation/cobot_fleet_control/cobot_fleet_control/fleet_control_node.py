@@ -38,6 +38,8 @@ class FleetControlNode(Node):
             'work_request_topic': '/fleet/work_request',
             'work_result_topic': '/fleet/work_result',
             'manual_load_confirmation': '',
+            # 개발 설정: 가짜 핑키·가제보에서만 켠다. 실물은 둘 다 false.
+            'allow_raw_cmd': False, 'start_armed': False,
             'patrol_config_dir': '', 'site': 'lab',
         }
         for name, value in defaults.items():
@@ -71,7 +73,14 @@ class FleetControlNode(Node):
         self.scenario = ScenarioService(self.repository, self.service, self, **scenario_config)
         rules = (load_profiles(config['patrol_config_dir'], config['site'], robots)
                  if config['patrol_config_dir'] else None)
-        self.api = ControlAPI(self.scenario, self.service, self, point_rules=rules)
+        self.api = ControlAPI(self.scenario, self.service, self, point_rules=rules,
+                              allow_raw_cmd=config['allow_raw_cmd'])
+        if config['start_armed']:
+            # 격리 도메인 시뮬 전용. 실물에서는 화면에서 작업 명령을 켠다.
+            self.scenario.armed = True
+            self.get_logger().warning('start_armed: 작업 명령 켜진 상태로 시작 (시뮬 전용)')
+        if config['allow_raw_cmd']:
+            self.get_logger().warning('allow_raw_cmd: 개발용 수동 명령 켜짐 (시뮬 전용)')
         self.manual_load_inbox = []
         self.add_on_set_parameters_callback(self._validate_manual_load)
         self.add_post_set_parameters_callback(self._queue_manual_load)

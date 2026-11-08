@@ -7,6 +7,8 @@ import uuid
 from .contracts import Command
 from .scenario_contracts import identifier
 
+RAW_CMD_MAX_LEN = 200   # 개발용 수동 명령 최대 길이 [글자]
+
 
 def manual_load_request(value):
     """주문에 묶인 파라미터 값을 검증하고 수동 확인 요청으로 변환한다."""
@@ -44,9 +46,11 @@ class ApiError(ValueError):
 class ControlAPI:
     """웹 서버는 control-center에 두고 실행·복구 정책만 처리한다."""
 
-    def __init__(self, scenario, fleet, gateway, point_rules=None):
+    def __init__(self, scenario, fleet, gateway, point_rules=None, allow_raw_cmd=False):
         self.scenario, self.fleet, self.gateway = scenario, fleet, gateway
         self.point_rules = point_rules
+        # 개발용 수동 명령. 가짜 핑키·가제보 설정에서만 켠다 (실물 기본 꺼짐).
+        self.allow_raw_cmd = bool(allow_raw_cmd)
 
     def handle(self, request):
         """기존 웹의 TaskStore가 기다리는 request_id/status/body 응답 형식을 유지한다."""
@@ -104,8 +108,39 @@ class ControlAPI:
         if kind == 'release_control':
             return 200, self._release_control(request)
         if kind == 'raw':
-            raise ApiError(403, '직접 문자열 명령 꺼짐: 추적 가능한 작업 요청을 사용하세요')
+            return 202, self._raw(request)
         raise ValueError('알 수 없는 요청 type')
+
+    def _raw(self, request):
+        """개발용 1회성 문자열 명령. 기록·결과 추적 없이 세션 봉투만 붙여 로봇에 보낸다."""
+        if not self.allow_raw_cmd:
+            raise ApiError(403, '직접 문자열 명령 꺼짐: 추적 가능한 작업 요청을 사용하세요')
+        scenario = self.scenario
+        if not scenario.armed:
+            raise ApiError(423, '작업 명령 꺼짐: 화면에서 작업 명령을 켜세요')
+        robot = request.get('robot_id')
+        if not isinstance(robot, str) or robot not in self.fleet.robots:
+            raise ApiError(404, '등록되지 않은 로봇')
+        text = request.get('command')
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError('빈 명령')
+        text = text.strip()
+        if '\n' in text or '\r' in text or len(text) > RAW_CMD_MAX_LEN:
+            raise ValueError(f'명령은 한 줄, {RAW_CMD_MAX_LEN}자 이하')
+        if (self._orders_for(robot) or self.fleet.repository.busy(robot)
+                or robot in scenario.store.holds()):
+            raise ApiError(409, '진행 중이거나 결과를 모르는 작업·보류: 정지·복구 확인 필요')
+        ready = getattr(self.gateway, 'ready', None)
+        if ready is not None and not ready(robot):
+            raise ApiError(503, '명령 실행기 중복 또는 로봇 명령 연결 미확인')
+        raw_id = 'raw_' + uuid.uuid4().hex
+        scenario.store.event({'type': 'operator_raw', 'robot_id': robot, 'raw_id': raw_id,
+                              'command': text, 'source': request.get('source', '')})
+        self.gateway.send(robot, {'command_id': raw_id, 'command': text})
+        return {'robot_id': robot, 'command': text, 'raw_id': raw_id, 'spec': 'v1',
+                'topic': f'/{robot}/patrol_cmd', 'msg_type': 'std_msgs/msg/String',
+                'client_request_id': request.get('client_request_id'),
+                'warning': '작업 관리를 거치지 않는 1회성 직접 명령: 검사·결과 추적 없음'}
 
     def _create(self, request):
         scenario, repository = self.scenario, self.fleet.repository
@@ -256,7 +291,8 @@ class ControlAPI:
         recent = list(self.fleet.repository.db.execute(
             "SELECT * FROM commands WHERE state IN ('SUCCEEDED','FAILED') "
             'ORDER BY rowid DESC LIMIT ?', (max(0, limit - len(active)),)))
-        return dict(time=time.time(), armed=self.scenario.armed, allow_raw_cmd=False,
+        return dict(time=time.time(), armed=self.scenario.armed,
+                    allow_raw_cmd=self.allow_raw_cmd,
                     robots=list(self.fleet.robots), spec={r: 'v1' for r in self.fleet.robots},
                     tasks=[self._task(dict(row)) for row in active + recent],
                     orders=self.scenario.store.orders(), holds=self.scenario.store.holds())

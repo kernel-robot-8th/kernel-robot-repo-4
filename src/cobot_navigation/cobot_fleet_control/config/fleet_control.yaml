@@ -11,3 +11,6 @@ fleet_control:
     tasks_topic: /control_center/tasks
     work_request_topic: /fleet/work_request
     work_result_topic: /fleet/work_result
+    # 개발 설정: 가짜 핑키·가제보 launch 에서만 true 로 준다. 실물은 false.
+    allow_raw_cmd: false        # 개발용 수동 명령 (검사·결과 추적 없이 patrol_cmd 에 문자열)
+    start_armed: false          # 작업 명령 켜진 상태로 시작

@@ -347,6 +347,34 @@ def test_arm_and_raw_manual_web_contract_and_latched_stop_without_order(env):
     assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 400
 
 
+def test_raw_command_only_when_allowed_and_sent_in_session_envelope(env):
+    def raw(command='goto:P1', robot='pinky1'):
+        return env.api.handle({'type': 'raw', 'robot_id': robot, 'command': command})
+
+    assert raw()['status'] == 403
+    env.api = ControlAPI(env.scenario, env.fleet, env.gateway, allow_raw_cmd=True)
+    assert env.api.snapshot()['allow_raw_cmd'] is True
+    reply = raw('  goto:P1 ')
+    assert reply['status'] == 202
+    body = reply['body']
+    assert body['command'] == 'goto:P1' and body['raw_id'].startswith('raw_')
+    assert body['topic'] == '/pinky1/patrol_cmd' and body['spec'] == 'v1'
+    # gateway.send 가 세션·순번·TTL 봉투를 붙인다. 여기서는 command_id·command 만 넘긴다
+    assert env.gateway.sent[-1] == ('pinky1', {'command_id': body['raw_id'],
+                                               'command': 'goto:P1'})
+    assert raw(robot='pinky9')['status'] == 404
+    assert raw('')['status'] == 400
+    assert raw('goto:P1\nstop')['status'] == 400
+    assert raw('x' * 201)['status'] == 400
+    env.api.handle({'type': 'estop', 'robot_id': 'pinky1'})
+    assert not env.scenario.armed and raw()['status'] == 423
+    env.api.handle({'type': 'arm', 'armed': True})
+    # 정지 뒤 보류된 로봇에는 보내지 않는다
+    assert raw()['status'] == 409
+    sent = len(env.gateway.sent)
+    assert raw(robot='pinky2')['status'] == 202 and len(env.gateway.sent) == sent + 1
+
+
 def test_manual_task_matches_existing_web_display_fields(env):
     reply = env.api.handle(dict(
         type='create', request_id='web1', client_request_id='manual1',
