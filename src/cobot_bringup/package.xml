@@ -13,6 +13,7 @@
   <exec_depend>cobot_domain_bridge</exec_depend>
   <exec_depend>cobot_zone_traffic_control</exec_depend>
   <exec_depend>cobot_control_center</exec_depend>
+  <exec_depend>cobot_fleet_control</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_copyright</test_depend>

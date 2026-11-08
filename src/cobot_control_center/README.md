@@ -109,13 +109,13 @@ export ROS_DOMAIN_ID=100
 ros2 launch cobot_bringup bringup.launch.xml
 ```
 
-한 번에 뜨는 것: 도메인 브릿지 3개, zone_manager, `fleet_status_node`, `fleet_api_node`, `task_manager_node` (작업 명령 꺼짐으로 시작).
+한 번에 뜨는 것: 도메인 브릿지 3개, zone_manager, `fleet_status_node`, `fleet_api_node`, 작업 노드 `fleet_control_node` (`cobot_fleet_control`, 작업 명령 꺼짐으로 시작).
 
 | 인자 | 기본값 | 뜻 |
 |---|---|---|
 | `pinky1` / `pinky2` / `pinky3` | `true` | 해당 로봇 브릿지 실행 여부. 일부 로봇만 켤 때 `pinky2:=false` |
 | `fleet_api` | `true` | 백엔드·화면 실행 여부. `.venv` 가 없는 환경이면 `fleet_api:=false` |
-| `task_manager` | `true` | 작업 노드 실행 여부. 보기 전용으로만 띄우려면 `task_manager:=false` |
+| `controller` | `fleet` | 작업 노드. `fleet` (기본) / `task_manager` (예전, 다음에 제거 예정) / `none` (보기 전용) |
 
 로봇 쪽(Nav2, 순찰 노드)은 각 로봇에서 따로 켭니다. 순서는 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 봅니다.
 
@@ -182,25 +182,27 @@ ros2 launch cobot_mock mock_fleet.launch.xml auto_patrol:=false        # 화면 
 
 **실물 (도메인 100)**: [bringup](#실행) 이 작업 노드를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 기록은 `~/.ros/cobot_control_center/tasks.db` 이고, 누가(접속 IP) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다.
 
-bringup 을 `task_manager:=false` 로 띄웠다면 따로 켭니다:
+bringup 을 `controller:=none` 으로 띄웠다면 따로 켭니다:
 
 ```bash
 export ROS_DOMAIN_ID=100
-ros2 launch cobot_control_center task_manager.launch.xml
+ros2 launch cobot_fleet_control fleet_control.launch.xml
 ```
 
 ## 작업 노드 두 가지 (task_manager / fleet_control)
 
 화면 명령은 `/control_center/task_request` 로 작업 노드에 넘어갑니다. 작업 노드는 둘 중 **하나만** 띄웁니다 (같은 요청 토픽을 받으므로).
 
+**기본은 fleet 하나입니다 (2026-11-09).** bringup·가짜 핑키(`cobot_mock`)·가제보(`cobot_gazebo`) 모두 `fleet_control_node` 를 띄우고, 개발 차이는 설정(`allow_raw_cmd`, `start_armed`)으로만 둡니다. `task_manager_node` 는 `controller:=task_manager` 로만 뜨며 확인되면 지웁니다.
+
 | | `task_manager_node` (이 패키지) | `fleet_control_node` (`cobot_fleet_control`) |
 |---|---|---|
-| 쓰는 곳 | 가짜 핑키·가제보 시뮬·개발 | 실물 중앙 관제 (`central_controlled: true` 로봇) |
+| 쓰는 곳 | 예전 방식 (`controller:=task_manager`, 제거 예정) | 기본: 실물·가짜 핑키·가제보 (`central_controlled: true` 로봇) |
 | 로봇 명령 허용 | 로봇이 `central_controlled: false` 일 때 | 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번·TTL |
 | 정지 | 작업 중단 (구역 안이면 나와 반납) | 제자리 소프트 정지 · **작업 명령 전체 꺼짐** · 로봇 보류 |
 | 비상정지 | `stop` + `emergency` | `estop` (백엔드가 바꿔 보냄) |
 | 정지 잠금 복구 | 없음 | `release_control` (아래 API) 또는 UNKNOWN 작업 `resolve` |
-| 수동 명령 칸 | `allow_raw_cmd` 일 때 | 늘 숨김 (fleet 이 403) |
+| 수동 명령 칸 | `allow_raw_cmd` 일 때 | `allow_raw_cmd` 일 때 (가짜 핑키·가제보만 켬, 실물 꺼짐 403). 세션 봉투를 붙여 보냄 |
 
 - `/api/health` 의 `controller` 가 `task_manager` / `fleet` / `null`(꺼짐) 을, `holds` 가 fleet 이 보류한 로봇 → 사유(`STOP`·`ESTOP` 등)를 알립니다.
   fleet 여부는 작업 목록(`/control_center/tasks`)에 `holds` 키가 있는지로 가립니다 (fleet `ControlAPI.snapshot()` 만 냄). 명시 필드가 생기면 그것으로 바꿉니다.
@@ -275,7 +277,7 @@ curl http://127.0.0.1:8080/api/robots/pinky1
 |---|---|---|
 | 화면이 안 뜸, 로그에 `No module named 'fastapi'` | `.venv` 를 켜지 않고 빌드해서 실행 파일이 시스템 파이썬을 씀 | `.venv` 를 켠 셸에서 다시 빌드 ([빌드·시험](#빌드시험)) |
 | 지도가 안 뜸 | 풀 뒤 다시 빌드하지 않음, 또는 `install/`·`src/` 가 나란히 있지 않음 (`--merge-install`, 도커 등) | 다시 빌드. 안 되면 `fleet_api.launch.xml map_yaml:=<지도.yaml>`. 로그의 `지도` 줄로 어느 쪽인지 구분 |
-| 카드에 `작업 노드 꺼짐` | `task_manager_node` 가 꺼짐 (`task_manager:=false` 로 띄움, 노드 오류), 또는 백엔드가 꺼짐 | [명령 켜기](#명령-켜기) |
+| 카드에 `작업 노드 꺼짐` | 작업 노드(`fleet_control_node`)가 꺼짐 (`controller:=none` 으로 띄움, 노드 오류), 또는 백엔드가 꺼짐 | [명령 켜기](#명령-켜기) |
 | 카드에 `명령 잠김: 상단 '작업 명령 켜기'를 누르세요` | 작업 명령이 꺼져 있음 (기본, 재시작 뒤에도) | 화면 상단 **작업 명령 켜기** → 확인 |
 | 명령이 `결과 모름`, 그 로봇 버튼이 잠김 | 순찰 노드가 꺼져 있을 때 보내서 응답이 없음 | 순찰 노드를 켜고 화면에서 [결과 모름 해제](docs/screen_guide.md#결과-모름-해제) |
 | 정지를 눌러도 반응 없음 | 순찰 노드는 이동 중이 아니면 정지를 무시함 (로그 `순찰 중이 아닙니다. 명령 무시.`) | 정상 |

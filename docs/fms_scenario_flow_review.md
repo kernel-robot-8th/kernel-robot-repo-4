@@ -170,3 +170,4 @@
 - 개발 기능 차단은 서버에서 한다: `allow_raw_cmd: false` 기본, fleet 모드 `raw_cmd` 403, 작업 명령 꺼짐 423, `read_only` 백엔드.
 - 현장 컨테이너에는 `cobot_mock`, `cobot_gazebo`가 들어 있지 않다.
 - 로그인·역할 구분은 없다. 웹은 `127.0.0.1`에서만 열려 있다.
+- 작업 노드: 2026-11-09부터 bringup·가짜 핑키·가제보 모두 `fleet_control_node` 가 기본이다. 개발 차이는 `allow_raw_cmd`·`start_armed` 설정으로만 둔다. `task_manager_node` 는 `controller:=task_manager` 로만 뜨며 제거 예정이다.
