@@ -36,7 +36,7 @@ import sys
 import threading
 import time
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from cobot_mqtt_bridge.bridge_config import (
     BridgeSettings, DOWN, load_rules, status_topic_name, UP)
 from cobot_mqtt_bridge.cmd_vel_guard import clamp_twist, is_stale, is_zero, Watchdog
@@ -136,11 +136,17 @@ class MqttBridge:
         return tuple(item for item in self._param(name) if item)
 
     def _bridge_yaml_path(self):
+        """토픽 목록 YAML 경로. 비우면 이 패키지의 config/mqtt_topics_<로봇>.yaml (DDS 브릿지 YAML 과 별개)."""
         explicit = self._param('bridge_config')
         if explicit:
             return explicit
-        share = get_package_share_directory('cobot_domain_bridge')
-        return os.path.join(share, 'config', f'pinky_bridge_{self._robot}.yaml')
+        try:
+            base = os.path.join(get_package_share_directory('cobot_mqtt_bridge'), 'config')
+        except PackageNotFoundError:
+            # colcon 설치 없이 코드만 복사해 쓰는 경우(pinky1): 소스 배치 기준의 config/
+            code_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            base = os.path.join(code_dir, 'config')
+        return os.path.join(base, f'mqtt_topics_{self._robot}.yaml')
 
     def _is_source(self, rule):
         """이 역할이 ROS 를 구독해 MQTT 로 보내는 쪽이면 True (아니면 MQTT 를 받아 ROS 발행)."""
@@ -166,7 +172,7 @@ class MqttBridge:
         try:
             all_rules = load_rules(self._bridge_yaml_path(), self._robot, settings)
         except (OSError, ValueError, KeyError) as error:
-            return f'브릿지 YAML 을 읽지 못함: {error}'
+            return f'MQTT 토픽 YAML 을 읽지 못함: {error}'
         enable_down = bool(self._param('enable_down'))
         if not enable_down:
             self._log.info('enable_down:=false 라 down(관제→로봇) 토픽은 중계하지 않는다')

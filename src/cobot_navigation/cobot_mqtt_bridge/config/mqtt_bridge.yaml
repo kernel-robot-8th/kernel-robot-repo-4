@@ -1,4 +1,4 @@
-# MQTT 브릿지 파라미터. 토픽 목록은 여기에 적지 않고 cobot_domain_bridge 의 YAML 에서 읽는다.
+# MQTT 브릿지 파라미터. 토픽 목록은 여기에 적지 않고 config/mqtt_topics_<로봇>.yaml 에서 읽는다(DDS 브릿지 YAML 과 별개).
 # 사용: ros2 run cobot_mqtt_bridge mqtt_bridge_node --ros-args --params-file <이 파일> -p robot:=pinky1 -p side:=pc
 # 최상위 키가 /** 라서 launch 가 붙이는 노드 이름(mqtt_bridge_pinky1 등)에도 그대로 적용된다.
 "/**":

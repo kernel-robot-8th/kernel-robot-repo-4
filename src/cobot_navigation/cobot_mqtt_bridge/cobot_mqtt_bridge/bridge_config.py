@@ -13,14 +13,15 @@
 # limitations under the License.
 
 """
-cobot_domain_bridge 의 YAML 을 읽어 MQTT 중계 규칙으로 바꾸는 순수 로직.
+MQTT 토픽 목록 YAML(config/mqtt_topics_<로봇>.yaml)을 읽어 중계 규칙으로 바꾸는 순수 로직.
 
-왜 따로 두는가: 토픽 목록의 정본은 DDS 브릿지 YAML 이다. 목록을 코드에 적으면 YAML 이
-바뀔 때 어긋나므로 여기서 읽어 규칙으로 바꾼다. ROS 에 의존하지 않아 단독 시험이 된다.
+왜 따로 두는가: 토픽 목록은 코드에 적지 않고 YAML 로 관리한다. 이 YAML 은 DDS 브릿지
+(cobot_domain_bridge)의 것과 형식만 같고 파일은 별개라서, 여기를 고쳐도 DDS 쪽에는 영향이
+없다. ROS 에 의존하지 않아 단독 시험이 된다.
 
-방향: 브릿지 YAML 에서 to_domain 이 관제 도메인이면 up(로봇→관제), from_domain 이
-관제 도메인이면 down(관제→로봇). 로봇 쪽 토픽 이름과 관제 쪽 이름이 다르면 remap 이 관제
-쪽(up) 또는 로봇 쪽(down) 이름이다.
+방향: to_domain 이 관제 도메인이면 up(로봇→관제), from_domain 이 관제 도메인이면
+down(관제→로봇). 로봇 쪽 토픽 이름과 관제 쪽 이름이 다르면 remap 이 관제 쪽(up) 또는
+로봇 쪽(down) 이름이다.
 """
 
 from dataclasses import dataclass

@@ -19,10 +19,10 @@ from cobot_mqtt_bridge.bridge_config import (
     UP)
 import pytest
 
-BRIDGE_CONFIG_DIR = Path(__file__).resolve().parents[2] / 'cobot_domain_bridge' / 'config'
-PINKY1 = BRIDGE_CONFIG_DIR / 'pinky_bridge_pinky1.yaml'
+CONFIG_DIR = Path(__file__).resolve().parents[1] / 'config'
+PINKY1 = CONFIG_DIR / 'mqtt_topics_pinky1.yaml'
 
-needs_yaml = pytest.mark.skipif(not PINKY1.exists(), reason='브릿지 YAML 이 없음')
+needs_yaml = pytest.mark.skipif(not PINKY1.exists(), reason='MQTT 토픽 YAML 이 없음')
 
 
 def by_robot_topic(rules):
@@ -82,14 +82,31 @@ def test_latched_and_rate_limit_applied():
     assert rules['/odom'].max_rate_hz == 0.0
 
 
-@pytest.mark.parametrize('name', ['pinky1', 'pinky2', 'pinky3'])
-def test_all_robot_configs_parse(name):
-    path = BRIDGE_CONFIG_DIR / f'pinky_bridge_{name}.yaml'
-    if not path.exists():
-        pytest.skip('브릿지 YAML 이 없음')
+@pytest.mark.parametrize('name,total', [('pinky1', 21), ('pinky2', 18), ('pinky3', 18)])
+def test_all_robot_configs_parse(name, total):
+    path = CONFIG_DIR / f'mqtt_topics_{name}.yaml'
+    assert path.exists(), f'{path} 가 없다'
     rules = load_rules(path, name, BridgeSettings())
-    assert rules
+    assert len(rules) == total
     assert len({rule.mqtt_topic for rule in rules}) == len(rules)
+    assert all(rule.mqtt_topic.startswith(f'mqtt_bridge/{name}/') for rule in rules)
+
+
+def test_topic_yaml_is_independent_of_dds_bridge(tmp_path):
+    # 이 패키지의 토픽 목록은 cobot_domain_bridge 의 파일이 없어도 읽혀야 한다.
+    path = tmp_path / 'mqtt_topics_pinky9.yaml'
+    path.write_text(
+        'topics:\n'
+        '  /camera/image_raw/compressed:\n'
+        '    type: sensor_msgs/msg/CompressedImage\n'
+        '    from_domain: 10\n'
+        '    to_domain: 100\n'
+        '    remap: /pinky9/camera/image_raw/compressed\n', encoding='utf-8')
+    rule = load_rules(path, 'pinky9', BridgeSettings())[0]
+    assert rule.direction == UP
+    assert rule.robot_topic == '/camera/image_raw/compressed'
+    assert rule.pc_topic == '/pinky9/camera/image_raw/compressed'
+    assert rule.mqtt_topic == 'mqtt_bridge/pinky9/up/camera/image_raw/compressed'
 
 
 def test_parse_rate_limits():

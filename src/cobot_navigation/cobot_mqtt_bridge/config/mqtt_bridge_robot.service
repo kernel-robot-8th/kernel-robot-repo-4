@@ -1,5 +1,5 @@
 # pinky1 에 설치하는 MQTT 브릿지 로봇 쪽 중계 서비스 (구독 전용: 도메인 10 에 발행하지 않는다).
-# 코드는 /home/pinky/mqtt_bridge/ 에 복사해 둔다 (cobot_mqtt_bridge/, cobot_domain_bridge/config/).
+# 코드는 /home/pinky/mqtt_bridge/ 에 복사해 둔다 (cobot_mqtt_bridge/ 한 폴더. 토픽 목록은 그 안의 config/mqtt_topics_pinky1.yaml).
 # 터널이 아직 안 열렸으면 노드가 종료 코드 2 로 끝나고 Restart 가 다시 시도한다.
 # 명령 방향(enable_down)과 confirm_real_domain 은 일부러 넣지 않았다. 켜려면 별도 승인이 필요하다.
 # 설치(사용자가 sudo 로): README 의 "자동 시작" 절 참고.
@@ -17,7 +17,7 @@ Environment=RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 Environment=CYCLONEDDS_URI=file:///home/pinky/.ros/cyclonedds_robot.xml
 Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=/home/pinky/mqtt_bridge
-ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && exec env PYTHONPATH=/home/pinky/mqtt_bridge/cobot_mqtt_bridge:$PYTHONPATH python3 -m cobot_mqtt_bridge.mqtt_bridge_node --ros-args --params-file /home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_bridge.yaml -p robot:=pinky1 -p side:=robot -p bridge_config:=/home/pinky/mqtt_bridge/cobot_domain_bridge/config/pinky_bridge_pinky1.yaml -r __node:=mqtt_bridge_pinky1_robot'
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && exec env PYTHONPATH=/home/pinky/mqtt_bridge/cobot_mqtt_bridge:$PYTHONPATH python3 -m cobot_mqtt_bridge.mqtt_bridge_node --ros-args --params-file /home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_bridge.yaml -p robot:=pinky1 -p side:=robot -p bridge_config:=/home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_topics_pinky1.yaml -r __node:=mqtt_bridge_pinky1_robot'
 # 정상 종료(0)는 다시 켜지 않는다. 터널 대기(2)나 부하 보호로 멈춘 경우는 30초 뒤 다시 시도한다.
 Restart=on-failure
 RestartSec=30

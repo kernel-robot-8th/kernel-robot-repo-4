@@ -1,7 +1,7 @@
 # mqtt_bridge_prd — MQTT 브릿지 PRD
 
 담당: 주행 (`cobot_navigation`)
-작성일: 2026-11-07 / 상태: A·B·C(PC 쪽)·**D(실물 없이 가능한 부분)·E(가짜 모드)·F-0/F-0b/F-1·G-2 완료**, F-2~F-4 보류, G-3(설치) 대기. 실물 pinky1 시험(A, C 로봇 쪽, D 터널 끊김)은 모두 보류
+작성일: 2026-11-07 / 상태: A·B·C(PC 쪽)·**D(실물 없이 가능한 부분)·E(가짜 모드)·F-0/F-0b/F-1·G-2·G-3 완료**, F-2~F-4 보류. 서비스는 설치되어 켜져 있음. 실물 pinky1 시험(A, C 로봇 쪽, D 터널 끊김)은 모두 보류
 
 ## 1. 목적
 - 관제 PC와 로봇 사이의 통신 방식으로 DDS `cobot_domain_bridge` 말고 **MQTT 브릿지(launch 한 개)도 쓸 수 있게** 한다. 기능은 도메인 브릿지와 같아야 한다.
@@ -411,6 +411,30 @@ G-1(결정 제안서)은 사용자가 건너뛰기로 했다. 서비스 파일 2
 | SSH 키 | 서비스가 쓸 `~/.ssh/id_ed25519` 로 에이전트 없이 pinky1 접속 가능함을 확인 |
 
 미설치 상태다. 설치(sudo)와 재부팅 시험은 G-3 에서 사용자와 함께 한다.
+
+#### G-3 결과: 설치와 재부팅 시험 (2026-11-09)
+PC 터널 서비스와 pinky1 로봇 서비스를 설치(사용자가 `sudo` 로 실행)하고 `enable --now` 했다. 로봇은 움직이지 않았고 도메인 10 에는 구독만 한다.
+
+| 시험 | 결과 |
+|---|---|
+| 설치 직후 | 두 서비스 `active`·`enabled`. 관제 쪽에 `status/robot online`, 로봇 노드 메모리 약 67 MB |
+| 터널 끊김 복구(터널 프로세스 `kill -9`) | 브로커가 즉시 `offline`(will), systemd 가 **6초 뒤** 터널을 다시 열고 **약 7초 만에** 같은 프로세스가 `online` 으로 재접속 |
+| **pinky1 재부팅** | 사람 개입 없이 로봇 서비스가 자동 시작해 `MQTT 접속 성공`, `status/robot online`. 부팅 직후 첫 시도는 터널이 아직 없어 `브로커에 닿지 않음`(종료 코드 2)으로 끝났고, 설계대로 systemd 가 30초 뒤 다시 시도해 성공 |
+| 재부팅 뒤 PC 터널 | 계속 `active` |
+
+알게 된 것: pinky1 은 부팅 직후 시계가 며칠 전(11/07)으로 틀려 있다가 NTP 로 맞춰진다(저널 시각이 점프). `max_age_ms` 로 오래된 명령을 버리는 기능은 두 장비 시계가 맞은 뒤에만 켜야 한다. 서비스는 현재 `enable` 상태이며, 켜 둔 동안 pinky1 CPU 를 코어 1개의 약 18 % 쓴다. DDS 브릿지만 쓰는 때는 README 의 "끄기" 명령으로 `disable` 한다.
+
+#### 토픽 목록 분리 결과: MQTT 전용 YAML (2026-11-09)
+요청: "DDS 와 별개로 MQTT 용도로 따로 빼 달라". 토픽 목록을 `cobot_domain_bridge` 의 YAML 대신 이 패키지의 `config/mqtt_topics_pinkyN.yaml` 로 옮겼다.
+
+| 항목 | 내용 |
+|---|---|
+| 시작 내용 | DDS 쪽 `pinky_bridge_pinkyN.yaml` 항목을 그대로 복사(pinky1 21개, pinky2·3 18개). 복사본과 원본의 내용이 같음을 확인했고 `cobot_domain_bridge` 는 수정하지 않았다(git 변경 0) |
+| 기본 경로 | `bridge_config` 를 비우면 설치본(`share/cobot_mqtt_bridge/config`), 없으면(pinky1 처럼 코드만 복사한 경우) 코드 옆 `config/`. 파일이 없으면 DDS YAML 로 몰래 대신하지 않고 오류로 알린다 |
+| 서비스 파일 | pinky1 의 YAML 경로를 `~/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_topics_pinky1.yaml` 로 변경. 예전 설치(`~/mqtt_bridge/cobot_domain_bridge/`)는 새 서비스 설치 전까지 그대로 둔다 |
+| 시험 | 54개 통과(린트 포함). DDS 폴더 없이 읽히는지, 세 로봇 파싱·개수·중복 없음 시험 추가 |
+| 가짜 모드 | `bridge_config` 없이 3대를 60초 돌려 중계 수 = 발행 수(scan 519, odom 1,560 등, pinky2 는 장애 시험대로 중간이 비어 있음), 오류 0. 설치 없이 복사한 코드에서도 기본 경로를 찾음 |
+| 주의 | 목록이 따로 관리되므로 DDS YAML 이 바뀌어도 MQTT 목록은 자동으로 따라가지 않는다. 실물 pinky1 에는 아직 새 파일을 복사하지 않았다 |
 
 ---
 

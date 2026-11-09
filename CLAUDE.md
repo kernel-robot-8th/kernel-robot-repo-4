@@ -19,7 +19,7 @@
 │   ├── cobot_description/      # URDF/xacro, 메시 (모바일 베이스 + 팔)
 │   ├── cobot_vision/           # [비전] 카메라, 검출/인식, 좌표 변환
 │   ├── cobot_navigation/       # [주행] Nav2 설정, 주행 시퀀스, localization
-│   ├── cobot_mqtt_bridge/      # [주행] MQTT 도메인 간 토픽 중계 (cobot_domain_bridge 와 병행 사용, 브릿지 YAML 을 읽음)
+│   ├── cobot_mqtt_bridge/      # [주행] MQTT 도메인 간 토픽 중계 (cobot_domain_bridge 와 병행 사용, MQTT 전용 토픽 YAML 을 읽음)
 │   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
 │   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
