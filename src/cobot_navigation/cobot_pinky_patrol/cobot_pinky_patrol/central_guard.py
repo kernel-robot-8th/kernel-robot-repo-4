@@ -52,6 +52,13 @@ class CentralGuard:
             return True
         return False
 
+    def stop(self, emergency=False):
+        """정지는 하트비트·세션과 상관없이 늘 받는다. 잠금은 비상정지만 건다."""
+        # 일반 정지는 멈추고(구역 안이면 물러나) 끝나며 다음 명령을 바로 받는다
+        # (진호 님 원래 순찰 노드 기준, 2026-11-09). 제자리에 세우고 잠그려면 비상정지를 쓴다.
+        if emergency:
+            self.latched = True
+
     def accept(self, payload, reset=False):
         """연결이 살아 있을 때 현재 세션에서 순번이 늘어나는 명령만 로봇을 이동시킬 수 있다."""
         if (not self.healthy or not isinstance(payload, dict)

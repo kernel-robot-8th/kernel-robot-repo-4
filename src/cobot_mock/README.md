@@ -75,7 +75,7 @@ v2 로 거절된 명령은 v1 `FAILED` 상태를 내지 않습니다 (ack 가 �
   - stop: `STOPPED` (구역 안이면 `RETREATING` → `STOPPED`(`retreated`)), emergency_stop: `STOPPED` 후 토큰 유지
   - 검증 실패는 실물과 같은 detail 로 `FAILED` (`unknown point: ['P99']`, `use zone: ['ZA']`, `no zone held` 등). 작업 중 들어온 명령은 무시.
 - JSON 봉투 `{"command_id": "...", "command": "goto:P1"}` 를 받으면 그 작업의 상태에 `command_id` 를 붙이고, 마지막 `DONE`/`FAILED`/`STOPPED` 에 `task_finished: true` 를 붙입니다.
-- 중앙 모드(`central_controlled: true`, 기본)는 실물 `central_guard.py` 와 같은 규칙입니다: 현재 세션·유효 시간 안·늘어나는 순번의 봉투 명령만 받고, 정지는 늘 받아 잠그며, 잠긴 동안은 `control_reset` 만 받습니다.
+- 중앙 모드(`central_controlled: true`, 기본)는 실물 `central_guard.py` 와 같은 규칙입니다: 하트비트가 살아 있을 때 현재 세션·늘어나는 순번의 봉투 명령만 받고, 정지는 늘 받으며(잠금은 비상정지·하트비트 단절·관제 재시작 때만), 잠긴 동안은 `control_reset` 만 받습니다.
 - 구역 목표에 실제로 도착하면 `arrived_zone` 이 생기고 다음 이동을 시작하면 비웁니다 (`held_zone` 은 예약 토큰).
 - `dropout_robot`(기본 없음)을 주면 60초마다 12초씩 아무것도 보내지 않습니다. 화면의 '끊김' 표시 시험용입니다.
 

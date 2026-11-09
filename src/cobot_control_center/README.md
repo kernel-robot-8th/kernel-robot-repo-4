@@ -186,7 +186,7 @@ export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 ros2 launch cobot_mock mock_fleet.launch.xml        # 화면 http://localhost:8081/
 ```
 
-**실물 (도메인 100)**: [bringup](#실행) 이 작업 노드 `fleet_control_node` 를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 로봇 하나를 정지하면 그 로봇만 보류되고(복구 필요), 상단 **전체 비상정지**를 누르면 작업 명령 전체가 꺼지므로 다시 켜야 합니다. 기록은 `~/.cobot/fleet_control.sqlite3` 이고, 누가(접속 IP, `source`) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다. 실물에서는 수동 명령 칸이 꺼져 있습니다(`allow_raw_cmd: false`).
+**실물 (도메인 100)**: [bringup](#실행) 이 작업 노드 `fleet_control_node` 를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 로봇 하나를 정지하면 멈추기만 하고(잠그지 않음), 비상정지하면 그 로봇만 보류되며(복구 필요), 상단 **전체 비상정지**를 누르면 작업 명령 전체가 꺼지므로 다시 켜야 합니다. 기록은 `~/.cobot/fleet_control.sqlite3` 이고, 누가(접속 IP, `source`) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다. 실물에서는 수동 명령 칸이 꺼져 있습니다(`allow_raw_cmd: false`).
 
 bringup 을 `controller:=none` 으로 띄웠다면 따로 켭니다:
 
@@ -202,8 +202,8 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 | 항목 | 동작 |
 |---|---|
 | 로봇 명령 허용 | 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번·TTL 이 맞을 때 (로봇 `central_controlled: true`) |
-| 정지 | 제자리 소프트 정지 · **그 로봇만 보류** (다른 로봇과 작업 명령은 그대로). 상단 **전체 비상정지**만 작업 명령 전체를 끔 |
-| 비상정지 | `estop` (백엔드가 `emergency: true` 정지를 바꿔 보냄) |
+| 정지 | 그 로봇만 멈춤 · **잠그지 않음** (바로 다음 명령 가능). 구역 안이면 구역 밖으로 물러남. 그 로봇에 주문이 걸려 있으면 제자리 정지 + 보류 (2026-11-09, 진호 님 순찰 노드 기준) |
+| 비상정지 | `estop` (백엔드가 `emergency: true` 정지를 바꿔 보냄). 제자리 소프트 정지 · **그 로봇만 보류** (복구 필요). 상단 **전체 비상정지**만 작업 명령 전체를 끔 |
 | 정지 잠금 복구 | `release_control` (아래 API) 또는 UNKNOWN 작업 `resolve` |
 | 수동 명령 칸 | `allow_raw_cmd` 일 때 (가짜 핑키·가제보만 켬, 실물 꺼짐 403). 세션 봉투를 붙여 보냄 |
 
@@ -213,11 +213,11 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
   - `POST /api/robots/{id}/release_control` — body `{operator, note, evidence:{base_stopped, arms_safe, cargo_reconciled, resources_clear}}`. 검사는 fleet 이 하고 거절 사유를 그대로 돌려줍니다.
   - `POST /api/orders/{order_id}/confirm_loaded` — 수동 상차 확인. body `{operator, note, evidence:{sku, load_present, arm_safe, pickup_path_clear}}`. fleet 이 상차장 도착·정지·예약을 검사하고 통과하면 상차 구역 이탈부터 재개합니다.
 - 화면은 카드 상태 줄에 **정지 잠금**(로봇 `central_latched` 또는 fleet 보류, 점유 구역)을 표시합니다.
-  그 빨간 줄을 누르면 **제어권 복구 띠**(`web/release.js`)가 뜹니다: 현장 확인 체크 하나(멈춤·팔·화물·구역 비움, fleet 이 요구하는 4가지를 함께 보냄) + 운영자 + 메모 → `release_control`.
+  그 빨간 줄을 누르면 **제어권 복구 띠**(`web/release.js`)가 뜹니다: 현장 확인 체크 하나(멈춤·팔·화물·자원, fleet 이 요구하는 4가지를 함께 보냄) + 운영자 + 메모 → `release_control`.
   보류 중인 로봇은 결과 모름 작업이 있어도 이 복구 하나로 함께 풀립니다 (결과 모름은 실패로 기록). 보류 없이 결과 모름만 있으면 결과 모름 해제를 씁니다.
   확인 4가지는 지금 fleet 이 늘 요구합니다 (규격이 바뀌면 시나리오 작업일 때만 묻게 바꿈).
 - 상차장에서 멈춘 주문이 있으면 그 로봇 카드 상태 줄이 **상차 확인 대기 · 주문 ID (SKU)** 가 됩니다. 누르면 **수동 상차 확인 띠**(`web/load.js`)가 뜹니다: 현장 확인 체크 하나(적재됨·팔 퇴피·통로 비움) + 운영자 + 메모 → `confirm_loaded` (SKU 는 주문 값). 순서는 결과 모름 해제 → 상차 확인 → 정지 잠금 복구입니다 ([화면 사용법](docs/screen_guide.md#수동-상차-확인)).
-- 구역 안에서 잠긴 경우(`held_zone`)는 fleet 이 해제를 거절하며, 아직 복구 절차가 없습니다 (`cobot_fleet_control/README.md`).
+- 구역 안에서 잠긴 경우(`held_zone`)도 복구·해제할 수 있습니다. 복구한 뒤 **나가기**로 빼냅니다. 그때까지 구역 토큰은 그 로봇이 잡고 있어 다른 로봇은 들어오지 못합니다 (2026-11-09).
 
 ## 실물 시험 순서
 

@@ -85,3 +85,16 @@ def test_invalid_packet_cannot_open_command_gate(env, changes):
     now, guard = env
     guard.heartbeat(packet(now, **changes))
     assert not guard.accept(packet(now, **changes))
+
+
+def test_plain_stop_does_not_latch_but_emergency_stop_does(env):
+    now, guard = env
+    guard.heartbeat(packet(now))
+    guard.stop()
+    assert not guard.latched
+    assert guard.accept(packet(now))
+    guard.stop(emergency=True)
+    assert guard.latched
+    assert not guard.accept(packet(now, 2))
+    assert guard.accept(packet(now, 3), reset=True)
+    assert not guard.latched

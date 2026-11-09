@@ -69,7 +69,7 @@ def test_battery_five_second_period_is_not_treated_as_link_loss(env):
 def test_existing_web_resolve_payload_requires_real_idle_status(env):
     env.api.handle(create())
     env.fleet.tick()
-    stop = env.api.handle(dict(type='stop', robot_id='pinky1', emergency=False))
+    stop = env.api.handle(dict(type='estop', robot_id='pinky1'))
     assert stop['status'] == 202
     assert stop['body']['task_id'] == 'click1'
     assert stop['body']['operation'] == 'emergency_stop'
@@ -87,11 +87,45 @@ def test_existing_web_resolve_payload_requires_real_idle_status(env):
     assert env.api.handle(dict(request, task_id='unknown'))['status'] == 404
 
 
-def test_idle_stop_has_a_task_the_existing_ui_can_resolve(env):
+def test_plain_stop_does_not_hold_and_robot_takes_next_manual_command(env):
+    # 일반 정지는 보류·결과 모름을 만들지 않고 로봇에 stop 만 보낸다 (진호 님 원래 기준)
     reply = env.api.handle(dict(type='stop', robot_id='pinky1', client_request_id='stop1'))
-    task_id = reply['body']['task_id']
-    assert task_id and env.repo.get(task_id)['state'] == 'UNKNOWN'
-    assert env.api.snapshot()['tasks'][0]['task_id'] == task_id
+    assert reply['status'] == 202 and reply['body']['operation'] == 'stop'
+    assert reply['body']['task_id'] is None
+    assert env.gateway.stops == ['pinky1'] and env.gateway.halts == []
+    assert not env.scenario.store.holds() and env.api.snapshot()['tasks'] == []
+    assert env.scenario.armed
+    # 멈춘(STOPPED) 로봇도 잠금이 없으면 다음 수동 명령을 받는다
+    env.scenario.telemetry('pinky1', dict(
+        state='STOPPED', busy=False, held_zone=None, central_controlled=True,
+        central_latched=False))
+    assert env.api.handle(create())['status'] == 202
+
+
+def test_plain_stop_cancels_unsent_task_and_running_task_ends_by_robot_result(env):
+    env.api.handle(create())
+    env.api.handle(dict(type='stop', robot_id='pinky1'))
+    assert env.repo.get('click1')['state'] == 'FAILED'
+    env.fleet.tick()
+    assert env.gateway.sent == []
+    env.scenario.telemetry('pinky1', dict(
+        state='IDLE', busy=False, held_zone=None, central_controlled=True))
+    env.api.handle(create(client_request_id='click2'))
+    env.fleet.tick()
+    assert env.repo.get('click2')['state'] == 'RUNNING'
+    env.api.handle(dict(type='stop', robot_id='pinky1'))
+    assert env.repo.get('click2')['state'] == 'RUNNING' and not env.scenario.store.holds()
+    env.fleet.on_status('pinky1', dict(command_id='click2', state='STOPPED', task_finished=True))
+    env.fleet.tick()
+    assert env.repo.get('click2')['state'] not in {'RUNNING', 'UNKNOWN'}
+
+
+def test_auto_dispatch_does_not_pick_a_stopped_robot(env):
+    for robot in env.fleet.robots:
+        env.scenario.telemetry(robot, dict(
+            state='STOPPED', busy=False, held_zone=None, central_controlled=True))
+    assert not any(env.scenario._available(robot) for robot in env.fleet.robots)
+    assert all(env.scenario._available(robot, allow_stopped=True) for robot in env.fleet.robots)
 
 
 def test_legacy_resolve_cannot_unlock_scenario_cargo_reservations(env):

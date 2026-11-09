@@ -2,9 +2,10 @@
 // Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 //
 // 제어권 복구 (fleet_control 정지 잠금 해제) 띠.
-// fleet 에서는 정지·비상정지·하트비트 끊김·관제 재시작 뒤 로봇이 잠긴다 (commands.js latchText).
+// fleet 에서는 비상정지·주문 중 정지·하트비트 끊김·관제 재시작 뒤 로봇이 잠긴다 (commands.js latchText).
 // 카드의 빨간 '정지 잠금' 줄을 누르면 이 띠가 뜨고, 현장 확인 4가지·운영자·메모를 받아
-// POST /api/robots/{id}/release_control 로 보낸다. 검사(멈춤·구역 미점유·최근 상태·주문 없음)는 fleet 이 한다.
+// POST /api/robots/{id}/release_control 로 보낸다. 검사(최근 상태·주문 없음)는 fleet 이 한다.
+// 구역 안에서 잠긴 로봇도 복구할 수 있다. 복구한 뒤 '나가기'로 빼낸다.
 // fleet 은 지금 확인 4가지를 늘 요구한다. 띠가 카드 안에 들어가게 체크 하나로 묶어 네 항목을 함께 보낸다
 // (항목 설명은 체크 줄의 마우스 설명). 규격이 바뀌어 시나리오 작업일 때만 요구하게 되면 여기서 나눈다.
 // 서비스용 화면으로 옮겨 쓸 수 있게 이 파일에 모아 둔다 (barHost·postJson·showMessage 등은 commands.js).
@@ -13,7 +14,7 @@
 
 const RELEASE_NOTE = "현장에서 정지 확인";
 const OPERATOR_KEY = "cobot.operator"; // 운영자 이름을 이 브라우저에 기억한다
-// release_control 의 evidence 항목: 멈춤 · 팔 안전 · 화물 확인 · 구역·자원 비움
+// release_control 의 evidence 항목: 멈춤 · 팔 안전 · 화물 확인 · 자원 정리 (fleet 키 이름 그대로)
 const EVIDENCE_KEYS = ["base_stopped", "arms_safe", "cargo_reconciled", "resources_clear"];
 
 function savedOperator() {

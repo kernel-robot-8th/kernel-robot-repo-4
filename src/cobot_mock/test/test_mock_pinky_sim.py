@@ -175,9 +175,33 @@ def test_emergency_stop_keeps_token(fleet):
     ev = sims['pinky1'].command('emergency_stop', 0.3)
     assert states(ev)[0][0] == 'STOPPED'
     assert book.owner['A'] == 'pinky1'            # 매니저 쪽 토큰은 남는다
-    assert sims['pinky1'].held_zone is None
-    book.tick(0.3 + book.params['max_hold_sec'] + 1)
-    assert book.owner['A'] is None
+    # 실제 노드처럼 로봇도 보유 구역을 기억한다 (복구 뒤 leave 로 나감)
+    assert sims['pinky1'].held_zone == 'A'
+    ev = sims['pinky1'].command('leave', 0.4)
+    run(sims, 30, start=0.4)
+    assert sims['pinky1'].held_zone is None and book.owner['A'] is None
+
+
+def test_stop_while_idle_in_zone(fleet):
+    # 실제 patrol_controller.stop(): 쉬는 중이어도 구역을 잡고 있으면 정지를 처리하고 유휴 복귀를 지운다
+    sims, book = fleet
+    for name, emergency in (('pinky1', False), ('pinky2', True)):
+        sim = sims[name]
+        sim.command('zone:ZA' if name == 'pinky1' else 'zone:ZB', 0.0)
+    run(sims, 60)
+    assert sims['pinky1'].held_zone == 'A' and sims['pinky2'].held_zone == 'B'
+    assert sims['pinky1'].idle_deadline is not None
+    ev = sims['pinky1'].command('stop', 60.0)
+    assert states(ev)[0][0] == 'RETREATING'
+    ev = sims['pinky2'].command('emergency_stop', 60.0)
+    assert states(ev)[0][0] == 'STOPPED'
+    more, _ = run(sims, 30, start=60.0)
+    assert states(more['pinky1'])[-1] == ('STOPPED', 'retreated')
+    assert sims['pinky1'].held_zone is None and book.owner['A'] is None
+    # 비상정지는 제자리, 토큰 유지, 유휴 복귀도 안 함 (30초 지나도 그대로)
+    assert more['pinky2'] == []
+    assert sims['pinky2'].held_zone == 'B' and book.owner['B'] == 'pinky2'
+    assert sims['pinky2'].idle_deadline is None and sims['pinky1'].idle_deadline is None
 
 
 def test_command_id_and_task_finished(fleet):
@@ -373,3 +397,12 @@ def test_status_carries_zone_and_busy_fields(fleet):
     assert sim.arrived_zone is None and sim.held_zone == 'A'
     run(sims, 10, start=20.0)
     assert sim.held_zone is None and sim.arrived_zone is None
+
+
+def test_central_guard_plain_stop_does_not_latch(guard):
+    g, clock = guard
+    g.heartbeat(beat(clock, 1))
+    # 일반 정지는 늘 받지만 잠그지 않는다 (비상정지만 잠금, 실물 순찰 노드와 같음)
+    assert central_command(g, '{"command_id": "x", "command": "stop"}')[1] == 'stop'
+    assert not g.latched
+    assert central_command(g, envelope(clock, 1))[1] == 'accepted'

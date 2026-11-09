@@ -67,6 +67,20 @@ class FleetService:
             if trace:
                 trace.capture('interrupted')
 
+    def cancel_pending(self, robot_id, detail):
+        """아직 로봇에 보내지 않은(ACCEPTED) 작업을 보내지 않고 끝낸다."""
+        # 이미 보낸(RUNNING) 작업은 로봇이 보내는 STOPPED 결과로 끝나므로 건드리지 않는다.
+        rows = list(self.repository.db.execute(
+            "SELECT command_id FROM commands WHERE robot_id=? AND state='ACCEPTED'",
+            (robot_id,)))
+        for (command_id,) in rows:
+            self.repository.transition(command_id, 'FAILED', detail)
+            self.active.pop(command_id, None)
+            trace = self.traces.pop(command_id, None)
+            if trace:
+                trace.capture('canceled')
+        return [command_id for (command_id,) in rows]
+
     def on_status(self, robot_id, status):
         """잘못된 로봇·이전 작업·중간 DONE을 완료로 오인하지 않는다."""
         if not isinstance(status, dict):

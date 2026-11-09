@@ -22,13 +22,16 @@ class Gateway:
     """하드웨어를 움직이지 않고 장치 요청과 소프트웨어 정지를 관찰한다."""
 
     def __init__(self):
-        self.sent, self.work_sent, self.halts = [], [], []
+        self.sent, self.work_sent, self.halts, self.stops = [], [], [], []
 
     def send(self, robot, payload):
         self.sent.append((robot, payload))
 
     def work(self, payload):
         self.work_sent.append(payload)
+
+    def stop(self, robot):
+        self.stops.append(robot)
 
     def halt(self, robot, route, order_id):
         self.halts.append((robot, order_id))

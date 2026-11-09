@@ -67,17 +67,27 @@ def test_upstream_http_stop_and_legacy_resolve_request(web):
     client, tasks, run, _ = web
     client.post('/api/tasks', json=dict(client_request_id='http1', robot_id='pinky1',
                                         operation='goto', points=['P1']))
+    # 일반 정지는 보류 없이 멈추고, 아직 안 보낸 작업은 취소한다
     stop = client.post('/api/robots/pinky1/stop', json=dict(emergency=False))
     assert stop.status_code == 202 and stop.json()['task_id'] == 'http1'
-    # 로봇 하나의 정지는 그 로봇만 보류하고 작업 명령은 켜 둔다
+    health = client.get('/api/health').json()
+    assert health['commands_armed'] is True and health['holds'] == {}
+    assert client.get('/api/tasks/http1').json()['state'] == 'FAILED'
+    assert run(lambda e: e.gateway.stops) == ['pinky1']
+    client.post('/api/tasks', json=dict(client_request_id='http2', robot_id='pinky1',
+                                        operation='goto', points=['P1']))
+    run(lambda e: e.fleet.tick())
+    # 로봇 하나의 비상정지는 그 로봇만 보류하고 작업 명령은 켜 둔다
+    stop = client.post('/api/robots/pinky1/stop', json=dict(emergency=True))
+    assert stop.status_code == 202 and stop.json()['task_id'] == 'http2'
     health = client.get('/api/health').json()
     assert health['commands_armed'] is True and 'pinky1' in health['holds']
     request = dict(result='FAILED', note='현장에서 정지 확인', client_request_id='resolve1')
-    assert client.post('/api/tasks/http1/resolve', json=request).status_code == 409
+    assert client.post('/api/tasks/http2/resolve', json=request).status_code == 409
     run(lambda e: e.scenario.telemetry('pinky1', dict(
         state='STOPPED', busy=False, held_zone=None,
         central_latched=True, central_controlled=True)))
-    resolved = client.post('/api/tasks/http1/resolve', json=request)
+    resolved = client.post('/api/tasks/http2/resolve', json=request)
     assert resolved.status_code == 200 and resolved.json()['state'] == 'FAILED'
     assert client.get('/api/tasks').json()[0]['state'] == 'FAILED'
     assert client.post('/api/robots/pinky1/raw_cmd', json={'command': 'home'}).status_code == 403

@@ -212,7 +212,7 @@ class CentralGuard:
         return False
 
     def accept(self, payload, reset=False):
-        """현재 세션·유효 시간·늘어나는 순번의 명령만 받는다. reset 이면 잠금을 푼다."""
+        """현재 세션·늘어나는 순번의 명령만 받는다. reset 이면 잠금을 푼다."""
         if (not self.healthy or not isinstance(payload, dict)
                 or payload.get('session_id') != self.session or (self.latched and not reset)):
             return False
@@ -229,7 +229,7 @@ def central_command(guard, raw):
     """
     중앙 모드에서 patrol_cmd 를 거른다. (로봇에 넘길 명령 또는 None, 처리 결과) 를 돌려준다.
 
-    결과: 'stop' (정지는 늘 받고 잠금), 'reset' (잠금 해제, 로봇에 넘기지 않음),
+    결과: 'stop' (정지는 늘 받음, 잠금은 비상정지만), 'reset' (잠금 해제, 로봇에 넘기지 않음),
     'accepted', 'rejected'. 실제 순찰 노드 _cmd_cb 와 같은 순서다.
     """
     envelope = None
@@ -244,8 +244,11 @@ def central_command(guard, raw):
             return None, 'rejected'
     else:
         command = text
-    if command.strip().lower() in ('stop', 'emergency_stop'):
-        guard.latched = True
+    kind = command.strip().lower()
+    if kind in ('stop', 'emergency_stop'):
+        # 일반 정지는 멈추고(구역 안이면 물러나) 끝, 잠그지 않는다 (실물 순찰 노드와 같음)
+        if kind == 'emergency_stop':
+            guard.latched = True
         return raw, 'stop'
     if command == 'control_reset':
         return None, 'reset' if guard.accept(envelope or {}, True) else 'rejected'
@@ -694,8 +697,19 @@ class RobotSim:
         return WAIT
 
     def _stop(self, emergency, now):
-        if not self.running:
+        # 실제 patrol_controller.stop() 과 같게: 정지는 유휴 복귀 예약을 지우고,
+        # 쉬는 중이어도 구역을 잡고 있으면 처리한다 (일반 정지 = 물러나기, 비상정지 = 제자리).
+        self.idle_deadline = None
+        if not self.running and self.held_zone is None:
             return []
+        if not self.running:
+            if emergency:
+                return self._finish('STOPPED', -1, 'emergency_stop: 구역 토큰 유지', now, arm=False)
+            ex = exit_name(self.held_zone)
+            return self._start([('status', 'RETREATING', -1, ex),
+                                ('move', self.points[ex], -1, ex),
+                                ('release', self.held_zone), ('arrive', None),
+                                ('end', 'STOPPED', -1, 'retreated', False)], None, now)
         idx, detail = self.ctx
         for zone in self.book.queue:
             self.book.cancel(zone, self.name)
@@ -711,8 +725,9 @@ class RobotSim:
                                ('end', 'STOPPED', -1, 'retreated', False)])
             return self._run(now, 0.0)
         if emergency:
-            self.held_zone = None      # 실제 노드처럼 토큰은 매니저에 남고 노드는 잊는다
-            self.arrived_zone = None
+            # 실제 노드처럼 토큰을 쥔 채 제자리에 선다 (held_zone 유지). 복구 뒤 leave 로 나간다.
+            return self._finish('STOPPED', idx, 'emergency_stop: 구역 토큰 유지'
+                                if self.held_zone else detail, now, arm=False)
         return self._finish('STOPPED', idx, detail, now, arm=False)
 
     def _finish(self, state, idx, detail, now, arm):

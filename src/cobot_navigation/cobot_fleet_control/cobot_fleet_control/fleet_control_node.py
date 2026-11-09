@@ -142,6 +142,12 @@ class FleetControlNode(Node):
                        issued_at=time.time(), ttl_sec=self.config['command_ttl_sec'])
         self.work_pub.publish(String(data=encode(payload)))
 
+    def stop(self, robot_id):
+        """일반 정지: 잠금 없이 멈춘다 (구역 안이면 로봇이 물러나 토큰을 푼다)."""
+        # 정지는 발행자 중복 검사(ready) 없이 늘 보낸다. 비상정지는 halt() 를 쓴다.
+        self.publishers_by_robot[robot_id].publish(String(data=encode(
+            {'command_id': uuid.uuid4().hex, 'command': 'stop'})))
+
     def halt(self, robot_id, route, order_id):
         """소프트웨어 정지를 요청한다. 하드웨어 전원 차단을 보장하지는 않는다."""
         self.publishers_by_robot[robot_id].publish(String(data=encode(

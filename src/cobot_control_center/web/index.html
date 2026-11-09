@@ -137,7 +137,7 @@
           <button type="button" data-cmd="home">홈</button>
         </div>
         <div class="stop-row">
-          <button type="button" class="stop-btn" data-cmd="stop" title="제자리 소프트 정지 · 그 로봇만 보류 (다른 로봇은 계속) · 현장 확인 후 복구 필요">정지</button>
+          <button type="button" class="stop-btn" data-cmd="stop" title="그 로봇만 멈춤 · 잠그지 않아 바로 다음 명령 가능 · 구역 안이면 구역 밖으로 물러남 (제자리에 세우고 잠그려면 비상정지) · 주문 중이면 보류되어 현장 확인 후 복구">정지</button>
           <button type="button" class="estop-btn" data-cmd="emergency_stop"
                   title="비상정지(estop): 그 자리 정지, 주문 ESTOP · 현장 확인 후 해제 필요">비상정지</button>
         </div>
@@ -221,8 +221,8 @@
   <div class="pick-bar resolve-bar release-bar" id="release-bar" hidden>
     <div class="pick-head"><strong id="release-title"></strong><span class="cmd-route" id="release-what"></span></div>
     <!-- 카드 몸통 높이에 맞게 한 줄로: fleet 이 요구하는 4가지를 한 번에 확인한다 (release.js EVIDENCE_KEYS) -->
-    <label class="release-check" title="현장에서 직접 확인했을 때만: 로봇 멈춤 · 로봇팔 안전 · 실은 물건 확인 · 구역·작업대 비움 (로봇이 구역 밖). 복구한 뒤에도 작업 명령은 꺼져 있다 (상단에서 켬)">
-      <input type="checkbox" id="release-confirm"> 현장 확인: 멈춤·팔·화물·구역 비움</label>
+    <label class="release-check" title="현장에서 직접 확인했을 때만: 로봇 멈춤 · 로봇팔 안전 · 실은 물건 확인 · 작업대 비움. 로봇이 구역 안이면 복구한 뒤 '나가기'로 빼낸다 (그때까지 구역은 이 로봇이 잡고 있어 다른 로봇이 못 들어옴)">
+      <input type="checkbox" id="release-confirm"> 현장 확인: 멈춤·팔·화물 (구역 안이면 복구 뒤 나가기)</label>
     <div class="release-fields">
       <input id="release-operator" maxlength="40" aria-label="운영자" placeholder="운영자 이름">
       <input id="release-note" maxlength="200" aria-label="확인 내용" placeholder="확인 내용 (기록에 남음)">
@@ -301,7 +301,7 @@
       </div>
       <!-- 정지는 일반 명령과 줄을 나눠 잘못 누르지 않게 한다 -->
       <div class="stop-row">
-        <button type="button" class="stop-btn" data-cmd="stop" title="제자리 소프트 정지 · 그 로봇만 보류 (다른 로봇은 계속) · 현장 확인 후 복구 필요">정지</button>
+        <button type="button" class="stop-btn" data-cmd="stop" title="그 로봇만 멈춤 · 잠그지 않아 바로 다음 명령 가능 · 구역 안이면 구역 밖으로 물러남 (제자리에 세우고 잠그려면 비상정지) · 주문 중이면 보류되어 현장 확인 후 복구">정지</button>
         <button type="button" class="estop-btn" data-cmd="emergency_stop"
                 title="비상정지(estop): 그 자리 정지, 주문 ESTOP · 현장 확인 후 해제 필요">비상정지</button>
       </div>

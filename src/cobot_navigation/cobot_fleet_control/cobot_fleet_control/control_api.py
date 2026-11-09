@@ -166,7 +166,8 @@ class ControlAPI:
             raise ApiError(409, '진행 중이거나 결과를 모르는 작업: 정지·복구 확인 필요')
         if not scenario._fresh(robot):
             raise ApiError(503, '로봇 상태 또는 배터리 수신이 오래됐습니다')
-        if not scenario._available(robot, allow_holding=command.operation in {'home', 'leave'}):
+        if not scenario._available(robot, allow_holding=command.operation in {'home', 'leave'},
+                                   allow_stopped=True):
             raise ApiError(409, '로봇 이동·배터리·중앙 제어 모드·정지 래치를 확인하세요')
         if self.point_rules is not None:
             self.point_rules.validate(robot, command.operation, command.points)
@@ -185,6 +186,8 @@ class ControlAPI:
         if robot is not None and (not isinstance(robot, str) or robot not in self.fleet.robots):
             raise ApiError(404, '등록되지 않은 로봇')
         targets = [robot] if robot else list(self.fleet.robots)
+        if kind == 'stop' and robot is not None and not self._orders_for(robot):
+            return self._plain_stop(robot, request)
         stopped_tasks = {}
         for target in targets:
             rows = list(self.fleet.repository.db.execute(
@@ -219,6 +222,23 @@ class ControlAPI:
                     client_request_id=request.get('client_request_id'),
                     warning='중앙 제어의 정지는 제자리 소프트 정지입니다. 현장 확인 후 해제하세요')
 
+    def _plain_stop(self, robot, request):
+        """일반 정지: 보류·결과 모름을 만들지 않고 로봇에 stop 만 보낸다."""
+        # 진호 님 원래 순찰 노드 기준 (2026-11-09). 로봇은 멈추고 구역 안이면 물러나 토큰을
+        # 풀며 잠그지 않는다. 이미 보낸 작업은 로봇의 STOPPED 결과로 끝나고, 아직 안 보낸
+        # 작업은 여기서 취소한다. 주문이 걸린 로봇과 비상정지는 기존 보류 경로를 쓴다.
+        rows = list(self.fleet.repository.db.execute(
+            "SELECT command_id FROM commands WHERE robot_id=? "
+            "AND state IN ('ACCEPTED','RUNNING','UNKNOWN') ORDER BY rowid DESC", (robot,)))
+        self.fleet.cancel_pending(robot, '운영자 정지 (보내기 전 취소)')
+        self.gateway.stop(robot)
+        self.scenario.store.event(dict(type='operator_stop', robot_id=robot))
+        return dict(armed=self.scenario.armed, robot_id=robot, robots=[robot],
+                    operation='stop', spec='v1', task_id=rows[0][0] if rows else None,
+                    software_stop=True, client_request_id=request.get('client_request_id'),
+                    warning='일반 정지는 잠그지 않습니다. 구역 안이면 로봇이 물러납니다. '
+                            '제자리에 세우려면 비상정지를 쓰세요')
+
     def _resolve_task(self, request):
         task_id = identifier(request.get('task_id'), 'task_id')
         repository = self.fleet.repository
@@ -241,8 +261,9 @@ class ControlAPI:
             reasons.append('로봇 상태 또는 배터리 수신이 오래됐거나 없습니다')
         if status.get('busy') is not False:
             reasons.append('로봇 정지·취소 완료 미확인 (busy=false 필요)')
-        if status.get('held_zone'):
-            reasons.append(f'구역 이탈 미확인 (held_zone={status["held_zone"]})')
+        # 구역 보유(held_zone)는 막지 않는다. 비상정지·통신 끊김으로 구역 안에서 잠긴 로봇은
+        # 해제한 뒤 leave(또는 아무 명령, 로봇이 먼저 구역을 나감)로 빠져나온다.
+        # 토큰은 그때까지 유지되어 다른 로봇이 들어오지 못한다.
         # 로봇 래치(central_latched)는 보지 않는다. 로봇이 재부팅하면 래치가 풀린 채 올라와
         # 해제가 영영 막히기 때문이다. 멈춤은 busy=false 로 확인하고, 해제 때 control_reset 을 보낸다.
         if reasons:

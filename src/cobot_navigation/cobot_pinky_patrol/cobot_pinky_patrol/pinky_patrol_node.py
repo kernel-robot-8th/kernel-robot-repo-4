@@ -197,17 +197,17 @@ class PinkyPatrolNode(Node):
                 command_id, raw = envelope['command_id'], envelope['command']
                 if not isinstance(command_id, str) or not command_id or not isinstance(raw, str):
                     raise ValueError('명령 봉투 형식 오류')
-            stop = raw.strip().lower() in {'stop', 'emergency_stop'}
+            kind = raw.strip().lower()
             if self.config['central_controlled']:
-                if stop:
-                    self.central_guard.latched = True
+                if kind in {'stop', 'emergency_stop'}:
+                    self.central_guard.stop(emergency=kind == 'emergency_stop')
                 elif raw == 'control_reset':
                     if self.controller.busy or not self.central_guard.accept(envelope or {}, True):
                         raise ValueError('정지 완료·현재 세션의 유효한 복구 명령 필요')
                     self._emit({'state': 'IDLE', 'detail': 'control reset', 'time': time.time()})
                     return
                 elif not self.central_guard.accept(envelope or {}):
-                    raise ValueError('중앙 하트비트·세션·seq·TTL·정지 래치 확인 필요')
+                    raise ValueError('중앙 하트비트·세션·seq·정지 래치 확인 필요')
             self.controller.submit(raw, command_id)
         except (ValueError, KeyError, TypeError) as error:
             self.get_logger().warning(f'잘못된 명령: {error}')

@@ -107,12 +107,16 @@ class ScenarioService:
         return all(self.clock() - health.get(key, -math.inf) <= limit
                    for key, limit in limits.items())
 
-    def _available(self, robot, allow_holding=False):
+    def _available(self, robot, allow_holding=False, allow_stopped=False):
         health = self.health.get(robot, {})
         status = health.get('status', {})
         allowed = {'IDLE', 'DONE'}
         if allow_holding:
             allowed |= {'HOLDING_ZONE', 'IDLE_WAIT'}
+        if allow_stopped:
+            # 일반 정지는 잠그지 않으므로 STOPPED 로봇도 운영자의 다음 수동 명령은 받는다.
+            # 자동 주문 배정은 운영자가 멈춘 로봇을 다시 잡지 않도록 이 값을 넘기지 않는다.
+            allowed |= {'STOPPED'}
         reserved = any(o['robot_id'] == robot and o['state'] not in TERMINAL
                        for o in self.store.orders())
         return (robot not in self.store.holds()

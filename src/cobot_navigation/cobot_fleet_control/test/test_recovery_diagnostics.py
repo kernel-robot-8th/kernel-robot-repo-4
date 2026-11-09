@@ -12,7 +12,8 @@ import pytest
     (False, {}, '배터리 수신'),
     (True, {'busy': True}, 'busy=false'),
     (True, {'busy': None}, 'busy=false'),
-    (True, {'held_zone': 'A'}, 'held_zone=A'),
+    # 구역 안에서 잠긴 로봇도 해제한다. 해제 뒤 leave 로 나가고 토큰은 그때까지 유지된다
+    (True, {'held_zone': 'A'}, None),
     # 재부팅으로 래치가 풀린 로봇도 멈춰 있으면(busy=false) 해제한다
     (True, {'central_latched': False}, None),
     (True, {'central_latched': None}, None),
