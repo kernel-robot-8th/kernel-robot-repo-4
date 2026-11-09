@@ -207,14 +207,25 @@ class RobotState:
         # amcl 은 멈춰 있으면 위치를 새로 내지 않으므로 '새 위치가 안 옴'도 제자리로 본다.
         self.moved_pose = None
         self.moved_at = None
+        # 로봇 시각(patrol_status 의 time) - 받은 순간의 관제 PC 시각 [s]. 전달 지연이 섞인다.
+        # 로봇 순찰 노드는 관제 명령의 보낸 시각을 자기 시계로 검사하므로 시계가 어긋나면 명령이 거절된다.
+        self.clock_offset = None
 
 
 def _age(now, received):
     return None if received is None else round(now - received, 3)
 
 
+def clock_offset(robot_time, received):
+    """로봇 시각 - 받은 시각 [s]. 로봇 시각이 숫자가 아니면 None."""
+    if isinstance(robot_time, bool) or not isinstance(robot_time, (int, float)) \
+            or not math.isfinite(robot_time):
+        return None
+    return round(robot_time - received, 3)
+
+
 def judge_alerts(robots, zones, zone_since, now, battery_warn_percent, stuck_sec,
-                 zone_hold_warn_sec):
+                 zone_hold_warn_sec, clock_warn_sec=None):
     """
     지금 사람이 봐야 하는 경고 목록. 각 경고는 {'robot', 'code', 'level', 'text'} (+ 'zone').
 
@@ -240,6 +251,11 @@ def judge_alerts(robots, zones, zone_since, now, battery_warn_percent, stuck_sec
                 and now - moved_at >= stuck_sec):
             alerts.append({'robot': name, 'code': 'stuck', 'level': 'warn',
                            'text': f'{state} 인데 {now - moved_at:.0f}초째 거의 제자리 (끼임 의심)'})
+        offset = robot.get('clock_offset_sec')
+        if (clock_warn_sec is not None and robot['online'] and offset is not None
+                and abs(offset) > clock_warn_sec):
+            alerts.append({'robot': name, 'code': 'clock_skew', 'level': 'warn',
+                           'text': f'시계 차이 {offset:+.1f}초 (관제 명령이 거절될 수 있음, chrony 확인)'})
     for zone, value in zones.items():
         since = zone_since.get(zone)
         if value.startswith('occupied_by:') and since is not None \
@@ -325,7 +341,7 @@ class FleetState:
 
     def __init__(self, robots, stale_timeout_sec, teach_max_std_xy=0.05, teach_max_std_yaw=0.1,
                  battery_warn_percent=20.0, stuck_sec=15.0, stuck_distance_m=0.05,
-                 zone_hold_warn_sec=200.0, queue_stale_sec=2.5):
+                 zone_hold_warn_sec=200.0, queue_stale_sec=2.5, clock_warn_sec=0.5):
         self.stale_timeout_sec = float(stale_timeout_sec)
         self.teach_max_std_xy = float(teach_max_std_xy)
         self.teach_max_std_yaw = float(teach_max_std_yaw)
@@ -333,6 +349,7 @@ class FleetState:
         self.stuck_sec = float(stuck_sec)
         self.stuck_distance_m = float(stuck_distance_m)
         self.zone_hold_warn_sec = float(zone_hold_warn_sec)
+        self.clock_warn_sec = float(clock_warn_sec)
         self.robots = {name: RobotState() for name in robots}
         self.zones = {}
         self.zone_since = {}       # 구역 상태가 마지막으로 바뀐 시각 [s]
@@ -351,6 +368,7 @@ class FleetState:
         was_moving = (state.status or {}).get('state') in MOVING_STATES
         state.status = parsed
         state.status_received = now
+        state.clock_offset = clock_offset(parsed.get('time'), now)
         # 오래 서 있다가 출발했을 때 곧바로 끼임으로 보지 않도록, 출발 순간부터 다시 잰다.
         if parsed.get('state') in MOVING_STATES and not was_moving:
             state.moved_at = now
@@ -437,6 +455,7 @@ class FleetState:
                 'waypoint': status.get('waypoint'),
                 'detail': status.get('detail'),
                 'status_time': status.get('time'),
+                'clock_offset_sec': state.clock_offset,
                 'pose': state.pose,
                 'pose_age': (None if state.pose_received is None
                              else round(now - state.pose_received, 3)),
@@ -455,7 +474,7 @@ class FleetState:
             {name: dict(robot, _moved_at=self.robots[name].moved_at)
              for name, robot in robots.items()},
             zones, self.zone_since, now, self.battery_warn_percent, self.stuck_sec,
-            self.zone_hold_warn_sec)
+            self.zone_hold_warn_sec, self.clock_warn_sec)
         return {'time': now, 'robots': robots, 'zones': zones, 'queues': self.queues(now),
                 'alerts': alerts}
 

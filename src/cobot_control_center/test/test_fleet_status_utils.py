@@ -18,7 +18,8 @@ import json
 import math
 
 from cobot_control_center.fleet_status_utils import (
-    count_state, diff_events, FleetState, judge_infra, judge_teach_pose, MOVING_STATES,
+    clock_offset, count_state, diff_events, FleetState, judge_infra, judge_teach_pose,
+    MOVING_STATES,
     parse_patrol_status, parse_queue_slot, parse_zone_status, std_from_covariance,
     UNKNOWN_NODE_NAME,
     yaw_from_quaternion)
@@ -378,3 +379,38 @@ def test_diff_events_detail_only_and_first_zone():
                          snap(2.0, {'pinky1': {'state': 'MOVING', 'detail': 'P3'}},
                               {'A': 'free'}))
     assert [e['text'] for e in events] == ['MOVING (P5 → P3)', '구역 A: 비어 있음']
+
+
+# ---------- 시계 차이 (로봇 시각 - 받은 시각) ----------
+
+def test_clock_offset_values():
+    assert clock_offset(101.25, 100.0) == 1.25
+    assert clock_offset(99.0, 100.0) == -1.0
+    for bad in (None, True, 'x', float('nan'), float('inf')):
+        assert clock_offset(bad, 100.0) is None
+
+
+def _clock_fleet(robot_time, now=100.0):
+    fleet = FleetState(['pinky1'], 3.0, clock_warn_sec=0.5)
+    fleet.update_battery('pinky1', 80.0, now)  # online 이 되게
+    fleet.update_status('pinky1', json.dumps({'state': 'IDLE', 'time': robot_time}), now)
+    return fleet.snapshot(now)
+
+
+def test_clock_skew_alert_boundary():
+    snap = _clock_fleet(100.4)
+    assert snap['robots']['pinky1']['clock_offset_sec'] == 0.4
+    assert not [a for a in snap['alerts'] if a['code'] == 'clock_skew']
+    snap = _clock_fleet(98.8)
+    skew = [a for a in snap['alerts'] if a['code'] == 'clock_skew']
+    assert skew and skew[0]['level'] == 'warn' and '-1.2' in skew[0]['text']
+
+
+def test_clock_skew_needs_robot_time_and_online():
+    snap = _clock_fleet(None)
+    assert snap['robots']['pinky1']['clock_offset_sec'] is None
+    assert not [a for a in snap['alerts'] if a['code'] == 'clock_skew']
+    fleet = FleetState(['pinky1'], 3.0, clock_warn_sec=0.5)
+    fleet.update_status('pinky1', json.dumps({'state': 'IDLE', 'time': 50.0}), 100.0)
+    # 위치·배터리를 받은 적 없어 offline 이면 시계 경고를 내지 않는다 (끊김 경고가 먼저)
+    assert not [a for a in fleet.snapshot(100.0)['alerts'] if a['code'] == 'clock_skew']

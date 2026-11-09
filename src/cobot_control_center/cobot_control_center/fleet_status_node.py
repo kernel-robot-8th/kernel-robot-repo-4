@@ -51,6 +51,7 @@ class FleetStatusNode(Node):
         self.declare_parameter('stuck_distance_m', 0.05)
         self.declare_parameter('zone_hold_warn_sec', 200.0)
         self.declare_parameter('queue_stale_sec', 2.5)
+        self.declare_parameter('clock_warn_sec', 0.5)
         robots = list(self.get_parameter('robots').value)
         stale = self.get_parameter('stale_timeout_sec').value
         period = self.get_parameter('publish_period_sec').value
@@ -62,7 +63,8 @@ class FleetStatusNode(Node):
                                 self.get_parameter('stuck_sec').value,
                                 self.get_parameter('stuck_distance_m').value,
                                 self.get_parameter('zone_hold_warn_sec').value,
-                                self.get_parameter('queue_stale_sec').value)
+                                self.get_parameter('queue_stale_sec').value,
+                                self.get_parameter('clock_warn_sec').value)
         self._last_online = {name: False for name in robots}
         self._last_state = {name: None for name in robots}
 
