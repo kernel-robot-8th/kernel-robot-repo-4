@@ -382,11 +382,11 @@ def test_central_guard_idle_robot_is_not_latched(guard):
     # 놀던 로봇은 관제 재시작·통신 끊김에도 잠그지 않는다 (실물 순찰 노드와 같음)
     g, clock = guard
     g.heartbeat(beat(clock, 1))
-    assert g.heartbeat(beat(clock, 1, session='s2')) is False and not g.latched
+    assert g.heartbeat(beat(clock, 1, session='s2'), busy=False) is False and not g.latched
     assert central_command(g, envelope(clock, 1, session='s2'))[1] == 'accepted'
     assert central_command(g, envelope(clock, 2, session='s1'))[1] == 'rejected'
     clock.now += 3.5
-    assert g.expired() is False and not g.latched
+    assert g.expired(busy=False) is False and not g.latched
     assert central_command(g, envelope(clock, 2, session='s2'))[1] == 'rejected'
     g.heartbeat(beat(clock, 2, session='s2'))
     assert central_command(g, envelope(clock, 2, session='s2'))[1] == 'accepted'

@@ -103,8 +103,6 @@ setupToggle("show-layers", SHOW_LAYERS_KEY, "showLayers", "off");
 setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 setupPick();
 setupRaw();
-setupResolve();
-setupRelease();
 setupLoad();
 setupDetail();
 loadMap();

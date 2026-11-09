@@ -2,7 +2,8 @@
 
 import time
 
-from .scenario_contracts import BLOCKED, NAVIGATION, TERMINAL, identifier
+from .scenario_contracts import (BLOCKED, identifier, NAVIGATION, operator_or_default,
+                                 optional_text, RESUME_STAGES, TERMINAL)
 
 
 def interrupt(service, order_id, state, detail):
@@ -111,41 +112,34 @@ def confirm_loaded(service, order_id, operator, note, evidence):
     return service.store.get(order_id)
 
 
-# 운영자·메모는 선택 (화면 확인 창, 2026-11-09 임시 일반형). 화면은 확인 창 뒤 확인 4가지를 함께 보낸다.
-# TODO(시나리오): 단계와 상관없이 확인 4가지를 요구한다. 신발매장 시나리오가 정해지면 멈춘 단계(stage)별로
-#   필요한 항목만 묻고, 취소 뒤 홈 복귀·하차 완료 표시를 정한다 (draft/safety_locks_review.md 8절).
-def recover(service, order_id, operator, note, decision, evidence):
-    """정지·통신 복구 후에는 자동 재개하지 않고 현장 상태를 명시적으로 확인한다."""
-    operator = operator or 'control-center'
-    identifier(operator, 'operator')
-    if note is not None and not isinstance(note, str):
-        raise ValueError('복구 note는 문자열')
-    note = (note or '').strip() or '화면에서 현장 확인 후 복구'
+# 운영자·메모·확인 항목은 선택 (화면 확인 창 한 번, 2026-11-09 임시 일반형). 확인 항목은 주면
+# 객체인지만 보고 기록한다. 화면이 확인 창 뒤 모두 true 로 지어 보내던 것은 아무것도 막지 못해 뺐다.
+# TODO(시나리오): 신발매장 시나리오가 정해지면 멈춘 단계(stage)별로 필요한 확인 항목을 묻고,
+#   취소 뒤 홈 복귀·하차 완료 표시를 정한다 (draft/safety_locks_review.md 8절).
+def recover(service, order_id, operator, note, decision, evidence, source=''):
+    """정지·통신 복구 후에는 자동 재개하지 않고 운영자의 이어서 가기·취소를 받는다."""
+    operator = operator_or_default(operator)
+    note = optional_text(note, '복구 note', '화면에서 현장 확인 후 복구')
     order = service.store.get(identifier(order_id, 'order_id'))
     if not order or order['state'] not in BLOCKED:
         raise ValueError('중단된 주문만 복구 가능')
-    required = {'base_stopped', 'arms_safe', 'cargo_reconciled', 'resources_clear'}
-    if not isinstance(evidence, dict) or any(evidence.get(k) is not True for k in required):
-        raise ValueError('정지·팔 퇴피·화물·통로/작업구역 확인이 필요합니다')
+    if evidence is not None and not isinstance(evidence, dict):
+        raise ValueError('evidence는 객체')
     if decision not in ('resume', 'fail'):
         raise ValueError('decision: resume 또는 fail')
     robot = order['robot_id']
     if decision == 'resume':
-        if order['stage'] not in {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER'}:
+        if order['stage'] not in RESUME_STAGES:
             raise ValueError('물리 작업 중단은 fail로 종결 후 새 주문: 임의 재피킹 금지')
         if not service.armed or (robot and not service._fresh(robot)):
             raise ValueError('가동 허용 및 최신 통신 상태 필요')
     if robot:
         service.gateway.release(robot, service._route(order))
     service.store.event(dict(type='recovery', order_id=order_id, operator=operator,
-                             note=note, decision=decision, evidence=evidence))
+                             note=note, decision=decision, evidence=evidence, source=source))
     # 현장 확인을 마친 뒤 정지된 하위 명령이 로봇 예약을 계속 잡고 있지 않도록 한다.
-    for row in service.fleet.repository.db.execute(
-            "SELECT command_id FROM commands WHERE robot_id=? AND state NOT IN "
-            "('SUCCEEDED','FAILED')", (robot,)).fetchall():
-        command_id = row[0]
-        service.fleet.active.pop(command_id, None)
-        service.fleet.traces.pop(command_id, None)
+    for command_id in service.fleet.repository.active_commands(robot):
+        service.fleet.forget(command_id)
         service.fleet.repository.transition(command_id, 'FAILED', '시나리오 운영자 복구: ' + note)
     service.trees.pop(order_id, None)
     if decision == 'fail':

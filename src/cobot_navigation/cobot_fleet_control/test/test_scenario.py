@@ -316,8 +316,10 @@ def test_link_loss_stops_and_recovery_does_not_accept_late_device_success(env):
     evidence = dict(base_stopped=True, arms_safe=True, cargo_reconciled=True, resources_clear=True)
     with pytest.raises(ValueError, match='임의 재피킹'):
         env.scenario.recover('order1', 'operator', '현장 확인', 'resume', evidence)
-    # 화면 확인 창 한 번: 운영자·메모 없이도 취소된다 (기본값으로 기록)
-    env.scenario.recover('order1', None, None, 'fail', evidence)
+    # 화면 확인 창 한 번: 운영자·메모·확인 항목 없이도 취소된다 (기본값으로 기록)
+    with pytest.raises(ValueError, match='evidence'):
+        env.scenario.recover('order1', None, None, 'fail', 'yes')
+    env.scenario.recover('order1', None, None, 'fail', None, source='10.0.0.5')
     assert env.current()['state'] == 'FAILED'
     assert not env.scenario.store.resources('order1')
 

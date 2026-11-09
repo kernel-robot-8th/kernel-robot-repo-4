@@ -5,6 +5,9 @@ import re
 
 TERMINAL = {'COMPLETED', 'FAILED'}
 BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
+# 멈춘 주문을 '이어서 가기'로 되살릴 수 있는 이동·수령 단계. 팔 작업 단계는 다시 하지 않는다.
+# 관제 화면(cobot_control_center fleet_api_utils.ORDER_RESUME_STAGES)에 같은 값을 복사해 둔다.
+RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER'}
 NAVIGATION = {'MOVE_PICKUP': 'zone', 'LEAVE_PICKUP': 'leave',
               'MOVE_DROPOFF': 'zone', 'LEAVE_DROPOFF': 'leave', 'RETURN_HOME': 'home'}
 WORK = {
@@ -28,6 +31,22 @@ def identifier(value, name):
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', value):
         raise ValueError(f'{name}: 영문·숫자·밑줄·하이픈 1~80자')
     return value
+
+
+# 화면 확인 창 한 번으로 보내는 운영자 조치(해제·복구)의 기록 기본값 (2026-11-09).
+DEFAULT_OPERATOR = 'control-center'
+
+
+def operator_or_default(value):
+    """운영자는 선택. 없으면 기본값, 주면 식별자 형식을 검사한다."""
+    return identifier(value or DEFAULT_OPERATOR, 'operator')
+
+
+def optional_text(value, name, default):
+    """메모 같은 선택 글. 없거나 비면 기본 문구, 문자열이 아니면 거절한다."""
+    if value is not None and not isinstance(value, str):
+        raise ValueError(f'{name}는 문자열')
+    return (value or '').strip() or default
 
 
 def finite(value):

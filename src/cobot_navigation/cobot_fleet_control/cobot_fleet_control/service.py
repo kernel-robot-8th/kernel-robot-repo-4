@@ -62,10 +62,14 @@ class FleetService:
         if row and row['state'] not in {'SUCCEEDED', 'FAILED'}:
             self.repository.require_confirmation(command_id)
             self.repository.transition(command_id, 'UNKNOWN', detail)
-            self.active.pop(command_id, None)
-            trace = self.traces.pop(command_id, None)
-            if trace:
-                trace.capture('interrupted')
+            self.forget(command_id, 'interrupted')
+
+    def forget(self, command_id, label=None):
+        """이 명령의 실행 트리를 더는 돌리지 않는다. label 이 있으면 마지막 모습을 기록한다."""
+        self.active.pop(command_id, None)
+        trace = self.traces.pop(command_id, None)
+        if trace and label:
+            trace.capture(label)
 
     def cancel_pending(self, robot_id, detail):
         """아직 로봇에 보내지 않은(ACCEPTED) 작업을 보내지 않고 끝낸다."""
@@ -75,10 +79,7 @@ class FleetService:
             (robot_id,)))
         for (command_id,) in rows:
             self.repository.transition(command_id, 'FAILED', detail)
-            self.active.pop(command_id, None)
-            trace = self.traces.pop(command_id, None)
-            if trace:
-                trace.capture('canceled')
+            self.forget(command_id, 'canceled')
         return [command_id for (command_id,) in rows]
 
     def on_status(self, robot_id, status):

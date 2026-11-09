@@ -104,11 +104,11 @@ def test_controller_restart_does_not_latch_an_idle_robot(env):
     """관제가 재시작해도 놀던 로봇은 잠그지 않는다. 옛 세션 명령은 여전히 버린다."""
     now, guard = env
     guard.heartbeat(packet(now))
-    assert not guard.heartbeat(packet(now, session='server2'))
+    assert not guard.heartbeat(packet(now, session='server2'), busy=False)
     assert not guard.latched
     assert guard.accept(packet(now, session='server2'))
     assert not guard.accept(packet(now, 2, session='server1'))
-    assert not guard.heartbeat(packet(now, 2, session='server1'))
+    assert not guard.heartbeat(packet(now, 2, session='server1'), busy=False)
 
 
 def test_link_loss_does_not_latch_an_idle_robot(env):
@@ -116,7 +116,7 @@ def test_link_loss_does_not_latch_an_idle_robot(env):
     now, guard = env
     guard.heartbeat(packet(now))
     now[0] = 5.0
-    assert not guard.expired()
+    assert not guard.expired(busy=False)
     assert not guard.latched
     assert not guard.accept(packet(now, 1))
     guard.heartbeat(packet(now, 2))

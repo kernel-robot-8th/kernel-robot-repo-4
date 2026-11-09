@@ -51,7 +51,6 @@ function applyRoute() {
   if (robotId === view.detailRobot) return;
   // 고르던 지점·해제 확인은 그 자리(카드 또는 상태줄 아래)와 함께 접는다.
   cancelPick();
-  closeResolve();
   closeLoad();
   view.detailRobot = robotId;
   const on = robotId !== null;
@@ -165,7 +164,7 @@ function zoneText(robotId) {
 }
 
 function renderStats(robotId, robot) {
-  const task = robotTask(robotId, new Set(["UNKNOWN"])) || robotTask(robotId, ACTIVE_TASK);
+  const task = robotTask(robotId, UNKNOWN_TASK) || robotTask(robotId, ACTIVE_TASK);
   const taskStat = task
     ? stat("현재 작업", taskCommandText(task),
       [TASK_TEXT[task.state] || task.state, task.detail].filter(Boolean).join(" · "))

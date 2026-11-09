@@ -44,8 +44,6 @@ const view = {
   commandsArmed: false, // 화면 상단 '작업 명령 켜기/끄기' (/api/health 의 commands_armed)
   cardMsg: new Map(), // robot_id → {text, bad, until}: 명령 결과를 카드 상태 줄에 잠깐
   rawEnabled: false, // 개발용 수동 명령 칸을 보일지 (/api/health)
-  resolving: null,  // 결과 모름 해제 확인 중인 작업
-  releasing: null,  // 제어권 복구(정지 잠금 해제) 띠를 연 로봇 id (release.js)
   loading: null,    // 수동 상차 확인 띠를 연 {robotId, orderId, sku} (load.js)
   pick: null,       // 명령 지점 고르는 중 {robotId, cmd, choices, route, ...}
   robotHits: [],    // 지도 위 로봇 위치 {robotId, x, y, r} (지도 클릭으로 카드 찾기)

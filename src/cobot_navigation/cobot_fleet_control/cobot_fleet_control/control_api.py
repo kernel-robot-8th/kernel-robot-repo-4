@@ -5,7 +5,7 @@ import time
 import uuid
 
 from .contracts import Command
-from .scenario_contracts import identifier
+from .scenario_contracts import identifier, operator_or_default, optional_text
 
 RAW_CMD_MAX_LEN = 200   # 개발용 수동 명령 최대 길이 [글자]
 
@@ -102,7 +102,7 @@ class ControlAPI:
         if kind == 'resolve':
             return 200, scenario.recover(request.get('order_id'), request.get('operator'),
                                          request.get('note'), request.get('decision'),
-                                         request.get('evidence'))
+                                         request.get('evidence'), request.get('source', ''))
         if kind in {'pause', 'estop', 'stop', 'manual'}:
             return 202, self._stop(kind, request)
         if kind == 'release_control':
@@ -185,24 +185,23 @@ class ControlAPI:
         if robot is not None and (not isinstance(robot, str) or robot not in self.fleet.robots):
             raise ApiError(404, '등록되지 않은 로봇')
         targets = [robot] if robot else list(self.fleet.robots)
-        if kind == 'stop' and robot is not None and not self._orders_for(robot):
+        has_orders = {target: bool(self._orders_for(target)) for target in targets}
+        if kind == 'stop' and robot is not None and not has_orders[robot]:
             return self._plain_stop(robot, request)
         stopped_tasks = {}
         for target in targets:
-            rows = list(self.fleet.repository.db.execute(
-                "SELECT command_id FROM commands WHERE robot_id=? "
-                "AND state IN ('ACCEPTED','RUNNING','UNKNOWN') ORDER BY rowid DESC", (target,)))
+            rows = self.fleet.repository.active_commands(target)
             if rows:
-                stopped_tasks[target] = rows[0][0]
-            elif kind == 'stop' and not self._orders_for(target):
+                stopped_tasks[target] = rows[0]
+            elif kind == 'stop' and not has_orders[target]:
                 # 대기 중 내린 정지 요청도 기존 화면에서 확인하고 해제할 수 있어야 한다.
                 stop_id = 'stop_' + uuid.uuid4().hex
                 self.fleet.repository.create(Command(stop_id, target, 'emergency_stop'))
                 self.fleet.repository.transition(stop_id, 'UNKNOWN', '정지 요청: 현장 정지 확인 필요')
                 stopped_tasks[target] = stop_id
             scenario.store.hold(target, kind.upper())
-            for row in rows:
-                self.fleet.quarantine(row[0], '운영자 ' + kind)
+            for command_id in rows:
+                self.fleet.quarantine(command_id, '운영자 ' + kind)
         # 로봇을 지정한 정지는 그 로봇만 보류(hold)한다. 다른 로봇은 계속 일한다.
         # 로봇 지정 없는 전체 정지(전체 비상정지)만 작업 명령 전체를 끈다.
         if robot is None:
@@ -226,14 +225,12 @@ class ControlAPI:
         # 진호 님 원래 순찰 노드 기준 (2026-11-09). 로봇은 멈추고 구역 안이면 물러나 토큰을
         # 풀며 잠그지 않는다. 이미 보낸 작업은 로봇의 STOPPED 결과로 끝나고, 아직 안 보낸
         # 작업은 여기서 취소한다. 주문이 걸린 로봇과 비상정지는 기존 보류 경로를 쓴다.
-        rows = list(self.fleet.repository.db.execute(
-            "SELECT command_id FROM commands WHERE robot_id=? "
-            "AND state IN ('ACCEPTED','RUNNING','UNKNOWN') ORDER BY rowid DESC", (robot,)))
+        rows = self.fleet.repository.active_commands(robot)
         self.fleet.cancel_pending(robot, '운영자 정지 (보내기 전 취소)')
         self.gateway.stop(robot)
         self.scenario.store.event(dict(type='operator_stop', robot_id=robot))
         return dict(armed=self.scenario.armed, robot_id=robot, robots=[robot],
-                    operation='stop', spec='v1', task_id=rows[0][0] if rows else None,
+                    operation='stop', spec='v1', task_id=rows[0] if rows else None,
                     software_stop=True, client_request_id=request.get('client_request_id'),
                     warning='일반 정지는 잠그지 않습니다. 구역 안이면 로봇이 물러납니다. '
                             '제자리에 세우려면 비상정지를 쓰세요')
@@ -252,10 +249,7 @@ class ControlAPI:
         if request.get('result', 'FAILED') != 'FAILED':
             raise ValueError('현장 확인 해제는 FAILED만 지원합니다')
         # 메모는 선택 (화면 확인 창 한 번, 2026-11-09). 없으면 기본 문구로 기록한다.
-        note = request.get('note')
-        if note is not None and not isinstance(note, str):
-            raise ValueError('note는 문자열')
-        note = (note or '').strip() or '화면에서 현장 확인 후 해제'
+        note = optional_text(request.get('note'), 'note', '화면에서 현장 확인 후 해제')
         status = self.scenario.health.get(robot, {}).get('status', {})
         reasons = []
         if not self.scenario._fresh(robot):
@@ -291,12 +285,8 @@ class ControlAPI:
         evidence = request.get('evidence')
         if evidence is not None and not isinstance(evidence, dict):
             raise ValueError('evidence는 객체')
-        operator = request.get('operator') or 'control-center'
-        identifier(operator, 'operator')
-        note = request.get('note')
-        if note is not None and not isinstance(note, str):
-            raise ValueError('note는 문자열')
-        note = (note or '').strip() or '화면에서 현장 확인 후 복구'
+        operator = operator_or_default(request.get('operator'))
+        note = optional_text(request.get('note'), 'note', '화면에서 현장 확인 후 복구')
         scenario.store.event(dict(type='release_control', request=dict(
             request, operator=operator, note=note, source=request.get('source', ''))))
         self.gateway.release(robot)

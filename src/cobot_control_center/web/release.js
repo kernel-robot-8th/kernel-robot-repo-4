@@ -35,7 +35,7 @@ function saveOperator(name) {
 // 확인 창 문구. 결과 모름 작업이 함께 있으면 실패로 기록된다는 것도 알린다.
 function releaseQuestion(robotId) {
   const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
-  const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
+  const unknown = robotTask(robotId, UNKNOWN_TASK);
   return [`${robotId} 복구할까요?`, robot ? (latchText(robotId, robot) || "정지 잠금") : "",
     "현장에서 로봇이 멈춰 있고 주변이 안전한지 확인했나요?",
     unknown ? `결과 모름 작업 ${unknown.command} 은 실패로 기록합니다.` : "",
@@ -45,10 +45,9 @@ function releaseQuestion(robotId) {
 async function openRelease(robotId) {
   if (!robotId) return;
   cancelPick();
-  closeResolve();
   closeLoad();
   if (!confirm(releaseQuestion(robotId))) return;
-  const hadUnknown = Boolean(robotTask(robotId, new Set(["UNKNOWN"])));
+  const hadUnknown = Boolean(robotTask(robotId, UNKNOWN_TASK));
   const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/release_control`,
     { client_request_id: newRequestId() });
   if (result.ok) {
@@ -61,41 +60,44 @@ async function openRelease(robotId) {
   }
 }
 
-// 예전 복구 띠 자리. 다른 띠(load.js·tasks.js)가 열릴 때 부르므로 남겨 둔다.
-function closeRelease() {
-  view.releasing = null;
-}
-
-function setupRelease() {}
-
-// 보류 중인 로봇은 복구(release_control) 하나로 결과 모름까지 푼다. fleet 의 결과 모름 해제(resolve)는
-// 로봇 래치를 볼 수 있는데, 로봇이 재부팅하면 래치가 풀린 채 올라와 해제가 막힐 수 있기 때문이다.
-// 복구는 그 로봇의 UNKNOWN 작업도 실패로 기록한다 (cobot_fleet_control control_api._release_control).
-function releaseCovers(robotId) {
-  return Boolean(view.holds[robotId]);
-}
-
-// 카드·상세 화면의 상태 줄을 눌렀을 때: 수동 상차 확인 → 멈춘 주문 복구(load.js) →
-// 보류 중이면 제어권 복구 → 결과 모름이면 해제 → 정지 잠금 복구.
-function onCmdHeadClick(robotId) {
-  if (!robotId) return;
-  if (loadWaiting(robotId)) {
-    openLoad(robotId);
-    return;
+// 지금 이 로봇에서 사람이 풀어야 할 문제 하나 (없으면 null). 카드 줄 글(text)·명령 버튼을 막는
+// 이유(reason)·눌렀을 때 여는 것(open)을 이 한 곳에서 정한다 (카드 줄·클릭·작업 목록 버튼이 함께 씀).
+// 순서: 수동 상차 확인 → 멈춘 주문 → 보류 중 결과 모름(제어권 복구) → 결과 모름 해제 → 정지 잠금.
+// 보류 중인 로봇은 복구(release_control) 하나로 결과 모름까지 푼다. 결과 모름 해제(resolve)보다 먼저인
+// 것은 복구가 그 로봇의 UNKNOWN 작업도 실패로 기록하기 때문이다 (control_api._release_control).
+// skipLoad: 상차 확인 대기는 명령 버튼을 막지 않으므로, 버튼 이유·작업 목록에서는 그다음 문제를 본다.
+function currentProblem(robotId, skipLoad = false) {
+  if (!robotId) return null;
+  const load = skipLoad ? null : loadWaiting(robotId);
+  if (load) {
+    return { kind: "load", text: loadText(load, true), reason: "", open: () => openLoad(robotId) };
   }
-  if (orderBlocked(robotId)) {
-    recoverOrder(robotId);
-    return;
+  const order = orderBlocked(robotId);
+  if (order) {
+    return { kind: "order", text: orderBlockedText(order),
+      reason: `주문 ${order.order_id} 멈춤: 이어서 가기 또는 취소 필요`,
+      open: () => recoverOrder(robotId) };
   }
-  const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
-  if (unknown && releaseCovers(robotId)) {
-    openRelease(robotId);
-    return;
-  }
+  const unknown = robotTask(robotId, UNKNOWN_TASK);
   if (unknown) {
-    openResolve(unknown);
-    return;
+    const held = Boolean(view.holds[robotId]);
+    return { kind: held ? "release" : "unknown",
+      text: held ? `결과 모름: ${unknown.command} · 정지 잠금 · 눌러서 현장 확인 후 복구`
+        : `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`,
+      reason: `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 ${held ? "복구" : "해제"}`,
+      open: held ? () => openRelease(robotId) : () => openResolve(unknown) };
   }
   const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
-  if (robot && latchText(robotId, robot)) openRelease(robotId);
+  const latched = robot ? latchText(robotId, robot, true) : null;
+  if (latched) {
+    return { kind: "latch", text: latched, reason: latchText(robotId, robot),
+      open: () => openRelease(robotId) };
+  }
+  return null;
+}
+
+// 카드·상세 화면의 상태 줄을 눌렀을 때: 지금 문제를 연다.
+function onCmdHeadClick(robotId) {
+  const problem = currentProblem(robotId);
+  if (problem) problem.open();
 }

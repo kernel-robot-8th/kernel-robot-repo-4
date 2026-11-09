@@ -90,13 +90,12 @@ function renderTasks() {
       + (task.detail ? `\n${task.detail}` : "");
     const resolve = el.querySelector(".resolve-btn");
     resolve.hidden = task.state !== "UNKNOWN";
-    // 보류 중인 로봇은 복구 하나로 결과 모름까지 푼다 (release.js releaseCovers)
-    // 멈춘 주문이 걸린 로봇은 주문 복구 하나로 하위 작업까지 정리한다 (load.js recoverOrder)
-    const viaOrder = Boolean(orderBlocked(task.robot_id));
-    const viaRelease = !viaOrder && releaseCovers(task.robot_id);
-    resolve.textContent = viaOrder ? "주문 복구" : viaRelease ? "현장 확인 후 복구" : "현장 확인 후 해제";
-    resolve.addEventListener("click", () => (viaOrder ? recoverOrder(task.robot_id)
-      : viaRelease ? openRelease(task.robot_id) : openResolve(task)));
+    // 멈춘 주문이면 주문 복구, 보류 중이면 제어권 복구가 결과 모름까지 함께 정리한다 (release.js currentProblem)
+    const problem = currentProblem(task.robot_id, true);
+    const via = problem && (problem.kind === "order" || problem.kind === "release") ? problem : null;
+    resolve.textContent = !via ? "현장 확인 후 해제"
+      : via.kind === "order" ? "주문 복구" : "현장 확인 후 복구";
+    resolve.addEventListener("click", () => (via ? via.open() : openResolve(task)));
     return el;
   }));
 }
@@ -123,10 +122,3 @@ async function openResolve(task) {
     showMessage(task.robot_id, `해제 실패 (${result.status}): ${errorText(result)}`, true);
   }
 }
-
-// 예전 해제 띠 자리. 다른 기능이 부르므로 남겨 둔다.
-function closeResolve() {
-  view.resolving = null;
-}
-
-function setupResolve() {}

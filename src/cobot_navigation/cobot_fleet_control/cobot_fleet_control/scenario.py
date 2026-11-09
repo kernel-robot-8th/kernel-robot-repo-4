@@ -208,6 +208,7 @@ class ScenarioService:
         """운영자가 직접 확인한 적재·팔 퇴피·통로 이탈로 상차 후 체크포인트를 연다."""
         return scenario_safety.confirm_loaded(self, order_id, operator, note, evidence)
 
-    def recover(self, order_id, operator, note, decision, evidence):
+    def recover(self, order_id, operator, note, decision, evidence, source=''):
         """현장 확인을 기록한 뒤 허용된 체크포인트에서만 새 트리를 구성한다."""
-        return scenario_safety.recover(self, order_id, operator, note, decision, evidence)
+        return scenario_safety.recover(self, order_id, operator, note, decision, evidence,
+                                       source)

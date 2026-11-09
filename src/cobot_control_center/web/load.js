@@ -10,8 +10,8 @@
 //
 // 멈춘 주문 복구도 여기 둔다 (주문 화면 기능 모음). 빨간 줄을 누르면 확인 창으로
 // [이어서 가기](이동 단계만) / [주문 취소] 를 고르고 POST /api/orders/{id}/recover 로 보낸다.
-// 보통 방식대로 확인 창 한 번 (2026-11-09 임시 일반형). 화면은 확인 뒤 fleet 이 요구하는 확인 4가지를
-// 함께 보낸다. TODO(시나리오): 멈춘 단계별 확인 항목, 취소 뒤 홈 복귀, 하차 완료 표시
+// 보통 방식대로 확인 창 한 번 (2026-11-09 임시 일반형, 확인 항목은 fleet 에서도 선택).
+// TODO(시나리오): 멈춘 단계별 확인 항목, 취소 뒤 홈 복귀, 하차 완료 표시
 //   (draft/safety_locks_review.md 8절).
 
 "use strict";
@@ -41,8 +41,6 @@ function openLoad(robotId) {
   const order = loadWaiting(robotId);
   if (!host || !order) return;
   cancelPick();
-  closeResolve();
-  closeRelease();
   view.loading = { robotId, orderId: order.order_id, sku: order.sku };
   $("load-title").textContent = `${robotId} · 수동 상차 확인`;
   $("load-what").textContent = loadText(order);
@@ -99,10 +97,6 @@ function setupLoad() {
 
 // ---------- 멈춘 주문 복구 ----------
 
-// fleet 의 주문 복구(scenario_safety.recover)가 요구하는 확인 항목. 화면은 확인 창 한 번 뒤 함께 보낸다 (임시).
-const ORDER_EVIDENCE = { base_stopped: true, arms_safe: true, cargo_reconciled: true,
-  resources_clear: true };
-
 // 이 로봇의 멈춘 주문 (없으면 null). 화면 표시용이고 최종 판단은 fleet 이 한다.
 function orderBlocked(robotId) {
   return view.orders.find((order) => order.robot_id === robotId && order.blocked) || null;
@@ -116,7 +110,7 @@ function orderBlockedText(order) {
 
 async function sendOrderRecover(order, decision) {
   const result = await postJson(`/api/orders/${encodeURIComponent(order.order_id)}/recover`,
-    { client_request_id: newRequestId(), decision, evidence: ORDER_EVIDENCE });
+    { client_request_id: newRequestId(), decision });
   if (result.ok) {
     view.orders = view.orders.filter((item) => item.order_id !== order.order_id || decision !== "fail");
     delete view.holds[order.robot_id];

@@ -19,6 +19,7 @@ const PICK_HIT_PX = 14;        // 지도에서 지점을 누른 것으로 볼 �
 // 잠긴 카드의 빨간 줄을 누르면 제어권 복구 띠가 뜬다 (release.js, release_control API).
 
 const ACTIVE_TASK = new Set(["ACCEPTED", "SENT", "RUNNING"]);
+const UNKNOWN_TASK = new Set(["UNKNOWN"]);
 // 로봇이 이 상태면 관제 작업이 없어도 움직이는 중이다 (유휴 복귀 등). 순찰 노드의 상태 이름.
 const BUSY_ROBOT = new Set(["STARTING", "MOVING", "QUEUEING", "WAITING_ZONE", "ARRIVED",
   "LEAVING_ZONE", "RETREATING", "RETURNING", "RETRY"]);
@@ -91,17 +92,14 @@ function heldZones(robotId) {
 
 function renderCommands(card, robotId, robot) {
   const active = robotTask(robotId, ACTIVE_TASK);
-  const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
-  const latched = latchText(robotId, robot, true);
-  const loadOrder = loadWaiting(robotId);
-  const blockedOrder = loadOrder ? null : orderBlocked(robotId);
+  // 사람이 풀어야 할 문제 (release.js currentProblem). 상차 확인 대기는 버튼을 막지 않으므로 그다음 것을 본다.
+  const problem = currentProblem(robotId);
+  const blocker = problem && problem.kind === "load" ? currentProblem(robotId, true) : problem;
   // 잠금은 '작업 명령 켜기'보다 먼저 알린다 (보류된 로봇은 작업 명령이 켜져 있어도 복구해야 풀리므로 켜기만으로는 안 풀린다).
   const reason = view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
     : !view.controllerOnline ? "작업 노드 꺼짐"
     : !robot.online ? "연결 끊김"
-    : blockedOrder ? `주문 ${blockedOrder.order_id} 멈춤: 이어서 가기 또는 취소 필요`
-    : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 ${releaseCovers(robotId) ? "복구" : "해제"}`
-    : latched ? latched
+    : blocker ? blocker.reason
     : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
     : active ? `작업 중 ${active.task_id}`
     : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
@@ -129,21 +127,8 @@ function renderCommands(card, robotId, robot) {
   if (view.readOnly || !view.controllerOnline || !robot.online) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
-  } else if (loadOrder) {
-    // 상차 확인은 정지 잠금보다 먼저: fleet 이 확인을 받으면 잠금도 풀고 구역 이탈부터 재개한다.
-    text = loadText(loadOrder, true);
-    level = "bad";
-  } else if (blockedOrder) {
-    // 멈춘 주문은 결과 모름·잠금보다 먼저: 주문 복구가 보류·하위 작업까지 함께 정리한다.
-    text = orderBlockedText(blockedOrder);
-    level = "bad";
-  } else if (unknown) {
-    text = releaseCovers(robotId)
-      ? `결과 모름: ${unknown.command} · 정지 잠금 · 눌러서 현장 확인 후 복구`
-      : `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`;
-    level = "bad";
-  } else if (latched) {
-    text = latched;
+  } else if (problem) {
+    text = problem.text;
     level = "bad";
   } else if (!view.commandsArmed) {
     text = `명령 잠김: ${reason}`;
@@ -159,7 +144,7 @@ function renderCommands(card, robotId, robot) {
     text = holding ? `명령 가능 · ${held.join(", ")} 보유 중` : "명령 가능";
     level = "ok";
   }
-  const task = unknown || active;
+  const task = robotTask(robotId, UNKNOWN_TASK) || active;
   const msg = view.cardMsg.get(robotId);
   if (msg && msg.until > Date.now()) {
     text = msg.text;
@@ -296,7 +281,6 @@ function pointChoices(robotId, cmd) {
 // 고른 지점 목록을 돌려주고, 취소하면 null.
 function choosePoints(robotId, cmd) {
   cancelPick();
-  closeResolve();
   closeLoad();
   const needsPoints = cmd === "goto" || cmd === "zone";
   const choices = needsPoints ? pointChoices(robotId, cmd) : null;

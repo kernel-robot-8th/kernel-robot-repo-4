@@ -66,6 +66,10 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
+    def source(request):
+        # 누가 눌렀는지: 로그인이 없으므로 접속 IP 를 운영자 조치 기록(source)에 남긴다.
+        return request.client.host if request.client else ''
+
     def map_or_404():
         if map_data is None:
             raise HTTPException(status_code=404, detail='지도가 설정되지 않음 (map_yaml)')
@@ -244,7 +248,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'client_request_id': body.get('client_request_id'),
             'operator': body.get('operator'), 'note': body.get('note'),
             'evidence': body.get('evidence'),
-            'source': request.client.host if request.client else ''})
+            'source': source(request)})
 
     @app.post('/api/orders/{order_id}/recover')
     def recover_order(order_id: str, request: Request, body: dict = Body(default={})):
@@ -256,7 +260,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'client_request_id': body.get('client_request_id'),
             'operator': body.get('operator'), 'note': body.get('note'),
             'evidence': body.get('evidence'),
-            'source': request.client.host if request.client else ''})
+            'source': source(request)})
 
     @app.post('/api/orders/{order_id}/confirm_loaded')
     def confirm_loaded(order_id: str, body: dict = Body(default={})):
@@ -282,7 +286,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         return call_controller({
             'type': 'arm', 'armed': body.get('armed'),
             'client_request_id': body.get('client_request_id'),
-            'source': request.client.host if request.client else ''})
+            'source': source(request)})
 
     @app.post('/api/tasks/{task_id}/resolve')
     def resolve_task(task_id: str, body: dict = Body(default={})):

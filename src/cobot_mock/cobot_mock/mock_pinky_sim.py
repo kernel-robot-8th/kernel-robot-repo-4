@@ -184,7 +184,7 @@ class CentralGuard:
     def healthy(self):
         return self.received is not None and self.clock() - self.received < self.timeout
 
-    def heartbeat(self, payload, busy=False):
+    def heartbeat(self, payload, busy=True):
         """서버 세션이 바뀌어 정지해야 하면 True. 움직이던 중일 때만 (실물 순찰 노드와 같음)."""
         if not isinstance(payload, dict):
             return False
@@ -204,12 +204,17 @@ class CentralGuard:
         self.heartbeat_seq, self.received = seq, self.clock()
         return changed
 
-    def expired(self, busy=False):
+    def expired(self, busy=True):
         """움직이던 중 하트비트가 끊기면 한 번만 True (그때 잠근다). 놀던 중이면 잠그지 않는다."""
         if busy and self.received is not None and not self.healthy and not self.latched:
             self.latched = True
             return True
         return False
+
+    def stop(self, emergency=False):
+        """정지는 늘 받는다. 잠금은 비상정지만 건다 (실물 CentralGuard.stop 과 같음)."""
+        if emergency:
+            self.latched = True
 
     def accept(self, payload, reset=False):
         """현재 세션·늘어나는 순번의 명령만 받는다. reset 이면 잠금을 푼다."""
@@ -247,8 +252,7 @@ def central_command(guard, raw):
     kind = command.strip().lower()
     if kind in ('stop', 'emergency_stop'):
         # 일반 정지는 멈추고(구역 안이면 물러나) 끝, 잠그지 않는다 (실물 순찰 노드와 같음)
-        if kind == 'emergency_stop':
-            guard.latched = True
+        guard.stop(emergency=kind == 'emergency_stop')
         return raw, 'stop'
     if command == 'control_reset':
         return None, 'reset' if guard.accept(envelope or {}, True) else 'rejected'

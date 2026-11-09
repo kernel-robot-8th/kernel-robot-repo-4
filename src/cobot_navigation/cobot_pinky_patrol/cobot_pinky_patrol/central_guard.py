@@ -29,7 +29,7 @@ class CentralGuard:
         """로컬 수신 시각으로 중앙 서버의 연결 끊김을 감지한다."""
         return self.received is not None and self.clock() - self.received < self.timeout
 
-    def heartbeat(self, payload, busy=False):
+    def heartbeat(self, payload, busy=True):
         """서버 세션 변경으로 정지가 필요한지 반환한다. 움직이던 중일 때만 잠근다."""
         if not isinstance(payload, dict):
             return False
@@ -49,8 +49,9 @@ class CentralGuard:
         self.heartbeat_seq, self.received = seq, self.clock()
         return changed
 
-    def expired(self, busy=False):
+    def expired(self, busy=True):
         """움직이던 중 끊기면 한 번만 정지를 알리고 잠근다. 놀던 중이면 잠그지 않는다."""
+        # busy 기본값은 잠그는 쪽(True): 인자를 빠뜨려도 약한 쪽으로 새지 않게 한다.
         # 놀던 중이어도 끊긴 동안은 healthy 가 아니라 accept 가 명령을 거절한다.
         if busy and self.received is not None and not self.healthy and not self.latched:
             self.latched = True

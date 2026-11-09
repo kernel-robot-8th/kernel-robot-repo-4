@@ -60,6 +60,12 @@ class SqliteRepository:
             'SELECT 1 FROM commands WHERE robot_id=? AND state NOT IN '
             "('SUCCEEDED','FAILED')", (robot_id,)).fetchone() is not None
 
+    def active_commands(self, robot_id):
+        """끝나지 않은(보냄 전·진행·결과 모름) 작업 ID, 최신순."""
+        return [row[0] for row in self.db.execute(
+            "SELECT command_id FROM commands WHERE robot_id=? "
+            "AND state IN ('ACCEPTED','RUNNING','UNKNOWN') ORDER BY rowid DESC", (robot_id,))]
+
     def require_confirmation(self, command_id):
         """운영자 정지 뒤에는 지연 종료 패킷만으로 해제 버튼이 사라지지 않게 한다."""
         with self.db:
