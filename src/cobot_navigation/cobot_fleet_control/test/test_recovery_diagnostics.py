@@ -33,8 +33,8 @@ def test_web_resolve_reports_blocker_and_only_releases_when_ready(
     try:
         repo.create(Command('stop1', 'pinky2', 'emergency_stop'))
         repo.transition('stop1', 'UNKNOWN', '정지 확인 필요')
-        reply = api.handle({'type': 'resolve', 'task_id': 'stop1', 'result': 'FAILED',
-                            'note': '현장에서 정지 확인'})
+        # 메모는 선택 (화면 확인 창 한 번)
+        reply = api.handle({'type': 'resolve', 'task_id': 'stop1', 'result': 'FAILED'})
         if detail:
             assert reply['status'] == 409
             assert detail in reply['body']['detail']

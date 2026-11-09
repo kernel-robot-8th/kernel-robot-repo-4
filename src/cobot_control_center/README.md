@@ -210,13 +210,14 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 - `/api/health` 의 `holds` 가 fleet 이 보류한 로봇 → 사유(`STOP`·`ESTOP` 등)를, `orders` 가 끝나지 않은 주문을 알립니다. 작업 노드가 켜져 있는지는 `controller_online` 으로 봅니다 (`cobot_fleet_control` 의 도커 `smoke_check` 도 이 값을 읽음).
 - 정지 잠금·상차 확인 API:
   - `POST /api/commands/estop` — 전체 비상정지 (로봇·팔 모두).
-  - `POST /api/robots/{id}/release_control` — body `{operator, note, evidence:{base_stopped, arms_safe, cargo_reconciled, resources_clear}}`. 검사는 fleet 이 하고 거절 사유를 그대로 돌려줍니다.
+  - `POST /api/robots/{id}/release_control` — body 는 모두 선택 (`operator`, `note`, `evidence`). 누가 눌렀는지는 접속 IP 로 넘깁니다. 검사는 fleet 이 하고 거절 사유를 그대로 돌려줍니다.
   - `POST /api/orders/{order_id}/confirm_loaded` — 수동 상차 확인. body `{operator, note, evidence:{sku, load_present, arm_safe, pickup_path_clear}}`. fleet 이 상차장 도착·정지·예약을 검사하고 통과하면 상차 구역 이탈부터 재개합니다.
 - 화면은 카드 상태 줄에 **정지 잠금**(로봇 `central_latched` 또는 fleet 보류, 점유 구역)을 표시합니다.
-  그 빨간 줄을 누르면 **제어권 복구 띠**(`web/release.js`)가 뜹니다: 현장 확인 체크 하나(멈춤·팔·화물·자원, fleet 이 요구하는 4가지를 함께 보냄) + 운영자 + 메모 → `release_control`.
+  그 빨간 줄을 누르면 **확인 창**이 한 번 뜨고("현장에서 로봇이 멈춰 있고 주변이 안전한지 확인했나요?"), 확인하면 `release_control` 을 보냅니다 (`web/release.js`). 이름·메모 입력은 없습니다 (주문 없는 주행 로봇용 임시 일반형, 2026-11-09. 시나리오별 단계 확인은 나중).
   보류 중인 로봇은 결과 모름 작업이 있어도 이 복구 하나로 함께 풀립니다 (결과 모름은 실패로 기록). 보류 없이 결과 모름만 있으면 결과 모름 해제를 씁니다.
   확인 4가지는 지금 fleet 이 늘 요구합니다 (규격이 바뀌면 시나리오 작업일 때만 묻게 바꿈).
-- 상차장에서 멈춘 주문이 있으면 그 로봇 카드 상태 줄이 **상차 확인 대기 · 주문 ID (SKU)** 가 됩니다. 누르면 **수동 상차 확인 띠**(`web/load.js`)가 뜹니다: 현장 확인 체크 하나(적재됨·팔 퇴피·통로 비움) + 운영자 + 메모 → `confirm_loaded` (SKU 는 주문 값). 순서는 결과 모름 해제 → 상차 확인 → 정지 잠금 복구입니다 ([화면 사용법](docs/screen_guide.md#수동-상차-확인)).
+- 주문이 멈추면(비상정지·통신 끊김 등) 카드 줄이 **주문 o1 멈춤 (비상정지) · 눌러서 이어서 가기/취소** 가 됩니다. 누르면 확인 창으로 **이어서 가기**(이동 단계만)와 **주문 취소**를 고릅니다 (`POST /api/orders/{id}/recover`). 취소하면 실은 상자는 사람이 꺼내고 로봇은 제자리에 둡니다. 결과 모름 해제도 확인 창 한 번입니다 (메모 입력 없음, 2026-11-09 임시 일반형).
+- 상차장에서 멈춘 주문이 있으면 그 로봇 카드 상태 줄이 **상차 확인 대기 · 주문 ID (SKU)** 가 됩니다. 누르면 **수동 상차 확인 띠**(`web/load.js`)가 뜹니다: 현장 확인 체크 하나(적재됨·팔 퇴피·통로 비움) + 운영자 + 메모 → `confirm_loaded` (SKU 는 주문 값). 순서는 상차 확인 → 멈춘 주문 복구 → 결과 모름 해제·정지 잠금 복구입니다 ([화면 사용법](docs/screen_guide.md#수동-상차-확인)).
 - 구역 안에서 잠긴 경우(`held_zone`)도 복구·해제할 수 있습니다. 복구한 뒤 **나가기**로 빼냅니다. 그때까지 구역 토큰은 그 로봇이 잡고 있어 다른 로봇은 들어오지 못합니다 (2026-11-09).
 
 ## 실물 시험 순서

@@ -316,7 +316,8 @@ def test_link_loss_stops_and_recovery_does_not_accept_late_device_success(env):
     evidence = dict(base_stopped=True, arms_safe=True, cargo_reconciled=True, resources_clear=True)
     with pytest.raises(ValueError, match='임의 재피킹'):
         env.scenario.recover('order1', 'operator', '현장 확인', 'resume', evidence)
-    env.scenario.recover('order1', 'operator', '화물 수동 회수·현장 정리 확인', 'fail', evidence)
+    # 화면 확인 창 한 번: 운영자·메모 없이도 취소된다 (기본값으로 기록)
+    env.scenario.recover('order1', None, None, 'fail', evidence)
     assert env.current()['state'] == 'FAILED'
     assert not env.scenario.store.resources('order1')
 
@@ -347,7 +348,21 @@ def test_arm_and_raw_manual_web_contract_and_latched_stop_without_order(env):
     assert env.current()['robot_id'] == 'pinky2'
     assert env.api.handle(dict(type='raw', command='goto:P1'))['status'] == 403
     assert env.api.snapshot()['holds']['pinky1'] == 'ESTOP'
+    # 주문 없는 로봇의 복구는 로봇만 지정하면 된다 (확인 창 한 번, 운영자·메모·확인 항목은 선택)
+    assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 200
+    assert 'pinky1' not in env.api.snapshot()['holds']
+    # 보류·래치가 없으면 복구할 것이 없다
     assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 400
+
+
+def test_release_control_optional_fields_are_still_checked(env):
+    env.api.handle(dict(type='estop', robot_id='pinky1'))
+    bad = [dict(operator='이름 공백'), dict(note=3), dict(evidence='yes')]
+    for extra in bad:
+        reply = env.api.handle(dict(type='release_control', robot_id='pinky1', **extra))
+        assert reply['status'] == 400, extra
+    reply = env.api.handle(dict(type='release_control', robot_id='pinky1', source='10.0.0.5'))
+    assert reply['status'] == 200
 
 
 def test_raw_command_only_when_allowed_and_sent_in_session_envelope(env):

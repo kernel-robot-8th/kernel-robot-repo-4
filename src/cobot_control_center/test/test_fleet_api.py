@@ -681,6 +681,9 @@ def test_fleet_estop_all_and_release_control_pass_through():
     # fleet 의 거절 사유를 그대로 돌려준다
     assert res.status_code == 409 and res.json()['detail'] == '해제 불가: 구역 이탈 미확인'
     assert sent[1] == dict(sent[1], type='release_control', robot_id='pinky1', **RELEASE_BODY)
+    # 화면은 확인 창 한 번 뒤 빈 body 로 보낸다. 누가는 접속 IP(source)로 넘긴다
+    client.post('/api/robots/pinky1/release_control', json={'client_request_id': 'r2'})
+    assert sent[2]['source'] == 'testclient' and sent[2]['operator'] is None
 
 
 def test_fleet_confirm_loaded_passes_through():
@@ -694,6 +697,21 @@ def test_fleet_confirm_loaded_passes_through():
     assert res.status_code == 200 and res.json()['stage'] == 'LEAVE_PICKUP'
     assert sent[0] == dict(sent[0], type='confirm_loaded', order_id='o1',
                            client_request_id='c1', **LOADED_BODY)
+
+
+def test_fleet_order_recover_passes_through_with_source():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 200, {'order_id': 'o1', 'state': 'RUNNING'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/orders/o1/recover',
+                      json={'client_request_id': 'r1', 'decision': 'resume'})
+    assert res.status_code == 200 and res.json()['state'] == 'RUNNING'
+    # fleet 은 resolve + order_id 를 주문 복구로 보낸다 (task_id 가 없어야 함)
+    assert sent[0] == dict(sent[0], type='resolve', order_id='o1', decision='resume',
+                           client_request_id='r1', source='testclient')
+    assert 'task_id' not in sent[0]
 
 
 def test_fleet_confirm_loaded_returns_rejection_reason():
@@ -751,10 +769,22 @@ def test_active_orders_hide_finished_and_internal_fields():
     assert result[0] == {'order_id': 'o1', 'robot_id': 'pinky1', 'state': 'RUNNING',
                          'stage': 'DOCK_PICKUP', 'completed': ['MOVE_PICKUP'], 'sku': 'box_a',
                          'route': 'lab_delivery', 'detail': '정차 실측 대기',
-                         'load_confirmed': False, 'load_confirmable': True}
+                         'load_confirmed': False, 'load_confirmable': True,
+                         'blocked': False, 'resumable': False}
     assert result[1]['load_confirmable'] is False
     assert result[2]['load_confirmed'] is True and result[2]['load_confirmable'] is False
     assert active_orders(None) == [] and active_orders({'o1': {}}) == []
+
+
+def test_active_orders_mark_blocked_and_resumable():
+    # 멈춘 주문: 이동 단계면 이어서 가기, 팔 단계면 취소만 (fleet scenario_safety.recover 와 같음)
+    driving = dict(WAITING_LOAD, state='ESTOP', stage='MOVE_DROPOFF')
+    arm = dict(WAITING_LOAD, state='ESTOP', stage='LOAD')
+    waiting = dict(WAITING_LOAD, state='PAUSED', stage='MOVE_PICKUP', robot_id=None)
+    first, second, third = active_orders([driving, arm, waiting])
+    assert first['blocked'] and first['resumable']
+    assert second['blocked'] and not second['resumable']
+    assert not third['blocked']
 
 
 def test_health_reports_active_orders():

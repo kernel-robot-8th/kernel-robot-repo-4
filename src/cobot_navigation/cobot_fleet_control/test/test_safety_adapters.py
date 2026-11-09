@@ -63,3 +63,27 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
     assert status['command_id'] is None
     assert status['held_zone'] == 'A' and status['boot_id'] == 'boot1'
     assert status['arrived_zone'] is None
+
+
+def test_command_path_check_blocks_duplicate_senders_but_not_watchers():
+    """들여다보는(echo) 구독자는 막지 않고, 보내는 쪽이 둘이면 막는다 (2026-11-09)."""
+    path = ROOT / 'cobot_fleet_control/cobot_fleet_control/fleet_control_node.py'
+    namespace = {}
+    exec(definitions(path, set(), ('FleetControlNode', 'ready')), namespace)
+    ready = namespace['ready']
+
+    def node(robot_subs=1, cmd_pubs=1, request_subs=1, tasks_pubs=1):
+        counts = {'/pinky1/patrol_cmd': cmd_pubs, 'tasks': tasks_pubs}
+        return SimpleNamespace(
+            publishers_by_robot={'pinky1': SimpleNamespace(
+                get_subscription_count=lambda: robot_subs)},
+            config={'request_topic': 'requests', 'tasks_topic': 'tasks'},
+            count_publishers=lambda topic: counts[topic],
+            count_subscribers=lambda topic: request_subs)
+
+    assert ready(node(), 'pinky1')
+    assert ready(node(robot_subs=2), 'pinky1')          # ros2 topic echo 가 붙어도 보낸다
+    assert not ready(node(robot_subs=0), 'pinky1')      # 로봇(브릿지) 연결이 없으면 안 보낸다
+    assert not ready(node(cmd_pubs=2), 'pinky1')        # 명령을 보내는 쪽이 둘
+    assert not ready(node(request_subs=2), 'pinky1')    # 요청을 받는 관제가 둘
+    assert not ready(node(tasks_pubs=2), 'pinky1')

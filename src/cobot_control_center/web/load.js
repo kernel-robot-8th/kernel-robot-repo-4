@@ -7,6 +7,12 @@
 // '상차 확인 대기'가 되고, 누르면 이 띠가 뜬다. 현장 확인 체크·운영자·메모를 받아
 // POST /api/orders/{id}/confirm_loaded 로 보낸다. 검사(상차장 도착·정지·통신·구역·예약)는 fleet 이 하고,
 // 통과하면 상차 구역 이탈부터 재개한다. savedOperator·saveOperator 는 release.js 의 것을 쓴다.
+//
+// 멈춘 주문 복구도 여기 둔다 (주문 화면 기능 모음). 빨간 줄을 누르면 확인 창으로
+// [이어서 가기](이동 단계만) / [주문 취소] 를 고르고 POST /api/orders/{id}/recover 로 보낸다.
+// 보통 방식대로 확인 창 한 번 (2026-11-09 임시 일반형). 화면은 확인 뒤 fleet 이 요구하는 확인 4가지를
+// 함께 보낸다. TODO(시나리오): 멈춘 단계별 확인 항목, 취소 뒤 홈 복귀, 하차 완료 표시
+//   (draft/safety_locks_review.md 8절).
 
 "use strict";
 
@@ -89,4 +95,53 @@ function setupLoad() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && view.loading) closeLoad();
   });
+}
+
+// ---------- 멈춘 주문 복구 ----------
+
+// fleet 의 주문 복구(scenario_safety.recover)가 요구하는 확인 항목. 화면은 확인 창 한 번 뒤 함께 보낸다 (임시).
+const ORDER_EVIDENCE = { base_stopped: true, arms_safe: true, cargo_reconciled: true,
+  resources_clear: true };
+
+// 이 로봇의 멈춘 주문 (없으면 null). 화면 표시용이고 최종 판단은 fleet 이 한다.
+function orderBlocked(robotId) {
+  return view.orders.find((order) => order.robot_id === robotId && order.blocked) || null;
+}
+
+// 카드 상태 줄 글.
+function orderBlockedText(order) {
+  const why = HOLD_TEXT[order.state] || (order.state === "UNKNOWN" ? "결과 모름" : order.state);
+  return `주문 ${order.order_id} 멈춤 (${why}) · 눌러서 ${order.resumable ? "이어서 가기/취소" : "취소"}`;
+}
+
+async function sendOrderRecover(order, decision) {
+  const result = await postJson(`/api/orders/${encodeURIComponent(order.order_id)}/recover`,
+    { client_request_id: newRequestId(), decision, evidence: ORDER_EVIDENCE });
+  if (result.ok) {
+    view.orders = view.orders.filter((item) => item.order_id !== order.order_id || decision !== "fail");
+    delete view.holds[order.robot_id];
+    showMessage(order.robot_id, decision === "resume"
+      ? `주문 ${order.order_id} 이어서 감` : `주문 ${order.order_id} 취소함 · 실은 상자는 꺼내고, 로봇은 제자리 (홈은 따로)`,
+    false);
+  } else {
+    showMessage(order.robot_id, `주문 복구 거절 (${result.status}): ${errorText(result)}`, true);
+  }
+}
+
+function recoverOrder(robotId) {
+  const order = orderBlocked(robotId);
+  if (!order) return;
+  cancelPick();
+  closeLoad();
+  if (order.resumable && confirm([`주문 ${order.order_id} (${order.sku}) 이어서 갈까요?`,
+    `${robotId} · ${order.stage}`,
+    "현장에서 로봇·상자·주변을 확인했나요?",
+    "취소를 누르면 주문 취소를 묻습니다."].join("\n"))) {
+    sendOrderRecover(order, "resume");
+    return;
+  }
+  if (confirm([`주문 ${order.order_id} (${order.sku}) 을 취소할까요?`, `${robotId} · ${order.stage}`,
+    "실은 상자는 사람이 꺼냅니다. 로봇은 제자리에 둡니다 (홈은 따로 보내기)."].join("\n"))) {
+    sendOrderRecover(order, "fail");
+  }
 }

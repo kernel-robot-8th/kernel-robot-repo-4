@@ -236,13 +236,27 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'type': 'estop', 'client_request_id': body.get('client_request_id')})
 
     @app.post('/api/robots/{robot_id}/release_control')
-    def release_control(robot_id: str, body: dict = Body(default={})):
-        # 정지 잠금·보류 복구. 현장 확인 증거 검사는 fleet_control 이 한다.
+    def release_control(robot_id: str, request: Request, body: dict = Body(default={})):
+        # 정지 잠금·보류 복구. 검사는 fleet_control 이 한다. 운영자·메모·확인 항목은 선택이고,
+        # 누가 눌렀는지는 접속 IP(source)로 남긴다 (화면 확인 창 한 번, 2026-11-09 임시 일반형).
         return call_controller({
             'type': 'release_control', 'robot_id': robot_id,
             'client_request_id': body.get('client_request_id'),
             'operator': body.get('operator'), 'note': body.get('note'),
-            'evidence': body.get('evidence')})
+            'evidence': body.get('evidence'),
+            'source': request.client.host if request.client else ''})
+
+    @app.post('/api/orders/{order_id}/recover')
+    def recover_order(order_id: str, request: Request, body: dict = Body(default={})):
+        # 멈춘 주문 복구: decision 'resume'(이어서 가기) 또는 'fail'(주문 취소).
+        # 화면은 확인 창 한 번 뒤 보낸다 (2026-11-09 임시 일반형). 운영자·메모는 선택이고,
+        # 이어서 가기 단계 제한·확인 항목 검사는 fleet_control(scenario_safety.recover)이 한다.
+        return call_controller({
+            'type': 'resolve', 'order_id': order_id, 'decision': body.get('decision'),
+            'client_request_id': body.get('client_request_id'),
+            'operator': body.get('operator'), 'note': body.get('note'),
+            'evidence': body.get('evidence'),
+            'source': request.client.host if request.client else ''})
 
     @app.post('/api/orders/{order_id}/confirm_loaded')
     def confirm_loaded(order_id: str, body: dict = Body(default={})):

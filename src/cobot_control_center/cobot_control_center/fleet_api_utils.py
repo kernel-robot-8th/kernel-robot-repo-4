@@ -367,6 +367,10 @@ ORDER_TERMINAL = {'COMPLETED', 'FAILED'}
 # fleet 의 검사(scenario_safety.confirm_loaded)와 같은 조건이다. 화면 표시용이고 최종 검사는 fleet 이 한다.
 LOAD_CONFIRM_STAGES = {'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER', 'PICK', 'LOAD',
                        'VERIFY_LOAD'}
+# 멈춘 주문(복구가 필요한) 상태와, 이어서 가기를 받는 이동 단계. fleet 의 scenario_contracts.BLOCKED·
+# scenario_safety.recover 와 같은 조건이다. 화면 표시용이고 최종 검사는 fleet 이 한다.
+ORDER_BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
+ORDER_RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER'}
 # 화면에 내는 주문 필드. 원장 사본(input 등)을 그대로 내지 않는다.
 ORDER_FIELDS = ('order_id', 'robot_id', 'state', 'stage', 'completed', 'sku', 'route', 'detail')
 
@@ -394,6 +398,8 @@ def active_orders(orders):
         item['load_confirmed'] = bool(order.get('operator_load_confirmation')
                                       or order.get('manual_load_pending'))
         item['load_confirmable'] = load_confirmable(order)
+        item['blocked'] = order.get('state') in ORDER_BLOCKED and bool(order.get('robot_id'))
+        item['resumable'] = item['blocked'] and order.get('stage') in ORDER_RESUME_STAGES
         result.append(item)
     return result
 

@@ -94,10 +94,12 @@ function renderCommands(card, robotId, robot) {
   const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
   const latched = latchText(robotId, robot, true);
   const loadOrder = loadWaiting(robotId);
+  const blockedOrder = loadOrder ? null : orderBlocked(robotId);
   // 잠금은 '작업 명령 켜기'보다 먼저 알린다 (보류된 로봇은 작업 명령이 켜져 있어도 복구해야 풀리므로 켜기만으로는 안 풀린다).
   const reason = view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
     : !view.controllerOnline ? "작업 노드 꺼짐"
     : !robot.online ? "연결 끊김"
+    : blockedOrder ? `주문 ${blockedOrder.order_id} 멈춤: 이어서 가기 또는 취소 필요`
     : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 ${releaseCovers(robotId) ? "복구" : "해제"}`
     : latched ? latched
     : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
@@ -127,14 +129,18 @@ function renderCommands(card, robotId, robot) {
   if (view.readOnly || !view.controllerOnline || !robot.online) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
+  } else if (loadOrder) {
+    // 상차 확인은 정지 잠금보다 먼저: fleet 이 확인을 받으면 잠금도 풀고 구역 이탈부터 재개한다.
+    text = loadText(loadOrder, true);
+    level = "bad";
+  } else if (blockedOrder) {
+    // 멈춘 주문은 결과 모름·잠금보다 먼저: 주문 복구가 보류·하위 작업까지 함께 정리한다.
+    text = orderBlockedText(blockedOrder);
+    level = "bad";
   } else if (unknown) {
     text = releaseCovers(robotId)
       ? `결과 모름: ${unknown.command} · 정지 잠금 · 눌러서 현장 확인 후 복구`
       : `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`;
-    level = "bad";
-  } else if (loadOrder) {
-    // 상차 확인은 정지 잠금보다 먼저: fleet 이 확인을 받으면 잠금도 풀고 구역 이탈부터 재개한다.
-    text = loadText(loadOrder, true);
     level = "bad";
   } else if (latched) {
     text = latched;

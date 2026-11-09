@@ -108,7 +108,9 @@ class FleetControlNode(Node):
 
     def ready(self, robot_id):
         """동일 요청을 두 실행기가 동시에 받거나 명령을 중복 발행하면 이동을 거절한다."""
-        return (self.publishers_by_robot[robot_id].get_subscription_count() == 1
+        # 받는 쪽은 로봇(브릿지) 연결이 있는지만 본다. ros2 topic echo 로 들여다보는 구독자가
+        # 붙어도 막지 않는다 (2026-11-09). 막을 것은 보내는 쪽 중복이다.
+        return (self.publishers_by_robot[robot_id].get_subscription_count() >= 1
                 and self.count_publishers(f'/{robot_id}/patrol_cmd') == 1
                 and self.count_subscribers(self.config['request_topic']) == 1
                 and self.count_publishers(self.config['tasks_topic']) == 1)

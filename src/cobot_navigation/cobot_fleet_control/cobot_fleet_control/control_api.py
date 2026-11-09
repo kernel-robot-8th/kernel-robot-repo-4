@@ -251,9 +251,11 @@ class ControlAPI:
             raise ApiError(409, '시나리오 예약이 있습니다: 주문의 안전·화물 확인 복구가 필요합니다')
         if request.get('result', 'FAILED') != 'FAILED':
             raise ValueError('현장 확인 해제는 FAILED만 지원합니다')
+        # 메모는 선택 (화면 확인 창 한 번, 2026-11-09). 없으면 기본 문구로 기록한다.
         note = request.get('note')
-        if not isinstance(note, str) or not note.strip():
-            raise ValueError('현장 정지 확인 내용을 note에 적으세요')
+        if note is not None and not isinstance(note, str):
+            raise ValueError('note는 문자열')
+        note = (note or '').strip() or '화면에서 현장 확인 후 해제'
         status = self.scenario.health.get(robot, {}).get('status', {})
         reasons = []
         if not self.scenario._fresh(robot):
@@ -268,7 +270,7 @@ class ControlAPI:
         if reasons:
             raise ApiError(409, '해제 불가: ' + '; '.join(reasons))
         self.gateway.release(robot)
-        repository.resolve_unknown(task_id, robot, 'control-center-ui', note.strip())
+        repository.resolve_unknown(task_id, robot, 'control-center-ui', note)
         self.scenario.store.clear_hold(robot)
         return self._task(repository.get(task_id))
 
@@ -281,18 +283,26 @@ class ControlAPI:
             raise ValueError('제어권이 보류된 등록 로봇 필요')
         if self._orders_for(robot):
             raise ApiError(409, '주문 resolve를 먼저 수행하세요')
+        # 주문 없는(그냥 주행하는) 로봇의 복구는 화면 확인 창 한 번이면 된다 (보통 방식, 2026-11-09).
+        # 운영자·메모·확인 항목은 선택: 주면 형식만 보고 기록, 없으면 기본값. 누가는 source(접속 IP).
+        # 팔·화물 확인은 주문이 걸린 로봇만 해당하고, 그 로봇은 위에서 주문 복구로 보낸다.
+        # TODO(시나리오): 신발매장 시나리오가 정해지면 멈춘 단계별 확인 항목과 주문 복구 띠를 붙인다
+        #   (draft/safety_locks_review.md 8절).
         evidence = request.get('evidence')
-        if not isinstance(evidence, dict) or any(evidence.get(k) is not True for k in (
-                'base_stopped', 'arms_safe', 'cargo_reconciled', 'resources_clear')):
-            raise ValueError('정지·팔·화물·구역 증거 필요')
-        identifier(request.get('operator'), 'operator')
-        if not isinstance(request.get('note'), str) or not request['note'].strip():
-            raise ValueError('제어권 반환 확인 근거 note 필요')
-        scenario.store.event(dict(type='release_control', request=request))
+        if evidence is not None and not isinstance(evidence, dict):
+            raise ValueError('evidence는 객체')
+        operator = request.get('operator') or 'control-center'
+        identifier(operator, 'operator')
+        note = request.get('note')
+        if note is not None and not isinstance(note, str):
+            raise ValueError('note는 문자열')
+        note = (note or '').strip() or '화면에서 현장 확인 후 복구'
+        scenario.store.event(dict(type='release_control', request=dict(
+            request, operator=operator, note=note, source=request.get('source', ''))))
         self.gateway.release(robot)
         for row in list(self.fleet.repository.db.execute(
                 "SELECT command_id FROM commands WHERE robot_id=? AND state='UNKNOWN'", (robot,))):
-            self.fleet.repository.transition(row[0], 'FAILED', request['note'])
+            self.fleet.repository.transition(row[0], 'FAILED', note)
         scenario.store.clear_hold(robot)
         return dict(robot_id=robot, released=True)
 

@@ -91,51 +91,30 @@ function renderTasks() {
     const resolve = el.querySelector(".resolve-btn");
     resolve.hidden = task.state !== "UNKNOWN";
     // 보류 중인 로봇은 복구 하나로 결과 모름까지 푼다 (release.js releaseCovers)
-    const viaRelease = releaseCovers(task.robot_id);
-    resolve.textContent = viaRelease ? "현장 확인 후 복구" : "현장 확인 후 해제";
-    resolve.addEventListener("click", () => (viaRelease
-      ? openRelease(task.robot_id) : openResolve(task)));
+    // 멈춘 주문이 걸린 로봇은 주문 복구 하나로 하위 작업까지 정리한다 (load.js recoverOrder)
+    const viaOrder = Boolean(orderBlocked(task.robot_id));
+    const viaRelease = !viaOrder && releaseCovers(task.robot_id);
+    resolve.textContent = viaOrder ? "주문 복구" : viaRelease ? "현장 확인 후 복구" : "현장 확인 후 해제";
+    resolve.addEventListener("click", () => (viaOrder ? recoverOrder(task.robot_id)
+      : viaRelease ? openRelease(task.robot_id) : openResolve(task)));
     return el;
   }));
 }
 
 // ---------- 결과 모름 해제 ----------
-// 작업 목록의 해제 버튼이나 카드의 빨간 '결과 모름' 줄을 누르면 그 로봇 카드 위에 확인 막대를 띄운다.
-// 현장 확인 내용을 적어 해제하면 실패로 기록된다 (기록은 지우지 않는다).
+// 작업 목록의 해제 버튼이나 카드의 빨간 '결과 모름' 줄을 누르면 확인 창이 한 번 뜬다
+// (보통 방식, 2026-11-09 임시 일반형. 메모 입력 없음). 해제하면 실패로 기록된다 (기록은 지우지 않는다).
 
-const RESOLVE_NOTE = "현장에서 정지 확인";
-
-function openResolve(task) {
-  const host = barHost(task.robot_id);
-  if (!host) return;
-  cancelPick();
-  closeRelease();
-  closeLoad();
-  view.resolving = task;
-  $("resolve-title").textContent = `${task.robot_id} · 결과 모름 해제`;
-  $("resolve-what").textContent = task.command;
-  $("resolve-what").title = `${task.command} (${task.task_id})`;
-  $("resolve-note").value = RESOLVE_NOTE;
-  host.appendChild($("resolve-bar"));
-  $("resolve-bar").hidden = false;
-  if (view.detailRobot !== task.robot_id) focusCard(task.robot_id);
-  $("resolve-note").select();
-}
-
-function closeResolve() {
-  view.resolving = null;
-  $("resolve-bar").hidden = true;
-}
-
-async function resolveTask() {
-  const task = view.resolving;
+async function openResolve(task) {
   if (!task) return;
-  const note = $("resolve-note").value.trim() || RESOLVE_NOTE;
-  $("resolve-ok").disabled = true;
+  cancelPick();
+  closeLoad();
+  if (!confirm([`${task.robot_id} 의 ${task.command} 결과를 모릅니다.`,
+    "현장에서 로봇이 멈춰 있나요? 확인하면 실패로 기록하고 다시 명령을 보낼 수 있습니다."].join("\n"))) {
+    return;
+  }
   const result = await postJson(`/api/tasks/${encodeURIComponent(task.task_id)}/resolve`,
-    { client_request_id: newRequestId(), result: "FAILED", note });
-  $("resolve-ok").disabled = false;
-  closeResolve();
+    { client_request_id: newRequestId(), result: "FAILED" });
   if (result.ok) {
     upsertTask(result.data);
     renderTasks();
@@ -145,13 +124,9 @@ async function resolveTask() {
   }
 }
 
-function setupResolve() {
-  $("resolve-ok").addEventListener("click", resolveTask);
-  $("resolve-cancel").addEventListener("click", closeResolve);
-  $("resolve-note").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") resolveTask();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && view.resolving) closeResolve();
-  });
+// 예전 해제 띠 자리. 다른 기능이 부르므로 남겨 둔다.
+function closeResolve() {
+  view.resolving = null;
 }
+
+function setupResolve() {}
