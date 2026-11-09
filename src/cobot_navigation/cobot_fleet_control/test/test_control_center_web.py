@@ -125,7 +125,30 @@ def test_auto_dispatch_does_not_pick_a_stopped_robot(env):
         env.scenario.telemetry(robot, dict(
             state='STOPPED', busy=False, held_zone=None, central_controlled=True))
     assert not any(env.scenario._available(robot) for robot in env.fleet.robots)
-    assert all(env.scenario._available(robot, allow_stopped=True) for robot in env.fleet.robots)
+    assert all(env.scenario._available(robot, manual=True) for robot in env.fleet.robots)
+
+
+@pytest.mark.parametrize('status, operation, points', [
+    # 이동을 끝내고 유휴 복귀를 기다리는 중 (로봇이 새 명령을 받으며 복귀 예약을 지움)
+    (dict(state='IDLE_WAIT', held_zone=None), 'goto', ['P2']),
+    # 구역 A 에 머무는 중: 로봇이 A 를 먼저 나가고 간다
+    (dict(state='HOLDING_ZONE', held_zone='A'), 'goto', ['P1']),
+    (dict(state='IDLE_WAIT', held_zone='A'), 'zone', ['ZB']),
+])
+def test_manual_command_while_resting_or_holding_zone(env, status, operation, points):
+    env.scenario.telemetry('pinky1', dict(status, busy=False, central_controlled=True))
+    assert env.api.handle(create(operation=operation, points=points))['status'] == 202
+    # 자동 주문 배정은 그런 로봇을 잡지 않는다
+    assert not env.scenario._available('pinky1')
+
+
+@pytest.mark.parametrize('changes', [
+    dict(busy=True), dict(central_latched=True), dict(state='MOVING'),
+])
+def test_manual_command_still_refused_when_busy_or_latched(env, changes):
+    status = dict(state='IDLE_WAIT', held_zone=None, busy=False, central_controlled=True)
+    env.scenario.telemetry('pinky1', dict(status, **changes))
+    assert env.api.handle(create())['status'] == 409
 
 
 def test_legacy_resolve_cannot_unlock_scenario_cargo_reservations(env):

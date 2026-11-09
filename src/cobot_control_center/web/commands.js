@@ -103,11 +103,11 @@ function renderCommands(card, robotId, robot) {
     : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
     : active ? `작업 중 ${active.task_id}`
     : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
-  // 구역·나가기는 보유 구역에 맞춰 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
+  // 나가기는 보유 구역이 있을 때만 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
+  // 구역을 잡고 있어도 이동·구역 명령은 켠다: 로봇이 먼저 구역을 나간다 (2026-11-09).
   const held = heldZones(robotId);
   const holding = Boolean(held && held.length);
   const only = {
-    zone: holding ? `${held.join(", ")} 보유 중: 먼저 나가기` : "",
     leave: held && !holding ? "보유 구역 없음" : "",
   };
   card.querySelectorAll(".cmd-row button").forEach((button) => {

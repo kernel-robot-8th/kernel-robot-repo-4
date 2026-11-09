@@ -107,16 +107,17 @@ class ScenarioService:
         return all(self.clock() - health.get(key, -math.inf) <= limit
                    for key, limit in limits.items())
 
-    def _available(self, robot, allow_holding=False, allow_stopped=False):
+    def _available(self, robot, manual=False):
+        """이 로봇에 새 일을 줘도 되는지. manual=True 는 운영자가 화면에서 보내는 수동 명령."""
         health = self.health.get(robot, {})
         status = health.get('status', {})
+        # 자동 주문 배정: 홈에서 완전히 쉬고 구역을 잡지 않은 로봇만 고른다.
         allowed = {'IDLE', 'DONE'}
-        if allow_holding:
-            allowed |= {'HOLDING_ZONE', 'IDLE_WAIT'}
-        if allow_stopped:
-            # 일반 정지는 잠그지 않으므로 STOPPED 로봇도 운영자의 다음 수동 명령은 받는다.
-            # 자동 주문 배정은 운영자가 멈춘 로봇을 다시 잡지 않도록 이 값을 넘기지 않는다.
-            allowed |= {'STOPPED'}
+        if manual:
+            # 수동 명령은 로봇이 작업 중(busy)만 아니면 받는다 (진호 님 순찰 노드 기준, 2026-11-09).
+            # 유휴 복귀 대기(IDLE_WAIT)는 로봇이 새 명령을 받으며 취소하고, 구역을 잡고 있으면
+            # 로봇이 먼저 구역을 나간다. 일반 정지(STOPPED)는 잠그지 않으므로 다음 명령을 받는다.
+            allowed |= {'HOLDING_ZONE', 'IDLE_WAIT', 'STOPPED'}
         reserved = any(o['robot_id'] == robot and o['state'] not in TERMINAL
                        for o in self.store.orders())
         return (robot not in self.store.holds()
@@ -125,7 +126,8 @@ class ScenarioService:
                 and status.get('state') in allowed
                 and status.get('central_controlled') is True
                 and status.get('central_latched') is not True
-                and (allow_holding or not status.get('held_zone')))
+                and (manual or not status.get('held_zone'))
+                and (not manual or status.get('busy') is not True))
 
     def _save(self, order, **changes):
         order.update(changes, updated_at=time.time())

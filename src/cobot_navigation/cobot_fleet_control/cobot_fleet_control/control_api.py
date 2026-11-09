@@ -166,8 +166,7 @@ class ControlAPI:
             raise ApiError(409, '진행 중이거나 결과를 모르는 작업: 정지·복구 확인 필요')
         if not scenario._fresh(robot):
             raise ApiError(503, '로봇 상태 또는 배터리 수신이 오래됐습니다')
-        if not scenario._available(robot, allow_holding=command.operation in {'home', 'leave'},
-                                   allow_stopped=True):
+        if not scenario._available(robot, manual=True):
             raise ApiError(409, '로봇 이동·배터리·중앙 제어 모드·정지 래치를 확인하세요')
         if self.point_rules is not None:
             self.point_rules.validate(robot, command.operation, command.points)
