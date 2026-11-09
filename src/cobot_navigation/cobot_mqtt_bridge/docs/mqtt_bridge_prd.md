@@ -358,6 +358,24 @@ plan 먼저(새 폴더 launch/, config/ 생성 승인 포함).
 
 이번에 확인하지 못한 것: 시스템 브로커 재시작(sudo 필요), AMCL 이 켜진 상태, 와이파이 자체가 끊기는 경우(터널을 닫은 것과 다를 수 있다).
 
+#### F-1 결과: 그림자 병행 비교 (2026-11-09)
+방법: PC 쪽 관제 노드를 **도메인 100 루프백 전용**(`CYCLONEDDS_URI` 에 `lo` 만 허용)으로 띄워 다른 팀 도메인 100 에 보이지 않게 했다. 그래서 `mqtt_test/` 같은 이름 변경 없이 원래 이름(`/pinky1/...`)을 그대로 썼다. `confirm_real_domain:=100` 으로 안전장치 확인은 통과시켰다. 다른 팀 DDS 브릿지는 끄지 않았다. 5분, pinky1 은 bringup 만 켠 상태(구독 전용).
+
+| 항목 | 결과 |
+|---|---|
+| 격리 확인(발행 전) | 루프백 프로브 노드는 네트워크 쪽 도메인 100 노드 목록에 **안 보였고**, 루프백 쪽에서는 프로브만 보였다 |
+| 시험 중 격리 | 네트워크 쪽 `/pinky1/battery/percent` 의 발행자는 `relay_patch_d100` 1개뿐(우리 노드 없음). 종료 뒤 도메인 100 노드 목록에 우리 흔적 0 |
+| `/pinky1/battery/percent` | 타입 `std_msgs/msg/Float32` 같음(해시도 같음), QoS RELIABLE·VOLATILE 같음, 5분 동안 **DDS 56건 = MQTT 56건**, 값 100.0 동일 |
+| `/pinky1/patrol_status` | 타입 `std_msgs/msg/String`·QoS 같음. 순찰이 없어 두 쪽 모두 0건 |
+| odom / scan / tf / battery voltage | 도메인 100 에 비교 대상이 **없음**(현재 pinky1 은 정식 DDS 브릿지가 아니라 `relay_patch_d100` 이 일부만 올림). MQTT 쪽 주기: odom 29.7 Hz, scan 10.0 Hz, tf 22.9 Hz(상한 30 Hz), voltage 0.2 Hz. 타입·QoS 는 YAML 대로(RELIABLE·VOLATILE) |
+| 로봇 쪽 | 종료 코드 0, 오류 0, 중계 수 = 수신 수. 로봇은 움직이지 않았고 도메인 10 에는 발행하지 않았다 |
+
+**F-2 협의 안건 (이번에 알게 된 것)**
+1. 도메인 100 의 pinky1 은 `relay_patch_d100` 이 `battery/percent`, `amcl_pose`, `patrol_status`, `fleet_heartbeat` 만 올린다. pinky2 는 정식 브릿지(`pinky_bridge_pinky2_only_100`)가 전체를 올린다. `/pinky1/odom`·`scan`·`tf`·`battery/voltage` 는 지금 도메인 100 에 없다.
+2. 현재 시스템은 브릿지 YAML 밖의 토픽도 쓴다: `/pinky1/fleet_heartbeat`(`fleet_control` 이 발행하고 `relay_patch_d100` 이 받음), `/pinky1/camera/image_raw/compressed`. MQTT 브릿지가 이를 대체하려면 YAML 추가 또는 별도 설정 방식을 팀과 정해야 한다.
+3. 시험 중 관제 쪽 구독자(`fleet_control`, `fleet_status_node`)의 QoS 는 `RELIABLE` 과 `BEST_EFFORT` 가 섞여 있다. MQTT 쪽 발행은 RELIABLE 이라 둘 다 받을 수 있다.
+4. F-2~F-4 는 DDS 브릿지를 끌 수 있을 때까지 보류.
+
 ---
 
 ### G단계: 자동 시작 · 문서 · 결정
