@@ -3,7 +3,7 @@
 도메인 브릿지(`cobot_domain_bridge`, DDS)와 **같은 기능을 MQTT로 제공**하는 패키지입니다. 도메인 브릿지는 그대로 유지하고, 상황에 맞게 하나를 골라 씁니다(한 도메인에서 동시에 켜지 않음). `cobot_navigation` 노드는 코드 수정 없이 같은 토픽 이름으로 호환됩니다.
 브릿지 YAML(`pinky_bridge_pinkyN.yaml`)을 읽어, 로봇 한 대의 토픽을 프로세스 1개로 중계합니다.
 
-> 상태: **E단계(3대 동시, 가짜 모드) 완료**, D단계(실물 없이 가능한 부분) 완료, C단계 PC 쪽(launch)·B단계 완료(가짜 모드) — 로봇→관제(up)와 관제→로봇(down) 모두 구현. down은 `enable_down:=true`로 켭니다(기본 꺼짐). 실물 pinky1·실제 도메인 시험은 아직 안 했습니다.
+> 상태: **G-2(서비스 초안) 완료, 설치(G-3)는 대기** / E단계(3대 동시, 가짜 모드) 완료, D단계(실물 없이 가능한 부분) 완료, C단계 PC 쪽(launch)·B단계 완료(가짜 모드) — 로봇→관제(up)와 관제→로봇(down) 모두 구현. down은 `enable_down:=true`로 켭니다(기본 꺼짐). 실물 pinky1·실제 도메인 시험은 아직 안 했습니다.
 > 전체 계획·단계별 시험 절차·Claude Code 프롬프트는 [`docs/mqtt_bridge_prd.md`](docs/mqtt_bridge_prd.md).
 
 ## 동작 방식
@@ -88,3 +88,17 @@ cobot_mqtt_bridge/
 └── test/
 ```
 검증용 원본 스크립트는 `scripts/spikes/mqtt/`에 있습니다.
+
+## 자동 시작 (systemd) — 초안, 아직 설치 전
+
+재부팅 뒤 사람 손 없이 중계가 다시 살아나게 하는 서비스 파일 2개가 `config/`에 있습니다. **설치는 `sudo`가 필요해서 사용자가 직접** 합니다.
+
+| 파일 | 설치 위치 | 하는 일 |
+|---|---|---|
+| `mqtt_bridge_tunnel.service` | PC | `ssh -N -R 127.0.0.1:1883:127.0.0.1:1883 pinky@…` 터널을 유지. `autossh` 없이 systemd `Restart=always`로 끊김 복구 |
+| `mqtt_bridge_robot.service` | pinky1 | 로봇 쪽 중계 노드(도메인 10, **구독 전용**). 터널이 아직 없으면 종료 코드 2로 끝나고 30초 뒤 다시 시도 |
+
+- 로봇 서비스에는 `enable_down`, `confirm_real_domain`을 넣지 않았습니다. 명령 방향은 서비스로 켜지 않습니다.
+- 로봇 쪽 코드는 `/home/pinky/mqtt_bridge/`에 복사해 두고 실행합니다(빌드 없이 `PYTHONPATH`).
+- 중계 노드는 켜져 있는 동안 pinky1 CPU를 코어 1개의 약 18% 씁니다(F-0 측정). MQTT 방식을 쓰기로 한 때에만 `enable` 하고, DDS 브릿지를 쓰는 때에는 `disable` 하는 것을 권장합니다.
+- 설치와 되돌리기 명령은 G-3 plan 승인 뒤 이 절에 확정해서 적습니다.

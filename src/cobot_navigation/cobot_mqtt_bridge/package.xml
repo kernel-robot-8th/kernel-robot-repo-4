@@ -3,7 +3,7 @@
 <package format="3">
   <name>cobot_mqtt_bridge</name>
   <version>0.0.1</version>
-  <description>DDS cobot_domain_bridge 를 MQTT 로 대체하는 도메인 간 토픽 중계 (YAML 기반, 로봇당 1프로세스)</description>
+  <description>cobot_domain_bridge 와 병행해서 쓰는 MQTT 도메인 간 토픽 중계 (YAML 기반, 로봇당 1프로세스)</description>
   <maintainer email="cdwlsgh1@gmail.com">김진호</maintainer>
   <license>Apache-2.0</license>
 

@@ -1,0 +1,19 @@
+# PC 에 설치하는 SSH 역방향 터널 서비스 (pinky1 의 127.0.0.1:1883 이 PC 의 브로커로 이어진다).
+# autossh 를 쓰지 않고 systemd 의 Restart 로 끊김을 복구한다 (새 의존성 없음).
+# 설치(사용자가 sudo 로): README 의 "자동 시작" 절 참고.
+# [TODO] pinky1 주소(192.168.45.21)가 바뀌면 아래 두 곳(ExecStart)을 고친다.
+[Unit]
+Description=MQTT bridge SSH reverse tunnel (PC to pinky1)
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+User=jinho
+# ExitOnForwardFailure: 포트를 못 열면 바로 종료해서 Restart 가 다시 시도하게 한다.
+# ServerAlive*: 와이파이가 조용히 끊긴 경우 약 30초 안에 알아채고 종료한다.
+ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -R 127.0.0.1:1883:127.0.0.1:1883 pinky@192.168.45.21
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

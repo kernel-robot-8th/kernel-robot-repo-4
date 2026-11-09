@@ -1,7 +1,7 @@
 # mqtt_bridge_prd — MQTT 브릿지 PRD
 
 담당: 주행 (`cobot_navigation`)
-작성일: 2026-11-07 / 상태: A·B·C(PC 쪽)·**D(실물 없이 가능한 부분)·E(가짜 모드) 완료**, F단계 대기. 실물 pinky1 시험(A, C 로봇 쪽, D 터널 끊김)은 모두 보류
+작성일: 2026-11-07 / 상태: A·B·C(PC 쪽)·**D(실물 없이 가능한 부분)·E(가짜 모드)·F-0/F-0b/F-1·G-2 완료**, F-2~F-4 보류, G-3(설치) 대기. 실물 pinky1 시험(A, C 로봇 쪽, D 터널 끊김)은 모두 보류
 
 ## 1. 목적
 - 관제 PC와 로봇 사이의 통신 방식으로 DDS `cobot_domain_bridge` 말고 **MQTT 브릿지(launch 한 개)도 쓸 수 있게** 한다. 기능은 도메인 브릿지와 같아야 한다.
@@ -399,6 +399,18 @@ plan 먼저(새 폴더 launch/, config/ 생성 승인 포함).
 - 패키지화 제안서(구조, setup.py/package.xml 등록 목록, CLAUDE.md 구조도 갱신안)를 문서로 만들어 보여줘. 실제 패키지 생성은 승인 뒤에.
 - fms_decisions.md 는 수정하지 말고 결정 제안 문안만 docs 에 따로 작성해.
 ```
+
+#### G-2 결과: 서비스 초안 (2026-11-09)
+G-1(결정 제안서)은 사용자가 건너뛰기로 했다. 서비스 파일 2개를 `config/`에 작성했다(새 폴더 없음, `setup.py` `data_files` 에 `*.service` 등록). 터널은 **autossh 없이** systemd `Restart=always` + `ExitOnForwardFailure`/`ServerAlive*` 로 복구한다(새 의존성 없음).
+
+| 항목 | 결과 |
+|---|---|
+| `systemd-analyze verify` | 터널·로봇 서비스 PC 에서 통과, 로봇 서비스 pinky1 에서도 통과 (시스템에 설치하지 않음) |
+| 시험 | `test_service_files.py` 3개 추가(로봇 서비스에 `enable_down`·`confirm_real_domain` 없음, 재시작 정책, 터널에 autossh 없음). 전체 53개 통과, 린트 포함 |
+| 문서 정리 | `package.xml`·`setup.py` 설명의 "대체" 표현을 "병행"으로 수정 |
+| SSH 키 | 서비스가 쓸 `~/.ssh/id_ed25519` 로 에이전트 없이 pinky1 접속 가능함을 확인 |
+
+미설치 상태다. 설치(sudo)와 재부팅 시험은 G-3 에서 사용자와 함께 한다.
 
 ---
 

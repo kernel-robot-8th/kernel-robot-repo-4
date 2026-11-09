@@ -12,14 +12,14 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', glob('config/*.yaml')),
+        ('share/' + package_name + '/config', glob('config/*.yaml') + glob('config/*.service')),
         ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
     ],
     install_requires=['setuptools', 'pyyaml'],
     zip_safe=True,
     maintainer='김진호',
     maintainer_email='cdwlsgh1@gmail.com',
-    description='DDS cobot_domain_bridge 를 MQTT 로 대체하는 토픽 중계',
+    description='cobot_domain_bridge 와 병행해서 쓰는 MQTT 토픽 중계',
     license='Apache-2.0',
     extras_require={
         'test': [
