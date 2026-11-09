@@ -2,10 +2,10 @@
 
 관제 PC에서 로봇 3대(pinky1~3)의 상태를 모아 웹 화면으로 보여 주고, 화면에서 순찰 명령(이동·구역·나가기·홈·정지)을 보내는 관제 패키지입니다.
 
-- 로봇 명령 토픽(`/pinkyN/patrol_cmd`, v2 `/pinkyN/patrol_command`)에 발행하는 것은 **`task_manager_node` 하나**입니다.
-- **`task_manager_node` 는 bringup 이 함께 띄우지만 작업 명령이 꺼진 채로 시작합니다.** 화면 상단 **작업 명령 켜기**를 눌러야 이동·구역·나가기·홈이 나갑니다. 정지·비상정지는 꺼져 있어도 됩니다 ([명령 켜기](#명령-켜기)).
+- 로봇 명령 토픽(`/pinkyN/patrol_cmd`)에 발행하는 것은 **작업 노드 하나**입니다. 기본은 `cobot_fleet_control` 의 **`fleet_control_node`** 이고, 이 패키지의 `task_manager_node` 는 예전 방식(`controller:=task_manager`, 다음에 제거 예정)입니다 ([작업 노드 두 가지](#작업-노드-두-가지-task_manager--fleet_control)).
+- **작업 노드는 bringup 이 함께 띄우지만 작업 명령이 꺼진 채로 시작합니다.** 화면 상단 **작업 명령 켜기**를 눌러야 이동·구역·나가기·홈이 나갑니다. 정지·비상정지는 꺼져 있어도 됩니다 ([명령 켜기](#명령-켜기)).
 - `/pinkyN/cmd_vel`·`goal_pose`·`initialpose` 는 쓰지 않습니다.
-- **`task_manager_node` 의 v1 명령은 로봇이 `central_controlled: false` 일 때만 받습니다.** 순찰 설정 `common.yaml` 의 기본값은 `true`(`cobot_fleet_control` 전용)입니다. 시뮬은 `false` 로 띄우고, 가짜 핑키는 이 검사가 없습니다. 실물은 `true` 면 명령이 거절됩니다.
+- **로봇 순찰 노드의 `central_controlled` 에 맞는 작업 노드를 씁니다.** 순찰 설정 `common.yaml` 의 기본값은 `true` 이고, 이때는 `fleet_control_node` 의 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번이 맞는 명령만 받습니다. 가짜 핑키·가제보도 기본이 fleet(`true`)입니다. `task_manager_node` 의 v1 명령은 `central_controlled: false` 일 때만 통합니다.
 
 담당: 김지혜 (로봇 수행 관제)
 환경: Ubuntu 24.04 / ROS 2 Jazzy / Python 3.12
@@ -28,22 +28,26 @@
                                         fleet_api_node (FastAPI) ── HTTP·WebSocket ──▶ 브라우저 (web/)
                                                  │ ▲ /control_center/task_request · task_events · tasks (JSON)
                                                  ▼ │
-                                        task_manager_node ── /pinkyN/patrol_cmd (v1) · patrol_command (v2) ──▶ 로봇
-                                          (검증·SQLite 기록)  ◀── patrol_status (v1) · patrol_state·_ack (v2) ──┘
+                                        fleet_control_node ── /pinkyN/patrol_cmd (세션 봉투) · fleet_heartbeat ──▶ 로봇
+                                          (검증·BT·SQLite 원장) ◀── patrol_status ──────────────────────────┘
 ```
+
+작업 노드는 하나만 뜹니다. 위 그림은 기본(`fleet_control_node`, `cobot_fleet_control`) 입니다. 예전 `task_manager_node` 는 같은 자리에서 `/pinkyN/patrol_cmd` (v1) · `patrol_command` (v2) 로 보냅니다.
 
 | 노드 | 파일 | 하는 일 |
 |---|---|---|
 | `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 8초 끊기면 offline (`stale_timeout_sec`) |
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 토픽 값을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
-| `task_manager_node` | `task_manager_node.py`, `task_manager_utils.py` | 명령 요청을 검증·기록(SQLite)한 뒤 로봇에 보내고, 로봇 상태로 작업 결과를 추적 |
+| `task_manager_node` | `task_manager_node.py`, `task_manager_utils.py` | 예전 작업 노드 (`controller:=task_manager`, 다음에 제거 예정). 명령 요청을 검증·기록(SQLite)한 뒤 로봇에 보내고, 로봇 상태로 작업 결과를 추적 |
+
+기본 작업 노드 `fleet_control_node` 는 이 패키지가 아니라 `src/cobot_navigation/cobot_fleet_control/` 에 있습니다 ([README](../cobot_navigation/cobot_fleet_control/README.md)).
 
 `map_contract.py`(`map_hash`, `map_lint`)는 맵 계약 도구로, 이 문서 범위 밖입니다.
 
 ## 데이터 흐름
 
 웹 서버(`fleet_api_node`)는 **토픽으로 받은 값을 메모리에 두고 GET·WebSocket 으로 보여 주기만** 합니다. DB 를 읽지 않습니다.
-SQLite 를 쓰는 것은 명령을 맡은 `task_manager_node` 하나입니다.
+SQLite 를 쓰는 것은 명령을 맡은 작업 노드(기본 `fleet_control_node`) 하나입니다.
 
 **상태** (읽기)
 
@@ -60,7 +64,7 @@ SQLite 를 쓰는 것은 명령을 맡은 `task_manager_node` 하나입니다.
 ```
 브라우저 POST /api/tasks ─▶ fleet_api_node ─▶ /control_center/task_request
                                                    ▼
-                   task_manager_node: 검사 → SQLite 기록 → /pinkyN/patrol_cmd ─▶ 로봇
+                   fleet_control_node: 검사 → SQLite 기록 → /pinkyN/patrol_cmd ─▶ 로봇
                                                    ▼
                    /control_center/tasks (전체 목록, transient_local) · task_events (바뀐 작업)
                                                    ▼ 구독
@@ -97,7 +101,8 @@ python -m colcon test --packages-select cobot_control_center cobot_bringup
 python -m colcon test-result --verbose
 ```
 
-`--packages-up-to cobot_bringup` 은 브릿지·zone_manager·이 패키지와, `task_manager_node` 가 쓰는 v2 메시지 `cobot_patrol_interfaces` 까지 함께 빌드합니다.
+`--packages-up-to cobot_bringup` 은 브릿지·zone_manager·이 패키지, 기본 작업 노드 `cobot_fleet_control`, 그리고 `task_manager_node` 가 쓰는 v2 메시지 `cobot_patrol_interfaces` 까지 함께 빌드합니다.
+`cobot_fleet_control` 은 `py_trees` 를 쓰므로 `.venv` 에 `py_trees==2.2.3` 이 있어야 합니다.
 
 ## 실행
 
@@ -131,10 +136,12 @@ SSH 터미널에서 띄우면 접속이 끊길 때 같이 꺼질 수 있으므�
 
 ## 화면 보기
 
-백엔드는 기본으로 **관제 PC 안(`127.0.0.1:8080`)에서만** 열립니다 (로그인 기능이 아직 없음).
+**bringup 은 기본으로 내부망에 공개(`host=0.0.0.0`, 포트 8080)합니다.** 로그인 기능이 아직 없어서 같은 내부망의 누구나 화면을 열고 명령을 보낼 수 있습니다. 방화벽을 쓰고 있다면 8080 도 열어야 합니다.
+`fleet_api.launch.xml` 을 따로 띄우면 기본이 `127.0.0.1`(이 PC 에서만)입니다.
 
 - 관제 PC 에서: 브라우저로 `http://localhost:8080/`
-- 다른 PC(노트북)에서: SSH 터널을 연 채로 그 PC 브라우저에서 `http://localhost:8080/`
+- 내부망 다른 PC 에서: `http://<관제 PC 주소>:8080/`
+- 이 PC 에서만 열려면 `ros2 launch cobot_bringup bringup.launch.xml host:=127.0.0.1` 로 띄웁니다. 이때 다른 PC 에서는 SSH 터널을 연 채로 그 PC 브라우저에서 `http://localhost:8080/` 을 엽니다.
 
   ```bash
   ssh -N -L 8080:127.0.0.1:8080 <사용자>@<관제 PC 주소>
@@ -173,14 +180,15 @@ pstree -s -p -a <PID> | cut -c1-150            # 누가 띄웠는지 (terminator
 
 ## 명령 켜기
 
-**로봇 없이 (권장, 먼저 이것으로)**: 가짜 핑키 launch 가 `task_manager_node` 까지 함께 띄우고, **작업 명령이 켜진 채로 시작**합니다(`start_armed:=false` 면 꺼짐). 기록은 `~/.ros/cobot_control_center/tasks_mock.db`.
+**로봇 없이 (권장, 먼저 이것으로)**: 가짜 핑키 launch 가 작업 노드 `fleet_control_node` 까지 함께 띄우고, **작업 명령이 켜진 채로 시작**합니다(`start_armed:=false` 면 꺼짐). 개발용 수동 명령 칸도 켜져 있습니다(`allow_raw_cmd:=false` 면 꺼짐). 기록은 `~/.ros/cobot_control_center/fleet_mock.sqlite3`.
+예전 방식은 `controller:=task_manager` 이고, 기록은 `~/.ros/cobot_control_center/tasks_mock.db` 입니다.
 
 ```bash
 export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-ros2 launch cobot_mock mock_fleet.launch.xml auto_patrol:=false        # 화면 http://localhost:8081/
+ros2 launch cobot_mock mock_fleet.launch.xml        # 화면 http://localhost:8081/
 ```
 
-**실물 (도메인 100)**: [bringup](#실행) 이 작업 노드를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 기록은 `~/.ros/cobot_control_center/tasks.db` 이고, 누가(접속 IP) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다.
+**실물 (도메인 100)**: [bringup](#실행) 이 작업 노드 `fleet_control_node` 를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 정지를 누르면 작업 명령 전체가 꺼지므로 다시 켜야 합니다. 기록은 `~/.cobot/fleet_control.sqlite3` 이고, 누가(접속 IP, `source`) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다. 실물에서는 수동 명령 칸이 꺼져 있습니다(`allow_raw_cmd: false`).
 
 bringup 을 `controller:=none` 으로 띄웠다면 따로 켭니다:
 
@@ -290,6 +298,6 @@ curl http://127.0.0.1:8080/api/robots/pinky1
 
 - **새 의존성**: fastapi·uvicorn(·websockets·httpx)은 팀 허락을 PR 에서 받습니다. `.venv` 없이 빌드하면 `fleet_api_node` 와 그 시험이 실패합니다.
 - **`web/` 위치**: CLAUDE.md §3-7 은 웹 자원을 `cobot_gui/web/` 에만 두게 하지만, 관제 전용 화면이라 이 패키지에 두었습니다. 규칙 개정 합의가 필요합니다.
-- **명령 기능은 실물을 움직입니다**: `task_manager_node`(수동 명령 포함)는 2026-11-02 실물 pinky2 에서 명령 전달·정지·결과 모름 해제까지 확인했고, 이동을 끝까지 마치는 것은 아직 확인하지 못했습니다. 실물 시험은 매번 사용자·현장 확인 뒤, 한 대씩 합니다. `ack_timeout_sec`·`task_timeout_sec` 는 실물 응답 시간을 재 보고 정합니다.
-- **로그인 없음**: 명령을 보낼 수 있으므로 `host` 를 `127.0.0.1` 로 유지하고 SSH 터널로만 접속합니다. 여러 사람이 쓰게 되면 로그인·권한을 먼저 넣습니다.
+- **명령 기능은 실물을 움직입니다**: 예전 `task_manager_node`(수동 명령 포함)는 2026-11-02 실물 pinky2 에서 명령 전달·정지·결과 모름 해제까지 확인했고, 이동을 끝까지 마치는 것은 아직 확인하지 못했습니다. 기본 작업 노드 `fleet_control_node` 를 이 관제 화면과 함께 실물에서 돌린 기록은 이 README 에 아직 없습니다 (fleet 쪽 기록은 [`cobot_fleet_control/README.md`](../cobot_navigation/cobot_fleet_control/README.md)). 실물 시험은 매번 사용자·현장 확인 뒤, 한 대씩 합니다. `ack_timeout_sec`·`task_timeout_sec` 는 실물 응답 시간을 재 보고 정합니다.
+- **로그인 없음**: bringup 기본(`host=0.0.0.0`)은 내부망의 누구나 명령을 보낼 수 있습니다. 믿을 수 없는 망이면 `host:=127.0.0.1` 로 띄우고 SSH 터널로만 접속합니다. 여러 사람이 쓰게 되면 로그인·권한을 먼저 넣습니다.
 - **`cobot_patrol_interfaces` 의존**: `task_manager_node` 가 v2 메시지를 쓰므로 함께 빌드해야 합니다 ([빌드·시험](#빌드시험)).
