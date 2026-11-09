@@ -68,7 +68,7 @@ class MockPinkyNode(Node):
             'drain_moving_per_min': 1.0, 'drain_idle_per_min': 0.2, 'charge_per_min': 5.0,
             'dropout_robot': 'pinky3', 'dropout_period_sec': 60.0, 'dropout_sec': 12.0,
             'seed': 0, 'spec_versions': ['v1'],
-            # 중앙 관제(fleet_control) 규칙: 하트비트·세션·순번·TTL 을 통과한 명령만 받는다.
+            # 중앙 관제(fleet_control) 규칙: 하트비트·세션·순번을 통과한 명령만 받는다 (시계 비교·TTL 없음).
             'central_controlled': True, 'heartbeat_timeout_sec': 3.0,
         }
         for name, value in p.items():
@@ -161,7 +161,7 @@ class MockPinkyNode(Node):
                 return
             if raw is None:
                 self.get_logger().warning(
-                    f'{robot}: 명령 거절 (하트비트·세션·순번·TTL·정지 잠금): {msg.data!r}')
+                    f'{robot}: 명령 거절 (하트비트·세션·순번·비상정지 잠금): {msg.data!r}')
                 return
         events = self.sims[robot].command(raw, now)
         self.get_logger().info(f'{robot}: 명령 {msg.data!r} -> {len(events)}개 이벤트')

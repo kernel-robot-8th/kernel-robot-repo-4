@@ -131,8 +131,8 @@
 | 1 | 메시지 형식 | `/pinkyN/patrol_cmd`, `/pinkyN/patrol_status`, `/control_center/task_request`, `/zone_manager/*` 등이 `std_msgs/String`에 JSON이나 글자를 담는다. | `cobot_interfaces`의 `msg/srv/action` (CLAUDE.md 3-4) | 필드가 틀리거나 빠져도 빌드 때 안 잡히고 실행 중에 실패한다. 형식을 알려면 코드를 읽어야 한다. |
 | 2 | 웹 ↔ fleet 요청·응답 | `task_request` 토픽으로 요청하고 `task_events` 토픽으로 응답한다. `request_id`로 직접 맞춘다. | 같은 도메인 안에서는 서비스 | ROS 기본 기능(응답 대기·타임아웃·취소)을 직접 다시 만들어 코드와 버그 지점이 늘어난다. |
 | 3 | 수동 상차 확인 | `/fleet_control`의 `manual_load_confirmation` 파라미터에 JSON을 넣어 실행한다(`fleet_control_node.py`). | 서비스 호출 | 한 번만 실행할 명령이 설정값으로 남는다. 누가 보냈는지, 결과가 무엇인지 알기 어렵다. |
-| 4 | 웹의 모드 판단 | 작업 목록에 `holds` 키가 있으면 fleet 모드로 판단한다(`fleet_api_utils.py:449`). | 모드를 알려 주는 명시 필드 | 나중에 task_manager도 `holds`를 내면 화면이 모드를 잘못 판단한다. |
-| 5 | 명령 유효시간 | 보내는 PC의 `issued_at`을 받는 PC의 시계와 비교한다(`central_guard.py`). | 받는 쪽 자기 시계로 마지막 수신 후 경과 시간만 셈 | PC 간 시계가 1초 넘게 어긋나면 정상 명령도 거부된다. |
+| 4 | ~~웹의 모드 판단~~ ✅ | ~~작업 목록에 `holds` 키가 있으면 fleet 모드로 판단한다.~~ **해결(2026-11-09): task_manager 를 지우고 작업 노드를 fleet 하나로 해 판단할 필요가 없어졌다.** | 모드를 알려 주는 명시 필드 | 나중에 task_manager도 `holds`를 내면 화면이 모드를 잘못 판단한다. |
+| 5 | ~~명령 유효시간~~ ✅ | ~~보내는 PC의 `issued_at`을 받는 PC의 시계와 비교한다.~~ **해결(2026-11-09): 로봇 `central_guard.py` 에서 시계 비교·TTL 을 없앴다. 받는 쪽 타이머·세션·순번으로 막는다.** | 받는 쪽 자기 시계로 마지막 수신 후 경과 시간만 셈 | PC 간 시계가 1초 넘게 어긋나면 정상 명령도 거부된다. |
 | 6 | 로봇 기동 | `fleet_startup.py`가 SSH로 접속해 프로세스를 직접 띄우고 감시한다. | systemd 서비스, 도커 compose 등 | 재부팅이나 프로세스가 죽었을 때 자동으로 다시 살리지 않는다. |
 | 7 | 코드 위치·담당 | 중앙 관제 서버 `cobot_fleet_control`이 `cobot_navigation/` 아래에 있다. CLAUDE.md 표에 없는 패키지(`cobot_fleet_control`, `cobot_pinky_patrol`, `cobot_zone_traffic_control` 등)와 새 의존성 `py_trees`가 있다. | CLAUDE.md 2번 구조도·담당 표 | 관제 담당(`cobot_control_center`)과 코드 위치가 어긋난다. 새 의존성은 팀 허락 대상이다(CLAUDE.md 9번). |
 

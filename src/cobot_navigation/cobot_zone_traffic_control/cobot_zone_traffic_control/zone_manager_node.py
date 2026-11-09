@@ -113,7 +113,7 @@ class ZoneQueue:
 
     # ---점유자 기록(내부용)---
     # [기능] (내부용) 점유자를 지정하고 점유 시작 시각을 기록한다.
-    #        시작 시각은 hold_exceeded() 의 강제 해제 판단에 쓰인다.
+    #        시작 시각은 hold_exceeded() 의 점유 시간 경고 판단에 쓰인다 (강제로 풀지 않음).
     def _set_occupant(self, robot_id, now):
         """점유자를 지정하고 점유 시작 시각을 기록 (내부용)."""
         self.occupant = robot_id

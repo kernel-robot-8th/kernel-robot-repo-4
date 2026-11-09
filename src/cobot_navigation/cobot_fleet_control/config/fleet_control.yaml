@@ -4,6 +4,8 @@ fleet_control:
     db_path: ~/.cobot/fleet_control.sqlite3
     tick_sec: 0.1
     heartbeat_sec: 0.5
+    # 봉투의 ttl_sec 로 실린다. 순찰 로봇은 시계 비교·TTL 을 하지 않아 보지 않는다 (2026-11-09).
+    # 팔·비전 장치 요청(work_request)에도 같은 command_ttl_sec 가 실린다.
     heartbeat_ttl_sec: 3.0
     command_ttl_sec: 5.0
     request_topic: /control_center/task_request

@@ -201,7 +201,7 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 
 | 항목 | 동작 |
 |---|---|
-| 로봇 명령 허용 | 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번·TTL 이 맞을 때 (로봇 `central_controlled: true`) |
+| 로봇 명령 허용 | 하트비트(`/pinkyN/fleet_heartbeat`)가 살아 있고 세션·순번이 맞을 때 (PC 끼리 시계 비교·TTL 없음) (로봇 `central_controlled: true`) |
 | 정지 | 그 로봇만 멈춤 · **잠그지 않음** (바로 다음 명령 가능). 구역 안이면 구역 밖으로 물러남. 그 로봇에 주문이 걸려 있으면 제자리 정지 + 보류 (2026-11-09, 진호 님 순찰 노드 기준) |
 | 비상정지 | `estop` (백엔드가 `emergency: true` 정지를 바꿔 보냄). 제자리 소프트 정지 · **그 로봇만 보류** (복구 필요). 상단 **전체 비상정지**만 작업 명령 전체를 끔 |
 | 정지 잠금 복구 | `release_control` (아래 API) 또는 UNKNOWN 작업 `resolve` |

@@ -34,7 +34,7 @@
 <tr><td>POST /api/tasks</td><td>create</td><td>최초 202, 동일 ID 200, 충돌·예약 409, 꺼짐 423, 끊김 503. 실제 지점 검증</td></tr>
 <tr><td>POST /api/commands/arm</td><td>arm</td><td>armed / changed / source / client_request_id 응답</td></tr>
 <tr><td>POST /api/robots/{id}/stop</td><td>stop</td><td>202와 작업 ID, 제자리 소프트 정지. 유휴 정지도 화면에서 확인·해제할 작업 기록 생성</td></tr>
-<tr><td>POST /api/tasks/{id}/resolve</td><td>resolve + task_id</td><td>기존 note/result 요청 지원. 최신 busy=false·구역 미점유·정지 래치 확인. 시나리오 예약 우회 해제 금지</td></tr>
+<tr><td>POST /api/tasks/{id}/resolve</td><td>resolve + task_id</td><td>기존 note/result 요청 지원(note 선택). 최신 상태·busy=false 확인 (구역 보유·정지 래치는 보지 않음, 2026-11-09). 시나리오 예약 우회 해제 금지</td></tr>
 <tr><td>WS /ws/tasks</td><td>tasks / task</td><td>최초 목록·개별 변경. 오래된 UNKNOWN도 목록에서 유지</td></tr>
 <tr><td>지도·구역 레이어</td><td>points_dir</td><td>현재 common + site + robot 프로필을 웹의 로봇별 파일 형식으로 자동 내보내기</td></tr>
 </tbody></table></div>
@@ -210,7 +210,7 @@ docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
 <tr><td>13</td><td>접근·작업 영역 안전</td><td>중앙 중단·예약 유지·명시적 복구</td><td>거리 기반 감속, 작업 영역 감지, 팔 로컬 안전 제어는 장치 담당</td></tr>
 <tr><td>14</td><td>개별·전체 비상정지</td><td>대상 베이스와 관련 팔 정지 요청, 로봇별 영속 보류</td><td>소프트 정지 구현. 하드웨어 전원 차단·안전 정지 증거는 미연결</td></tr>
 <tr><td>15</td><td>수동·일시정지</td><td>manual로 자동 제어권 보류, pause로 단계 보존, 근거를 갖춘 제어권 반환</td><td>텔레옵 속도 송신·콘솔 임대는 미구현. 피킹 중간 단계의 임의 재실행은 금지</td></tr>
-<tr><td>16</td><td>실패·충돌·통신</td><td>안전 확인된 재시도, 장치 타임아웃, 로컬 통신 워치독, 세션/seq/TTL 검사</td><td>충돌 후 자동 리부트·자동 복귀 없음. 현장 정리 후 명시적 복구</td></tr>
+<tr><td>16</td><td>실패·충돌·통신</td><td>안전 확인된 재시도, 장치 타임아웃, 로컬 통신 워치독, 세션/seq 검사 (순찰 로봇은 시계 비교·TTL 없음, 2026-11-09)</td><td>충돌 후 자동 리부트·자동 복귀 없음. 현장 정리 후 명시적 복구</td></tr>
 <tr><td>17</td><td>이력·알림</td><td>주문·오류·운영자 복구를 SQLite 실행 원장과 ROS 이벤트에 기록</td><td>화면·알림음·장기 이력 조회 API는 control-center 소유</td></tr>
 <tr><td>18</td><td>반품 회수 (선택)</td><td>역방향 경로, 회수 적재, warehouse_store와 검증, HOME 후 가용 재고 반영</td><td>기본 비활성. 적재 담당·창고 어댑터를 연결하고 allow_returns 설정</td></tr>
 </tbody></table></div></section>

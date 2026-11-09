@@ -93,7 +93,7 @@ def main():
 
     # ── monitor 가 아니면 명령을 먼저 만들어 본다 (잘못된 입력은 ROS 를 켜지 않고 안내) ──
     #   stop           : 멈춘 뒤 구역 안이면 그 구역 EXIT 로 나와 토큰 반납
-    #   emergency_stop : 그 자리 정지 + 토큰 유지 (max_hold_sec 뒤 자동 해제)
+    #   emergency_stop : 그 자리 정지 + 토큰 유지 (자동 해제 없음, leave 로 나가야 반납)
     #   goto 'goto P1 P2' → 'goto:P1,P2' / zone 'zone ZA' → 'zone:ZA' / leave → 'leave'
     #   마지막 명령 뒤 idle_return_sec(기본 120초) 동안 새 명령이 없으면 로봇이 스스로 홈으로 복귀한다.
     cmd = None

@@ -66,9 +66,8 @@ ros2 launch cobot_fleet_control control_center_web.launch.xml \
 기존 fleet에도 지점 검증을 적용하려면 `patrol_config_dir`에 현재 `cobot_pinky_patrol/config`를 지정합니다.
 화면 주소는 기본 `http://127.0.0.1:8080`입니다.
 
-**`task_manager_node`와 `fleet_control_node`를 동시에 실행하지 않습니다.**
-기존 task_manager의 실행 역할을 fleet이 맡으며, 웹 HTTP·WebSocket 형식은 유지합니다.
-새 기동기는 task_manager를 시작하지 않고, fleet도 중복 요청 수신자·명령 발행자를 검사합니다.
+작업 노드는 `fleet_control_node` 하나입니다. 예전 `task_manager_node`(cobot_control_center)는 2026-11-09 삭제했고, 웹 HTTP·WebSocket 형식은 그대로입니다.
+같은 도메인에 fleet 을 둘 띄우지 않습니다 (예: 컨테이너 fleet 과 bringup 의 fleet). fleet 은 요청 수신자·명령 발행자가 둘이면 명령을 거절합니다.
 
 웹 지도는 기존 `<points_dir>/pinky1.yaml` 형식을 읽습니다. 기동기가 현재
 `common.yaml + sites/lab.yaml + robots/pinkyN.yaml`을 조합해 사용자 캐시 폴더로 자동 내보냅니다.

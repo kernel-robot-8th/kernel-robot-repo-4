@@ -2,7 +2,7 @@ zone_manager_node:
   ros__parameters:
     # zone_gate_client를 쓰는 로봇들의 robot_id 목록 (patrol 노드의 robot_id 파라미터와 일치해야 함)
     robot_ids: ["pinky1", "pinky2", "pinky3"]
-    # 로봇이 notify_exit를 못 보내는 비상 상황(크래시 등)에 대비한 강제 해제 시간(초)
+    # 점유 시간 경고(초). 넘어도 강제로 풀지 않는다 (로봇이 아직 구역 안일 수 있음). notify_exit 전까지 점유 유지
     max_hold_sec: 240.0   # 유휴 복귀(idle_return_sec 120초) + EXIT 이동 시간 동안 매니저가 토큰을 먼저 회수하지 않도록 120 -> 240 (2026-10-27)
 
     # ---- 위험구역 (구역마다 락·대기열·앵커가 따로) ----

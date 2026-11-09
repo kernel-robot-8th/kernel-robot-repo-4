@@ -17,5 +17,5 @@ mock_pinky_node:
     dropout_sec: 12.0                # 한 번 끊기는 시간 [s]
     seed: 0                          # 무작위 재현용
     spec_versions: [v1]              # v1 = String 규격(지금 주행), v2 = cobot_patrol_interfaces 메시지 (안 씀)
-    central_controlled: true         # fleet_control 규칙(하트비트·세션·순번·TTL·정지 잠금). false 는 관제 없이 단독 시험할 때만
+    central_controlled: true         # fleet_control 규칙(하트비트·세션·순번·비상정지 잠금). false 는 관제 없이 단독 시험할 때만
     heartbeat_timeout_sec: 3.0       # 관제 하트비트가 이만큼 없으면 비상정지·잠금 [s] (실물 central_guard 와 같게)
