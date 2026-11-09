@@ -55,7 +55,7 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
         _last_status=dict(state='DONE', task_finished=True, command_id='old', boot_id='boot1'),
         controller=SimpleNamespace(command_id=None, held_zone='A', arrived_zone=None, busy=False),
         config={'central_controlled': True},
-        central_guard=SimpleNamespace(expired=lambda: False, latched=False),
+        central_guard=SimpleNamespace(expired=lambda busy=False: False, latched=False),
         status_pub=SimpleNamespace(publish=sent.append))
     namespace['_heartbeat'](node)
     status = json.loads(sent[0].data)

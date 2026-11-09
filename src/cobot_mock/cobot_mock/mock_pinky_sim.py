@@ -184,15 +184,15 @@ class CentralGuard:
     def healthy(self):
         return self.received is not None and self.clock() - self.received < self.timeout
 
-    def heartbeat(self, payload):
-        """서버 세션이 바뀌어 정지해야 하면 True."""
+    def heartbeat(self, payload, busy=False):
+        """서버 세션이 바뀌어 정지해야 하면 True. 움직이던 중일 때만 (실물 순찰 노드와 같음)."""
         if not isinstance(payload, dict):
             return False
         session, seq = payload.get('session_id'), payload.get('seq')
         if (not isinstance(session, str) or not session or isinstance(seq, bool)
                 or not isinstance(seq, int) or seq <= 0 or session in self.retired_sessions):
             return False
-        changed = self.session is not None and session != self.session
+        changed = self.session is not None and session != self.session and busy
         if session == self.session and seq <= self.heartbeat_seq:
             return False
         if session != self.session:
@@ -204,9 +204,9 @@ class CentralGuard:
         self.heartbeat_seq, self.received = seq, self.clock()
         return changed
 
-    def expired(self):
-        """하트비트가 끊기면 한 번만 True (그때 잠근다)."""
-        if self.received is not None and not self.healthy and not self.latched:
+    def expired(self, busy=False):
+        """움직이던 중 하트비트가 끊기면 한 번만 True (그때 잠근다). 놀던 중이면 잠그지 않는다."""
+        if busy and self.received is not None and not self.healthy and not self.latched:
             self.latched = True
             return True
         return False

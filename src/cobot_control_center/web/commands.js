@@ -68,7 +68,7 @@ function barHost(robotId) {
   return card ? card.querySelector(".card-body") : null;
 }
 
-// 정지 잠금: 로봇이 중앙 하트비트 단절·관제 재시작·정지로 잠겼거나(central_latched),
+// 정지 잠금: 로봇이 비상정지나 움직이던 중의 하트비트 단절·관제 재시작으로 잠겼거나(central_latched),
 // fleet_control 이 보류 중(holds). 잠겨 있으면 이동 명령은 거절된다. 아니면 null.
 // hint 가 참이면 푸는 방법을 붙인다 (카드 상태 줄), 거짓이면 상태만 (복구 띠 제목 옆).
 function latchText(robotId, robot, hint = false) {

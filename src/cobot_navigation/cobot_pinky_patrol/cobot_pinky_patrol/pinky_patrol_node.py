@@ -213,11 +213,11 @@ class PinkyPatrolNode(Node):
             self.get_logger().warning(f'잘못된 명령: {error}')
 
     def _central_heartbeat(self, message):
-        """서버 재시작 시 이동 명령을 무효화한다. 통신이 복구돼도 이동을 재개하지 않는다."""
+        """서버 재시작 시 움직이던 로봇만 멈추고 잠근다. 통신이 복구돼도 이동을 재개하지 않는다."""
         if not self.config['central_controlled']:
             return
         try:
-            if self.central_guard.heartbeat(json.loads(message.data)):
+            if self.central_guard.heartbeat(json.loads(message.data), self.controller.busy):
                 self.controller.stop(emergency=True)
         except (ValueError, TypeError):
             self.get_logger().warning('잘못된 중앙 하트비트')
@@ -247,7 +247,7 @@ class PinkyPatrolNode(Node):
 
     def _heartbeat(self):
         """생존 상태는 반복 발행하되 종료된 명령 결과를 새 완료 근거로 다시 보내지 않는다."""
-        if self.config['central_controlled'] and self.central_guard.expired():
+        if self.config['central_controlled'] and self.central_guard.expired(self.controller.busy):
             self.controller.stop(emergency=True)
         payload = dict(self._last_status, time=time.time(), task_finished=False,
                        held_zone=self.controller.held_zone,

@@ -168,9 +168,10 @@ class MockPinkyNode(Node):
         self._emit(robot, events)
 
     def _on_heartbeat(self, robot, msg):
-        """서버 세션이 바뀌면 비상정지한다. 연결이 돌아와도 이동을 다시 시작하지 않는다."""
+        """서버 세션이 바뀌면 움직이던 로봇만 비상정지한다. 놀던 로봇은 잠그지 않는다."""
         try:
-            changed = self.central_guards[robot].heartbeat(json.loads(msg.data))
+            changed = self.central_guards[robot].heartbeat(
+                json.loads(msg.data), self.sims[robot].running)
         except (ValueError, TypeError):
             self.get_logger().warning(f'{robot}: 잘못된 중앙 하트비트')
             return
@@ -206,7 +207,7 @@ class MockPinkyNode(Node):
         dt, self.last = now - self.last, now
         self.book.tick(now)
         for name, sim in self.sims.items():
-            if self.central and self.central_guards[name].expired():
+            if self.central and self.central_guards[name].expired(sim.running):
                 self.get_logger().warning(f'{name}: 관제 하트비트 끊김 -> 비상정지·잠금')
                 self._emit(name, sim.command('emergency_stop', now))
             if self.cfg['auto_patrol'] and not sim.running and now >= self.manual_until[name]:

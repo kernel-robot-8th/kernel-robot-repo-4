@@ -2,7 +2,8 @@
 // Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 //
 // 제어권 복구 (fleet_control 정지 잠금 해제) 띠.
-// fleet 에서는 비상정지·주문 중 정지·하트비트 끊김·관제 재시작 뒤 로봇이 잠긴다 (commands.js latchText).
+// fleet 에서는 비상정지·주문 중 정지 뒤, 또는 움직이던 중 하트비트 끊김·관제 재시작 뒤 로봇이 잠긴다
+// (놀던 로봇은 잠기지 않음, commands.js latchText).
 // 카드의 빨간 '정지 잠금' 줄을 누르면 이 띠가 뜨고, 현장 확인 4가지·운영자·메모를 받아
 // POST /api/robots/{id}/release_control 로 보낸다. 검사(최근 상태·주문 없음)는 fleet 이 한다.
 // 구역 안에서 잠긴 로봇도 복구할 수 있다. 복구한 뒤 '나가기'로 빼낸다.
