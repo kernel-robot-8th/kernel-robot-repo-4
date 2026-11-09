@@ -361,9 +361,46 @@ class CameraStore:
                     for robot, frame in self._frames.items()}
 
 
+# 끝난 주문 상태 (cobot_fleet_control scenario_contracts.TERMINAL 과 같게)
+ORDER_TERMINAL = {'COMPLETED', 'FAILED'}
+# 수동 상차 확인을 받는 주문 단계: 상차장 도착 뒤 PICKUP_EXIT ~ VERIFY_LOAD, 정밀 보정 CORRECT_PICKUP.
+# fleet 의 검사(scenario_safety.confirm_loaded)와 같은 조건이다. 화면 표시용이고 최종 검사는 fleet 이 한다.
+LOAD_CONFIRM_STAGES = {'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER', 'PICK', 'LOAD',
+                       'VERIFY_LOAD'}
+# 화면에 내는 주문 필드. 원장 사본(input 등)을 그대로 내지 않는다.
+ORDER_FIELDS = ('order_id', 'robot_id', 'state', 'stage', 'completed', 'sku', 'route', 'detail')
+
+
+def load_confirmable(order):
+    """이 주문에 화면의 수동 상차 확인 버튼을 보일지."""
+    completed = order.get('completed')
+    return (order.get('state') in {'RUNNING', 'UNKNOWN'}
+            and order.get('stage') in LOAD_CONFIRM_STAGES
+            and isinstance(completed, list) and 'MOVE_PICKUP' in completed
+            and bool(order.get('robot_id')) and not order.get('failure')
+            and not order.get('operator_load_confirmation')
+            and not order.get('manual_load_pending'))
+
+
+def active_orders(orders):
+    """주문 목록(fleet 이 낸 것)에서 끝나지 않은 것만 골라 화면용 필드와 load_confirmable 을 붙인다."""
+    if not isinstance(orders, list):
+        return []
+    result = []
+    for order in orders:
+        if not isinstance(order, dict) or order.get('state') in ORDER_TERMINAL:
+            continue
+        item = {key: order.get(key) for key in ORDER_FIELDS}
+        item['load_confirmed'] = bool(order.get('operator_load_confirmation')
+                                      or order.get('manual_load_pending'))
+        item['load_confirmable'] = load_confirmable(order)
+        result.append(item)
+    return result
+
+
 class TaskStore:
     """
-    task_manager_node 와 주고받는 값 보관: 작업 목록 캐시, 요청 응답 기다리기, 바뀐 작업 순번.
+    작업 노드(fleet_control_node)와 주고받는 값 보관: 작업 목록 캐시, 요청 응답 기다리기, 바뀐 작업 순번.
 
     ROS 콜백 스레드가 put_*() 로 넣고, 웹 서버 스레드가 request()·tasks()·changes_since() 로 읽는다.
     request() 는 발행 함수를 받아 요청을 낸 뒤, 같은 request_id 의 응답을 timeout 초까지 기다린다.
@@ -432,42 +469,30 @@ class TaskStore:
         return True
 
     def online(self):
-        """task_manager_node 가 살아 있는지 (목록을 stale_sec 안에 받았는지)."""
+        """작업 노드(fleet_control_node)가 살아 있는지 (목록을 stale_sec 안에 받았는지)."""
         with self._cond:
             return self._received is not None and self.clock() - self._received <= self.stale_sec
-
-    @staticmethod
-    def _controller_of(snapshot):
-        """
-        작업 노드 종류: 'fleet' (cobot_fleet_control 의 fleet_control_node), 'task_manager', 없으면 None.
-
-        둘 다 같은 토픽(/control_center/tasks)을 내므로 목록 모양으로 가린다.
-        fleet_control 의 ControlAPI.snapshot() 만 orders·holds 를 낸다 (명시 필드가 생기면 그것으로 바꾼다).
-        """
-        if snapshot is None:
-            return None
-        return 'fleet' if 'holds' in snapshot else 'task_manager'
-
-    def controller(self):
-        with self._cond:
-            return self._controller_of(self._snapshot)
 
     def health(self):
         with self._cond:
             age = None if self._received is None else round(self.clock() - self._received, 3)
-            spec = (self._snapshot or {}).get('spec')
-            raw = bool((self._snapshot or {}).get('allow_raw_cmd'))
-            armed = bool((self._snapshot or {}).get('armed'))
-            controller = self._controller_of(self._snapshot)
-            holds = (self._snapshot or {}).get('holds') if controller == 'fleet' else None
+            snapshot = self._snapshot or {}
+            spec = snapshot.get('spec')
+            raw = bool(snapshot.get('allow_raw_cmd'))
+            armed = bool(snapshot.get('armed'))
+            holds = snapshot.get('holds')
+            orders = snapshot.get('orders')
         online = age is not None and age <= self.stale_sec
         # 수동 명령 칸은 작업 노드가 켜져 있고 allow_raw_cmd 가 켜져 있을 때만 화면에 보인다.
         # commands_armed: 화면 상단 '작업 명령 켜기/끄기'. 꺼져 있으면 작업 명령 버튼이 잠긴다 (정지는 항상).
         # holds: fleet_control 이 보류한 로봇 → 사유 (정지·estop 뒤 현장 확인 복구 전까지 명령 거절).
-        return {'task_manager_online': online, 'task_manager_age': age, 'spec': spec,
+        # orders: 끝나지 않은 주문 (화면의 수동 상차 확인 버튼용, active_orders).
+        # controller_online: 작업 노드(fleet_control_node)가 살아 있는지.
+        # cobot_fleet_control 의 도커 smoke_check 도 이 값을 읽는다.
+        return {'controller_online': online, 'controller_age': age, 'spec': spec,
                 'raw_cmd_enabled': online and raw, 'commands_armed': online and armed,
-                'controller': controller if online else None,
-                'holds': holds if online and isinstance(holds, dict) else {}}
+                'holds': holds if online and isinstance(holds, dict) else {},
+                'orders': active_orders(orders) if online else []}
 
     def request(self, payload, publish):
         """

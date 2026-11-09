@@ -13,7 +13,6 @@
   - 작업 노드 (controller): 화면 명령을 검증·기록해 /pinkyN/patrol_cmd 로 보낸다. 하나만 띄운다.
     fleet (기본): cobot_fleet_control 의 fleet_control_node. 실물 순찰 노드(central_controlled)와
       하트비트·세션·순번으로 맞물린다. 주문 시나리오·정지 잠금·복구를 맡는다.
-    task_manager: 예전 작업 노드 (다음에 제거 예정). 로봇이 central_controlled:=false 일 때만 명령이 통한다.
     none: 보기 전용 (명령 노드 없음).
     '작업 명령 꺼짐'으로 시작한다. 화면 상단 '작업 명령 켜기'를 눌러야 이동·구역·나가기·홈이 나간다
     (정지·비상정지는 꺼져 있어도 된다). 개발용 수동 명령은 실물에서 켜지 않는다.
@@ -34,7 +33,7 @@
   <arg name="fleet_api" default="true" description="관제 백엔드(FastAPI, .venv 필요) 실행 여부"/>
   <arg name="host" default="0.0.0.0" description="관제 화면 주소 (0.0.0.0 내부망 공개, 127.0.0.1 이 PC 만)"/>
   <arg name="controller" default="fleet"
-       description="작업 노드: fleet (기본) / task_manager (예전, 제거 예정) / none (보기 전용)"/>
+       description="작업 노드: fleet (기본, fleet_control_node) / none (보기 전용)"/>
   <arg name="points_dir"
        default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_navigation/cobot_pinky_patrol/config"
        description="순찰 설정 폴더 (작업 노드가 명령 지점을 검사할 때 읽는다)"/>
@@ -56,10 +55,5 @@
   <include file="$(find-pkg-share cobot_fleet_control)/launch/fleet_control.launch.xml"
            if="$(eval '\'$(var controller)\' == \'fleet\'')">
     <arg name="patrol_config_dir" value="$(var points_dir)"/>
-  </include>
-
-  <include file="$(find-pkg-share cobot_control_center)/launch/task_manager.launch.xml"
-           if="$(eval '\'$(var controller)\' == \'task_manager\'')">
-    <arg name="points_dir" value="$(var points_dir)"/>
   </include>
 </launch>

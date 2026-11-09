@@ -10,7 +10,7 @@
 const RAW_LOG_MAX = 8;   // 패널에 남기는 최근 수동 명령 수
 
 // ---------- 수동 명령 ----------
-// task_manager_node 의 allow_raw_cmd 가 켜져 있을 때만 보인다 (/api/health 의 raw_cmd_enabled).
+// 작업 노드(fleet_control_node)의 allow_raw_cmd 가 켜져 있을 때만 보인다 (/api/health 의 raw_cmd_enabled).
 // 보낸 명령은 작업 목록에 남지 않고 작업 노드의 사건 기록에만 남는다. 그래서 이 화면에서 보낸 것을 아래에 보여 준다.
 
 function renderRawPanel() {

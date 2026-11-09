@@ -20,11 +20,9 @@
 
 명령(/api/tasks, 정지, 해제, 개발용 수동 명령)은 직접 로봇에 보내지 않는다. 작업 노드에 요청 토픽으로 넘기고
 그 응답을 HTTP 로 바꾸기만 한다. 검증·기록·발행은 작업 노드가 한다.
-작업 노드는 둘 중 하나다 (/api/health 의 controller):
-  task_manager   cobot_control_center 의 task_manager_node (개발·시뮬·가짜 핑키)
-  fleet          cobot_fleet_control 의 fleet_control_node (실물 중앙 관제, 하트비트로 로봇 명령 허용)
-fleet 에서는 비상정지를 estop 으로 넘기고, 정지 잠금 복구(release_control)와
-수동 상차 확인(confirm_loaded)을 받는다.
+작업 노드는 cobot_fleet_control 의 fleet_control_node 하나다 (하트비트로 로봇 명령 허용).
+비상정지는 estop 으로 넘기고, 정지 잠금 복구(release_control)와
+수동 상차 확인(confirm_loaded)도 같은 요청 토픽으로 넘긴다.
 """
 
 import asyncio
@@ -40,7 +38,6 @@ WS_WAIT_SEC = 1.0
 
 
 READ_ONLY_DETAIL = '읽기 전용 백엔드: 명령은 실물 관제 화면(bringup, 8080)에서'
-FLEET_ONLY_DETAIL = 'fleet_control 모드 전용 (지금 작업 노드: task_manager_node)'
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -97,7 +94,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.get('/api/health')
     def health():
-        task_health = tasks.health() if tasks is not None else {'task_manager_online': False}
+        task_health = tasks.health() if tasks is not None else {'controller_online': False}
         camera_health = cameras.health() if cameras is not None else {}
         # read_only: 명령을 넘길 곳이 없는 백엔드 (개발용 fleet_api_dev). 화면은 명령 버튼을 모두 끈다.
         return {'ok': True, 'domain_id': domain_id, 'read_only': publish_request is None,
@@ -194,15 +191,14 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         finally:
             watcher.cancel()
 
-    # ---------- 명령 (작업 노드 경유: task_manager_node 또는 fleet_control_node) ----------
+    # ---------- 명령 (작업 노드 fleet_control_node 경유) ----------
 
-    def call_task_manager(payload):
+    def call_controller(payload):
         if tasks is None or publish_request is None:
             raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         if not tasks.online():
             raise HTTPException(status_code=503,
-                                detail='작업 노드 응답 없음 '
-                                       '(task_manager_node 또는 fleet_control_node 를 켜 주세요)')
+                                detail='작업 노드 응답 없음 (fleet_control_node 를 켜 주세요)')
         result = tasks.request(payload, publish_request)
         if result is None:
             raise HTTPException(status_code=503, detail='작업 노드가 제때 답하지 않음')
@@ -216,44 +212,33 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/tasks')
     def create_task(body: dict = Body(...)):
-        return call_task_manager({
+        return call_controller({
             'type': 'create', 'client_request_id': body.get('client_request_id'),
             'robot_id': body.get('robot_id'), 'operation': body.get('operation'),
             'points': body.get('points') or []})
 
-    def is_fleet():
-        return tasks is not None and tasks.controller() == 'fleet'
-
-    def require_fleet():
-        if not is_fleet():
-            raise HTTPException(status_code=409, detail=FLEET_ONLY_DETAIL)
-
     @app.post('/api/robots/{robot_id}/stop')
     def stop_robot(robot_id: str, body: dict = Body(default={})):
         emergency = bool(body.get('emergency', False))
-        if emergency and is_fleet():
+        if emergency:
             # fleet_control 은 stop 의 emergency 를 보지 않는다. 비상정지는 estop 요청이다.
-            return call_task_manager({
+            return call_controller({
                 'type': 'estop', 'robot_id': robot_id,
                 'client_request_id': body.get('client_request_id')})
-        return call_task_manager({
+        return call_controller({
             'type': 'stop', 'robot_id': robot_id,
-            'client_request_id': body.get('client_request_id'),
-            'emergency': emergency})
+            'client_request_id': body.get('client_request_id')})
 
     @app.post('/api/commands/estop')
     def estop_all(body: dict = Body(default={})):
-        # 전체 비상정지 (fleet 전용): 로봇 지정 없이 한 번 내면 fleet 이 전 로봇·팔을 세운다.
-        # task_manager 에서는 화면이 로봇별 정지를 보낸다.
-        require_fleet()
-        return call_task_manager({
+        # 전체 비상정지: 로봇 지정 없이 한 번 내면 fleet 이 전 로봇·팔을 세운다.
+        return call_controller({
             'type': 'estop', 'client_request_id': body.get('client_request_id')})
 
     @app.post('/api/robots/{robot_id}/release_control')
     def release_control(robot_id: str, body: dict = Body(default={})):
-        # 정지 잠금·보류 복구 (fleet 전용). 현장 확인 증거 검사는 fleet_control 이 한다.
-        require_fleet()
-        return call_task_manager({
+        # 정지 잠금·보류 복구. 현장 확인 증거 검사는 fleet_control 이 한다.
+        return call_controller({
             'type': 'release_control', 'robot_id': robot_id,
             'client_request_id': body.get('client_request_id'),
             'operator': body.get('operator'), 'note': body.get('note'),
@@ -261,10 +246,9 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/orders/{order_id}/confirm_loaded')
     def confirm_loaded(order_id: str, body: dict = Body(default={})):
-        # 수동 상차 확인 (fleet 전용). 운영자가 실물 상차를 끝냈을 때 기존 주문에 확인값을 넣는다.
+        # 수동 상차 확인. 운영자가 실물 상차를 끝냈을 때 기존 주문에 확인값을 넣는다.
         # SKU·적재·팔 퇴피·통로·상차장 상태 검사는 fleet_control 이 하고, 통과하면 구역 이탈부터 재개한다.
-        require_fleet()
-        return call_task_manager({
+        return call_controller({
             'type': 'confirm_loaded', 'order_id': order_id,
             'client_request_id': body.get('client_request_id'),
             'operator': body.get('operator'), 'note': body.get('note'),
@@ -272,8 +256,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/robots/{robot_id}/raw_cmd')
     def raw_command(robot_id: str, body: dict = Body(default={})):
-        # 개발용 수동 명령. 검사·기록은 task_manager_node 가 정한다 (allow_raw_cmd 꺼지면 403).
-        return call_task_manager({
+        # 개발용 수동 명령. 검사·전달은 fleet_control_node 가 정한다 (allow_raw_cmd 꺼지면 403).
+        return call_controller({
             'type': 'raw', 'robot_id': robot_id,
             'client_request_id': body.get('client_request_id'),
             'command': body.get('command')})
@@ -281,14 +265,14 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.post('/api/commands/arm')
     def arm_commands(request: Request, body: dict = Body(default={})):
         # 작업 명령 켜기/끄기. 꺼져 있으면 작업 노드가 작업·수동 명령을 423 으로 거절한다.
-        return call_task_manager({
+        return call_controller({
             'type': 'arm', 'armed': body.get('armed'),
             'client_request_id': body.get('client_request_id'),
             'source': request.client.host if request.client else ''})
 
     @app.post('/api/tasks/{task_id}/resolve')
     def resolve_task(task_id: str, body: dict = Body(default={})):
-        return call_task_manager({
+        return call_controller({
             'type': 'resolve', 'task_id': task_id,
             'client_request_id': body.get('client_request_id'),
             'result': body.get('result', 'FAILED'), 'note': body.get('note', '')})

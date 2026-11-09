@@ -97,7 +97,7 @@ def main():
                 try:
                     with urlopen(base + '/api/health', timeout=1) as response:
                         health = json.load(response)
-                    if health.get('task_manager_online') and health.get('source_online'):
+                    if health.get('controller_online') and health.get('source_online'):
                         break
                 except OSError:
                     pass

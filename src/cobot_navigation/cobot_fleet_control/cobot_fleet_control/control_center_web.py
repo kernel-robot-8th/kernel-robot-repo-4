@@ -58,7 +58,7 @@ def run_web(plan, config_dir, robots, site, output_dir, runner=None):
 
 
 def main(args=None):
-    """기본은 읽기 전용 미리보기; 실제 기동 시에도 task_manager_node는 실행하지 않는다."""
+    """기본은 읽기 전용 미리보기; 실제 기동은 웹·상태 노드와 선택적 fleet_control_node를 띄운다."""
     parser = argparse.ArgumentParser(description='control-center 웹 + fleet 실행 경로')
     parser.add_argument('--navigation-root', required=True,
                         help='src/cobot_navigation 절대 경로')

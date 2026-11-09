@@ -44,6 +44,7 @@ function openRelease(robotId) {
   if (!host || !robot) return;
   cancelPick();
   closeResolve();
+  closeLoad();
   view.releasing = robotId;
   $("release-title").textContent = `${robotId} · 제어권 복구`;
   $("release-what").textContent = latchText(robotId, robot) || "";
@@ -96,7 +97,8 @@ function setupRelease() {
   });
 }
 
-// 카드·상세 화면의 상태 줄을 눌렀을 때: 결과 모름 해제가 먼저, 아니면 fleet 정지 잠금 복구.
+// 카드·상세 화면의 상태 줄을 눌렀을 때: 결과 모름 해제가 먼저, 다음 수동 상차 확인(load.js),
+// 아니면 정지 잠금 복구.
 function onCmdHeadClick(robotId) {
   if (!robotId) return;
   const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
@@ -104,6 +106,10 @@ function onCmdHeadClick(robotId) {
     openResolve(unknown);
     return;
   }
+  if (loadWaiting(robotId)) {
+    openLoad(robotId);
+    return;
+  }
   const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
-  if (view.controller === "fleet" && robot && latchText(robotId, robot)) openRelease(robotId);
+  if (robot && latchText(robotId, robot)) openRelease(robotId);
 }

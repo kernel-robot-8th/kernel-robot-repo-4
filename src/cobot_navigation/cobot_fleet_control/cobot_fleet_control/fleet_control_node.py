@@ -97,7 +97,7 @@ class FleetControlNode(Node):
         self.create_timer(1.0, self._snapshot)
         self.create_timer(config['heartbeat_sec'], self._heartbeat)
         self.get_logger().warning(
-            '중앙 실행기 시작 (작업 명령 꺼짐). control-center task_manager_node와 동시 실행 금지.')
+            '중앙 실행기 시작 (작업 명령 꺼짐). 같은 도메인에서 작업 노드는 하나만 띄운다.')
 
     def send(self, robot_id, payload):
         """이동 전 명령 발행자와 로봇 구독자가 각각 하나인지 확인한다."""

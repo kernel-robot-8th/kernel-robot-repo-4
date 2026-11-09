@@ -34,8 +34,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 
 | 인자 | 기본값 | 뜻 |
 |---|---|---|
-| `controller` | `fleet` | 작업 노드. `task_manager` 는 예전 방식(다음에 제거 예정, 가짜 핑키 `central_controlled: false`) |
-| `auto_patrol` | `false` | 쉬는 로봇이 스스로 무작위 명령(goto·zone·leave·home)을 냄. fleet 에서는 fleet 만 명령하므로 꺼짐 |
+| `auto_patrol` | `false` | 쉬는 로봇이 스스로 무작위 명령(goto·zone·leave·home)을 냄. 중앙 모드(`central_controlled: true`)라 켜도 꺼짐 (fleet 만 명령) |
 | `dropout_robot` | `''` | 주기적으로 끊기는 로봇 ('끊김' 화면 시험 때 `pinky3`) |
 | `with_control_center` | `true` | 관제 노드를 함께 띄울지 |
 | `allow_raw_cmd` | `true` | 관제 화면의 개발용 수동 명령 칸 (검사 없이 `patrol_cmd` 에 문자열, fleet 이 세션 봉투를 붙임). 실물 관제는 기본 꺼짐 |
@@ -82,18 +81,17 @@ v2 로 거절된 명령은 v1 `FAILED` 상태를 내지 않습니다 (ack 가 �
 
 ## 명령 보내 보기
 
-같은 셸 설정(도메인 101)에서. 중앙 모드에서는 봉투 없는 글자 명령을 거절하므로 `controller:=task_manager` 로 띄웠을 때만 됩니다 (fleet 이면 화면이나 `/api/tasks` 를 씁니다):
+가짜 핑키는 실물처럼 중앙 모드라, `patrol_cmd` 에 봉투 없는 글자 명령을 바로 내면 거절합니다. 명령은 화면(8081)이나 관제 API 로 보냅니다 (작업 명령은 켜진 채로 시작):
 
 ```bash
-ros2 topic pub --once /pinky1/patrol_cmd std_msgs/msg/String "{data: 'zone:ZA'}"
-ros2 topic pub --once /pinky2/patrol_cmd std_msgs/msg/String "{data: 'zone:ZA'}"     # 대기열
-ros2 topic pub --once /pinky1/patrol_cmd std_msgs/msg/String "{data: 'leave'}"
-ros2 topic pub --once /pinky1/patrol_cmd std_msgs/msg/String \
-  "{data: '{\"command_id\": \"job-1\", \"command\": \"goto:P1,P3\"}'}"
+curl -s -X POST localhost:8081/api/tasks -H 'Content-Type: application/json' \
+  -d '{"client_request_id": "t1", "robot_id": "pinky1", "operation": "zone", "points": ["ZA"]}'
+curl -s -X POST localhost:8081/api/tasks -H 'Content-Type: application/json' \
+  -d '{"client_request_id": "t2", "robot_id": "pinky1", "operation": "leave"}'
 ros2 topic echo /pinky1/patrol_status
 ```
 
-`auto_patrol:=true` 면 명령을 받은 로봇은 `auto_pause_after_cmd_sec`(60초) 동안 자동 명령을 쉽니다.
+개발용 수동 명령 칸(화면 아래, `allow_raw_cmd:=true` 기본)은 fleet 이 세션 봉투를 붙여 그대로 보냅니다.
 
 ## 파라미터
 

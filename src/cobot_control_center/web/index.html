@@ -23,7 +23,7 @@
     <div class="links">
       <span class="link" id="link-ws" data-state="bad"><i></i>백엔드</span>
       <span class="link" id="link-source" data-state="bad"><i></i>관제 노드</span>
-      <span class="link" id="link-tasks" data-state="bad" title="task_manager_node (명령)"><i></i>작업 노드</span>
+      <span class="link" id="link-tasks" data-state="bad" title="fleet_control_node (중앙 관제: 하트비트·명령, cobot_fleet_control)"><i></i>작업 노드 · fleet_control</span>
       <button type="button" class="arm-toggle" id="arm-toggle" data-armed="false" disabled
               title="작업 명령(이동·구역·나가기·홈)을 켜고 끈다. 정지·비상정지는 꺼져 있어도 된다">작업 명령 켜기</button>
       <span class="link" id="link-zone" data-state="na"><i></i><span class="label">zone_manager</span></span>
@@ -100,11 +100,11 @@
         <div class="zones" id="zones"><p class="muted">구역 상태 수신 대기</p></div>
       </section>
 
-      <!-- 개발용 수동 명령. task_manager_node 의 allow_raw_cmd 가 켜져 있을 때만 보인다 (가짜 핑키는 기본 켬) -->
+      <!-- 개발용 수동 명령. fleet_control_node 의 allow_raw_cmd 가 켜져 있을 때만 보인다 (가짜 핑키는 기본 켬) -->
       <section class="panel raw-panel" id="raw-panel" aria-label="수동 명령" hidden>
         <details>
           <summary>개발: 수동 명령</summary>
-          <p class="raw-warn">⚠ 작업 관리(task_manager)를 거치지 않는 1회성 직접 명령입니다.
+          <p class="raw-warn">⚠ 작업 관리를 거치지 않는 1회성 직접 명령입니다.
             검사·결과 추적 없이 <code>/로봇/patrol_cmd</code> 에 그대로 보냅니다.</p>
           <form class="raw-form" id="raw-form" autocomplete="off">
             <select id="raw-robot" aria-label="로봇"></select>
@@ -137,9 +137,9 @@
           <button type="button" data-cmd="home">홈</button>
         </div>
         <div class="stop-row">
-          <button type="button" class="stop-btn" data-cmd="stop" title="지금 작업 중단 (구역 안이면 출구로 나와 반납)">정지</button>
+          <button type="button" class="stop-btn" data-cmd="stop" title="제자리 소프트 정지 · 작업 명령 전체 꺼짐 · 현장 확인 후 해제 필요">정지</button>
           <button type="button" class="estop-btn" data-cmd="emergency_stop"
-                  title="그 자리 정지, 구역 토큰 유지 (zone_manager 가 max_hold_sec 뒤 해제)">비상정지</button>
+                  title="비상정지(estop): 그 자리 정지, 주문 ESTOP · 현장 확인 후 해제 필요">비상정지</button>
         </div>
       </div>
     </section>
@@ -233,6 +233,22 @@
     </div>
   </div>
 
+  <!-- 수동 상차 확인 (load.js). 상차장에서 멈춘 주문을 사람이 싣고 확인한다. 복구 띠와 같은 자리에 뜬다. -->
+  <div class="pick-bar resolve-bar release-bar" id="load-bar" hidden>
+    <div class="pick-head"><strong id="load-title"></strong><span class="cmd-route" id="load-what"></span></div>
+    <!-- fleet 이 요구하는 3가지를 한 번에 확인한다 (load.js LOAD_EVIDENCE_KEYS). SKU 는 주문 값을 보낸다 -->
+    <label class="release-check" title="현장에서 직접 확인했을 때만: 주문 상품을 로봇에 실음 · 로봇팔이 물러남 · 로봇 뒤 통로가 비어 있음. 확인하면 로봇이 상차 구역을 나간다">
+      <input type="checkbox" id="load-confirm"> 현장 확인: 적재됨·팔 퇴피·통로 비움</label>
+    <div class="release-fields">
+      <input id="load-operator" maxlength="40" aria-label="운영자" placeholder="운영자 이름">
+      <input id="load-note" maxlength="200" aria-label="확인 내용" placeholder="확인 내용 (기록에 남음)">
+    </div>
+    <div class="cmd-buttons">
+      <button type="button" id="load-cancel" title="Esc 로도 닫힌다">취소</button>
+      <button type="button" id="load-ok" class="danger">현장 확인함 · 상차 완료</button>
+    </div>
+  </div>
+
   <template id="card-template">
     <article class="card">
       <!-- 상태·명령 부분. 지점 고르기는 이 위를 덮고, 아래 정지 줄은 늘 보인다. -->
@@ -285,9 +301,9 @@
       </div>
       <!-- 정지는 일반 명령과 줄을 나눠 잘못 누르지 않게 한다 -->
       <div class="stop-row">
-        <button type="button" class="stop-btn" data-cmd="stop" title="지금 작업 중단 (구역 안이면 출구로 나와 반납)">정지</button>
+        <button type="button" class="stop-btn" data-cmd="stop" title="제자리 소프트 정지 · 작업 명령 전체 꺼짐 · 현장 확인 후 해제 필요">정지</button>
         <button type="button" class="estop-btn" data-cmd="emergency_stop"
-                title="그 자리 정지, 구역 토큰 유지 (zone_manager 가 max_hold_sec 뒤 해제)">비상정지</button>
+                title="비상정지(estop): 그 자리 정지, 주문 ESTOP · 현장 확인 후 해제 필요">비상정지</button>
       </div>
     </article>
   </template>
@@ -311,6 +327,7 @@
   <script src="commands.js"></script>
   <script src="tasks.js"></script>
   <script src="release.js"></script>
+  <script src="load.js"></script>
   <script src="map.js"></script>
   <script src="raw.js"></script>
   <script src="detail.js"></script>

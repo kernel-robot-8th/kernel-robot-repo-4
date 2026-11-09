@@ -24,8 +24,8 @@ import threading
 
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    CameraStore, LayerError, load_map, load_map_layers, load_robot_params,
-    MapError, mjpeg_part, SnapshotStore,
+    active_orders, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
+    load_robot_params, MapError, mjpeg_part, SnapshotStore,
     TaskStore)
 from fastapi.testclient import TestClient
 import pytest
@@ -107,7 +107,7 @@ def test_api_before_first_snapshot():
     client = TestClient(create_app(store))
     assert client.get('/api/health').json() == {
         'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
-        'source_age': None, 'task_manager_online': False, 'cameras': {}}
+        'source_age': None, 'controller_online': False, 'cameras': {}}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 
@@ -138,7 +138,7 @@ def test_api_routes():
     assert client.get('/api/robots/pinky9').status_code == 404
 
 
-def test_api_without_task_manager_is_read_only():
+def test_api_without_controller_is_read_only():
     # 작업 노드를 넘기지 않으면 명령 경로는 503 이고 아무것도 발행하지 않는다.
     store, _ = make_store()
     client = TestClient(create_app(store))
@@ -146,7 +146,7 @@ def test_api_without_task_manager_is_read_only():
     assert client.post('/api/tasks', json=body).status_code == 503
     assert client.post('/api/robots/pinky1/stop', json={}).status_code == 503
     assert client.get('/api/tasks').status_code == 503
-    assert client.get('/api/health').json()['task_manager_online'] is False
+    assert client.get('/api/health').json()['controller_online'] is False
 
 
 # 내용은 검사하지 않는다 (백엔드는 JPEG 를 풀지 않고 그대로 넘긴다).
@@ -446,8 +446,8 @@ def make_task_store():
     return TaskStore(3.0, 0.5, clock=clock), clock
 
 
-def fake_task_manager(tasks, status, body):
-    """요청을 받으면 곧바로 정해진 응답을 돌려주는 task_manager 대역. 받은 요청을 모은다."""
+def fake_controller(tasks, status, body):
+    """요청을 받으면 곧바로 정해진 응답을 돌려주는 작업 노드(fleet_control_node) 대역. 받은 요청을 모은다."""
     sent = []
 
     def publish(text):
@@ -488,14 +488,14 @@ def test_api_create_task_passes_through():
     store, _ = make_store()
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps({'tasks': []}))
-    publish, sent = fake_task_manager(tasks, 202, TASK)
+    publish, sent = fake_controller(tasks, 202, TASK)
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     res = client.post('/api/tasks', json={'client_request_id': 'r1', 'robot_id': 'pinky1',
                                           'operation': 'goto', 'points': ['P1']})
     assert res.status_code == 202
     assert res.json()['task_id'] == 't-1'
     assert sent[0]['type'] == 'create' and sent[0]['points'] == ['P1']
-    assert client.get('/api/health').json()['task_manager_online'] is True
+    assert client.get('/api/health').json()['controller_online'] is True
 
 
 def test_api_rejected_task_returns_reason_and_task():
@@ -503,7 +503,7 @@ def test_api_rejected_task_returns_reason_and_task():
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps({'tasks': []}))
     rejected = dict(TASK, state='REJECTED', detail="unknown point: ['P99']")
-    publish, _ = fake_task_manager(tasks, 400, rejected)
+    publish, _ = fake_controller(tasks, 400, rejected)
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     res = client.post('/api/tasks', json={'client_request_id': 'r1', 'robot_id': 'pinky1',
                                           'operation': 'goto', 'points': ['P99']})
@@ -516,10 +516,10 @@ def test_api_stop_and_resolve_and_list():
     store, _ = make_store()
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps({'tasks': [TASK]}))
-    publish, sent = fake_task_manager(tasks, 202, {'robot_id': 'pinky1', 'operation': 'stop'})
+    publish, sent = fake_controller(tasks, 202, {'robot_id': 'pinky1', 'operation': 'stop'})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
-    assert client.post('/api/robots/pinky1/stop', json={'emergency': True}).status_code == 202
-    assert sent[0] == dict(sent[0], type='stop', robot_id='pinky1', emergency=True)
+    assert client.post('/api/robots/pinky1/stop', json={}).status_code == 202
+    assert sent[0] == dict(sent[0], type='stop', robot_id='pinky1')
     client.post('/api/tasks/t-1/resolve', json={'note': '확인'})
     assert sent[1]['type'] == 'resolve' and sent[1]['task_id'] == 't-1'
     assert [t['task_id'] for t in client.get('/api/tasks').json()] == ['t-1']
@@ -531,7 +531,7 @@ def test_api_raw_cmd_passes_through_and_health_flag():
     store, _ = make_store()
     tasks, clock = make_task_store()
     tasks.put_snapshot(json.dumps({'tasks': []}))
-    publish, sent = fake_task_manager(tasks, 202, {'robot_id': 'pinky1', 'command': 'home'})
+    publish, sent = fake_controller(tasks, 202, {'robot_id': 'pinky1', 'command': 'home'})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     # 작업 노드가 allow_raw_cmd 를 알리지 않으면 수동 명령 칸을 숨긴다
     assert client.get('/api/health').json()['raw_cmd_enabled'] is False
@@ -550,7 +550,7 @@ def test_api_arm_passes_through_and_health_flag():
     store, _ = make_store()
     tasks, clock = make_task_store()
     tasks.put_snapshot(json.dumps({'tasks': []}))
-    publish, sent = fake_task_manager(tasks, 200, {'armed': True, 'changed': True})
+    publish, sent = fake_controller(tasks, 200, {'armed': True, 'changed': True})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     # 작업 노드가 armed 를 알리지 않으면 잠김으로 본다
     assert client.get('/api/health').json()['commands_armed'] is False
@@ -569,7 +569,7 @@ def test_api_locked_create_returns_423():
     store, _ = make_store()
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps({'tasks': []}))
-    publish, _ = fake_task_manager(tasks, 423, {'detail': '작업 명령 꺼짐'})
+    publish, _ = fake_controller(tasks, 423, {'detail': '작업 명령 꺼짐'})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     res = client.post('/api/tasks', json={'client_request_id': 'r1', 'robot_id': 'pinky1',
                                           'operation': 'home'})
@@ -583,7 +583,7 @@ def test_api_read_only_backend_lists_tasks_but_refuses_commands():
     tasks.put_snapshot(json.dumps({'tasks': [TASK], 'armed': True}))
     client = TestClient(create_app(store, tasks=tasks, publish_request=None))
     health = client.get('/api/health').json()
-    assert health['read_only'] is True and health['task_manager_online'] is True
+    assert health['read_only'] is True and health['controller_online'] is True
     assert [t['task_id'] for t in client.get('/api/tasks').json()] == ['t-1']
     for url, body in (('/api/tasks', {'client_request_id': 'r1', 'robot_id': 'pinky1',
                                       'operation': 'home'}),
@@ -593,15 +593,15 @@ def test_api_read_only_backend_lists_tasks_but_refuses_commands():
                       ('/api/tasks/t-1/resolve', {})):
         res = client.post(url, json=body)
         assert res.status_code == 503 and '읽기 전용' in res.json()['detail'], url
-    publish, _ = fake_task_manager(tasks, 200, {})
+    publish, _ = fake_controller(tasks, 200, {})
     full = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     assert full.get('/api/health').json()['read_only'] is False
 
 
-def test_api_task_manager_offline_is_503():
+def test_api_controller_offline_is_503():
     store, _ = make_store()
     tasks, _ = make_task_store()
-    publish, sent = fake_task_manager(tasks, 202, TASK)
+    publish, sent = fake_controller(tasks, 202, TASK)
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     body = {'client_request_id': 'r1', 'robot_id': 'pinky1', 'operation': 'home'}
     assert client.post('/api/tasks', json=body).status_code == 503
@@ -620,7 +620,7 @@ def test_websocket_tasks_sends_list_then_changes():
         assert ws.receive_json() == {'type': 'task', 'task': done}
 
 
-# ---------- 작업 노드 종류 (task_manager / fleet_control) ----------
+# ---------- fleet_control 전용 요청 (비상정지·복구·수동 상차 확인) ----------
 
 # cobot_fleet_control 의 ControlAPI.snapshot() 모양 (orders·holds 를 함께 낸다)
 FLEET_SNAPSHOT = {'time': 1.0, 'armed': False, 'allow_raw_cmd': False,
@@ -634,30 +634,29 @@ LOADED_BODY = {'operator': 'jihye', 'note': '실물 상차 확인',
                             'pickup_path_clear': True}}
 
 
-def test_health_reports_controller_and_holds():
+def test_health_reports_holds():
     store, _ = make_store()
     tasks, clock = make_task_store()
     client = TestClient(create_app(store, tasks=tasks, publish_request=lambda text: None))
     health = client.get('/api/health').json()
-    assert health['controller'] is None and health['holds'] == {}
-    tasks.put_snapshot(json.dumps({'tasks': [], 'allow_raw_cmd': True}))
-    health = client.get('/api/health').json()
-    assert health['controller'] == 'task_manager' and health['holds'] == {}
+    assert 'controller' not in health
+    assert health['holds'] == {} and health['orders'] == []
     tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
     health = client.get('/api/health').json()
-    assert health['controller'] == 'fleet' and health['holds'] == {'pinky1': 'ESTOP'}
-    # fleet 은 수동 명령을 받지 않으므로 칸이 숨는다
+    assert health['holds'] == {'pinky1': 'ESTOP'}
+    # allow_raw_cmd 가 꺼져 있으면 수동 명령 칸이 숨는다
     assert health['raw_cmd_enabled'] is False
+    # 작업 노드가 끊기면 보류·주문을 보이지 않는다
     clock.now = 3.5
     health = client.get('/api/health').json()
-    assert health['controller'] is None and health['holds'] == {}
+    assert health['holds'] == {} and health['orders'] == []
 
 
 def test_fleet_emergency_stop_becomes_estop():
     store, _ = make_store()
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
-    publish, sent = fake_task_manager(tasks, 202, {'robot_id': 'pinky1', 'armed': False})
+    publish, sent = fake_controller(tasks, 202, {'robot_id': 'pinky1', 'armed': False})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     assert client.post('/api/robots/pinky1/stop',
                        json={'client_request_id': 'c1', 'emergency': True}).status_code == 202
@@ -665,14 +664,15 @@ def test_fleet_emergency_stop_becomes_estop():
     assert 'emergency' not in sent[0]
     # 일반 정지는 그대로 stop
     client.post('/api/robots/pinky1/stop', json={'emergency': False})
-    assert sent[1] == dict(sent[1], type='stop', robot_id='pinky1', emergency=False)
+    assert sent[1] == dict(sent[1], type='stop', robot_id='pinky1')
+    assert 'emergency' not in sent[1]
 
 
 def test_fleet_estop_all_and_release_control_pass_through():
     store, _ = make_store()
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
-    publish, sent = fake_task_manager(tasks, 409, {'detail': '해제 불가: 구역 이탈 미확인'})
+    publish, sent = fake_controller(tasks, 409, {'detail': '해제 불가: 구역 이탈 미확인'})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     client.post('/api/commands/estop', json={'client_request_id': 'e1'})
     assert sent[0] == dict(sent[0], type='estop', client_request_id='e1')
@@ -687,7 +687,7 @@ def test_fleet_confirm_loaded_passes_through():
     store, _ = make_store()
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
-    publish, sent = fake_task_manager(tasks, 200, {'order_id': 'o1', 'stage': 'LEAVE_PICKUP'})
+    publish, sent = fake_controller(tasks, 200, {'order_id': 'o1', 'stage': 'LEAVE_PICKUP'})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     res = client.post('/api/orders/o1/confirm_loaded',
                       json=dict(LOADED_BODY, client_request_id='c1'))
@@ -701,22 +701,69 @@ def test_fleet_confirm_loaded_returns_rejection_reason():
     tasks, _ = make_task_store()
     tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
     reason = '상차장 도착 완료 후 상차 검증 중인 주문만 수동 확인 가능'
-    publish, _ = fake_task_manager(tasks, 400, {'detail': reason})
+    publish, _ = fake_controller(tasks, 400, {'detail': reason})
     client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
     res = client.post('/api/orders/o1/confirm_loaded', json=LOADED_BODY)
     # fleet 의 거절 사유를 그대로 돌려준다
     assert res.status_code == 400 and res.json()['detail'] == reason
 
 
-def test_fleet_only_routes_refused_under_task_manager():
+# ---------- 화면용 주문 목록 (수동 상차 확인 버튼) ----------
+
+# fleet 의 주문 원장 사본 모양 (scenario.submit). 상차장 도착 뒤 상차 검증에서 멈춘 주문.
+WAITING_LOAD = {'order_id': 'o1', 'sku': 'box_a', 'route': 'lab_delivery', 'kind': 'delivery',
+                'quantity': 1, 'input': {'order_id': 'o1'}, 'state': 'RUNNING',
+                'stage': 'DOCK_PICKUP', 'robot_id': 'pinky1', 'completed': ['MOVE_PICKUP'],
+                'detail': '정차 실측 대기', 'failure': None}
+
+
+def test_load_confirmable_matches_fleet_rule():
+    assert load_confirmable(WAITING_LOAD) is True
+    for stage in ('PICKUP_EXIT', 'CORRECT_PICKUP', 'VERIFY_LOAD'):
+        assert load_confirmable(dict(WAITING_LOAD, stage=stage)) is True, stage
+    assert load_confirmable(dict(WAITING_LOAD, state='UNKNOWN')) is True
+    # 아직 상차장에 가는 중
+    assert load_confirmable(dict(WAITING_LOAD, stage='MOVE_PICKUP', completed=[])) is False
+    # 상차장 도착 기록이 없음
+    assert load_confirmable(dict(WAITING_LOAD, completed=[])) is False
+    # 상차 뒤 단계
+    assert load_confirmable(dict(WAITING_LOAD, stage='LEAVE_PICKUP')) is False
+    # 로봇 배정 전, 실패, 끝남, 이미 확인함
+    assert load_confirmable(dict(WAITING_LOAD, robot_id=None)) is False
+    assert load_confirmable(dict(WAITING_LOAD, failure='timeout')) is False
+    assert load_confirmable(dict(WAITING_LOAD, state='FAILED')) is False
+    assert load_confirmable(dict(WAITING_LOAD, operator_load_confirmation={'operator': 'a'})) \
+        is False
+    assert load_confirmable(dict(WAITING_LOAD, manual_load_pending={'operator': 'a'})) is False
+
+
+def test_active_orders_hide_finished_and_internal_fields():
+    orders = [WAITING_LOAD,
+              dict(WAITING_LOAD, order_id='o2', state='COMPLETED'),
+              dict(WAITING_LOAD, order_id='o3', state='FAILED'),
+              dict(WAITING_LOAD, order_id='o4', state='WAITING', stage='MOVE_PICKUP',
+                   robot_id=None, completed=[]),
+              dict(WAITING_LOAD, order_id='o5', stage='LEAVE_PICKUP',
+                   operator_load_confirmation={'operator': 'jihye'}),
+              'broken']
+    result = active_orders(orders)
+    assert [o['order_id'] for o in result] == ['o1', 'o4', 'o5']
+    assert result[0] == {'order_id': 'o1', 'robot_id': 'pinky1', 'state': 'RUNNING',
+                         'stage': 'DOCK_PICKUP', 'completed': ['MOVE_PICKUP'], 'sku': 'box_a',
+                         'route': 'lab_delivery', 'detail': '정차 실측 대기',
+                         'load_confirmed': False, 'load_confirmable': True}
+    assert result[1]['load_confirmable'] is False
+    assert result[2]['load_confirmed'] is True and result[2]['load_confirmable'] is False
+    assert active_orders(None) == [] and active_orders({'o1': {}}) == []
+
+
+def test_health_reports_active_orders():
     store, _ = make_store()
     tasks, _ = make_task_store()
-    tasks.put_snapshot(json.dumps({'tasks': []}))
-    publish, sent = fake_task_manager(tasks, 202, {})
-    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
-    for url, body in (('/api/commands/estop', {}),
-                      ('/api/robots/pinky1/release_control', RELEASE_BODY),
-                      ('/api/orders/o1/confirm_loaded', LOADED_BODY)):
-        res = client.post(url, json=body)
-        assert res.status_code == 409 and 'fleet_control' in res.json()['detail'], url
-    assert sent == []
+    tasks.put_snapshot(json.dumps(dict(
+        FLEET_SNAPSHOT, orders=[WAITING_LOAD, dict(WAITING_LOAD, order_id='o2',
+                                                   state='COMPLETED')])))
+    client = TestClient(create_app(store, tasks=tasks, publish_request=lambda text: None))
+    orders = client.get('/api/health').json()['orders']
+    assert [o['order_id'] for o in orders] == ['o1']
+    assert orders[0]['load_confirmable'] is True and 'input' not in orders[0]

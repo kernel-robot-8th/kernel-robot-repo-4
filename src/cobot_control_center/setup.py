@@ -43,7 +43,6 @@ setup(
             'map_lint = cobot_control_center.map_contract:lint_main',
             'fleet_status_node = cobot_control_center.fleet_status_node:main',
             'fleet_api_node = cobot_control_center.fleet_api_node:main',
-            'task_manager_node = cobot_control_center.task_manager_node:main',
         ],
     },
 )

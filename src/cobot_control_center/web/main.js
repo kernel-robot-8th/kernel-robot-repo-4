@@ -41,29 +41,29 @@ async function pollHealth() {
     setLink("link-source", Boolean(health.source_online));
     const armed = Boolean(health.commands_armed);
     const readOnly = Boolean(health.read_only);
-    if (view.taskManagerOnline !== Boolean(health.task_manager_online)
+    if (view.controllerOnline !== Boolean(health.controller_online)
         || view.commandsArmed !== armed || view.readOnly !== readOnly) {
-      view.taskManagerOnline = Boolean(health.task_manager_online);
+      view.controllerOnline = Boolean(health.controller_online);
       view.commandsArmed = armed;
       view.readOnly = readOnly;
       if (!armed) cancelPick();
       render();
     }
     renderArmToggle();
-    setLink("link-tasks", view.taskManagerOnline);
-    $("stop-all").disabled = !view.taskManagerOnline || view.readOnly;
+    setLink("link-tasks", view.controllerOnline);
+    $("stop-all").disabled = !view.controllerOnline || view.readOnly;
     view.rawEnabled = Boolean(health.raw_cmd_enabled) && !view.readOnly;
     renderRawPanel();
     view.cameras = health.cameras || {};
     view.spec = health.spec ?? null;
-    const controller = health.controller ?? null;
     const holds = health.holds || {};
-    if (view.controller !== controller || JSON.stringify(view.holds) !== JSON.stringify(holds)) {
-      view.controller = controller;
+    const orders = health.orders || [];
+    if (JSON.stringify(view.holds) !== JSON.stringify(holds)
+        || JSON.stringify(view.orders) !== JSON.stringify(orders)) {
       view.holds = holds;
+      view.orders = orders;
       render();
     }
-    renderController();
     updateCamera();
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
@@ -71,8 +71,8 @@ async function pollHealth() {
     if (!health.source_online) renderAlerts(null, false);
   } catch (err) {
     // 백엔드가 꺼지면 마지막 스냅샷이 남으므로, 카드 명령 버튼이 켜진 채로 남지 않게 다시 그린다.
-    if (view.taskManagerOnline || view.commandsArmed) {
-      view.taskManagerOnline = false;
+    if (view.controllerOnline || view.commandsArmed) {
+      view.controllerOnline = false;
       view.commandsArmed = false;
       render();
     }
@@ -83,9 +83,8 @@ async function pollHealth() {
     $("stop-all").disabled = true;
     view.rawEnabled = false;
     renderRawPanel();
-    view.controller = null;
     view.holds = {};
-    renderController();
+    view.orders = [];
     view.cameras = {};
     updateCamera();
     renderInfra(view.snapshot ? view.snapshot.infra : null, false);
@@ -105,6 +104,7 @@ setupPick();
 setupRaw();
 setupResolve();
 setupRelease();
+setupLoad();
 setupDetail();
 loadMap();
 loadLayers();

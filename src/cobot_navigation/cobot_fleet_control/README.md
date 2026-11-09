@@ -27,7 +27,7 @@
 
 `fleet_status_node`는 로봇·구역 상태를 `/control_center/fleet_status`로 집계하고,
 `fleet_api_node`가 이를 `/ws/fleet`으로 내보냅니다. fleet이 화면용 상태 수집기를 다시 만들지 않습니다.
-기존 웹의 `task_manager_online` 필드명은 호환을 위해 그대로 쓰지만, 그 상태의 실제 발행자는 fleet입니다.
+웹의 `/api/health` 는 fleet 이 살아 있는지를 `controller_online` 으로 알립니다 (도커 `smoke_check` 가 이 값으로 준비를 확인). 예전 `task_manager_online` 이름은 2026-11-09 에 바꿨으므로, 그 전에 만든 도커 이미지는 다시 빌드합니다.
 
 정지 시에는 팔 작업 영역으로 임의 후퇴하지 않도록 제자리 소프트 정지를 사용합니다.
 실제 하드웨어 비상정지와 다릅니다. 웹 해제 버튼은 현장 확인 기록을 남기되,
@@ -85,7 +85,7 @@ feature/control-center의 웹 실행 파일이 있는 소스가 필요합니다.
 `host`·`port` 인자로 화면 접속 주소를 바꿀 수 있고 기본은 `127.0.0.1:8080`입니다.
 
 새 기동기는 **fleet_status_node + fleet_api_node + 선택적 fleet_control_node**만 시작합니다.
-**기존 task_manager_node는 함께 실행하지 않습니다.** 정상 종료·실패 시 자신이 시작한 프로세스만 정리합니다.
+정상 종료·실패 시 자신이 시작한 프로세스만 정리합니다.
 
 웹 지도용 프로필은 현재 주행 설정을 사용자 캐시 `~/.cache/cobot/control_center_profiles`에 자동 내보냅니다.
 내보내기를 마친 뒤에 웹 서버를 시작합니다. 원본 waypoint는 `cobot_pinky_patrol/config/sites/lab.yaml` 한 곳에서 관리합니다.

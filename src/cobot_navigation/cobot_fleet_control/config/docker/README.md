@@ -43,7 +43,7 @@ Git에는 Dockerfile·설치 스크립트·의존성 목록을 저장하며 가�
 
 ## 실행과 종료
 
-수동으로 실행한 bridge·zone_manager·fleet_control·기존 task_manager·웹은 먼저 정리합니다.
+수동으로 실행한 bridge·zone_manager·fleet_control·웹은 먼저 정리합니다.
 같은 도메인에서 명령을 처리하는 실행기는 fleet 하나만 유지합니다.
 zone_manager가 점유 상태를 메모리에 보관하므로, 전환은 작업을 멈추고 실제 구역 상태를 확인한 뒤 진행합니다.
 
@@ -59,7 +59,7 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 `up`은 bridge → zone-manager/fleet → web의 의존 관계에 따라 네 서비스를 실행합니다.
 프로세스 기동 순서이며 로봇 준비 완료를 보장하는 검사는 아닙니다.
 웹은 기존 fleet_api_node·fleet_status_node만 시작하고 `fleet:=existing`으로 fleet에 연결합니다.
-기존 task_manager_node는 시작하지 않습니다. 작업 명령은 시작 시 꺼져 있습니다.
+작업 명령은 시작 시 꺼져 있습니다.
 웹 healthcheck는 HTTP 응답만 확인하며 로봇의 통신·배터리·주행 준비 완료와 구분합니다.
 
 기본 ROS 도메인은 관제 100, pinky1/2/3은 10/20/30입니다.

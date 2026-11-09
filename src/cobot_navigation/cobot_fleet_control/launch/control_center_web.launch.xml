@@ -1,5 +1,5 @@
 <launch>
-  <!-- feature/control-center의 웹·상태 노드만 재사용. task_manager_node는 시작하지 않는다. -->
+  <!-- cobot_control_center 의 웹·상태 노드를 재사용한다. -->
   <arg name="navigation_root" description="src/cobot_navigation 절대 경로"/>
   <arg name="mode" default="preview" description="preview 또는 execute"/>
   <arg name="fleet" default="start" description="start 또는 existing (이미 fleet 실행 중)"/>

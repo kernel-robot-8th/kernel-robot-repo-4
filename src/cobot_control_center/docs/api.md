@@ -4,14 +4,14 @@
 
 ## 웹 API
 
-`/api/tasks`·정지·해제·작업 명령 켜기/끄기·개발용 수동 명령 외에는 읽기 전용입니다. 명령 경로는 `task_manager_node` 에 넘기기만 하고, 작업 노드가 없거나 읽기 전용 백엔드(`read_only`)면 503 입니다.
+`/api/tasks`·정지·해제·작업 명령 켜기/끄기·개발용 수동 명령 외에는 읽기 전용입니다. 명령 경로는 작업 노드 `fleet_control_node`(`cobot_fleet_control`)에 넘기기만 하고, 작업 노드가 없거나 읽기 전용 백엔드(`read_only`)면 503 입니다.
 작업 노드는 **작업 명령 꺼짐**으로 시작합니다. 꺼져 있는 동안 `POST /api/tasks`·`raw_cmd` 는 `423` 이고, 정지·해제는 항상 됩니다.
 GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 메모리에 둔 최신값입니다 (DB 를 읽지 않음, [README 데이터 흐름](../README.md#데이터-흐름)).
 
 | 경로 | 응답 |
 |---|---|
 | `GET /` | 관제 화면 |
-| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "task_manager_online", "task_manager_age", "spec": 로봇별 v1/v2, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}}` |
+| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
@@ -24,10 +24,12 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
 | `POST /api/tasks` | `{"client_request_id", "robot_id", "operation": "goto"\|"zone"\|"leave"\|"home", "points": [..]}` → `202` 작업 / `200` 같은 요청 재전송 / `400` 형식·지점 / `404` 없는 로봇 / `409` 작업 중·결과 모름 / `423` 작업 명령 꺼짐 (기록하지 않음) / `503` 끊김·작업 노드 없음. 거절은 `{"detail", "task"}` |
 | `POST /api/commands/arm` | `{"client_request_id", "armed": true\|false}` → `200 {"armed", "changed", "source": 요청한 IP, "client_request_id"}` / `400` armed 가 bool 이 아님. 작업 노드 사건 `operator_arm` 으로 남김 |
-| `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202 {"robot_id", "operation", "spec", "task_id"(멈출 작업), "warning"}`. 바쁨과 무관하게 항상 보냄 |
+| `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
+| `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지 (로봇·팔 모두) |
+| `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구. `{"client_request_id", "operator", "note", "evidence": {"base_stopped", "arms_safe", "cargo_reconciled", "resources_clear"}}`. 검사 실패면 fleet 사유를 `detail` 로 |
 | `POST /api/robots/{robot_id}/raw_cmd` | 개발용. `{"client_request_id", "command": "goto:P3,P7"}` → `202 {"robot_id", "command", "raw_id", "spec": "v1", "topic": "/pinky1/patrol_cmd", "msg_type": "std_msgs/msg/String", "warning"}` / `423` 작업 명령 꺼짐 / `403` allow_raw_cmd 꺼짐 / `400` 빈 명령·여러 줄·200자 넘음 / `409` 진행 중·결과 모름 작업. 검사 없이 `patrol_cmd` 에 그대로 |
 | `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"}`. `UNKNOWN` 만 해제 (그 밖은 409) |
-| `POST /api/orders/{order_id}/confirm_loaded` | fleet 전용 수동 상차 확인. `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `409` task_manager 모드 / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
+| `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
@@ -74,36 +76,20 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
   - 브릿지는 노드 이름(`bridge_node_format`)으로 셉니다. 로봇이 꺼져 있으면 브릿지가 위치 토픽을 만들지 않으므로, 이름이 안 보이는 브릿지는 로봇이 켜졌을 때만 `unknown` 으로 드러납니다.
 - 지금은 `std_msgs/String` JSON 입니다. 필드가 정해지면 `cobot_interfaces` 메시지로 바꿀 예정입니다 (팀 공지·리뷰 필요).
 
-## 작업 (task_manager_node)
+## 작업·주문 (fleet_control_node)
 
-### 작업 상태
+작업 상태, 관제 재시작 뒤 처리(`UNKNOWN`), 수동 명령(`raw_cmd`) 검사는 작업 노드가 정합니다 → [`cobot_fleet_control/README.md`](../../cobot_navigation/cobot_fleet_control/README.md). 이 백엔드는 `/control_center/tasks` 에 실려 오는 값을 그대로 보여 줍니다. 예전 작업 노드 `task_manager_node` 는 2026-11-09 에 지웠습니다.
 
-```
-ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
-   └─ 검증 실패 ─▶ REJECTED      └─ 응답 없음·시간 초과 ─▶ UNKNOWN ─(사람이 해제)─▶ FAILED 등
-```
+### `/api/health` 의 `orders`
 
-- **기록이 먼저**: `ACCEPTED` 를 SQLite 에 적은 뒤에만 로봇에 보냅니다.
-- **거절(REJECTED)**: 없는 지점(`unknown point: ['P99']`), 구역 지점을 goto 로(`use zone`), 미실측 `(0,0,0)` 지점(`unmeasured point` — 로봇은 받지만 원점으로 감), 연결 끊김, 진행 중 작업, 결과 모름 작업. v2 로봇이 ack 로 거절해도 `REJECTED`(`robot: <이유>`).
-- **결과 모름(UNKNOWN)**: 보낸 뒤 `ack_timeout_sec` 안에 시작 응답이 없거나(v1 로봇은 바쁠 때 아무 응답 없이 무시함), 시작 뒤 `task_timeout_sec` 를 넘김. 실제로는 움직이고 있을 수 있으므로 해제 전에는 그 로봇에 새 작업을 보내지 않습니다.
-- **재시작**: `task_manager_node` 를 켤 때 끝나지 않은 작업은 다시 보내지 않고 `UNKNOWN`(관제 재시작: 현장 확인 필요)으로 바꿉니다.
-- 같은 `client_request_id` 로 다시 오면 새로 보내지 않고 기존 작업을 돌려줍니다 (두 번 눌러도 한 번만 움직임).
+fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에서 **끝나지 않은 주문**(`state` 가 `COMPLETED`·`FAILED` 가 아닌 것)만 골라, 화면에 필요한 필드만 냅니다 (`fleet_api_utils.active_orders`).
 
-### v1 / v2
-
-`spec_mode: auto`(기본)이면 그 로봇의 v2 `patrol_state` 가 최근 `v2_fresh_sec` 안에 왔을 때만 v2 로 보냅니다. 실물은 v2 토픽이 브릿지되지 않아 v1 로 갑니다.
-
-| | v1 (실물 순찰 노드) | v2 (`cobot_patrol_interfaces`, 지금은 가짜 핑키만) |
-|---|---|---|
-| 명령 | `patrol_cmd` 문자열 `goto:P1,P2` | `PatrolCommand(task_id, operation, points)` |
-| 시작 | 보낸 뒤 첫 `STARTING`(유휴 복귀 `idle return` 제외) 또는 이동 상태 | `PatrolCommandAck.accepted` |
-| 끝 | 다음 `DONE`/`FAILED`/`STOPPED` 를 그 작업 것으로 **추정** | `task_id` 가 같고 `task_finished` 인 상태 |
-
-### 개발용 수동 명령 (`raw_cmd`)
-
-- 작업 관리를 거치지 않는 1회성 직접 명령입니다. 지점·바쁨 검사, 작업 기록, 결과 추적(UNKNOWN)이 없고 `task_manager_node` 의 사건 기록(`operator_raw`)에만 남습니다.
-- 보내는 곳은 v1 `/pinkyN/patrol_cmd` 하나입니다 (v2 는 구조화된 메시지라 자유 문자열을 싣지 않음).
-- `allow_raw_cmd` 가 켜져 있을 때만 받습니다 (기본 꺼짐, 가짜 핑키 launch 만 켬). 그 로봇에 진행 중이거나 결과를 모르는 관제 작업이 있으면 거절합니다.
+| 필드 | 뜻 |
+|---|---|
+| `order_id`, `robot_id`, `sku`, `route` | 주문 ID, 배정된 로봇(없으면 null), 상품, 경로 (`lab_delivery` 등) |
+| `state`, `stage`, `completed`, `detail` | fleet 주문 상태(`WAITING`·`RUNNING`·`UNKNOWN` 등), 지금 단계(`MOVE_PICKUP` 등), 끝낸 단계 목록, 설명 |
+| `load_confirmed` | 운영자 수동 상차 확인을 이미 받았는지 |
+| `load_confirmable` | 화면에 **상차 확인** 을 보일지. `state` 가 `RUNNING`/`UNKNOWN`, `stage` 가 `PICKUP_EXIT`~`VERIFY_LOAD` 또는 `CORRECT_PICKUP`, `completed` 에 `MOVE_PICKUP`, 로봇 배정됨, 실패 없음, 아직 확인 안 함 (`fleet_api_utils.load_confirmable`). fleet 의 검사(`scenario_safety.confirm_loaded`)와 같은 조건이지만 표시용이고, 최종 검사(정지·통신·구역·예약)는 fleet 이 합니다 |
 
 ## 파라미터
 
@@ -142,25 +128,6 @@ ACCEPTED ─▶ SENT ─▶ RUNNING ─▶ SUCCEEDED / FAILED / STOPPED
 | `read_only` | `false` | `true` 면 명령 경로가 모두 503 이고 `task_request` 발행자를 만들지 않음. `fleet_api_dev.launch.xml` 이 켬 (노드 이름 `fleet_api_node_dev`, 포트 8083) |
 | `camera_robots` | `[pinky1, pinky2, pinky3]` | 카메라를 구독할 로봇. `['']` 이면 끔 |
 | `camera_topic_format` | `/{robot}/camera/image_raw/compressed` | 카메라 토픽 (`sensor_msgs/CompressedImage`, JPEG). QoS `BEST_EFFORT / VOLATILE / KEEP_LAST(1)`. 이름은 가정값(비전 브랜치 592ebd4 규격 + 로봇 접두사)이라 확정되면 바꿈. 실물은 브릿지에 카메라 토픽이 있어야 들어옴 (아직 없음) |
-
-`task_manager_node` (`config/task_manager_node.yaml`)
-
-| 이름 | 기본값 | 뜻 |
-|---|---|---|
-| `robots` | `[pinky1, pinky2, pinky3]` | 관제 PC 쪽 토픽 접두사 |
-| `db_path` | `~/.ros/cobot_control_center/tasks.db` | 작업·사건 기록 (SQLite, WAL). 가짜 핑키는 `tasks_mock.db` |
-| `points_dir` | launch 인자가 채움 | `pinkyN.yaml` 폴더 (지점 검사). 비면 검사를 로봇에만 맡기고 경고 |
-| `ack_timeout_sec` | `3.0` | 보낸 뒤 시작 응답 기다림 [s]. 실측 필요 |
-| `task_timeout_sec` | `300.0` | 시작 뒤 끝 기다림 [s]. 실측 필요 |
-| `fleet_stale_sec` | `3.0` | `fleet_status` 가 끊기면 새 작업을 받지 않음 [s] |
-| `retention_days` | `30.0` | 켤 때 이보다 오래된 사건을 지움 [일]. 0 이하면 지우지 않음. 작업 표는 남김 |
-| `spec_mode` | `auto` | `auto` / `v1` / `v2` (launch 인자 `spec_mode:=`) |
-| `v2_fresh_sec` | `3.0` | auto 에서 v2 로봇으로 보는 기준 [s] |
-| `tick_period_sec` | `0.2` | 시간 초과 검사 주기 [s] |
-| `publish_period_sec` | `1.0` | `/control_center/tasks` 를 다시 내는 주기 [s] |
-| `list_limit` | `50` | `/control_center/tasks` 에 싣는 최근 작업 수 |
-| `allow_raw_cmd` | `false` | 개발용 수동 명령 (launch 인자 `allow_raw_cmd:=`). 가짜 핑키 launch 만 `true` |
-| `start_armed` | `false` | 작업 명령 켜진 상태로 시작할지 (launch 인자 `start_armed:=`). 실물은 꺼 두고 화면에서 켬. 가짜 핑키 launch 만 `true` |
 
 ### 지도·구역 기본 경로
 

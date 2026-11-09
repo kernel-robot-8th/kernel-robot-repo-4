@@ -5,7 +5,7 @@
 // 전체 화면(.layout)을 숨기고 한 로봇 전용 배치(#detail-page)를 보인다:
 //   상태줄(명령 포함) → 카메라 | 확대 지도 → 요약 칸 → 타임라인 | 진단.
 // 연결·작업 목록·명령 함수는 전체 화면과 같은 것을 쓴다 (renderCommands, onCommand, drawLayers ...).
-// 로봇 직접 조종(cmd_vel)은 두지 않는다. 명령은 작업 관리(task_manager)를 거치는 버튼만 쓴다.
+// 로봇 직접 조종(cmd_vel)은 두지 않는다. 명령은 작업 노드(fleet_control_node)를 거치는 버튼만 쓴다.
 // 로봇이 보낸 문자열은 textContent 로만 넣는다.
 // 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
 // 파일끼리 함수·상수를 전역 이름으로 함께 쓴다 (빌드 단계 없이 브라우저가 바로 읽게).
@@ -52,6 +52,7 @@ function applyRoute() {
   // 고르던 지점·해제 확인은 그 자리(카드 또는 상태줄 아래)와 함께 접는다.
   cancelPick();
   closeResolve();
+  closeLoad();
   view.detailRobot = robotId;
   const on = robotId !== null;
   document.body.classList.toggle("detail-mode", on);

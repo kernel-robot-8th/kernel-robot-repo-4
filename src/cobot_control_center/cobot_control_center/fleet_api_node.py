@@ -17,9 +17,9 @@
 
 로봇 토픽에는 발행하지 않는다. 구독하는 로봇 토픽은 카메라 영상(sensor_msgs/CompressedImage)뿐이다.
 영상은 커서 fleet_status JSON 에 싣지 않고, 받은 JPEG 를 풀지 않은 채 웹으로 바로 넘긴다.
-그 밖에 받는 것은 fleet_status_node 가 낸 스냅샷과 task_manager_node 의 작업 목록·응답이다.
-명령은 /control_center/task_request 로 task_manager_node 에 넘길 뿐이고,
-로봇 명령 토픽에 내는 것은 task_manager_node 다.
+그 밖에 받는 것은 fleet_status_node 가 낸 스냅샷과 작업 노드(cobot_fleet_control 의 fleet_control_node)의
+작업 목록·응답이다. 명령은 /control_center/task_request 로 작업 노드에 넘길 뿐이고,
+로봇 명령 토픽에 내는 것은 작업 노드다.
 rclpy 는 백그라운드 스레드에서, uvicorn 은 메인 스레드에서 돈다. uvicorn 이 Ctrl+C 를 받아
 웹 서버를 먼저 닫고, 그 뒤 ROS 를 정리한다.
 """
@@ -76,7 +76,7 @@ class FleetApiNode(Node):
                                         'web'))
         self.create_subscription(String, '/control_center/fleet_status', self._on_fleet, 10)
 
-        # task_manager_node 와 같은 QoS. 목록은 transient_local 이라 늦게 켜져도 마지막 값을 받는다.
+        # 작업 노드(fleet_control_node)와 같은 QoS. 목록은 transient_local 이라 늦게 켜져도 마지막 값을 받는다.
         self.tasks = TaskStore(self.get_parameter('task_stale_sec').value,
                                self.get_parameter('reply_timeout_sec').value)
         command_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
@@ -93,7 +93,7 @@ class FleetApiNode(Node):
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
             + ('(읽기 전용: 명령 경로 503, task_request 를 내지 않음)' if self.read_only
-               else '(로봇 토픽에 발행하지 않음. 명령은 task_manager_node 로 넘김)'))
+               else '(로봇 토픽에 발행하지 않음. 명령은 작업 노드 fleet_control_node 로 넘김)'))
 
     def _subscribe_cameras(self):
         # 비전 시험 발행기(cobot_camera_topic_test)와 같은 QoS. 지난 프레임은 다시 받지 않고 최신 1장만 본다.
@@ -158,7 +158,7 @@ class FleetApiNode(Node):
             self.get_logger().warning('작업 이벤트(/control_center/task_events)를 읽지 못함')
 
     def publish_request(self, text):
-        """웹 서버 스레드에서 부른다. 요청 JSON 을 task_manager_node 에 넘긴다."""
+        """웹 서버 스레드에서 부른다. 요청 JSON 을 작업 노드에 넘긴다."""
         self.request_pub.publish(String(data=text))
 
 

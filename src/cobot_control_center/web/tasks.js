@@ -106,6 +106,7 @@ function openResolve(task) {
   if (!host) return;
   cancelPick();
   closeRelease();
+  closeLoad();
   view.resolving = task;
   $("resolve-title").textContent = `${task.robot_id} · 결과 모름 해제`;
   $("resolve-what").textContent = task.command;
