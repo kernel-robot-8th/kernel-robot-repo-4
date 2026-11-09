@@ -1,0 +1,56 @@
+<launch>
+  <!-- MQTT 브릿지 (관제 PC 쪽, pc 역할): pinky1/2/3 중 골라서 실행.
+       cobot_domain_bridge 의 bridges.launch.xml 과 같은 인자 이름(pinky1/2/3)을 쓴다.
+       한 도메인에서는 도메인 브릿지와 둘 중 하나만 켠다(이중 발행 방지).
+       ROS_DOMAIN_ID 는 바꾸지 않고 호출한 셸의 값을 쓴다. 로봇 쪽 기동은 이 파일 범위 밖이다. -->
+  <arg name="pinky1" default="true" description="pinky1 MQTT 브릿지 실행 여부"/>
+  <arg name="pinky2" default="true" description="pinky2 MQTT 브릿지 실행 여부"/>
+  <arg name="pinky3" default="true" description="pinky3 MQTT 브릿지 실행 여부"/>
+  <arg name="params_file" default="$(find-pkg-share cobot_mqtt_bridge)/config/mqtt_bridge.yaml"
+       description="MQTT 브릿지 파라미터 YAML"/>
+  <arg name="host" default="127.0.0.1" description="MQTT 브로커 주소"/>
+  <arg name="port" default="1883" description="MQTT 브로커 포트"/>
+  <arg name="enable_down" default="false" description="관제→로봇(명령) 중계 사용 여부"/>
+  <arg name="duration_sec" default="0.0" description="실행 시간 [s], 0 이면 계속"/>
+  <arg name="confirm_real_domain" default="unset"
+       description="실제 관제 도메인 100 에 발행하려면 100 을 적는다"/>
+
+  <node pkg="cobot_mqtt_bridge" exec="mqtt_bridge_node" name="mqtt_bridge_pinky1"
+        output="screen" if="$(var pinky1)">
+    <param from="$(var params_file)"/>
+    <param name="robot" value="pinky1"/>
+    <param name="side" value="pc"/>
+    <param name="host" value="$(var host)"/>
+    <param name="port" value="$(var port)"/>
+    <param name="enable_down" value="$(var enable_down)"/>
+    <param name="duration_sec" value="$(var duration_sec)"/>
+    <param name="confirm_real_domain" value="$(var confirm_real_domain)"/>
+    <param name="exit_on_parent_loss" value="true"/>
+  </node>
+
+  <node pkg="cobot_mqtt_bridge" exec="mqtt_bridge_node" name="mqtt_bridge_pinky2"
+        output="screen" if="$(var pinky2)">
+    <param from="$(var params_file)"/>
+    <param name="robot" value="pinky2"/>
+    <param name="side" value="pc"/>
+    <param name="host" value="$(var host)"/>
+    <param name="port" value="$(var port)"/>
+    <param name="enable_down" value="$(var enable_down)"/>
+    <param name="duration_sec" value="$(var duration_sec)"/>
+    <param name="confirm_real_domain" value="$(var confirm_real_domain)"/>
+    <param name="exit_on_parent_loss" value="true"/>
+  </node>
+
+  <node pkg="cobot_mqtt_bridge" exec="mqtt_bridge_node" name="mqtt_bridge_pinky3"
+        output="screen" if="$(var pinky3)">
+    <param from="$(var params_file)"/>
+    <param name="robot" value="pinky3"/>
+    <param name="side" value="pc"/>
+    <param name="host" value="$(var host)"/>
+    <param name="port" value="$(var port)"/>
+    <param name="enable_down" value="$(var enable_down)"/>
+    <param name="duration_sec" value="$(var duration_sec)"/>
+    <param name="confirm_real_domain" value="$(var confirm_real_domain)"/>
+    <param name="exit_on_parent_loss" value="true"/>
+  </node>
+</launch>

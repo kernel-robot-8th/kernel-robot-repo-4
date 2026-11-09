@@ -19,6 +19,7 @@
 │   ├── cobot_description/      # URDF/xacro, 메시 (모바일 베이스 + 팔)
 │   ├── cobot_vision/           # [비전] 카메라, 검출/인식, 좌표 변환
 │   ├── cobot_navigation/       # [주행] Nav2 설정, 주행 시퀀스, localization
+│   ├── cobot_mqtt_bridge/      # [주행] MQTT 도메인 간 토픽 중계 (cobot_domain_bridge 와 병행 사용, 브릿지 YAML 을 읽음)
 │   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
 │   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
@@ -44,7 +45,7 @@
 ### 역할별 담당 패키지
 | 역할 | 담당 패키지 | 담당자 |
 |---|---|---|
-| 주행 | `cobot_navigation` | 김진호 |
+| 주행 | `cobot_navigation`, `cobot_mqtt_bridge` | 김진호 |
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
 | 로봇 수행 관제 | `cobot_gui`, `cobot_control_center` | 김지혜 |

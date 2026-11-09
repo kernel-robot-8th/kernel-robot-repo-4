@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_mqtt_bridge</name>
+  <version>0.0.1</version>
+  <description>DDS cobot_domain_bridge 를 MQTT 로 대체하는 도메인 간 토픽 중계 (YAML 기반, 로봇당 1프로세스)</description>
+  <maintainer email="cdwlsgh1@gmail.com">김진호</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- 중계 대상 메시지 타입은 cobot_domain_bridge 의 YAML 이 쓰는 표준 타입이다 -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_msgs</exec_depend>
+  <!-- 2026-11-05 승인된 의존성: MQTT 클라이언트(paho 1.6.x 콜백 방식) -->
+  <exec_depend>python3-paho-mqtt</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
