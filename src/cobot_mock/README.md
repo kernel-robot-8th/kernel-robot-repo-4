@@ -29,7 +29,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 ```
 
 가짜 핑키 3대와 관제 노드(`fleet_status_node`, `fleet_api_node`, 작업 노드 `fleet_control_node`)가 함께 뜹니다.
-작업 노드는 **실물과 같은 fleet_control** 이고, 가짜 핑키도 실물 순찰 노드처럼 하트비트·세션·순번·TTL 을 통과한 명령만 받습니다 (`central_controlled: true`). 작업 명령은 켜진 채로 시작합니다 (격리 도메인이라). 화면은 `http://localhost:8081/` 입니다 (실물 관제 8080 과 겹치지 않게 나눔, `port:=` 로 바꿀 수 있음)
+작업 노드는 **실물과 같은 fleet_control** 이고, 가짜 핑키도 실물 순찰 노드처럼 하트비트·세션·순번을 통과한 명령만 받습니다 (시계 비교·TTL 은 실물처럼 하지 않음) (`central_controlled: true`). 작업 명령은 켜진 채로 시작합니다 (격리 도메인이라). 화면은 `http://localhost:8081/` 입니다 (실물 관제 8080 과 겹치지 않게 나눔, `port:=` 로 바꿀 수 있음)
 (노트북에서는 `ssh -N -L 8081:127.0.0.1:8081 <사용자>@<관제 PC>` 후 같은 주소).
 
 | 인자 | 기본값 | 뜻 |

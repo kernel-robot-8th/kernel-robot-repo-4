@@ -1,21 +1,19 @@
-"""기존 JSON 순찰 어댑터의 수신 감시와 세션·순번 기반 명령 차단."""
+"""기존 JSON 순찰 어댑터의 수신 감시와 세션·순번 기반 명령 차단.
 
-import math
+PC 끼리 시계를 비교하지 않는다 (관제가 붙인 issued_at·ttl_sec 는 보지 않음, 2026-11-09).
+보통 방식대로 끊김은 받는 쪽 monotonic 시계로, 옛·중복 메시지는 세션·순번으로,
+끊긴 뒤에는 잠금으로 막는다. 시계 비교는 두 PC 시계가 1초만 어긋나도 정상 명령을
+모두 거절해서 뺐다 (되살리려면 git 97be6c7).
+"""
+
 import time
-
-
-def number(value):
-    """불리언이나 NaN을 유효한 만료 시간으로 취급하지 않는다."""
-    return (not isinstance(value, bool) and isinstance(value, (int, float))
-            and math.isfinite(value))
 
 
 class CentralGuard:
     """하트비트는 연결 상태만 복구하며 로컬 정지 잠금은 해제하지 않는다."""
 
-    def __init__(self, timeout_sec=3.0, max_ttl_sec=5.0,
-                 clock=time.monotonic, wall=time.time):
-        self.timeout, self.max_ttl, self.clock, self.wall = timeout_sec, max_ttl_sec, clock, wall
+    def __init__(self, timeout_sec=3.0, clock=time.monotonic):
+        self.timeout, self.clock = timeout_sec, clock
         self.session = None
         self.heartbeat_seq = self.command_seq = 0
         self.received = None
@@ -27,14 +25,9 @@ class CentralGuard:
         """로컬 수신 시각으로 중앙 서버의 연결 끊김을 감지한다."""
         return self.received is not None and self.clock() - self.received < self.timeout
 
-    def _valid_time(self, payload):
-        issued, ttl = payload.get('issued_at'), payload.get('ttl_sec')
-        return (number(issued) and number(ttl) and 0 < ttl <= self.max_ttl
-                and -1.0 <= self.wall() - issued < ttl)
-
     def heartbeat(self, payload):
         """서버 세션 변경으로 정지가 필요한지 반환한다."""
-        if not isinstance(payload, dict) or not self._valid_time(payload):
+        if not isinstance(payload, dict):
             return False
         session, seq = payload.get('session_id'), payload.get('seq')
         if (not isinstance(session, str) or not session or isinstance(seq, bool)
@@ -60,8 +53,8 @@ class CentralGuard:
         return False
 
     def accept(self, payload, reset=False):
-        """현재 세션에서 유효 시간 안에 수신한 순번이 증가하는 명령만 로봇을 이동시킬 수 있다."""
-        if (not self.healthy or not self._valid_time(payload)
+        """연결이 살아 있을 때 현재 세션에서 순번이 늘어나는 명령만 로봇을 이동시킬 수 있다."""
+        if (not self.healthy or not isinstance(payload, dict)
                 or payload.get('session_id') != self.session or (self.latched and not reset)):
             return False
         seq = payload.get('seq')

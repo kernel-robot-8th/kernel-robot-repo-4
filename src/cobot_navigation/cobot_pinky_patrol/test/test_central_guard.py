@@ -7,7 +7,7 @@ import pytest
 @pytest.fixture
 def env():
     now = [0.0]
-    guard = CentralGuard(clock=lambda: now[0], wall=lambda: 1000 + now[0])
+    guard = CentralGuard(clock=lambda: now[0])
     return now, guard
 
 
@@ -50,19 +50,36 @@ def test_session_change_latches_and_old_messages_do_not_authorize_motion(env):
     assert not guard.accept(packet(now, 2, session='server1'))
 
 
-def test_delayed_heartbeat_does_not_refresh_watchdog(env):
+def test_clock_skew_and_missing_issued_at_do_not_block(env):
+    """PC 끼리 시계를 비교하지 않는다: 보낸 시각이 어긋나거나 없어도 통한다."""
     now, guard = env
-    old = packet(now)
-    guard.heartbeat(old)
-    now[0] = 4
-    guard.heartbeat(old)
+    guard.heartbeat(packet(now, issued_at=1000 - 300))
+    assert guard.healthy
+    assert guard.accept(packet(now, issued_at=1000 + 300))
+    plain = dict(session_id='server1', seq=2)
+    assert guard.accept(plain)
+
+
+def test_late_old_messages_after_link_loss_do_not_resume_motion(env):
+    """5초 끊겨 잠긴 뒤 뒤늦게 온 옛 하트비트·명령으로는 움직이지 않는다."""
+    now, guard = env
+    guard.heartbeat(packet(now))
+    assert guard.accept(packet(now, 1))
+    now[0] = 5.0
+    assert guard.expired() and guard.latched
+    # 옛 하트비트(순번 1)는 순번이 안 늘어 워치독을 살리지 못한다
+    guard.heartbeat(packet(now, 1))
     assert not guard.healthy
-    assert guard.expired()
+    # 새 하트비트로 연결은 돌아와도 잠금은 그대로, 옛·새 일반 명령 모두 거절
+    guard.heartbeat(packet(now, 2))
+    assert guard.healthy and guard.latched
+    assert not guard.accept(packet(now, 1))
+    assert not guard.accept(packet(now, 2))
+    assert guard.accept(packet(now, 2), reset=True) and not guard.latched
 
 
 @pytest.mark.parametrize('changes', [
-    {'seq': True}, {'seq': 0}, {'seq': '1'}, {'ttl_sec': 1000}, {'ttl_sec': float('nan')},
-    {'issued_at': float('inf')}, {'issued_at': 1100}, {'session_id': ''},
+    {'seq': True}, {'seq': 0}, {'seq': '1'}, {'session_id': ''},
 ])
 def test_invalid_packet_cannot_open_command_gate(env, changes):
     now, guard = env

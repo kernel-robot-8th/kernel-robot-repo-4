@@ -167,12 +167,13 @@ class CentralGuard:
 
     패키지끼리 import 하지 않는 규칙(CLAUDE.md 3-6) 때문에 복사해 둔다. 실제 파일이 바뀌면 같이 고친다.
     - 하트비트는 연결 상태만 살린다. 정지 잠금(latched)은 풀지 않는다.
-    - 명령은 현재 세션, 유효 시간(TTL) 안, 순번이 늘어나는 것만 받는다. 잠긴 동안은 control_reset 만.
+    - 명령은 연결이 살아 있을 때 현재 세션에서 순번이 늘어나는 것만 받는다. 잠긴 동안은 control_reset 만.
+    - PC 끼리 시계를 비교하지 않는다 (issued_at·ttl_sec 는 보지 않음, 2026-11-09).
     - 서버 세션이 바뀌거나 하트비트가 끊기면 잠근다.
     """
 
-    def __init__(self, timeout_sec=3.0, max_ttl_sec=5.0, clock=time.monotonic, wall=time.time):
-        self.timeout, self.max_ttl, self.clock, self.wall = timeout_sec, max_ttl_sec, clock, wall
+    def __init__(self, timeout_sec=3.0, clock=time.monotonic):
+        self.timeout, self.clock = timeout_sec, clock
         self.session = None
         self.heartbeat_seq = self.command_seq = 0
         self.received = None
@@ -183,14 +184,9 @@ class CentralGuard:
     def healthy(self):
         return self.received is not None and self.clock() - self.received < self.timeout
 
-    def _valid_time(self, payload):
-        issued, ttl = payload.get('issued_at'), payload.get('ttl_sec')
-        return (_number(issued) and _number(ttl) and 0 < ttl <= self.max_ttl
-                and -1.0 <= self.wall() - issued < ttl)
-
     def heartbeat(self, payload):
         """서버 세션이 바뀌어 정지해야 하면 True."""
-        if not isinstance(payload, dict) or not self._valid_time(payload):
+        if not isinstance(payload, dict):
             return False
         session, seq = payload.get('session_id'), payload.get('seq')
         if (not isinstance(session, str) or not session or isinstance(seq, bool)
@@ -217,7 +213,7 @@ class CentralGuard:
 
     def accept(self, payload, reset=False):
         """현재 세션·유효 시간·늘어나는 순번의 명령만 받는다. reset 이면 잠금을 푼다."""
-        if (not self.healthy or not self._valid_time(payload)
+        if (not self.healthy or not isinstance(payload, dict)
                 or payload.get('session_id') != self.session or (self.latched and not reset)):
             return False
         seq = payload.get('seq')
@@ -227,12 +223,6 @@ class CentralGuard:
         if reset:
             self.latched = False
         return True
-
-
-def _number(value):
-    """불리언·NaN·무한대를 유효한 시각으로 보지 않는다."""
-    return (not isinstance(value, bool) and isinstance(value, (int, float))
-            and math.isfinite(value))
 
 
 def central_command(guard, raw):

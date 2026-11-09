@@ -69,7 +69,7 @@ class MockPinkyNode(Node):
             'dropout_robot': 'pinky3', 'dropout_period_sec': 60.0, 'dropout_sec': 12.0,
             'seed': 0, 'spec_versions': ['v1'],
             # 중앙 관제(fleet_control) 규칙: 하트비트·세션·순번·TTL 을 통과한 명령만 받는다.
-            'central_controlled': True, 'heartbeat_timeout_sec': 3.0, 'command_ttl_max_sec': 5.0,
+            'central_controlled': True, 'heartbeat_timeout_sec': 3.0,
         }
         for name, value in p.items():
             self.declare_parameter(name, value)
@@ -84,7 +84,7 @@ class MockPinkyNode(Node):
         self.boot_id = uuid.uuid4().hex
         # rclpy Node 에 guards 속성이 있어 이름을 central_guards 로 둔다
         self.central_guards = {
-            name: CentralGuard(cfg['heartbeat_timeout_sec'], cfg['command_ttl_max_sec'])
+            name: CentralGuard(cfg['heartbeat_timeout_sec'])
             for name in robots}
 
         configs = load_robot_configs(cfg['points_dir'], robots, cfg['site'])

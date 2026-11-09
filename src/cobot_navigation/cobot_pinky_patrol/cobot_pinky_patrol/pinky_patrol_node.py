@@ -36,7 +36,7 @@ class PinkyPatrolNode(Node):
         defaults = {
             'robot_id': '', 'idle_return_sec': 120.0, 'central_controlled': False,
             'status_period_sec': 0.5,
-            'central_timeout_sec': 3.0, 'command_ttl_sec': 5.0,
+            'central_timeout_sec': 3.0,
             'tick_sec': 0.05, 'nav_retries': 3, 'nav_ready_timeout_sec': 60.0,
             'lifecycle_nodes': ['amcl', 'bt_navigator'], 'lifecycle_poll_sec': 0.5,
             'lifecycle_response_timeout_sec': 2.0,
@@ -51,7 +51,7 @@ class PinkyPatrolNode(Node):
         positive = ('tick_sec', 'nav_retries', 'nav_ready_timeout_sec',
                     'lifecycle_poll_sec', 'lifecycle_response_timeout_sec',
                     'initialpose_timeout_sec', 'led_blink_sec', 'status_period_sec',
-                    'central_timeout_sec', 'command_ttl_sec')
+                    'central_timeout_sec')
         if any(not math.isfinite(self.config[key]) or self.config[key] <= 0
                for key in positive):
             raise ValueError('주기·타임아웃·재시도 횟수는 양수여야 합니다')
@@ -67,8 +67,7 @@ class PinkyPatrolNode(Node):
         self.pose_file = os.path.expanduser(self.config['pose_file'])
         self.status_pub = self.create_publisher(String, 'patrol_status', 10)
         self.command_sub = self.create_subscription(String, 'patrol_cmd', self._cmd_cb, 10)
-        self.central_guard = CentralGuard(self.config['central_timeout_sec'],
-                                          self.config['command_ttl_sec'])
+        self.central_guard = CentralGuard(self.config['central_timeout_sec'])
         self.central_sub = self.create_subscription(
             String, 'fleet_heartbeat', self._central_heartbeat, 10)
         self.initial_pub = self.create_publisher(PoseWithCovarianceStamped, 'initialpose', 10)

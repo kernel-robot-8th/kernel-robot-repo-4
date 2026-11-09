@@ -296,7 +296,7 @@ class Clock:
 @pytest.fixture
 def guard():
     clock = Clock()
-    return CentralGuard(timeout_sec=3.0, max_ttl_sec=5.0, clock=clock, wall=clock), clock
+    return CentralGuard(timeout_sec=3.0, clock=clock), clock
 
 
 def beat(clock, seq, session='s1', ttl=3.0):
@@ -308,23 +308,24 @@ def envelope(clock, seq, command='goto:P1', session='s1', ttl=5.0):
                        'seq': seq, 'issued_at': clock.now, 'ttl_sec': ttl})
 
 
-def test_central_guard_accepts_only_current_session_fresh_increasing(guard):
+def test_central_guard_accepts_only_current_session_increasing(guard):
     g, clock = guard
     # 하트비트 전에는 아무 명령도 받지 않는다
     assert central_command(g, envelope(clock, 1)) == (None, 'rejected')
     assert g.heartbeat(beat(clock, 1)) is False
     raw, result = central_command(g, envelope(clock, 1))
     assert result == 'accepted' and json.loads(raw)['command'] == 'goto:P1'
-    # 같은·작은 순번, 다른 세션, 봉투 없는 글자, 너무 긴 TTL 은 거절
+    # 같은·작은 순번, 다른 세션, 봉투 없는 글자는 거절
     assert central_command(g, envelope(clock, 1))[1] == 'rejected'
     assert central_command(g, envelope(clock, 2, session='other'))[1] == 'rejected'
     assert central_command(g, 'goto:P1')[1] == 'rejected'
-    assert central_command(g, envelope(clock, 3, ttl=10.0))[1] == 'rejected'
-    # 유효 시간이 지난 명령은 거절
-    old = envelope(clock, 4)
-    clock.now += 6.0
-    g.heartbeat(beat(clock, 2))
-    assert central_command(g, old)[1] == 'rejected'
+    # PC 끼리 시계를 비교하지 않는다: 보낸 시각이 어긋나도 순번이 늘면 받는다
+    skewed = json.loads(envelope(clock, 3))
+    skewed['issued_at'] = clock.now - 300
+    assert central_command(g, json.dumps(skewed))[1] == 'accepted'
+    # 하트비트가 끊기면 명령을 받지 않는다 (받는 쪽 시계 워치독)
+    clock.now += 4.0
+    assert central_command(g, envelope(clock, 4))[1] == 'rejected'
 
 
 def test_central_guard_stop_latches_until_reset(guard):

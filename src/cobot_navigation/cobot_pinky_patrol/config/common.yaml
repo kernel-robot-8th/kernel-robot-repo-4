@@ -12,4 +12,3 @@ pinky_patrol_node:
     central_controlled: true
     status_period_sec: 0.5
     central_timeout_sec: 3.0
-    command_ttl_sec: 5.0
