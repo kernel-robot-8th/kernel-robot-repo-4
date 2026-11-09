@@ -47,7 +47,9 @@ function openRelease(robotId) {
   closeLoad();
   view.releasing = robotId;
   $("release-title").textContent = `${robotId} · 제어권 복구`;
-  $("release-what").textContent = latchText(robotId, robot) || "";
+  const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
+  $("release-what").textContent = [latchText(robotId, robot) || "정지 잠금",
+    unknown ? `결과 모름 ${unknown.command} 함께 정리` : ""].filter(Boolean).join(" · ");
   $("release-confirm").checked = false;
   $("release-operator").value = savedOperator();
   $("release-note").value = RELEASE_NOTE;
@@ -70,6 +72,7 @@ async function sendRelease() {
   const note = $("release-note").value.trim() || RELEASE_NOTE;
   const confirmed = $("release-confirm").checked;
   const evidence = Object.fromEntries(EVIDENCE_KEYS.map((key) => [key, confirmed]));
+  const hadUnknown = Boolean(robotTask(robotId, new Set(["UNKNOWN"])));
   saveOperator(operator);
   $("release-ok").disabled = true;
   const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/release_control`,
@@ -78,7 +81,8 @@ async function sendRelease() {
   if (result.ok) {
     // 다음 /api/health 를 기다리지 않고 보류 표시를 바로 지운다.
     delete view.holds[robotId];
-    showMessage(robotId, "복구함 · 작업 명령은 꺼져 있음 (상단에서 켬)", false);
+    showMessage(robotId, ["복구함", hadUnknown ? "결과 모름은 실패로 기록" : "",
+      view.commandsArmed ? "" : "작업 명령은 꺼져 있음 (상단에서 켬)"].filter(Boolean).join(" · "), false);
   } else {
     showMessage(robotId, `복구 거절 (${result.status}): ${errorText(result)}`, true);
   }
@@ -97,11 +101,22 @@ function setupRelease() {
   });
 }
 
-// 카드·상세 화면의 상태 줄을 눌렀을 때: 결과 모름 해제가 먼저, 다음 수동 상차 확인(load.js),
-// 아니면 정지 잠금 복구.
+// 보류 중인 로봇은 복구(release_control) 하나로 결과 모름까지 푼다. fleet 의 결과 모름 해제(resolve)는
+// 로봇 래치를 볼 수 있는데, 로봇이 재부팅하면 래치가 풀린 채 올라와 해제가 막힐 수 있기 때문이다.
+// 복구는 그 로봇의 UNKNOWN 작업도 실패로 기록한다 (cobot_fleet_control control_api._release_control).
+function releaseCovers(robotId) {
+  return Boolean(view.holds[robotId]);
+}
+
+// 카드·상세 화면의 상태 줄을 눌렀을 때: 보류 중이면 복구, 결과 모름이면 해제,
+// 다음 수동 상차 확인(load.js), 아니면 정지 잠금 복구.
 function onCmdHeadClick(robotId) {
   if (!robotId) return;
   const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
+  if (unknown && releaseCovers(robotId)) {
+    openRelease(robotId);
+    return;
+  }
   if (unknown) {
     openResolve(unknown);
     return;

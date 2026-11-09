@@ -13,8 +13,9 @@ import pytest
     (True, {'busy': True}, 'busy=false'),
     (True, {'busy': None}, 'busy=false'),
     (True, {'held_zone': 'A'}, 'held_zone=A'),
-    (True, {'central_latched': False}, 'central_latched=true'),
-    (True, {'central_latched': None}, 'central_latched=true'),
+    # 재부팅으로 래치가 풀린 로봇도 멈춰 있으면(busy=false) 해제한다
+    (True, {'central_latched': False}, None),
+    (True, {'central_latched': None}, None),
     (True, {}, None),
 ])
 def test_web_resolve_reports_blocker_and_only_releases_when_ready(

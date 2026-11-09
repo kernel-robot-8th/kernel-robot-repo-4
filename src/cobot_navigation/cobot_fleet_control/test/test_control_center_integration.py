@@ -69,7 +69,9 @@ def test_upstream_http_stop_and_legacy_resolve_request(web):
                                         operation='goto', points=['P1']))
     stop = client.post('/api/robots/pinky1/stop', json=dict(emergency=False))
     assert stop.status_code == 202 and stop.json()['task_id'] == 'http1'
-    assert client.get('/api/health').json()['commands_armed'] is False
+    # 로봇 하나의 정지는 그 로봇만 보류하고 작업 명령은 켜 둔다
+    health = client.get('/api/health').json()
+    assert health['commands_armed'] is True and 'pinky1' in health['holds']
     request = dict(result='FAILED', note='현장에서 정지 확인', client_request_id='resolve1')
     assert client.post('/api/tasks/http1/resolve', json=request).status_code == 409
     run(lambda e: e.scenario.telemetry('pinky1', dict(

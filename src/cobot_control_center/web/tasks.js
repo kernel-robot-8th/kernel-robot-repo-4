@@ -90,7 +90,11 @@ function renderTasks() {
       + (task.detail ? `\n${task.detail}` : "");
     const resolve = el.querySelector(".resolve-btn");
     resolve.hidden = task.state !== "UNKNOWN";
-    resolve.addEventListener("click", () => openResolve(task));
+    // 보류 중인 로봇은 복구 하나로 결과 모름까지 푼다 (release.js releaseCovers)
+    const viaRelease = releaseCovers(task.robot_id);
+    resolve.textContent = viaRelease ? "현장 확인 후 복구" : "현장 확인 후 해제";
+    resolve.addEventListener("click", () => (viaRelease
+      ? openRelease(task.robot_id) : openResolve(task)));
     return el;
   }));
 }

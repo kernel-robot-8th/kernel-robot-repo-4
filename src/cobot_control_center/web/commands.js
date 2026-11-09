@@ -14,7 +14,7 @@ const PICK_HIT_PX = 14;        // 지도에서 지점을 누른 것으로 볼 �
 // 작업 노드는 cobot_fleet_control 의 fleet_control_node 다 (중앙 관제: 하트비트·세션·순번).
 // 정지는 항상 누를 수 있다. 다른 명령은 연결돼 있고, 작업 중이 아니고, 작업 노드가 살아 있고,
 // 상단 '작업 명령 켜기'로 켜져 있을 때만 (작업 노드는 bringup 에서 늘 켜져 있어 사람이 따로 켠다).
-// 정지·비상정지는 로봇을 보류(정지 잠금)하고 작업 명령을 모두 끈다.
+// 정지·비상정지는 그 로봇만 보류(정지 잠금)한다. 상단 전체 비상정지만 작업 명령을 모두 끈다.
 // 잠긴 카드의 빨간 줄을 누르면 제어권 복구 띠가 뜬다 (release.js, release_control API).
 
 const ACTIVE_TASK = new Set(["ACCEPTED", "SENT", "RUNNING"]);
@@ -93,11 +93,11 @@ function renderCommands(card, robotId, robot) {
   const unknown = robotTask(robotId, new Set(["UNKNOWN"]));
   const latched = latchText(robotId, robot, true);
   const loadOrder = loadWaiting(robotId);
-  // 잠금은 '작업 명령 켜기'보다 먼저 알린다 (fleet 은 정지하면 작업 명령도 끄므로 켜기만으로는 안 풀린다).
+  // 잠금은 '작업 명령 켜기'보다 먼저 알린다 (보류된 로봇은 작업 명령이 켜져 있어도 복구해야 풀리므로 켜기만으로는 안 풀린다).
   const reason = view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
     : !view.controllerOnline ? "작업 노드 꺼짐"
     : !robot.online ? "연결 끊김"
-    : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 해제`
+    : unknown ? `결과 모름 작업 ${unknown.task_id}: 현장 확인 후 ${releaseCovers(robotId) ? "복구" : "해제"}`
     : latched ? latched
     : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
     : active ? `작업 중 ${active.task_id}`
@@ -127,7 +127,9 @@ function renderCommands(card, robotId, robot) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
   } else if (unknown) {
-    text = `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`;
+    text = releaseCovers(robotId)
+      ? `결과 모름: ${unknown.command} · 정지 잠금 · 눌러서 현장 확인 후 복구`
+      : `결과 모름: ${unknown.command} · 눌러서 현장 확인 후 해제`;
     level = "bad";
   } else if (loadOrder) {
     // 상차 확인은 정지 잠금보다 먼저: fleet 이 확인을 받으면 잠금도 풀고 구역 이탈부터 재개한다.

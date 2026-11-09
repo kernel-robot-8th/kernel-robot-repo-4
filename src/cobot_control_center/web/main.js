@@ -63,6 +63,7 @@ async function pollHealth() {
       view.holds = holds;
       view.orders = orders;
       render();
+      renderTasks(); // 작업 목록의 해제/복구 버튼 글이 보류 여부를 따른다
     }
     updateCamera();
     const infra = view.snapshot ? view.snapshot.infra : null;

@@ -201,7 +201,10 @@ class ControlAPI:
             scenario.store.hold(target, kind.upper())
             for row in rows:
                 self.fleet.quarantine(row[0], '운영자 ' + kind)
-        scenario.armed = False
+        # 로봇을 지정한 정지는 그 로봇만 보류(hold)한다. 다른 로봇은 계속 일한다.
+        # 로봇 지정 없는 전체 정지(전체 비상정지)만 작업 명령 전체를 끈다.
+        if robot is None:
+            scenario.armed = False
         orders = [o for o in scenario.store.orders()
                   if o['robot_id'] in targets and o['state'] not in {'COMPLETED', 'FAILED'}]
         for order in orders:
@@ -210,7 +213,8 @@ class ControlAPI:
         for target in targets:
             if not any(o['robot_id'] == target for o in orders):
                 self.gateway.halt(target, {'all_arms': True} if robot is None else {}, '')
-        return dict(armed=False, robot_id=robot, robots=targets, operation='emergency_stop',
+        return dict(armed=scenario.armed, robot_id=robot, robots=targets,
+                    operation='emergency_stop',
                     spec='v1', task_id=stopped_tasks.get(robot), software_stop=True,
                     client_request_id=request.get('client_request_id'),
                     warning='중앙 제어의 정지는 제자리 소프트 정지입니다. 현장 확인 후 해제하세요')
@@ -239,8 +243,8 @@ class ControlAPI:
             reasons.append('로봇 정지·취소 완료 미확인 (busy=false 필요)')
         if status.get('held_zone'):
             reasons.append(f'구역 이탈 미확인 (held_zone={status["held_zone"]})')
-        if status.get('central_latched') is not True:
-            reasons.append('로봇 정지 래치 미확인 (central_latched=true 필요)')
+        # 로봇 래치(central_latched)는 보지 않는다. 로봇이 재부팅하면 래치가 풀린 채 올라와
+        # 해제가 영영 막히기 때문이다. 멈춤은 busy=false 로 확인하고, 해제 때 control_reset 을 보낸다.
         if reasons:
             raise ApiError(409, '해제 불가: ' + '; '.join(reasons))
         self.gateway.release(robot)

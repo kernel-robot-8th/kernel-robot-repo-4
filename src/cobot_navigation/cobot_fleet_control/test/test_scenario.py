@@ -337,8 +337,8 @@ def test_restart_preserves_order_inventory_and_leases_without_redispatch(env):
 def test_arm_and_raw_manual_web_contract_and_latched_stop_without_order(env):
     reply = env.api.handle(dict(type='estop', request_id='web-1', robot_id='pinky1'))
     assert reply['request_id'] == 'web-1' and reply['status'] == 202
-    assert not env.scenario.armed
-    env.api.handle(dict(type='arm', armed=True))
+    # 로봇 하나의 정지는 그 로봇만 보류하고 작업 명령은 켜 둔다
+    assert env.scenario.armed and reply['body']['armed'] is True
     env.order()
     env.tick()
     assert env.current()['robot_id'] == 'pinky2'
@@ -367,12 +367,14 @@ def test_raw_command_only_when_allowed_and_sent_in_session_envelope(env):
     assert raw('goto:P1\nstop')['status'] == 400
     assert raw('x' * 201)['status'] == 400
     env.api.handle({'type': 'estop', 'robot_id': 'pinky1'})
-    assert not env.scenario.armed and raw()['status'] == 423
-    env.api.handle({'type': 'arm', 'armed': True})
-    # 정지 뒤 보류된 로봇에는 보내지 않는다
-    assert raw()['status'] == 409
+    # 정지 뒤 보류된 로봇에는 보내지 않는다 (작업 명령은 켜진 채)
+    assert env.scenario.armed and raw()['status'] == 409
     sent = len(env.gateway.sent)
     assert raw(robot='pinky2')['status'] == 202 and len(env.gateway.sent) == sent + 1
+    # 전체 비상정지(로봇 지정 없음)는 작업 명령 전체를 끈다
+    reply = env.api.handle({'type': 'estop'})
+    assert reply['body']['armed'] is False and not env.scenario.armed
+    assert raw(robot='pinky2')['status'] == 423
 
 
 def test_manual_task_matches_existing_web_display_fields(env):
