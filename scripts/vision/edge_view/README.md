@@ -80,8 +80,14 @@ cd ~/yolo_edge/view
 ~/yolo-edge-venv/bin/python -B test_edge_view.py
 ```
 
-## 저장소 사본 안내 (2026-11-10)
+## 맵 영역 자르기와 웹 창구 (2026-11-10)
 
-이 폴더는 중계 장비 `~/yolo_edge/view/` 의 사본이다. 박스 모델(OpenVINO, `models/kneg_v3`)을 함께 넣었다.
-`cameras.json` 의 `model` 은 중계 장비의 절대 경로 그대로이므로 다른 PC 에서는 `models/kneg_v3` 위치로 고쳐 쓴다.
-11-10 중계 실측: 폰 수신 11.75 fps, CPU 추론 5.0 fps(장당 약 122 ms, 약 2코어), 발행 없음(화면 표시만).
+- 카메라 항목에 `"map_crop": true` 를 주면 마커 40~43 네 개가 통째로 들어가는 영역만 내보낸다. 경계는 마커 중심이 아니라 마커 바깥 귀를 이은 선이고, 테두리가 잘리지 않게 2 화소 더 밖으로 잡는다. 그 밖 화소는 검게 지운다. 구역 판정 좌표는 그대로 마커 중심 기준이다.
+  마커를 놓치면 10초 동안 직전 사각형을 쓰고, 그 뒤에는 전체 화면이 아니라 `MARKER LOST` 안내 화면을 낸다.
+  맵 밖 검출은 판정·집계·표시에서 빠진다(`map.dropped_outside` 누계). 가려진 동안은 판정도 하지 않는다.
+- 마커 코드는 `marker_zone.py` (`~/homelab-vision/zone/marker_zone.py` 사본, 수정 없음).
+- 설정에 `"bridge_bind": "172.17.0.1"` 을 주면 같은 포트로 웹 창구가 하나 더 열린다. docker0 주소만 받는다.
+  창구는 GET 만 받고, `/api/state` (맵 영역 카메라만) 와 맵 영역 카메라의 `stream.mjpg` 만 내준다. 시작·정지·reload 는 403 이다.
+  중계 웹(5173)의 `/api/mapview/` 프록시가 이 창구로 온다. 화면은 `/debug/camera`.
+- 시험: `python test_map_crop.py` (끝 줄 `[map_test] 34/34 PASS`).
+- 되돌리기: `cameras.json` 에서 `bridge_bind` 줄과 `map_crop` 을 지우고 다시 시작하면 전과 같다.

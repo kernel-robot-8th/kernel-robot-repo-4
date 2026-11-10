@@ -43,6 +43,42 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("edge_view")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from marker_zone import MarkerSquare  # noqa: E402  homelab-vision/zone 의 사본이다. 판정 좌표는 마커 40~43 의 중심을 맵 네 귀로 본다.
+
+
+class MapSquare(MarkerSquare):
+    """맵 사각형에 더해 마커 네 귀가 중심에서 얼마나 떨어져 있는지도 기억한다. 자를 때 마커가 통째로 들어가게 하려는 것이다."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.offsets = {}  # 맵 귀 번호 -> 4x2, 마커 귀 - 마커 중심. 마커가 가려져도 마지막 값을 쓴다.
+
+    def read(self, frame):
+        gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = self.detector.detectMarkers(gray)
+        found, shape, twice = {}, {}, set()
+        if ids is not None:
+            for c, i in zip(corners, ids.ravel().tolist()):
+                if i in self.ids:
+                    if i in found:
+                        twice.add(i)
+                    pts = c.reshape(4, 2)
+                    found[i] = pts.mean(axis=0)
+                    shape[i] = pts - found[i]
+        for i in twice:
+            del found[i]
+        for i in found:
+            self.offsets[self.ids[i]] = shape[i]
+        return found
+
+    def outline(self):
+        """마커 네 개를 통째로 감싸는 볼록 다각형. 프레임 화소."""
+        zero = np.zeros((1, 2), np.float32)
+        pts = np.concatenate([self.quad[k] + self.offsets.get(k, zero) for k in range(4)]).astype(np.float32)
+        return cv2.convexHull(pts).reshape(-1, 2)
+
+
 ALARM_CLASS_NAMES = ("box_on_floor", "box_perched_on_rim", "box_run_over", "lid_detached")
 # 중계 워커와 같은 제외 영역. 좌표는 1080x1440 프레임 기준이라 다른 크기에서는 적용하지 않는다.
 DEFAULT_ROI = ((410, 590, 455, 630), (315, 925, 355, 965), (845, 530, 885, 570))
@@ -53,6 +89,7 @@ IMAGE_EXT = (".jpg", ".jpeg", ".png")
 MAX_LINE = 8192
 MAX_PART = 16 * 1024 * 1024
 MAX_CLIENTS = 4
+MAP_EDGE_PX = 2  # 맵 영역을 마커 바깥 귀보다 이만큼 더 밖으로 잡는다. 마커 테두리 화소가 잘리지 않게 한다.
 WRITE_TIMEOUT_SEC = 10.0  # 읽기를 멈춘 브라우저가 시청 슬롯을 계속 잡지 못하게 한다.
 SHORT ={"box_on_floor": "floor", "box_perched_on_rim": "rim", "box_run_over": "runover",
          "lid_detached": "lid", "box_on_tray": "tray", "box_stock": "stock"}
@@ -416,7 +453,7 @@ class Viewer:
 
     def __init__(self, detector, capture, *, conf=0.25, alarm_conf=0.5, iou=0.7, debounce=3, cooldown=5.0, max_fps=5.0,
                  view_width=720, jpeg_quality=75, stale_sec=3.0, stream_id="CAM_CEILING_01", event_log=None, model_label="",
-                 stats_sec=30.0, max_errors=20):
+                 stats_sec=30.0, max_errors=20, map_crop=False, map_margin_px=0, map_hold_sec=10.0):
         self.det, self.capture = detector, capture
         self.conf, self.alarm_conf, self.iou, self.cooldown = conf, alarm_conf, iou, cooldown
         self.max_fps, self.view_width, self.jpeg_quality, self.stale_sec = max_fps, view_width, jpeg_quality, stale_sec
@@ -434,6 +471,10 @@ class Viewer:
         self.recent_ms = deque(maxlen=30)
         self.recent_t = deque(maxlen=30)
         self.size, self.roi_on = None, False
+        # 맵 영역 자르기. 켜면 마커 네 개 안쪽만 내보내고, 마커를 놓치면 전체 화면이 아니라 안내 화면을 낸다.
+        self.square = MapSquare(period_sec=0.5, max_age_sec=map_hold_sec) if map_crop else None
+        self.map_margin_px, self.map_box, self.map_quad, self.map_dropped = int(map_margin_px), None, None, 0
+        self.map_pad = MAP_EDGE_PX + self.map_margin_px  # 마커 바깥 귀를 이은 선에서 밖으로 더 내보내는 화소 수
         self.current = []
         self.seen_display, self.seen_alarm_conf = Counter(), Counter()
         self.max_conf = defaultdict(float)
@@ -472,8 +513,45 @@ class Viewer:
                 logger.error("이벤트 기록 실패: %s", e)
         return payload
 
+    # 맵 영역
+    def locate_map(self, frame, now):
+        """마커로 맵 영역을 다시 찾는다. 영역은 마커 중심이 아니라 마커 바깥 귀까지다. 못 찾으면 map_box 가 None 이다."""
+        self.square.update(frame, now)
+        if self.square.quad is None or not self.square.usable():
+            self.map_box, self.map_quad = None, None
+            return
+        quad = self.square.outline()
+        pad = self.map_pad
+        h, w = frame.shape[:2]
+        x0, y0 = np.floor(quad.min(axis=0)).astype(int) - pad
+        x1, y1 = np.ceil(quad.max(axis=0)).astype(int) + 1 + pad
+        box = max(int(x0), 0), max(int(y0), 0), min(int(x1), w), min(int(y1), h)
+        self.map_box = box if box[2] > box[0] and box[3] > box[1] else None
+        self.map_quad = quad if self.map_box else None
+
+    def in_map(self, bbox):
+        cx, cy = (bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0
+        return cv2.pointPolygonTest(self.map_quad, (float(cx), float(cy)), True) >= -self.map_pad
+
+    def placeholder(self):
+        """마커를 놓쳤을 때 내보내는 화면. 프레임의 화소는 하나도 쓰지 않는다."""
+        view = np.full((360, 480, 3), 40, np.uint8)
+        cv2.putText(view, "MARKER LOST", (110, 170), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (210, 210, 210), 2, cv2.LINE_AA)
+        cv2.putText(view, f"markers seen {self.square.seen}/4", (140, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (160, 160, 160), 1, cv2.LINE_AA)
+        return view
+
     # 화면
     def render(self, frame, dets):
+        ox, oy = 0, 0
+        if self.square is not None:
+            if self.map_box is None:
+                return self.placeholder()
+            ox, oy, bx1, by1 = self.map_box
+            frame = frame[oy:by1, ox:bx1].copy()
+            mask = np.zeros(frame.shape[:2], np.uint8)
+            cv2.fillConvexPoly(mask, np.round(self.map_quad - (ox, oy)).astype(np.int32), 255)
+            mask = cv2.dilate(mask, np.ones((2 * self.map_pad + 1,) * 2, np.uint8))
+            frame[mask == 0] = 0  # 마커 바깥 귀를 이은 선 밖은 검게 지운다. 맵 밖 화소는 내보내지 않는다.
         h, w = frame.shape[:2]
         scale = min(1.0, self.view_width / float(w)) if self.view_width else 1.0
         if scale < 1.0:
@@ -482,9 +560,10 @@ class Viewer:
             view = frame.copy()
         if self.roi_on:
             for x1, y1, x2, y2 in DEFAULT_ROI:
-                cv2.rectangle(view, (int(x1 * scale), int(y1 * scale)), (int(x2 * scale), int(y2 * scale)), (150, 150, 150), 1)
+                cv2.rectangle(view, (int((x1 - ox) * scale), int((y1 - oy) * scale)), (int((x2 - ox) * scale), int((y2 - oy) * scale)),
+                              (150, 150, 150), 1)
         for d in sorted(dets, key=lambda x: x["confidence"]):
-            x1, y1, x2, y2 = (int(v * scale) for v in d["bbox"])
+            x1, y1, x2, y2 = (int((v - o) * scale) for v, o in zip(d["bbox"], (ox, oy, ox, oy)))
             color = (160, 160, 160) if d["in_roi"] else COLOR.get(d["event_type"], (255, 255, 255))
             strong = d["alarm_class"] and d["confidence"] >= self.alarm_conf and not d["in_roi"]
             cv2.rectangle(view, (x1, y1), (x2, y2), color, 3 if strong else 1)
@@ -513,6 +592,15 @@ class Viewer:
     def process(self, frame, dets, infer_s, now):
         h, w = frame.shape[:2]
         self.size = (w, h)
+        if self.square is not None:
+            self.locate_map(frame, now)
+            if self.map_box is not None:  # 맵 밖 검출은 판정·집계·표시에서 모두 뺀다.
+                inside = [d for d in dets if self.in_map(d["bbox"])]
+                self.map_dropped += len(dets) - len(inside)
+                dets = inside
+            else:  # 맵을 모르면 어느 검출이 맵 안인지 알 수 없다. 화면이 가려진 동안은 판정도 하지 않는다.
+                self.map_dropped += len(dets)
+                dets = []
         for d in self.debounce.update(self.judge(dets, (w, h)), now):
             self.emit(d, now)
         self.frames += 1
@@ -578,6 +666,10 @@ class Viewer:
             "input": self.capture.info(),
             "reconnects": self.capture.reconnects, "bad_frames": self.capture.bad_frames,
             "frame_size": list(self.size) if self.size else None, "roi_applied": bool(self.roi_on),
+            "map": None if self.square is None else {
+                "state": self.square.state, "markers_seen": self.square.seen, "visible": self.map_box is not None,
+                "box": list(self.map_box) if self.map_box else None, "rejected": self.square.rejected,
+                "dropped_outside": self.map_dropped},
             "frames_processed": self.frames, "fps_processed": round((len(self.recent_t) - 1) / span, 2) if span > 0 else 0.0,
             "detect_ms_recent": round(float(np.mean(self.recent_ms)), 1) if self.recent_ms else None,
             "detect_errors": self.errors_total, "conf_display": self.conf, "conf_alarm": self.alarm_conf,

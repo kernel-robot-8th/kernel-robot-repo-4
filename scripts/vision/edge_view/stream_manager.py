@@ -54,8 +54,9 @@ SECURITY_HEADERS = (("X-Frame-Options", "DENY"), ("Content-Security-Policy", "fr
 RATIO_FIELDS = ("conf", "alarm_conf", "iou")
 INTEGER_FIELDS = ("debounce", "view_width", "threads")
 ID_PATTERN = re.compile(r"[a-z0-9_-]{1,32}")
-STATIC_FIELDS = ("name", "source", "stream_id", "max_fps", "event_log", "replay_fps")
-RESTART_FIELDS = ("model", "threads", "bind", "port", "conf", "alarm_conf", "iou", "debounce", "cooldown", "view_width",
+STATIC_FIELDS = ("name", "source", "stream_id", "max_fps", "event_log", "replay_fps", "map_crop", "map_margin_px")
+BRIDGE_BIND = "172.17.0.1"  # docker0 게이트웨이. 중계 웹 컨테이너만 닿는다. 다른 주소는 받지 않는다.
+RESTART_FIELDS = ("model", "threads", "bind", "bridge_bind", "port", "conf", "alarm_conf", "iou", "debounce", "cooldown", "view_width",
                   "event_log_dir")
 
 
@@ -75,6 +76,8 @@ def validate_config(config):
     for key in INTEGER_FIELDS:
         if key in config and (not isinstance(config[key], int) or isinstance(config[key], bool) or config[key] < 0):
             raise ValueError(f"{key} 는 0 이상 정수여야 합니다")
+    if config.get("bridge_bind") not in (None, BRIDGE_BIND):
+        raise ValueError(f"bridge_bind 는 {BRIDGE_BIND} 만 됩니다")
     cameras = config.get("cameras")
     if not isinstance(cameras, list) or len(cameras) > MAX_CAMERAS:
         raise ValueError(f"cameras 는 {MAX_CAMERAS}개 이하 목록이어야 합니다")
@@ -93,6 +96,11 @@ def validate_config(config):
         fps = entry.get("max_fps", 5.0)
         if not _is_number(fps) or not 0 < fps <= MAX_FPS:
             raise ValueError(f"{camera_id}: max_fps 는 0 초과 {MAX_FPS:g} 이하")
+        if not isinstance(entry.get("map_crop", False), bool):
+            raise ValueError(f"{camera_id}: map_crop 은 true/false")
+        margin = entry.get("map_margin_px", 0)
+        if not isinstance(margin, int) or isinstance(margin, bool) or not 0 <= margin <= 200:
+            raise ValueError(f"{camera_id}: map_margin_px 는 0~200 정수")
     return config
 
 
@@ -290,7 +298,8 @@ class StreamManager:
                                   max_fps=camera.max_fps, view_width=self.config.get("view_width", 720),
                                   stale_sec=max(3.0, 2.0 / camera.max_fps),
                                   stream_id=entry.get("stream_id", camera.id), model_label=self.model_label,
-                                  event_log=self.event_log if entry.get("event_log") else None)
+                                  event_log=self.event_log if entry.get("event_log") else None,
+                                  map_crop=entry.get("map_crop", False), map_margin_px=entry.get("map_margin_px", 0))
             viewer.debounce.reset_sec = max(1.0, 3.0 / camera.max_fps)  # 5 fps 이상에서는 원래 1초다.
             capture.start()  # 시작에 실패하면 카메라 상태를 건드리지 않는다.
             self.next_run += 1
@@ -380,6 +389,11 @@ class StreamManager:
         if left:
             logger.warning("끝나지 않은 스레드: %s", left)
 
+    def cropped_ids(self):
+        """맵 영역으로 잘라 내보내는 카메라. 웹 창구는 이 카메라만 보인다."""
+        with self.lock:
+            return {c.id for c in self.cameras.values() if c.entry.get("map_crop") is True}
+
     def snapshot(self):
         with self.lock:
             cameras = [c.snapshot() for c in self.cameras.values()]
@@ -391,7 +405,8 @@ class StreamManager:
 PAGE_PATH = os.path.join(HERE, "stream_page.html")
 
 
-def make_handler(manager):
+def make_handler(manager, bridge=False):
+    """bridge=True 는 중계 웹 컨테이너용 창구다. 읽기만 되고, 맵 영역으로 자르는 카메라만 보인다."""
     with open(PAGE_PATH, encoding="utf-8") as f:
         page = f.read().encode("utf-8")
 
@@ -437,7 +452,10 @@ def make_handler(manager):
                 origin_ok = origin is None or urlsplit(origin).hostname in ALLOWED_HOSTS
             except ValueError:
                 host, origin_ok = None, False
-            if host in ALLOWED_HOSTS and origin_ok and (navigate or site not in CROSS_SITE):
+            if bridge:  # 웹 프록시를 거쳐 오므로 Host 는 웹 주소다. 다른 사이트에서 끼워 넣는 요청만 막는다.
+                if self.command == "GET" and site not in CROSS_SITE:
+                    return True
+            elif host in ALLOWED_HOSTS and origin_ok and (navigate or site not in CROSS_SITE):
                 return True
             self._json(403, {"detail": "허용하지 않는 요청"})
             return False
@@ -455,7 +473,17 @@ def make_handler(manager):
                 return
             path = self._path()
             parts = path.strip("/").split("/")
-            if path == "/":
+            if bridge:
+                if path == "/api/state":
+                    snap = manager.snapshot()
+                    self._json(200, {"observe_only": True, "model": snap["model"],
+                                     "cameras": [c for c in snap["cameras"] if c["id"] in manager.cropped_ids()]})
+                elif (len(parts) == 3 and parts[0] == "cameras" and parts[2] == "stream.mjpg"
+                      and parts[1] in manager.cropped_ids()):
+                    self._stream(parts[1])
+                else:
+                    self._json(404, {"detail": "없는 경로"})
+            elif path == "/":
                 self._send(200, page, "text/html; charset=utf-8")
             elif path == "/api/state":
                 self._json(200, manager.snapshot())
@@ -563,6 +591,7 @@ def main(argv=None):
         event_log = os.path.join(folder, time.strftime("view-events-%Y%m%d-%H%M%S.jsonl"))
     manager = StreamManager(config, detector, label, event_log, config_path=a.config)
     server = ev.Server((bind, port), make_handler(manager))
+    bridge = ev.Server((config["bridge_bind"], port), make_handler(manager, bridge=True)) if config.get("bridge_bind") else None
     logger.info("OBSERVE-ONLY. 모델 %s, 카메라 %d대, http://%s:%d/", label, len(config["cameras"]), bind, port)
 
     stopping = []
@@ -574,10 +603,15 @@ def main(argv=None):
     signal.signal(signal.SIGINT, finish)
     manager.start()
     threading.Thread(target=server.serve_forever, daemon=True, name="http-server").start()
+    if bridge is not None:
+        logger.info("웹 창구 http://%s:%d/ (읽기 전용, 맵 영역 카메라만)", config["bridge_bind"], port)
+        threading.Thread(target=bridge.serve_forever, daemon=True, name="http-bridge").start()
     deadline = time.monotonic() + a.duration if a.duration else None
     while not stopping and not (deadline and time.monotonic() >= deadline):
         time.sleep(0.2)
     server.shutdown()
+    if bridge is not None:
+        bridge.shutdown()
     manager.shutdown()
     logger.info("끝")
     return 0
