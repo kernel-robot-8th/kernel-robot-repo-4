@@ -1,0 +1,151 @@
+{
+  "_doc": "Scene parameters (metres, degrees). Frame: robot base bottom centre, x forward, y left, z up. fitted = from the recorded video (sim/calibrate_top_camera.py, fit_workspace.py, fit_boxes.py, fit_wrist_camera.py); user = tape measurement from memory (2026-10-26).",
+  "floor_z": -0.07,
+  "top_camera": {
+    "pos_m": [
+      -0.01789653001132735,
+      0.042476436780668855,
+      0.5010290557933827
+    ],
+    "yaw_pitch_roll_deg": [
+      -4.1749695976221854,
+      -32.19009327296044,
+      3.7374317346109667
+    ],
+    "fovy_deg": 33.67923393181868,
+    "source": "joint fit (sim/calibrate_joint.py): arm IoU 0.596"
+  },
+  "table": {
+    "x_near": 0.11713445512481759,
+    "x_far": 0.25664013905261956,
+    "y_right": -0.15827298139455886,
+    "y_left": 0.11394744304662689,
+    "top_z": 0.23157660941302888,
+    "source": "joint fit: top face IoU 0.904"
+  },
+  "pinky": {
+    "x": 0.1608242847234739,
+    "y": 0.20750543560538004,
+    "disk_top_z": 0.13318915735622214,
+    "disk_radius": 0.05,
+    "disk_half_height": 0.01,
+    "body_size_m": [
+      0.2,
+      0.07
+    ],
+    "source": "disk fitted, IoU 0.989; radius and body footprint from the user"
+  },
+  "boxes": {
+    "box1": {
+      "pos_m": [
+        0.12156227440362523,
+        0.0071946234932120995,
+        0.28975805675313954
+      ],
+      "yaw_deg": 11.854567363660777,
+      "size_m": 0.03878763156007378,
+      "mass_kg": 0.01,
+      "rgba": [
+        0.9,
+        0.75,
+        0.75,
+        1
+      ]
+    },
+    "box2": {
+      "pos_m": [
+        0.12156227440362523,
+        0.0071946234932120995,
+        0.2509704251930658
+      ],
+      "yaw_deg": 11.854567363660777,
+      "size_m": 0.03878763156007378,
+      "mass_kg": 0.01,
+      "rgba": [
+        0.9,
+        0.4,
+        0.35,
+        1
+      ]
+    }
+  },
+  "wrist_camera": {
+    "pos_m": [
+      -0.0483788130639805,
+      0.03570936011625157,
+      0.07399336340063511
+    ],
+    "yaw_pitch_roll_deg": [
+      -12.536689156696996,
+      5.29250660702765,
+      1.6700741851226115
+    ],
+    "fovy_deg": 41.97065181602694,
+    "base_axes": [
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        -1,
+        0,
+        0
+      ]
+    ],
+    "source": "fitted to the wrist box masks before the first grasp (ep 10,0), IoU 0.681; pinhole approximation of a wide-angle lens"
+  },
+  "box_starts": {
+    "ep0": {
+      "box2": {
+        "pos_m": [
+          0.12156227440362523,
+          0.0071946234932120995,
+          0.2509704251930658
+        ],
+        "yaw_deg": 11.854567363660777
+      },
+      "box1": {
+        "pos_m": [
+          0.12156227440362523,
+          0.0071946234932120995,
+          0.28975805675313954
+        ],
+        "yaw_deg": 11.854567363660777
+      },
+      "iou": 0.7271978807748751,
+      "boxes": {
+        "box1": "A",
+        "box2": "B"
+      }
+    },
+    "ep10": {
+      "box1": {
+        "pos_m": [
+          0.14749109397833146,
+          0.008542390999999332,
+          0.2509704251930658
+        ],
+        "yaw_deg": 7.336179113208553
+      },
+      "box2": {
+        "pos_m": [
+          0.6,
+          -0.6,
+          0.2509704251930658
+        ],
+        "yaw_deg": 0.0
+      },
+      "iou": 0.913003663003663,
+      "boxes": {
+        "box1": "D"
+      }
+    }
+  },
+  "box_size_source": "joint fit (user said 0.04)"
+}

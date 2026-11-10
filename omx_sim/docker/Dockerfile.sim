@@ -1,0 +1,12 @@
+# SmolVLA image + MuJoCo with headless CPU rendering (OSMesa; EGL failed on this server).
+# Build: docker build -f docker/Dockerfile.sim -t omx-lerobot-sim:0.6.1 docker
+FROM omx-lerobot-smolvla:0.6.1
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libegl1 libgl1 libosmesa6 \
+    && rm -rf /var/lib/apt/lists/* && \
+    pip install "mujoco==3.3.*" imageio matplotlib
+
+ENV MUJOCO_GL=osmesa \
+    PYOPENGL_PLATFORM=osmesa

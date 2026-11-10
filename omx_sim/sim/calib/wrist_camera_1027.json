@@ -1,0 +1,32 @@
+{
+  "pos_m": [
+    -0.01738050807655195,
+    -0.013017618262000166,
+    0.009501176148803924
+  ],
+  "yaw_pitch_roll_deg": [
+    16.20059757031367,
+    27.312434222202658,
+    4.028579896087812
+  ],
+  "fovy_deg": 54.15860741550277,
+  "base_axes": [
+    [
+      0,
+      -1,
+      0
+    ],
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      -1,
+      0,
+      0
+    ]
+  ],
+  "old_iou": 0.27016703221479377,
+  "source": "fit_wrist_camera_1027.py: white regions (table, disk, box) in the wrist video of data/omx_1027_jihyeok_train8 eps 0,2,4,6, IoU 0.323 (10/24 camera 0.270); pinhole approximation of a wide-angle lens"
+}
