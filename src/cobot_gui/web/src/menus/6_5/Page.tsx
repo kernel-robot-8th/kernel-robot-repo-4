@@ -1,6 +1,3 @@
-// 메뉴 6.5 시뮬레이션·기능 검증 (SR-22 3D 가상환경 시뮬레이션 온라인 실험장)
-// 관제 상세 기능 구현 및 검증을 위해, 브라우저 내장 3D 캔버스에서 핑키 3대 및 로봇팔 3대의 물리 모델을 실시간 구동하고
-// 각 포인트별 태스크 동작 신호를 도커 백엔드로 송수신하여 시각화합니다.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MenuHeader from "@/shell/MenuHeader";
 import type { MenuPageProps } from "@/shell/types";
 
-import ScenarioConsole from "./ScenarioConsole";
+import ManualMoveTools from "../debug/ManualMoveTools";
 
 // 경기장 치수 및 웨이포인트 정의 (정본: 2.4m x 2.4m)
 interface Point3D {
@@ -79,8 +76,11 @@ export default function Page({ menu }: MenuPageProps) {
     { id: "pinky2", name: "Pinky 2호기 (P2)", x: 1.41, y: 1.86, z: 0.08, heading: -Math.PI / 2, color: "#06b6d4" },
     { id: "pinky3", name: "Pinky 3호기 (P3)", x: 1.41, y: 1.66, z: 0.08, heading: -Math.PI / 2, color: "#10b981" },
   ]);
+  // 렌더 중에 ref 를 대입하면 버려진 렌더에서도 값이 바뀐다 (react-hooks/refs).
   const pinkiesRef = useRef(pinkies);
-  pinkiesRef.current = pinkies;
+  useEffect(() => {
+    pinkiesRef.current = pinkies;
+  }, [pinkies]);
 
   // 4. 로봇팔 3대 3D 물리 모델 상태 (OMX 1: 상차1 ZA, OMX 2: 상차2 ZB, OMX 3: 하차 ZC)
   const [arms, setArms] = useState<ArmState[]>([
@@ -118,18 +118,7 @@ export default function Page({ menu }: MenuPageProps) {
     lastReason: "IN_TOLERANCE",
   });
 
-  // 7. 도커 신호 송수신 콘솔 로그
-  const [signalLogs, setSignalLogs] = useState<TaskSignalLog[]>([
-    {
-      id: "init-1",
-      time: "13:00:00.100",
-      type: "ACK",
-      taskId: "INIT",
-      target: "docker/cobot_simulation",
-      payload: "50Hz Kinematics 엔진 및 브리지 통신 링크 확인 (RTT: 1.8ms)",
-      rttMs: 1.8,
-    },
-  ]);
+  const [signalLogs, setSignalLogs] = useState<TaskSignalLog[]>([]);
 
   // 태스크 애니메이션 제어 ref
   const animFrameRef = useRef<number | null>(null);
@@ -560,7 +549,7 @@ export default function Page({ menu }: MenuPageProps) {
         "ACK",
         taskName,
         "fms_core",
-        "서명 검증 완료 (ConsoleLease 단일 조종권 PASS, RTT: 2.1ms) -> 50Hz 보간 주행 개시",
+        "모의 이동 요청 접수 · 보간 주행 시작",
         2.1,
       );
     }, 150);
@@ -626,7 +615,7 @@ export default function Page({ menu }: MenuPageProps) {
         "ACK",
         taskName,
         "fms_core",
-        "서명 검증 완료 (1.2 rad/s 속도 클램프 준수, RTT: 1.9ms)",
+        "모의 팔 요청 접수",
         1.9,
       );
     }, 150);
@@ -925,7 +914,7 @@ export default function Page({ menu }: MenuPageProps) {
               variant="outline"
               className={engineStatus === "ACTIVE" ? "border-green-600 text-green-400" : "border-red-600 text-red-400"}
             >
-              브라우저 모의: {engineStatus === "ACTIVE" ? "50.0 Hz ACTIVE" : "E-STOPPED"}
+              브라우저 모의: {engineStatus === "ACTIVE" ? "ACTIVE" : "E-STOPPED"}
             </Badge>
             <Badge variant="outline" className="border-purple-600 text-purple-400">
               ROBOTS: 3 AMR + 3 ARMS
@@ -934,7 +923,7 @@ export default function Page({ menu }: MenuPageProps) {
         </AlertTitle>
         <AlertDescription className="text-[#999999] text-xs mt-1.5 flex justify-between items-center">
           <span>
-            위 3D 장면과 제어 버튼은 브라우저 안의 모의이고 실제 로봇이나 시뮬에 신호를 보내지 않습니다. 실제 상태와 관제 요청은 아래 시나리오 콘솔만 다룹니다.
+            위 3D 장면과 제어 버튼은 브라우저 안의 모의이고 실제 로봇이나 시뮬에 신호를 보내지 않습니다. 관제 경유 수동 도구는 격리 시뮬에서 별도로 표시됩니다.
           </span>
           <span className="font-mono text-cyan-400 shrink-0 font-bold ml-2">
             현재 상태: {activeTaskName}
@@ -1325,12 +1314,12 @@ export default function Page({ menu }: MenuPageProps) {
             </CardContent>
           </Card>
 
-          {/* 2. 도커 태스크 동작 신호 송수신 실시간 콘솔 */}
+          {/* 2. 브라우저 모의 태스크 기록 */}
           <Card className="rounded-none border border-border bg-[#101114] shadow-none flex-1">
             <CardHeader className="py-2 px-3 border-b border-border bg-[#16171b] flex items-center justify-between">
               <span className="text-xs font-bold text-white flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                도커 백엔드 신호 송수신 콘솔 (Task Action Stream)
+                브라우저 모의 신호 기록
               </span>
               <span className="text-[10px] font-mono text-[#888888]">{signalLogs.length}건 기록</span>
             </CardHeader>
@@ -1362,7 +1351,7 @@ export default function Page({ menu }: MenuPageProps) {
                     <p className="text-[10px] text-[#999999] truncate">{log.payload}</p>
                   </div>
                   {log.rttMs !== undefined && (
-                    <span className="text-[10px] text-cyan-400 shrink-0 font-bold">{log.rttMs}ms</span>
+                    <span className="text-[10px] text-cyan-400 shrink-0 font-bold">모의 {log.rttMs}ms</span>
                   )}
                 </div>
               ))}
@@ -1371,7 +1360,7 @@ export default function Page({ menu }: MenuPageProps) {
         </div>
       </div>
 
-      <ScenarioConsole />
+      <ManualMoveTools />
       {/* AMCL 보조 패널 자리: 시험 C 통과 뒤 AmclAssistPanel 패치로 채운다 */}
     </div>
   );

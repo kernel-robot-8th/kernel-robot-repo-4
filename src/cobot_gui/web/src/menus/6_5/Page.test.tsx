@@ -16,7 +16,7 @@ describe("6.5 시뮬레이션·기능 검증 (SR-22 3D 가상환경 온라인 �
     expect(
       screen.getByText(/SR-22 3D 물리 시뮬레이션 온라인 실험장/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/50.0 Hz ACTIVE/)).toBeInTheDocument();
+    expect(screen.getByText(/브라우저 모의: ACTIVE/)).toBeInTheDocument();
     expect(screen.getByText("[SIM]")).toBeInTheDocument();
     expect(screen.queryByText(/DOCKER: CONNECTED/)).not.toBeInTheDocument();
   });
@@ -50,7 +50,7 @@ describe("6.5 시뮬레이션·기능 검증 (SR-22 3D 가상환경 온라인 �
     fireEvent.click(dockBtn);
 
     expect(screen.getAllByText(/T1_상차대1_도킹/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/도커 백엔드 신호 송수신 콘솔/)).toBeInTheDocument();
+    expect(screen.getByText(/브라우저 모의 신호 기록/)).toBeInTheDocument();
   });
 
   it("코드에 박힌 가짜 상태를 표시하지 않는다", () => {
