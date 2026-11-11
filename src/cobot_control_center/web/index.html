@@ -135,9 +135,8 @@
           <button type="button" data-cmd="zone">구역</button>
           <button type="button" data-cmd="leave">나가기</button>
           <button type="button" data-cmd="home">홈</button>
-          <button type="button" class="pose-btn" data-cmd="initial_pose"
-                  title="로봇을 홈에 놓은 뒤 누름 · AMCL 위치를 홈으로 다시 잡음 (로봇은 움직이지 않음, 작업 명령 켜기 없이 가능)">초기위치</button>
         </div>
+        <!-- 초기위치는 로봇을 움직이지 않아 명령 줄에 두지 않는다. 아래 '위치' 칸의 [홈] (detail.js renderStats) -->
         <div class="stop-row">
           <button type="button" class="stop-btn" data-cmd="stop" title="그 로봇만 멈춤 · 잠그지 않아 바로 다음 명령 가능 · 구역 안이면 구역 밖으로 물러남 (제자리에 세우고 잠그려면 비상정지) · 주문 중이면 보류되어 현장 확인 후 복구">정지</button>
           <button type="button" class="estop-btn" data-cmd="emergency_stop"
@@ -246,7 +245,11 @@
       </div>
       <div class="meta-row">
         <span class="meta muted"></span>
+      </div>
+      <!-- 위치 도구: 좌표 바로 밑. 초기위치는 로봇을 움직이지 않으므로 명령 줄(홈 옆)에서 떼어 둔다. -->
+      <div class="pose-row">
         <button type="button" class="teach-btn">위치 복사</button>
+        <button type="button" class="pose-btn" data-cmd="initial_pose">초기위치</button>
       </div>
       <!-- 토픽별 수신 시각 (위치·배터리·상태). 화면이 복잡해 잠시 뺀다. 다시 쓰려면 이 줄과 cards.js renderCard 의 주석을 푼다.
       <div class="topics muted" title="토픽별로 마지막으로 받은 뒤 지난 시간. 위치(amcl)는 로봇이 멈춰 있으면 새로 오지 않는 게 정상"></div>
@@ -272,8 +275,6 @@
           <button type="button" data-cmd="zone">구역</button>
           <button type="button" data-cmd="leave">나가기</button>
           <button type="button" data-cmd="home">홈</button>
-          <button type="button" class="pose-btn" data-cmd="initial_pose"
-                  title="로봇을 홈에 놓은 뒤 누름 · AMCL 위치를 홈으로 다시 잡음 (로봇은 움직이지 않음, 작업 명령 켜기 없이 가능)">초기위치</button>
         </div>
       </div>
       </div>

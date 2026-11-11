@@ -32,8 +32,6 @@ const TASK_TEXT = {
   STOPPED: "중단", REJECTED: "거절", UNKNOWN: "결과 모름",
 };
 const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈" };
-// 작업 명령 켜기 없이 누를 수 있는 명령 (로봇을 움직이지 않는다). 대신 멈춰 있어야 한다.
-const UNARMED_CMD = new Set(["initial_pose"]);
 // fleet_control 보류 사유: 운영자 정지(STOP·ESTOP·PAUSE·MANUAL), 시나리오 중단(PAUSED·ESTOP·MANUAL),
 // 상태·배터리 수신 만료(LINK_LOST). 모르는 사유는 그대로 보인다.
 const HOLD_TEXT = {
@@ -57,7 +55,7 @@ function robotTask(robotId, states) {
 }
 
 function setupCommands(card, robotId) {
-  card.querySelectorAll(".cmd-row button, .stop-row button").forEach((button) => {
+  card.querySelectorAll(".cmd-row button, .stop-row button, .pose-btn").forEach((button) => {
     button.addEventListener("click", () => onCommand(robotId, button.dataset.cmd));
   });
   // 빨간 줄을 누르면 결과 모름 해제, 아니면 정지 잠금 복구를 연다 (release.js).
@@ -92,6 +90,28 @@ function heldZones(robotId) {
   return Object.keys(zones).filter((name) => zones[name] === `occupied_by:${robotId}`);
 }
 
+// 초기위치: 연결·작업 노드·멈춤만 본다. 작업 명령 켜기와 정지 잠금은 막지 않는다
+// (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
+// 막을 이유를 돌려주고, 누를 수 있으면 "".
+function poseBlockReason(robotId, robot) {
+  const active = robotTask(robotId, ACTIVE_TASK);
+  return view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
+    : !view.controllerOnline ? "작업 노드 꺼짐"
+    : !robot.online ? "연결 끊김"
+    : active ? `작업 중 ${active.task_id}`
+    : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
+}
+
+const POSE_TITLE = "로봇을 홈에 놓은 뒤 누름 · AMCL 위치를 홈으로 다시 잡음 "
+  + "(로봇은 움직이지 않음, 작업 명령 켜기 없이 가능)";
+
+// 카드(.pose-row)와 상세 위치 칸이 함께 쓴다. 꺼지면 이유를, 켜지면 설명을 마우스 글로 보인다.
+function renderPoseButton(button, robotId, robot) {
+  const why = poseBlockReason(robotId, robot);
+  button.disabled = Boolean(why);
+  button.title = why || POSE_TITLE;
+}
+
 function renderCommands(card, robotId, robot) {
   const active = robotTask(robotId, ACTIVE_TASK);
   // 사람이 풀어야 할 문제 (release.js currentProblem). 상차 확인 대기는 버튼을 막지 않으므로 그다음 것을 본다.
@@ -112,16 +132,8 @@ function renderCommands(card, robotId, robot) {
   const only = {
     leave: held && !holding ? "보유 구역 없음" : "",
   };
-  // 초기위치: 연결·작업 노드·멈춤만 본다. 작업 명령 켜기와 정지 잠금은 막지 않는다
-  // (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
-  const poseReason = view.readOnly ? reason
-    : !view.controllerOnline ? "작업 노드 꺼짐"
-    : !robot.online ? "연결 끊김"
-    : active ? `작업 중 ${active.task_id}`
-    : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
   card.querySelectorAll(".cmd-row button").forEach((button) => {
-    const why = UNARMED_CMD.has(button.dataset.cmd) ? poseReason
-      : reason || only[button.dataset.cmd] || "";
+    const why = reason || only[button.dataset.cmd] || "";
     button.disabled = Boolean(why);
     button.title = why;
     button.classList.toggle("picking", Boolean(view.pick && view.pick.robotId === robotId
@@ -130,6 +142,7 @@ function renderCommands(card, robotId, robot) {
   card.querySelectorAll(".stop-row button").forEach((button) => {
     button.disabled = !view.controllerOnline || view.readOnly;
   });
+  card.querySelectorAll(".pose-btn").forEach((button) => renderPoseButton(button, robotId, robot));
   // 아이콘 옆 한 줄: 명령을 보낼 수 있는지, 관제 작업이 있으면 그 내용 (마우스를 올리지 않아도 보이게).
   const why = card.querySelector(".cmd-reason");
   let text;

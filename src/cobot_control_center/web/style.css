@@ -344,6 +344,9 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .meta { flex: 1; min-width: 0; font-size: 12px; font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .teach-btn { flex: none; }
+/* 위치 도구 줄 (좌표 밑): 위치 복사 · 초기위치. 로봇을 움직이지 않는 버튼만 둔다 */
+.pose-row { display: flex; justify-content: flex-end; gap: 6px; }
+.pose-row button, .stat-actions button { flex: none; white-space: nowrap; }
 .teach-line { font-size: 12px; overflow-wrap: anywhere; user-select: all; }
 /* 토픽별 수신 시각 줄 (index.html 에서 지금은 주석 처리) */
 .topics { font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -387,8 +390,6 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
   background: var(--panel);
   border-color: color-mix(in srgb, var(--active) 55%, var(--border));
 }
-/* 초기위치는 네 글자라 좁은 카드에서 두 줄로 꺾이지 않게 글자 폭만큼 잡는다 */
-.cmd-row .pose-btn { flex: 1.4; white-space: nowrap; }
 .card .cmd-row button:hover:not(:disabled), .detail-cmds .cmd-row button:hover:not(:disabled) { background: color-mix(in srgb, var(--active) 12%, var(--panel)); border-color: var(--active); }
 .card .cmd-row button:disabled, .detail-cmds .cmd-row button:disabled { color: var(--muted); background: transparent; border-color: var(--border); opacity: 0.7; }
 .card .cmd-row button.picking, .detail-cmds .cmd-row button.picking { border-color: var(--active); background: color-mix(in srgb, var(--active) 22%, var(--panel)); }
@@ -727,6 +728,8 @@ body.detail-mode .layout { display: none; }
 .stat-value { margin-top: 2px; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-sub:empty { display: none; }
+/* 상세 위치 칸 안: '초기위치 [홈]' */
+.stat-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
 
 /* 타임라인 | 진단 */
 .detail-lower { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; align-items: start; }

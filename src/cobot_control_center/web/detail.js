@@ -29,6 +29,7 @@ const detail = {
   zoom: ZOOM_DEFAULT,
   xf: null,        // 확대 지도 변환 {scale, ox, oy}: 화면 px = 지도 px * scale + o
   hits: [],        // 확대 지도 위 로봇 위치 (클릭으로 그 로봇 상세로)
+  poseBtn: null,   // 위치 칸의 초기위치 [홈] 버튼. 칸은 매번 새로 그리므로 버튼은 한 번 만들어 옮겨 붙인다
 };
 
 function detailHref(robotId) {
@@ -131,6 +132,15 @@ function setupHead() {
   // 빨간 '결과 모름' 줄을 누르면 해제 확인을 연다 (카드와 같다).
   // 정지 잠금이면 제어권 복구 띠 (release.js).
   box.querySelector(".cmd-head").addEventListener("click", () => onCmdHeadClick(view.detailRobot));
+  // 초기위치 [홈]: 명령 줄이 아니라 위치 칸에 붙는다 (renderStats). 클릭 연결은 여기서 한 번만.
+  const pose = document.createElement("button");
+  pose.type = "button";
+  pose.className = "pose-btn";
+  pose.textContent = "홈";
+  pose.addEventListener("click", () => {
+    if (view.detailRobot) onCommand(view.detailRobot, "initial_pose");
+  });
+  detail.poseBtn = pose;
 }
 
 // ---------- 요약 칸 ----------
@@ -178,6 +188,16 @@ function renderStats(robotId, robot) {
     poseStat = stat("위치", `(${robot.pose.x.toFixed(2)}, ${robot.pose.y.toFixed(2)}) m`, `${deg}°${wp}`);
   } else {
     poseStat = stat("위치", "—", "위치를 받은 적 없음");
+  }
+  if (detail.poseBtn) {
+    const row = document.createElement("div");
+    row.className = "stat-actions";
+    const label = document.createElement("span");
+    label.className = "muted";
+    label.textContent = "초기위치";
+    renderPoseButton(detail.poseBtn, robotId, robot);
+    row.append(label, detail.poseBtn);
+    poseStat.append(row);
   }
 
   const zones = zoneText(robotId);
