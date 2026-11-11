@@ -106,8 +106,7 @@ function renderTasks() {
 
 async function openResolve(task) {
   if (!task) return;
-  cancelPick();
-  closeLoad();
+  closeBars();
   if (!confirm([`${task.robot_id} 의 ${task.command} 결과를 모릅니다.`,
     "현장에서 로봇이 멈춰 있나요? 확인하면 실패로 기록하고 다시 명령을 보낼 수 있습니다."].join("\n"))) {
     return;

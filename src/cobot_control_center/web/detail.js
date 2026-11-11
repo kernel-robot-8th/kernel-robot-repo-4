@@ -52,9 +52,7 @@ function applyRoute() {
   const robotId = routeRobot();
   if (robotId === view.detailRobot) return;
   // 고르던 지점·해제 확인·좌표 지정은 그 자리(카드 또는 상태줄 아래)와 함께 접는다.
-  cancelPick();
-  closeLoad();
-  closePosePick();
+  closeBars();
   view.detailRobot = robotId;
   const on = robotId !== null;
   document.body.classList.toggle("detail-mode", on);
@@ -477,18 +475,7 @@ function detailPickAt(event) {
   const pick = view.pick;
   const point = detailMapPoint(event);
   if (!pick || !pick.choices || pick.robotId !== view.detailRobot || !point || !view.map) return null;
-  const { scale } = detail.xf;
-  let best = null;
-  let bestDist = PICK_HIT_PX / scale;
-  for (const [name, pose] of pick.choices) {
-    const [px, py] = toPixel(view.map.info, pose[0], pose[1]);
-    const dist = Math.hypot(px - point[0], py - point[1]);
-    if (dist <= bestDist) {
-      best = name;
-      bestDist = dist;
-    }
-  }
-  return best;
+  return nearestChoice(pick.choices, point[0], point[1], PICK_HIT_PX / detail.xf.scale);
 }
 
 function detailRobotAt(event) {
@@ -505,8 +492,7 @@ function detailRobotAt(event) {
 const POSE_DRAG_MIN_PX = 6;   // 이만큼 [화면 px] 끌어야 방향으로 본다 (그냥 클릭은 방향 유지)
 
 function openPosePick(robotId) {
-  cancelPick();
-  closeLoad();
+  closeBars();
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   const robot = robots[robotId];
   const home = view.layers && view.layers.homes && view.layers.homes[robotId];

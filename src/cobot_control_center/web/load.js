@@ -40,7 +40,7 @@ function openLoad(robotId) {
   const host = barHost(robotId);
   const order = loadWaiting(robotId);
   if (!host || !order) return;
-  cancelPick();
+  closeBars();
   view.loading = { robotId, orderId: order.order_id, sku: order.sku };
   $("load-title").textContent = `${robotId} · 수동 상차 확인`;
   $("load-what").textContent = loadText(order);
@@ -125,8 +125,7 @@ async function sendOrderRecover(order, decision) {
 function recoverOrder(robotId) {
   const order = orderBlocked(robotId);
   if (!order) return;
-  cancelPick();
-  closeLoad();
+  closeBars();
   if (order.resumable && confirm([`주문 ${order.order_id} (${order.sku}) 이어서 갈까요?`,
     `${robotId} · ${order.stage}`,
     "현장에서 로봇·상자·주변을 확인했나요?",

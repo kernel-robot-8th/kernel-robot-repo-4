@@ -203,6 +203,22 @@ function toWorld(info, px, py) {
   return [ox + px * info.resolution, oy + (info.image_height - py) * info.resolution];
 }
 
+// 지도 px (x, y) 에서 maxDist [지도 px] 안에 있는 가장 가까운 지점 이름. 없으면 null.
+// choices: 이름 → [x, y, yaw] (지도 좌표 [m]). 전체 지도(pickAt)와 상세 지도(detailPickAt)가 함께 쓴다.
+function nearestChoice(choices, x, y, maxDist) {
+  let best = null;
+  let bestDist = maxDist;
+  for (const [name, pose] of choices) {
+    const [px, py] = toPixel(view.map.info, pose[0], pose[1]);
+    const dist = Math.hypot(px - x, py - y);
+    if (dist <= bestDist) {
+      best = name;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 // 지도 그림 안의 좌표인지 (지도 밖으로 AMCL 을 잡지 않게)
 function insideMap(info, x, y) {
   const [px, py] = toPixel(info, x, y);
@@ -423,9 +439,7 @@ function drawPick(ctx, info, scale, robots) {
 }
 
 function drawRobot(ctx, info, pose, robotId, color, scale, labels) {
-  const [ox, oy] = info.origin;
-  const px = (pose.x - ox) / info.resolution;
-  const py = info.image_height - (pose.y - oy) / info.resolution;
+  const [px, py] = toPixel(info, pose.x, pose.y);
   const r = Math.max(ROBOT_RADIUS_M / info.resolution, 5 / scale);
   const heading = -pose.yaw; // 지도 y 는 위가 +, canvas y 는 아래가 +
 

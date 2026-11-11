@@ -44,8 +44,7 @@ function releaseQuestion(robotId) {
 
 async function openRelease(robotId) {
   if (!robotId) return;
-  cancelPick();
-  closeLoad();
+  closeBars();
   if (!confirm(releaseQuestion(robotId))) return;
   const hadUnknown = Boolean(robotTask(robotId, UNKNOWN_TASK));
   const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/release_control`,

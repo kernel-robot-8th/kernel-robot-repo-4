@@ -344,9 +344,7 @@ function pointChoices(robotId, cmd) {
 // 창(dialog)을 쓰지 않는 것은 고르는 동안 지도를 보고 눌러야 하기 때문이다.
 // 고른 지점 목록을 돌려주고, 취소하면 null.
 function choosePoints(robotId, cmd) {
-  cancelPick();
-  closeLoad();
-  closePosePick();   // 상세 화면 좌표 지정 띠와 같은 자리를 쓴다 (detail.js)
+  closeBars();
   const needsPoints = cmd === "goto" || cmd === "zone";
   const choices = needsPoints ? pointChoices(robotId, cmd) : null;
   const box = $("cmd-pick");
@@ -424,6 +422,14 @@ function cancelPick() {
   finishPick(false);
 }
 
+// 상태줄 아래·카드 위 띠(지점 고르기·상차 확인·좌표 지정)를 모두 접는다. 새 띠·확인 창을 열기 전에 부른다.
+// 상세 화면에서는 셋이 같은 자리(#detail-bar-host)를 써서 하나라도 빠지면 띠가 겹친다.
+function closeBars() {
+  cancelPick();
+  closeLoad();
+  closePosePick();
+}
+
 // 지도에서 누른 곳에 가장 가까운 고를 수 있는 지점 (PICK_HIT_PX 안). 없으면 null.
 function pickAt(event) {
   const pick = view.pick;
@@ -431,17 +437,7 @@ function pickAt(event) {
   const rect = $("map").getBoundingClientRect();
   const x = (event.clientX - rect.left) / view.mapScale;
   const y = (event.clientY - rect.top) / view.mapScale;
-  let best = null;
-  let bestDist = PICK_HIT_PX / view.mapScale;
-  for (const [name, pose] of pick.choices) {
-    const [px, py] = toPixel(view.map.info, pose[0], pose[1]);
-    const dist = Math.hypot(px - x, py - y);
-    if (dist <= bestDist) {
-      best = name;
-      bestDist = dist;
-    }
-  }
-  return best;
+  return nearestChoice(pick.choices, x, y, PICK_HIT_PX / view.mapScale);
 }
 
 function setupPick() {
