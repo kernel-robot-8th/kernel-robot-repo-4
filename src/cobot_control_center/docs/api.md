@@ -151,4 +151,5 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `map.js` | 지도, 구역·지점 표시 |
 | `raw.js` | 개발용 수동 명령 |
 | `detail.js` | 로봇 상세 화면 (`#/robot/<id>`): 상태줄·카메라·확대 지도·요약·타임라인·진단 |
+| `pose.js` | 초기위치 [홈]·[좌표 지정] (상세 위치 칸, 확대 지도 누르고 끌기) |
 | `main.js` | 시작, `/api/health` 확인 |

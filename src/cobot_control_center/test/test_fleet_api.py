@@ -256,7 +256,7 @@ def test_installed_web_files_exist():
     web = os.path.join(os.path.dirname(__file__), '..', 'web')
     for name in ('index.html', 'style.css', 'core.js', 'cards.js', 'events.js',
                  'commands.js', 'tasks.js', 'release.js', 'map.js', 'raw.js', 'detail.js',
-                 'main.js'):
+                 'pose.js', 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
 
 
