@@ -27,7 +27,7 @@
 
 import asyncio
 
-from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part
+from cobot_control_center.fleet_api_utils import initial_pose_error, MJPEG_BOUNDARY, mjpeg_part
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -252,12 +252,20 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/robots/{robot_id}/initial_pose')
     def initial_pose(robot_id: str, request: Request, body: dict = Body(default={})):
-        # 로봇을 홈에 놓은 뒤 AMCL 위치를 홈으로 다시 잡는다. 홈 좌표·검사·발행은 fleet_control 이
-        # 한다 (이 서버는 로봇 토픽을 발행하지 않는다). 누가 눌렀는지는 접속 IP(source)로 남긴다.
-        return call_controller({
-            'type': 'initial_pose', 'robot_id': robot_id,
-            'client_request_id': body.get('client_request_id'),
-            'source': source(request)})
+        # AMCL 위치를 다시 잡는다. pose 가 없으면 홈 (좌표는 fleet_control 이 순찰 설정에서 읽음),
+        # 있으면 화면 지도에서 찍은 {x, y, yaw}. 검사·발행은 fleet_control 이 한다 (이 서버는 로봇
+        # 토픽을 발행하지 않는다). 지도 범위만 지도를 가진 여기서 먼저 본다.
+        # 누가 눌렀는지는 접속 IP(source)로 남긴다.
+        payload = {'type': 'initial_pose', 'robot_id': robot_id,
+                   'client_request_id': body.get('client_request_id'),
+                   'source': source(request)}
+        pose = body.get('pose')
+        if pose is not None:
+            error = initial_pose_error(pose, map_data[0] if map_data else None)
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            payload['pose'] = {key: float(pose[key]) for key in ('x', 'y', 'yaw')}
+        return call_controller(payload)
 
     @app.post('/api/orders/{order_id}/recover')
     def recover_order(order_id: str, request: Request, body: dict = Body(default={})):

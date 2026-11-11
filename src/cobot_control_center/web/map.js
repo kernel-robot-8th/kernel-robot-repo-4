@@ -197,6 +197,18 @@ function toPixel(info, x, y) {
   return [(x - ox) / info.resolution, info.image_height - (y - oy) / info.resolution];
 }
 
+// toPixel 의 반대: 지도 px → 지도(map) 좌표 [m]
+function toWorld(info, px, py) {
+  const [ox, oy] = info.origin;
+  return [ox + px * info.resolution, oy + (info.image_height - py) * info.resolution];
+}
+
+// 지도 그림 안의 좌표인지 (지도 밖으로 AMCL 을 잡지 않게)
+function insideMap(info, x, y) {
+  const [px, py] = toPixel(info, x, y);
+  return px >= 0 && py >= 0 && px <= info.image_width && py <= info.image_height;
+}
+
 // ---------- 이름표 ----------
 // label: {text, x, y, r, kind, color}. x, y 는 점 위치, r 은 점 반지름 (모두 지도 px).
 // kind: "robot"(로봇 색 알약, 먼저 놓음), "zone"(구역 원 가운데 고정), "mark"(지점·출구·슬롯·홈).

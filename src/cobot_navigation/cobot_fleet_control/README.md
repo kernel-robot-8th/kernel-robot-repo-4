@@ -16,7 +16,7 @@
 | `POST /api/robots/{id}/stop` | `type=stop` | 202, 실제 사용한 소프트 정지 동작·작업 ID 반환 |
 | `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | UNKNOWN만 해제, 최신 정지·취소 상태 확인 (구역 보유는 막지 않음) |
 | `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사 |
-| `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source` | 202. 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503 |
+| `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source, pose?` | 202. `pose {x, y, yaw}` 가 있으면 그 좌표(잘못되면 400), 없으면 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503 |
 | `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
 | `GET /api/tasks`, `WS /ws/tasks` | `tasks`, `task` | 현재 작업 목록·개별 변경 |
 

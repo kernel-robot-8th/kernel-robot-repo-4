@@ -729,7 +729,12 @@ body.detail-mode .layout { display: none; }
 .stat-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-sub:empty { display: none; }
 /* 상세 위치 칸 안: '초기위치 [홈]' */
-.stat-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }
+.stat-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; flex-wrap: wrap; }
+/* 초기위치 좌표 지정 띠 (detail.js): x · y · 방향 입력칸 */
+.pose-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.pose-fields label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.pose-bar .pose-fields input { width: 80px; cursor: text; padding: 3px 6px; }
+#dt-map.posing { cursor: crosshair; touch-action: none; }
 
 /* 타임라인 | 진단 */
 .detail-lower { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; align-items: start; }

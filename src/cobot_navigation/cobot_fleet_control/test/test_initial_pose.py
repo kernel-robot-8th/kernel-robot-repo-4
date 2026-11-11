@@ -39,8 +39,49 @@ def test_initial_pose_sends_home_without_arming(tmp_path):
         assert reply['body'] == dict(reply['body'], robot_id='pinky2', point='I2',
                                      x=0.0, y=-0.2, yaw=0.0, client_request_id='p1')
         assert sent == [('pinky2', 0.0, -0.2, 0.0)]
-        assert events == [dict(type='operator_initial_pose', robot_id='pinky2', point='I2',
-                               x=0.0, y=-0.2, yaw=0.0, source='10.0.0.5')]
+        assert events == [dict(type='operator_initial_pose', robot_id='pinky2', mode='home',
+                               point='I2', x=0.0, y=-0.2, yaw=0.0, source='10.0.0.5')]
+    finally:
+        repo.close()
+
+
+def test_initial_pose_sends_manual_pose(tmp_path):
+    # 지도에서 찍은 좌표는 순찰 설정 없이도 보낼 수 있다 (홈 좌표가 필요 없으므로)
+    api, repo, events, sent = make_api(tmp_path, rules=None)
+    try:
+        reply = api.handle({'type': 'initial_pose', 'robot_id': 'pinky2',
+                            'pose': {'x': 0.3, 'y': '0.4', 'yaw': 1.57}})
+        assert reply['status'] == 202
+        assert reply['body']['mode'] == 'manual' and reply['body']['point'] == '좌표'
+        assert sent == [('pinky2', 0.3, 0.4, 1.57)]
+        assert events[0]['mode'] == 'manual' and events[0]['x'] == 0.3
+    finally:
+        repo.close()
+
+
+@pytest.mark.parametrize('pose', [
+    {'x': 0.0, 'y': 0.0},
+    {'x': 'a', 'y': 0.0, 'yaw': 0.0},
+    {'x': float('nan'), 'y': 0.0, 'yaw': 0.0},
+    {'x': 0.0, 'y': float('inf'), 'yaw': 0.0},
+    [0.0, 0.0, 0.0],
+])
+def test_initial_pose_rejects_bad_manual_pose(tmp_path, pose):
+    api, repo, events, sent = make_api(tmp_path)
+    try:
+        reply = api.handle({'type': 'initial_pose', 'robot_id': 'pinky2', 'pose': pose})
+        assert reply['status'] == 400
+        assert sent == [] and events == []
+    finally:
+        repo.close()
+
+
+def test_initial_pose_manual_still_requires_stopped_robot(tmp_path):
+    api, repo, events, sent = make_api(tmp_path, status={'busy': True})
+    try:
+        reply = api.handle({'type': 'initial_pose', 'robot_id': 'pinky2',
+                            'pose': {'x': 0.3, 'y': 0.4, 'yaw': 0.0}})
+        assert reply['status'] == 409 and sent == []
     finally:
         repo.close()
 

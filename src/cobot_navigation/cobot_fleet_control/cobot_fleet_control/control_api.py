@@ -48,6 +48,24 @@ def initial_pose_fields(x, y, yaw, xy_var, yaw_var):
     return dict(x=x, y=y, qz=math.sin(yaw / 2), qw=math.cos(yaw / 2), covariance=covariance)
 
 
+MANUAL_POSE_NAME = '좌표'   # 지도에서 찍은 초기위치의 지점 이름 (기록·응답용)
+
+
+def manual_pose(value):
+    """요청의 pose {x, y, yaw} 를 (x, y, yaw) 로 바꾼다. 없으면 None, 잘못되면 ApiError(400)."""
+    if value is None:
+        return None
+    try:
+        if not isinstance(value, dict):
+            raise TypeError
+        pose = tuple(float(value[key]) for key in ('x', 'y', 'yaw'))
+    except (KeyError, TypeError, ValueError):
+        raise ApiError(400, 'pose 는 {x, y, yaw} 숫자여야 합니다') from None
+    if not all(math.isfinite(v) for v in pose):
+        raise ApiError(400, 'pose 는 유한한 수여야 합니다')
+    return pose
+
+
 class ApiError(ValueError):
     """웹 백엔드가 그대로 전달할 HTTP 상태와 오류 본문."""
 
@@ -127,7 +145,7 @@ class ControlAPI:
         raise ValueError('알 수 없는 요청 type')
 
     def _initial_pose(self, request):
-        """로봇을 홈에 놓았다고 운영자가 확인하면 AMCL 위치를 홈으로 다시 잡는다."""
+        """운영자가 확인한 자리로 AMCL 위치를 다시 잡는다. pose 가 없으면 홈, 있으면 그 좌표."""
         # 로봇을 움직이지 않는 명령이라 '작업 명령 켜기'는 요구하지 않는다. 로봇을 켜자마자 쓰는
         # 단계이고, 정지 잠금·보류 중 복구에서도 위치를 다시 잡을 수 있어야 한다.
         # 대신 멈춰 있는 것(busy=false)을 확인한다. 움직이는 중에 위치를 바꾸면 경로가 튄다.
@@ -135,7 +153,8 @@ class ControlAPI:
         robot = request.get('robot_id')
         if not isinstance(robot, str) or robot not in self.fleet.robots:
             raise ApiError(404, '등록되지 않은 로봇')
-        if self.point_rules is None:
+        manual = manual_pose(request.get('pose'))
+        if manual is None and self.point_rules is None:
             raise ApiError(503, '순찰 지점 설정(patrol_config_dir)이 없어 홈 좌표를 모릅니다')
         if self._orders_for(robot):
             raise ApiError(409, '진행 중인 주문이 있는 로봇: 주문을 먼저 끝내거나 복구하세요')
@@ -148,11 +167,19 @@ class ControlAPI:
         status = scenario.health.get(robot, {}).get('status', {})
         if status.get('busy') is not False:
             raise ApiError(409, '로봇이 멈춰 있는지 확인되지 않음 (busy=false 필요)')
-        name, x, y, yaw = self.point_rules.home(robot)
-        scenario.store.event(dict(type='operator_initial_pose', robot_id=robot, point=name,
-                                  x=x, y=y, yaw=yaw, source=request.get('source', '')))
+        if manual is None:
+            mode = 'home'
+            name, x, y, yaw = self.point_rules.home(robot)
+        else:
+            # 지도에서 찍은 좌표. 지도 범위 검사는 지도를 가진 웹 백엔드(fleet_api)가 먼저 한다.
+            mode = 'manual'
+            name = MANUAL_POSE_NAME
+            x, y, yaw = manual
+        scenario.store.event(dict(type='operator_initial_pose', robot_id=robot, mode=mode,
+                                  point=name, x=x, y=y, yaw=yaw,
+                                  source=request.get('source', '')))
         self.gateway.set_initial_pose(robot, x, y, yaw)
-        return dict(robot_id=robot, point=name, x=x, y=y, yaw=yaw,
+        return dict(robot_id=robot, mode=mode, point=name, x=x, y=y, yaw=yaw,
                     topic=f'/{robot}/initialpose',
                     client_request_id=request.get('client_request_id'))
 

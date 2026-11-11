@@ -286,25 +286,34 @@ async function onCommand(robotId, cmd) {
   }
 }
 
-// 초기위치: 로봇을 홈에 놓았는지 묻고, 작업 노드가 AMCL 위치를 홈으로 다시 잡게 한다.
-// 화면의 홈 좌표는 확인 창에 보여 주기만 하고, 실제 좌표는 작업 노드가 순찰 설정에서 읽는다.
-async function sendInitialPose(robotId) {
-  const home = view.layers && view.layers.homes && view.layers.homes[robotId];
-  const where = home
-    ? `홈 ${home.name} (x ${Number(home.pose[0]).toFixed(2)}, y ${Number(home.pose[1]).toFixed(2)}, `
-      + `${Math.round((Number(home.pose[2]) || 0) * 180 / Math.PI)}°)`
-    : "홈";
-  if (!confirm(`${robotId} 로봇을 ${where} 에 놓았나요?\n`
-      + "AMCL 위치를 홈으로 다시 잡습니다. 로봇은 움직이지 않습니다.")) return;
-  const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/initial_pose`,
-    { client_request_id: newRequestId() });
+// 초기위치: 로봇이 그 자리에 있는지 묻고, 작업 노드가 AMCL 위치를 다시 잡게 한다.
+// pose 가 없으면 홈: 화면의 홈 좌표는 확인 창에 보여 주기만 하고, 실제 좌표는 작업 노드가 순찰 설정에서 읽는다.
+// pose {x, y, yaw[rad]} 가 있으면 지도에서 찍은 좌표 (detail.js 좌표 지정). 보냈으면 true.
+async function sendInitialPose(robotId, pose = null) {
+  const deg = (yaw) => Math.round((Number(yaw) || 0) * 180 / Math.PI);
+  let where;
+  if (pose) {
+    where = `(x ${pose.x.toFixed(2)}, y ${pose.y.toFixed(2)}, ${deg(pose.yaw)}°)`;
+  } else {
+    const home = view.layers && view.layers.homes && view.layers.homes[robotId];
+    where = home
+      ? `홈 ${home.name} (x ${Number(home.pose[0]).toFixed(2)}, y ${Number(home.pose[1]).toFixed(2)}, `
+        + `${deg(home.pose[2])}°)`
+      : "홈";
+  }
+  if (!confirm(`${robotId} 로봇이 ${where} 에 있나요?\n`
+      + "AMCL 위치를 그 자리로 다시 잡습니다. 로봇은 움직이지 않습니다.")) return false;
+  const body = { client_request_id: newRequestId() };
+  if (pose) body.pose = { x: pose.x, y: pose.y, yaw: pose.yaw };
+  const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/initial_pose`, body);
   if (result.ok) {
     const d = result.data;
     showMessage(robotId, `초기위치 보냄: ${d.point} (${Number(d.x).toFixed(2)}, `
       + `${Number(d.y).toFixed(2)}) · 지도에서 로봇 위치를 확인하세요`, false);
-  } else {
-    showMessage(robotId, `초기위치 거절 (${result.status}): ${errorText(result)}`, true);
+    return true;
   }
+  showMessage(robotId, `초기위치 거절 (${result.status}): ${errorText(result)}`, true);
+  return false;
 }
 
 // 고를 수 있는 지점: 이름 → [x, y, yaw]. 지점 목록(/api/map/layers)이 없으면 null.
@@ -330,6 +339,7 @@ function pointChoices(robotId, cmd) {
 function choosePoints(robotId, cmd) {
   cancelPick();
   closeLoad();
+  closePosePick();   // 상세 화면 좌표 지정 띠와 같은 자리를 쓴다 (detail.js)
   const needsPoints = cmd === "goto" || cmd === "zone";
   const choices = needsPoints ? pointChoices(robotId, cmd) : null;
   const box = $("cmd-pick");

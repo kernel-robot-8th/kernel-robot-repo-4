@@ -206,6 +206,25 @@
     </div>
   </div>
 
+  <!-- 초기위치 좌표 지정 (detail.js). 상세 화면 상태줄 아래에만 뜬다. 확대 지도를 누르면 위치,
+       누른 채 끌면 방향 (RViz 2D Pose Estimate 와 같다). 숫자를 직접 고쳐도 된다. -->
+  <div class="pick-bar pose-bar" id="pose-bar" hidden>
+    <div class="pick-head">
+      <strong id="pose-title"></strong>
+      <span class="cmd-route" id="pose-hint">지도를 누른 채 끌면 방향</span>
+    </div>
+    <div class="pose-fields">
+      <label>x [m] <input id="pose-x" type="number" step="0.01" inputmode="decimal"></label>
+      <label>y [m] <input id="pose-y" type="number" step="0.01" inputmode="decimal"></label>
+      <label>방향 [°] <input id="pose-yaw" type="number" step="1" inputmode="numeric"></label>
+    </div>
+    <p class="cmd-warn" id="pose-warn"></p>
+    <div class="cmd-buttons">
+      <button type="button" id="pose-cancel" title="Esc 로도 닫힌다">취소</button>
+      <button type="button" id="pose-ok" class="primary">보내기</button>
+    </div>
+  </div>
+
   <!-- 결과 모름 해제·멈춘 주문 복구·제어권 복구는 띠 없이 확인 창 한 번 (release.js currentProblem). -->
 
   <!-- 수동 상차 확인 (load.js). 상차장에서 멈춘 주문을 사람이 싣고 확인한다. 복구 띠와 같은 자리에 뜬다. -->

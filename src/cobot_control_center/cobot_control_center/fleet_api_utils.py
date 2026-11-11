@@ -87,6 +87,31 @@ def load_map(yaml_path):
     return info, data
 
 
+def initial_pose_error(pose, map_info=None):
+    """
+    화면에서 찍은 초기위치 pose {x, y, yaw} 의 문제. 괜찮으면 None.
+
+    map_info 가 있으면 지도 범위 안인지도 본다 (지도 밖으로 AMCL 을 잡으면 위치를 잃는다).
+    작업 노드도 숫자 검사를 다시 하지만, 지도는 이 백엔드만 가지고 있어 범위는 여기서 본다.
+    """
+    if not isinstance(pose, dict):
+        return 'pose 는 {x, y, yaw} 여야 합니다'
+    try:
+        x, y, yaw = (float(pose[key]) for key in ('x', 'y', 'yaw'))
+    except (KeyError, TypeError, ValueError):
+        return 'pose 는 {x, y, yaw} 숫자여야 합니다'
+    if not all(math.isfinite(v) for v in (x, y, yaw)):
+        return 'pose 는 유한한 수여야 합니다'
+    if map_info is not None:
+        ox, oy = map_info['origin'][:2]
+        res = map_info['resolution']
+        width = map_info['image_width'] * res
+        height = map_info['image_height'] * res
+        if not (ox <= x <= ox + width and oy <= y <= oy + height):
+            return f'지도 밖 좌표 ({x:.2f}, {y:.2f}) m'
+    return None
+
+
 DEFAULT_SITE = 'lab'   # 순찰 설정 sites/<site>.yaml 의 기본 현장
 
 

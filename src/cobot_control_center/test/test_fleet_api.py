@@ -701,6 +701,41 @@ def test_fleet_initial_pose_passes_through_with_source():
                        'request_id': sent[0]['request_id']}
 
 
+MAP_INFO = {'image_width': 200, 'image_height': 100, 'resolution': 0.01,
+            'origin': [-1.0, -0.5, 0.0]}   # 지도 범위 x -1.0~1.0, y -0.5~0.5 [m]
+
+
+def test_fleet_initial_pose_manual_pose_passes_through():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 202, {'robot_id': 'pinky2', 'mode': 'manual'})
+    client = TestClient(create_app(store, map_data=(MAP_INFO, b''), tasks=tasks,
+                                   publish_request=publish))
+    res = client.post('/api/robots/pinky2/initial_pose',
+                      json={'pose': {'x': 0.3, 'y': '0.4', 'yaw': 1.57}})
+    assert res.status_code == 202
+    assert sent[0]['pose'] == {'x': 0.3, 'y': 0.4, 'yaw': 1.57}
+
+
+@pytest.mark.parametrize('pose', [
+    {'x': 1.5, 'y': 0.0, 'yaw': 0.0},          # 지도 밖 (x)
+    {'x': 0.0, 'y': -0.6, 'yaw': 0.0},         # 지도 밖 (y)
+    {'x': 'nan', 'y': 0.0, 'yaw': 0.0},
+    {'x': 0.0, 'y': 0.0},
+    [0.0, 0.0, 0.0],
+])
+def test_fleet_initial_pose_rejects_bad_pose_before_controller(pose):
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 202, {})
+    client = TestClient(create_app(store, map_data=(MAP_INFO, b''), tasks=tasks,
+                                   publish_request=publish))
+    res = client.post('/api/robots/pinky2/initial_pose', json={'pose': pose})
+    assert res.status_code == 400 and sent == []
+
+
 def test_fleet_confirm_loaded_passes_through():
     store, _ = make_store()
     tasks, _ = make_task_store()
