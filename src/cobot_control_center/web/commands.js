@@ -32,6 +32,8 @@ const TASK_TEXT = {
   STOPPED: "중단", REJECTED: "거절", UNKNOWN: "결과 모름",
 };
 const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈" };
+// 작업 명령 켜기 없이 누를 수 있는 명령 (로봇을 움직이지 않는다). 대신 멈춰 있어야 한다.
+const UNARMED_CMD = new Set(["initial_pose"]);
 // fleet_control 보류 사유: 운영자 정지(STOP·ESTOP·PAUSE·MANUAL), 시나리오 중단(PAUSED·ESTOP·MANUAL),
 // 상태·배터리 수신 만료(LINK_LOST). 모르는 사유는 그대로 보인다.
 const HOLD_TEXT = {
@@ -110,8 +112,16 @@ function renderCommands(card, robotId, robot) {
   const only = {
     leave: held && !holding ? "보유 구역 없음" : "",
   };
+  // 초기위치: 연결·작업 노드·멈춤만 본다. 작업 명령 켜기와 정지 잠금은 막지 않는다
+  // (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
+  const poseReason = view.readOnly ? reason
+    : !view.controllerOnline ? "작업 노드 꺼짐"
+    : !robot.online ? "연결 끊김"
+    : active ? `작업 중 ${active.task_id}`
+    : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
   card.querySelectorAll(".cmd-row button").forEach((button) => {
-    const why = reason || only[button.dataset.cmd] || "";
+    const why = UNARMED_CMD.has(button.dataset.cmd) ? poseReason
+      : reason || only[button.dataset.cmd] || "";
     button.disabled = Boolean(why);
     button.title = why;
     button.classList.toggle("picking", Boolean(view.pick && view.pick.robotId === robotId
@@ -245,6 +255,10 @@ async function onCommand(robotId, cmd) {
     }
     return;
   }
+  if (cmd === "initial_pose") {
+    await sendInitialPose(robotId);
+    return;
+  }
   const points = await choosePoints(robotId, cmd);
   if (points === null) return;
   const result = await postJson("/api/tasks", {
@@ -256,6 +270,27 @@ async function onCommand(robotId, cmd) {
     showMessage(robotId, `보냄: ${result.data.command} (${result.data.task_id})`, false);
   } else {
     showMessage(robotId, `${OP_TEXT[cmd]} 거절 (${result.status}): ${errorText(result)}`, true);
+  }
+}
+
+// 초기위치: 로봇을 홈에 놓았는지 묻고, 작업 노드가 AMCL 위치를 홈으로 다시 잡게 한다.
+// 화면의 홈 좌표는 확인 창에 보여 주기만 하고, 실제 좌표는 작업 노드가 순찰 설정에서 읽는다.
+async function sendInitialPose(robotId) {
+  const home = view.layers && view.layers.homes && view.layers.homes[robotId];
+  const where = home
+    ? `홈 ${home.name} (x ${Number(home.pose[0]).toFixed(2)}, y ${Number(home.pose[1]).toFixed(2)}, `
+      + `${Math.round((Number(home.pose[2]) || 0) * 180 / Math.PI)}°)`
+    : "홈";
+  if (!confirm(`${robotId} 로봇을 ${where} 에 놓았나요?\n`
+      + "AMCL 위치를 홈으로 다시 잡습니다. 로봇은 움직이지 않습니다.")) return;
+  const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/initial_pose`,
+    { client_request_id: newRequestId() });
+  if (result.ok) {
+    const d = result.data;
+    showMessage(robotId, `초기위치 보냄: ${d.point} (${Number(d.x).toFixed(2)}, `
+      + `${Number(d.y).toFixed(2)}) · 지도에서 로봇 위치를 확인하세요`, false);
+  } else {
+    showMessage(robotId, `초기위치 거절 (${result.status}): ${errorText(result)}`, true);
   }
 }
 

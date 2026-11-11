@@ -16,6 +16,7 @@
 | `POST /api/robots/{id}/stop` | `type=stop` | 202, 실제 사용한 소프트 정지 동작·작업 ID 반환 |
 | `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | UNKNOWN만 해제, 최신 정지·취소 상태 확인 (구역 보유는 막지 않음) |
 | `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사 |
+| `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source` | 202. 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503 |
 | `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
 | `GET /api/tasks`, `WS /ws/tasks` | `tasks`, `task` | 현재 작업 목록·개별 변경 |
 
@@ -82,6 +83,7 @@ feature/control-center의 웹 실행 파일이 있는 소스가 필요합니다.
 |---|---|---|
 | `allow_raw_cmd` | `false` | 개발용 수동 명령(`type=raw`). 켜면 작업 명령 켜짐·로봇 보류 없음·연결 확인 뒤 세션 봉투를 붙여 `patrol_cmd` 로 보냄. 결과는 추적하지 않음 |
 | `start_armed` | `false` | 작업 명령 켜진 채로 시작. 격리 도메인 시뮬 전용 |
+| `initial_pose_xy_var`, `initial_pose_yaw_var` | `0.0625`, `0.068` | 화면 초기위치 버튼이 내는 initialpose 의 x·y [m²]·yaw [rad²] 분산 |
 | `db_path` | `~/.cobot/fleet_control.sqlite3` | 실행 원장. 가짜 핑키·가제보는 다른 파일 |
 
 가짜 핑키(`cobot_mock` `mock_fleet.launch.xml`)·가제보(`cobot_gazebo` `sim_fleet.launch.xml`)·`cobot_bringup` 은 이 노드를 작업 노드로 띄웁니다.

@@ -53,6 +53,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 | `/zone_manager/status` | `std_msgs/String` | `A:free` / `A:occupied_by:pinky1`. 바뀔 때 + 1초마다 |
 | `/zone_manager/queue_slot` | `std_msgs/String` | `A:pinky2:0:<x>,<y>,<yaw>` (대기 로봇마다, k=0 이 맨 앞). 바뀔 때 + 1초마다 (zone_manager 와 같은 형식) |
 | 구독 `/pinkyN/patrol_cmd` | `std_msgs/String` | 아래 명령 |
+| 구독 `/pinkyN/initialpose` | `PoseWithCovarianceStamped` | 관제 화면 초기위치 버튼. 멈춰 있을 때만 가짜 위치를 그 자리로 옮김 (이동 중이면 무시) |
 | 구독 `/pinkyN/fleet_heartbeat` | `std_msgs/String` | 중앙 모드일 때. 움직이던 중 세션이 바뀌거나 3초 끊기면 비상정지·정지 잠금 (놀던 로봇은 잠그지 않음, 끊긴 동안만 명령 거절) |
 
 **규격 v2** (`spec_versions: [v1, v2]` 로 켤 때만, 기본은 v1 만. fleet 은 v1 만 씀): [`cobot_patrol_interfaces`](../cobot_patrol_interfaces/README.md) 메시지도 함께 냅니다.

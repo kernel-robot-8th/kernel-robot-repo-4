@@ -250,6 +250,15 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'evidence': body.get('evidence'),
             'source': source(request)})
 
+    @app.post('/api/robots/{robot_id}/initial_pose')
+    def initial_pose(robot_id: str, request: Request, body: dict = Body(default={})):
+        # 로봇을 홈에 놓은 뒤 AMCL 위치를 홈으로 다시 잡는다. 홈 좌표·검사·발행은 fleet_control 이
+        # 한다 (이 서버는 로봇 토픽을 발행하지 않는다). 누가 눌렀는지는 접속 IP(source)로 남긴다.
+        return call_controller({
+            'type': 'initial_pose', 'robot_id': robot_id,
+            'client_request_id': body.get('client_request_id'),
+            'source': source(request)})
+
     @app.post('/api/orders/{order_id}/recover')
     def recover_order(order_id: str, request: Request, body: dict = Body(default={})):
         # 멈춘 주문 복구: decision 'resume'(이어서 가기) 또는 'fail'(주문 취소).

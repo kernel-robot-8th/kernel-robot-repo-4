@@ -4,7 +4,7 @@
 
 - 로봇 명령 토픽(`/pinkyN/patrol_cmd`)에 발행하는 것은 **작업 노드 하나**, `cobot_fleet_control` 의 **`fleet_control_node`** 입니다. 이 패키지는 로봇 명령 토픽에 발행하지 않습니다 ([작업 노드](#작업-노드-fleet_control)).
 - **작업 노드는 bringup 이 함께 띄우지만 작업 명령이 꺼진 채로 시작합니다.** 화면 상단 **작업 명령 켜기**를 눌러야 이동·구역·나가기·홈이 나갑니다. 정지·비상정지는 꺼져 있어도 됩니다 ([명령 켜기](#명령-켜기)).
-- `/pinkyN/cmd_vel`·`goal_pose`·`initialpose` 는 쓰지 않습니다.
+- `/pinkyN/cmd_vel`·`goal_pose` 는 쓰지 않습니다. `initialpose` 는 화면 **초기위치** 버튼으로만 나가며, 발행은 이 패키지가 아니라 작업 노드가 합니다 (홈 좌표로 AMCL 재초기화).
 - **로봇 순찰 노드는 `central_controlled: true` 로 띄웁니다** (순찰 설정 `common.yaml` 기본값). 이때는 `fleet_control_node` 의 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번이 맞는 명령만 받습니다. 가짜 핑키·가제보도 같습니다.
 
 담당: 김지혜 (로봇 수행 관제)
@@ -226,7 +226,7 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 1. **각 로봇: bringup → Nav2.** 명령과 도메인(10/20/30)은 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 따릅니다.
 2. **관제 PC: bringup** ([실행](#실행)). 쓰는 로봇만 켭니다 (`pinky2:=false` 등).
    **관제 PC 는 한 대만** 띄웁니다. 두 PC 가 함께 켜면 브릿지와 zone_manager 가 두 벌이 되어 구역 토큰이 따로 나갑니다. 다른 PC 에서는 [SSH 터널](#화면-보기)로 화면만 봅니다.
-3. **초기 위치.** 로봇을 홈에 놓고 켜도 Nav2 는 그 자리를 모릅니다. RViz `2D Pose Estimate` 로 찍거나, 관제 PC 에서 한 줄 보냅니다 (관제 노드가 아니라 사람이 보내는 것. 로봇은 움직이지 않음).
+3. **초기 위치.** 로봇을 홈에 놓고 켜도 Nav2 는 그 자리를 모를 수 있습니다. 관제 화면 그 로봇 카드의 **초기위치** 를 누르고 확인 창에서 확인합니다. 작업 노드가 순찰 설정의 홈 좌표로 `/pinkyN/initialpose` 를 보냅니다 (로봇은 움직이지 않음, 작업 명령 켜기 없이 가능, 로봇이 멈춰 있어야 함). 화면을 쓸 수 없으면 RViz `2D Pose Estimate` 로 찍거나 관제 PC 에서 아래 한 줄을 보냅니다.
 
    | 로봇 | 홈 | x, y [m] | 방향 |
    |---|---|---|---|

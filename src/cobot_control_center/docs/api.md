@@ -26,6 +26,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/commands/arm` | `{"client_request_id", "armed": true\|false}` → `200 {"armed", "changed", "source": 요청한 IP, "client_request_id"}` / `400` armed 가 bool 이 아님. 작업 노드 사건 `operator_arm` 으로 남김 |
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
 | `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지 (로봇·팔 모두) |
+| `POST /api/robots/{robot_id}/initial_pose` | 로봇을 홈에 놓은 뒤 AMCL 위치를 홈으로 다시 잡음. body `{"client_request_id"}` 만. 좌표는 보내지 않고 fleet 이 순찰 설정의 홈을 씀. 누가는 접속 IP(`source`). 202 면 `{robot_id, point, x, y, yaw, topic}`, 거절이면 fleet 사유를 `detail` 로 |
 | `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구 (주문 없는 로봇). `{"client_request_id"}` 만 있어도 됨. `operator`·`note`·`evidence` 는 선택이고, 누가는 접속 IP(`source`)로 fleet 에 넘김 (2026-11-09 임시 일반형). 검사 실패면 fleet 사유를 `detail` 로 |
 | `POST /api/robots/{robot_id}/raw_cmd` | 개발용. `{"client_request_id", "command": "goto:P3,P7"}` → `202 {"robot_id", "command", "raw_id", "spec": "v1", "topic": "/pinky1/patrol_cmd", "msg_type": "std_msgs/msg/String", "warning"}` / `423` 작업 명령 꺼짐 / `403` allow_raw_cmd 꺼짐 / `400` 빈 명령·여러 줄·200자 넘음 / `409` 진행 중·결과 모름 작업. 검사 없이 `patrol_cmd` 에 그대로 |
 | `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"}`. `UNKNOWN` 만 해제 (그 밖은 409) |

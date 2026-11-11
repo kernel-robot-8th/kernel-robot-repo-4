@@ -1,6 +1,7 @@
 """feature/control-center의 HTTP·WebSocket 백엔드가 사용하는 ROS 요청 계약."""
 
 import json
+import math
 import time
 import uuid
 
@@ -33,6 +34,18 @@ def manual_load_request(value):
     data.setdefault('request_id', 'loaded-' + uuid.uuid4().hex)
     identifier(data['request_id'], 'request_id')
     return dict(data, type='confirm_loaded')
+
+
+def initial_pose_fields(x, y, yaw, xy_var, yaw_var):
+    """지도(map) 프레임의 (x, y, yaw) 를 initialpose 메시지 값으로 바꾼다 (ROS 없이 시험하려고 분리)."""
+    values = [float(v) for v in (x, y, yaw, xy_var, yaw_var)]
+    if not all(math.isfinite(v) for v in values) or values[3] <= 0 or values[4] <= 0:
+        raise ValueError('초기 위치·분산은 유한한 수, 분산은 0 보다 커야 합니다')
+    x, y, yaw, xy_var, yaw_var = values
+    covariance = [0.0] * 36   # 6x6 행렬 (x, y, z, roll, pitch, yaw) 행 우선
+    covariance[0] = covariance[7] = xy_var
+    covariance[35] = yaw_var
+    return dict(x=x, y=y, qz=math.sin(yaw / 2), qw=math.cos(yaw / 2), covariance=covariance)
 
 
 class ApiError(ValueError):
@@ -109,7 +122,39 @@ class ControlAPI:
             return 200, self._release_control(request)
         if kind == 'raw':
             return 202, self._raw(request)
+        if kind == 'initial_pose':
+            return 202, self._initial_pose(request)
         raise ValueError('알 수 없는 요청 type')
+
+    def _initial_pose(self, request):
+        """로봇을 홈에 놓았다고 운영자가 확인하면 AMCL 위치를 홈으로 다시 잡는다."""
+        # 로봇을 움직이지 않는 명령이라 '작업 명령 켜기'는 요구하지 않는다. 로봇을 켜자마자 쓰는
+        # 단계이고, 정지 잠금·보류 중 복구에서도 위치를 다시 잡을 수 있어야 한다.
+        # 대신 멈춰 있는 것(busy=false)을 확인한다. 움직이는 중에 위치를 바꾸면 경로가 튄다.
+        scenario = self.scenario
+        robot = request.get('robot_id')
+        if not isinstance(robot, str) or robot not in self.fleet.robots:
+            raise ApiError(404, '등록되지 않은 로봇')
+        if self.point_rules is None:
+            raise ApiError(503, '순찰 지점 설정(patrol_config_dir)이 없어 홈 좌표를 모릅니다')
+        if self._orders_for(robot):
+            raise ApiError(409, '진행 중인 주문이 있는 로봇: 주문을 먼저 끝내거나 복구하세요')
+        if self.fleet.repository.db.execute(
+                "SELECT 1 FROM commands WHERE robot_id=? AND state IN ('ACCEPTED','RUNNING')",
+                (robot,)).fetchone():
+            raise ApiError(409, '진행 중인 작업이 있는 로봇: 정지한 뒤 다시 누르세요')
+        if not scenario._fresh(robot):
+            raise ApiError(503, '로봇 상태 또는 배터리 수신이 오래됐습니다')
+        status = scenario.health.get(robot, {}).get('status', {})
+        if status.get('busy') is not False:
+            raise ApiError(409, '로봇이 멈춰 있는지 확인되지 않음 (busy=false 필요)')
+        name, x, y, yaw = self.point_rules.home(robot)
+        scenario.store.event(dict(type='operator_initial_pose', robot_id=robot, point=name,
+                                  x=x, y=y, yaw=yaw, source=request.get('source', '')))
+        self.gateway.set_initial_pose(robot, x, y, yaw)
+        return dict(robot_id=robot, point=name, x=x, y=y, yaw=yaw,
+                    topic=f'/{robot}/initialpose',
+                    client_request_id=request.get('client_request_id'))
 
     def _raw(self, request):
         """개발용 1회성 문자열 명령. 기록·결과 추적 없이 세션 봉투만 붙여 로봇에 보낸다."""

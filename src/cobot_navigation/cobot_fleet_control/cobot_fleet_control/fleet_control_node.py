@@ -6,6 +6,7 @@ import time
 import uuid
 
 from ament_index_python.packages import get_package_share_directory
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from rcl_interfaces.msg import SetParametersResult
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
@@ -14,7 +15,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Float32, String
 import yaml
 
-from .control_api import ControlAPI, manual_load_request
+from .control_api import ControlAPI, initial_pose_fields, manual_load_request
 from .repository import encode, SqliteRepository
 from .scenario import ScenarioService
 from .service import FleetService
@@ -41,6 +42,8 @@ class FleetControlNode(Node):
             # 개발 설정: 가짜 핑키·가제보에서만 켠다. 실물은 둘 다 false.
             'allow_raw_cmd': False, 'start_armed': False,
             'patrol_config_dir': '', 'site': 'lab',
+            # 화면 '초기위치' 버튼이 내는 initialpose 의 분산. 손으로 넣던 README 명령과 같은 값.
+            'initial_pose_xy_var': 0.0625, 'initial_pose_yaw_var': 0.068,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -55,6 +58,10 @@ class FleetControlNode(Node):
             robot: self.create_publisher(String, f'/{robot}/fleet_heartbeat', 10)
             for robot in robots}
         self.fleet_heartbeat_pub = self.create_publisher(String, '/fleet/heartbeat', 10)
+        # AMCL 재초기화. 로봇 쪽 브릿지가 /pinkyN/initialpose 를 로봇의 /initialpose 로 넘긴다.
+        self.initial_pose_publishers = {
+            robot: self.create_publisher(PoseWithCovarianceStamped, f'/{robot}/initialpose', 10)
+            for robot in robots}
         self.session_id = uuid.uuid4().hex
         self.sequences = {robot: 0 for robot in robots}
         self.heartbeat_seq = 0
@@ -149,6 +156,19 @@ class FleetControlNode(Node):
         # 정지는 발행자 중복 검사(ready) 없이 늘 보낸다. 비상정지는 halt() 를 쓴다.
         self.publishers_by_robot[robot_id].publish(String(data=encode(
             {'command_id': uuid.uuid4().hex, 'command': 'stop'})))
+
+    def set_initial_pose(self, robot_id, x, y, yaw):
+        """AMCL 위치 추정만 바꾼다. 로봇은 움직이지 않는다."""
+        fields = initial_pose_fields(x, y, yaw, self.config['initial_pose_xy_var'],
+                                     self.config['initial_pose_yaw_var'])
+        message = PoseWithCovarianceStamped()
+        message.header.frame_id = 'map'
+        message.header.stamp = self.get_clock().now().to_msg()
+        pose = message.pose.pose
+        pose.position.x, pose.position.y = fields['x'], fields['y']
+        pose.orientation.z, pose.orientation.w = fields['qz'], fields['qw']
+        message.pose.covariance = fields['covariance']
+        self.initial_pose_publishers[robot_id].publish(message)
 
     def halt(self, robot_id, route, order_id):
         """소프트웨어 정지를 요청한다. 하드웨어 전원 차단을 보장하지는 않는다."""

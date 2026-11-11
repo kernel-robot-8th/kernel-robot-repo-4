@@ -686,6 +686,21 @@ def test_fleet_estop_all_and_release_control_pass_through():
     assert sent[2]['source'] == 'testclient' and sent[2]['operator'] is None
 
 
+def test_fleet_initial_pose_passes_through_with_source():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    reply = {'robot_id': 'pinky2', 'point': 'I2', 'x': 0.0, 'y': -0.2, 'yaw': 0.0}
+    publish, sent = fake_controller(tasks, 202, reply)
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/robots/pinky2/initial_pose', json={'client_request_id': 'p1'})
+    assert res.status_code == 202 and res.json()['point'] == 'I2'
+    # 좌표는 보내지 않는다: 홈 좌표는 fleet_control 이 순찰 설정에서 읽는다
+    assert sent[0] == {'type': 'initial_pose', 'robot_id': 'pinky2',
+                       'client_request_id': 'p1', 'source': 'testclient',
+                       'request_id': sent[0]['request_id']}
+
+
 def test_fleet_confirm_loaded_passes_through():
     store, _ = make_store()
     tasks, _ = make_task_store()

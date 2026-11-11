@@ -37,6 +37,17 @@ class PointRules:
     def __init__(self, configs):
         self.configs = configs
 
+    def home(self, robot):
+        """로봇 홈 지점 이름과 (x, y, yaw). 순찰 노드가 쓰는 같은 설정이 정본이다."""
+        if robot not in self.configs:
+            raise ValueError('로봇 지점 설정이 없습니다')
+        params = self.configs[robot]
+        name = params['home_name']
+        pose = [float(v) for v in params['points'][name]]
+        # 지점은 [x, y] 또는 [x, y, yaw]. yaw 가 없으면 지도 +x 방향(0)으로 본다.
+        x, y, yaw = (pose + [0.0])[:3]
+        return name, x, y, yaw
+
     def validate(self, robot, operation, points):
         if robot not in self.configs:
             raise ValueError('로봇 지점 설정이 없습니다')

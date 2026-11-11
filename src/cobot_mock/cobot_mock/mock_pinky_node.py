@@ -112,6 +112,9 @@ class MockPinkyNode(Node):
                 'percent': self.create_publisher(Float32, f'/{name}/battery/percent', 10),
                 'voltage': self.create_publisher(Float32, f'/{name}/battery/voltage', 10),
             }
+            # 관제 화면 '초기위치' 버튼 (fleet_control 이 발행). 실물 AMCL 처럼 위치 추정만 옮긴다.
+            self.create_subscription(PoseWithCovarianceStamped, f'/{name}/initialpose',
+                                     lambda msg, r=name: self._on_initial_pose(r, msg), 10)
             # 규격 v1: String 명령·JSON 상태 (지금 주행 코드)
             if self.v1:
                 self.pub[name]['status'] = self.create_publisher(
@@ -166,6 +169,18 @@ class MockPinkyNode(Node):
         events = self.sims[robot].command(raw, now)
         self.get_logger().info(f'{robot}: 명령 {msg.data!r} -> {len(events)}개 이벤트')
         self._emit(robot, events)
+
+    def _on_initial_pose(self, robot, msg):
+        """움직이지 않는 로봇만 위치를 옮긴다. 이동 중이면 무시한다 (관제도 이동 중엔 막는다)."""
+        sim = self.sims[robot]
+        if sim.running:
+            self.get_logger().warning(f'{robot}: 이동 중이라 initialpose 무시')
+            return
+        q = msg.pose.pose.orientation
+        yaw = 2.0 * math.atan2(q.z, q.w)
+        x, y = msg.pose.pose.position.x, msg.pose.pose.position.y
+        sim.pose = (x, y, yaw)
+        self.get_logger().info(f'{robot}: initialpose -> ({x:.2f}, {y:.2f}, {yaw:.2f} rad)')
 
     def _on_heartbeat(self, robot, msg):
         """서버 세션이 바뀌면 움직이던 로봇만 비상정지한다. 놀던 로봇은 잠그지 않는다."""
