@@ -30,7 +30,8 @@ const detail = {
   xf: null,        // 확대 지도 변환 {scale, ox, oy}: 화면 px = 지도 px * scale + o
   hits: [],        // 확대 지도 위 로봇 위치 (클릭으로 그 로봇 상세로)
   poseBtns: null,  // 위치 칸의 초기위치 [홈] [좌표 지정]. 칸은 매번 새로 그리므로 버튼은 한 번 만들어 옮겨 붙인다
-  posePick: null,  // 좌표 지정 중이면 {robotId, x, y, yaw[rad], drag: 누른 곳 지도 px 또는 null}
+  posePick: null,
+  labelCache: newLabelCache(),  // 확대 지도 이름표 자리 (map.js placeStaticLabels·placeRobotLabels)  // 좌표 지정 중이면 {robotId, x, y, yaw[rad], drag: 누른 곳 지도 px 또는 null}
 };
 
 function detailHref(robotId) {
@@ -424,6 +425,9 @@ function drawDetailMap() {
   else if (robot) drawRoute(ctx, info, scale, robotId, robot, color);
   const posing = Boolean(detail.posePick && detail.posePick.robotId === robotId);
   canvas.classList.toggle("posing", posing);
+  // 구역·지점 이름표는 고정 자리(로봇 아래), 로봇 이름표는 맨 위 (map.js placeStaticLabels)
+  const staticRects = placeStaticLabels(ctx, labels, scale, detail.labelCache);
+  const robotLabels = [];
 
   // drawRobot 은 전체 지도의 클릭 자리(view.robotHits)에 쓰므로 잠시 바꿔 끼운다.
   const overviewHits = view.robotHits;
@@ -436,12 +440,12 @@ function drawDetailMap() {
     const i = Object.keys(robots).indexOf(id);
     ctx.globalAlpha = id === robotId ? 1 : 0.35;
     drawRobot(ctx, info, other.pose, id, other.online ? css(robotColorVar(i)) : css("--offline"),
-      scale, labels);
+      scale, robotLabels);
   }
   ctx.globalAlpha = 1;
   detail.hits = view.robotHits;
   view.robotHits = overviewHits;
-  placeLabels(ctx, labels, scale);
+  placeRobotLabels(ctx, robotLabels, scale, staticRects, detail.labelCache);
   if (posing) drawPosePick(ctx, info, scale);
 
   $("dt-zoom-in").disabled = detail.zoom === 0;

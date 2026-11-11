@@ -50,6 +50,8 @@ const view = {
   loading: null,    // 수동 상차 확인 띠를 연 {robotId, orderId, sku} (load.js)
   pick: null,       // 명령 지점 고르는 중 {robotId, cmd, choices, route, ...}
   robotHits: [],    // 지도 위 로봇 위치 {robotId, x, y, r} (지도 클릭으로 카드 찾기)
+  // 전체 지도 이름표 자리 (map.js placeStaticLabels·placeRobotLabels). core.js 가 먼저 읽혀 직접 적는다.
+  labelCache: { key: null, rects: [], sides: new Map() },
   mapScale: 0,      // 지도 1 px 의 화면 크기 (layoutMap 이 정함)
   laidOut: false,   // 첫 상태를 받은 뒤 한 번 다시 쟀는지
   detailRobot: null, // 상세 화면(#/robot/<id>)에서 보는 로봇, 전체 화면이면 null

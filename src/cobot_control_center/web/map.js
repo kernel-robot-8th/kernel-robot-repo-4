@@ -174,7 +174,7 @@ function drawMap() {
     points: view.showPoints || (picking && view.pick.cmd === "goto"),
     layers: view.showLayers || picking,
   };
-  // 이름표는 모양을 다 그린 뒤 맨 위에 한꺼번에 놓는다 (겹치지 않게 자리를 고르려고).
+  // 구역·지점 이름표는 모양 위, 로봇 아래에 고정 자리로 놓는다. 로봇 이름표는 맨 위 (placeStaticLabels).
   const labels = [];
   if (view.layers && (show.layers || show.points)) {
     drawLayers(ctx, info, view.layers, scale, show, labels);
@@ -182,14 +182,16 @@ function drawMap() {
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   if (picking) drawPick(ctx, info, scale, robots);
+  const staticRects = placeStaticLabels(ctx, labels, scale, view.labelCache);
+  const robotLabels = [];
   view.robotHits = [];
   Object.keys(robots).forEach((robotId, index) => {
     const robot = robots[robotId];
     if (!robot.pose) return;
     const color = robot.online ? css(robotColorVar(index)) : css("--offline");
-    drawRobot(ctx, info, robot.pose, robotId, color, scale, labels);
+    drawRobot(ctx, info, robot.pose, robotId, color, scale, robotLabels);
   });
-  placeLabels(ctx, labels, scale);
+  placeRobotLabels(ctx, robotLabels, scale, staticRects, view.labelCache);
 }
 
 function toPixel(info, x, y) {
@@ -226,10 +228,14 @@ function insideMap(info, x, y) {
 }
 
 // ---------- 이름표 ----------
-// label: {text, x, y, r, kind, color}. x, y 는 점 위치, r 은 점 반지름 (모두 지도 px).
-// kind: "robot"(로봇 색 알약, 먼저 놓음), "zone"(구역 원 가운데 고정), "mark"(지점·출구·슬롯·홈).
-// 지점 이름표는 이미 놓인 이름표·로봇과 겹치지 않는 자리(위·아래·오른쪽·왼쪽 …)를 찾고,
-// 빈 자리가 없으면 가장 덜 겹치는 곳에 둔다.
+// label: {text, x, y, r, kind, color, robotId}. x, y 는 점 위치, r 은 점 반지름 (모두 지도 px).
+// kind: "zone"(구역 원 가운데 고정), "mark"(지점·출구·슬롯·홈), "robot"(로봇 색 알약).
+// 고정 이름표(구역·지점)는 로봇을 보지 않고 자기들끼리만 겹치지 않게 놓고, 그 자리를 캐시에 둔다.
+// 그래서 로봇이 움직여도 지점 글자는 제자리다 (로봇이 지나가면 로봇이 잠깐 글자를 가린다).
+// 로봇 이름표는 맨 나중에 고정 이름표·로봇 몸통을 피해 놓고, 지난번 자리가 괜찮으면 그대로 둔다.
+// 캐시: {key, rects, sides} — 전체 지도(view.labelCache)와 상세 지도(detail.labelCache)가 따로 가진다.
+
+const newLabelCache = () => ({ key: null, rects: [], sides: new Map() });
 
 function overlapArea(rect, others) {
   let area = 0;
@@ -241,45 +247,84 @@ function overlapArea(rect, others) {
   return area;
 }
 
-function placeLabels(ctx, labels, scale) {
-  const rank = { zone: 0, robot: 1, mark: 2 };
-  const order = [...labels].sort((a, b) => rank[a.kind] - rank[b.kind]);
-  // 로봇 몸통은 지점 이름표가 가리지 않게 미리 막아 둔다.
-  const robotBodies = labels.filter((l) => l.kind === "robot")
-    .map((l) => ({ x: l.x - l.r, y: l.y - l.r, w: l.r * 2, h: l.r * 2 }));
-  const placed = [];
-  for (const label of order) {
-    const robot = label.kind === "robot";
-    const size = (robot ? 12 : 11) / scale;
-    ctx.font = `${robot ? 700 : 600} ${size}px system-ui, sans-serif`;
-    const padX = (robot ? 5 : 1) / scale;
-    const padY = (robot ? 2 : 0) / scale;
-    const w = ctx.measureText(label.text).width + padX * 2;
-    const h = size * 1.25 + padY * 2;
-    const gap = label.r + 2 / scale;
-    const below = [label.x - w / 2, label.y + gap];
-    const above = [label.x - w / 2, label.y - gap - h];
-    const right = [label.x + gap, label.y - h / 2];
-    const left = [label.x - gap - w, label.y - h / 2];
-    const candidates = label.kind === "zone" ? [[label.x - w / 2, label.y - h / 2]]
-      : robot ? [below, above, right, left] : [above, right, left, below];
-    let best = null;
-    let bestCost = Infinity;
-    for (const [x, y] of candidates) {
-      const rect = { x, y, w, h };
-      const cost = overlapArea(rect, placed) + (robot ? 0 : overlapArea(rect, robotBodies) * 4);
-      if (cost < bestCost) {
-        best = rect;
-        bestCost = cost;
-        if (cost === 0) break;
-      }
+// 이름표 크기와 놓을 수 있는 자리 후보 (이름 → [x, y]). 글꼴도 맞춰 둔다.
+function labelBox(ctx, label, scale) {
+  const robot = label.kind === "robot";
+  const size = (robot ? 12 : 11) / scale;
+  ctx.font = `${robot ? 700 : 600} ${size}px system-ui, sans-serif`;
+  const padX = (robot ? 5 : 1) / scale;
+  const padY = (robot ? 2 : 0) / scale;
+  const w = ctx.measureText(label.text).width + padX * 2;
+  const h = size * 1.25 + padY * 2;
+  const gap = label.r + 2 / scale;
+  const spots = {
+    below: [label.x - w / 2, label.y + gap],
+    above: [label.x - w / 2, label.y - gap - h],
+    right: [label.x + gap, label.y - h / 2],
+    left: [label.x - gap - w, label.y - h / 2],
+    center: [label.x - w / 2, label.y - h / 2],
+  };
+  return { size, padX, padY, w, h, spots };
+}
+
+// 후보 중 cost 가 가장 작은 자리 (0 이면 바로 고름). {side, rect}
+function bestSpot(box, sides, cost) {
+  let best = null;
+  let bestCost = Infinity;
+  for (const side of sides) {
+    const [x, y] = box.spots[side];
+    const rect = { x, y, w: box.w, h: box.h };
+    const c = cost(rect);
+    if (c < bestCost) {
+      best = { side, rect };
+      bestCost = c;
+      if (c === 0) break;
     }
-    placed.push(best);
-    drawLabelBox(ctx, label, best, size, padX, padY, robot);
+  }
+  return best;
+}
+
+// 고정 이름표(구역·지점)를 놓고 그린다. 목록·배율이 같으면 캐시한 자리를 그대로 쓴다.
+function placeStaticLabels(ctx, labels, scale, cache) {
+  const key = `${scale}|` + labels.map((l) => `${l.kind}:${l.text}:${l.x}:${l.y}:${l.r}`).join("|");
+  const order = [...labels].sort((a, b) => (a.kind === "zone" ? 0 : 1) - (b.kind === "zone" ? 0 : 1));
+  const fresh = cache.key !== key;
+  if (fresh) cache.rects = [];
+  order.forEach((label, i) => {
+    const box = labelBox(ctx, label, scale);
+    if (fresh) {
+      const sides = label.kind === "zone" ? ["center"] : ["above", "right", "left", "below"];
+      cache.rects.push(bestSpot(box, sides, (rect) => overlapArea(rect, cache.rects)).rect);
+    }
+    drawLabelBox(ctx, label, cache.rects[i], box.size, box.padX, box.padY, false, scale);
+  });
+  cache.key = key;
+  return cache.rects;
+}
+
+// 로봇 이름표를 고정 이름표·로봇 몸통·앞서 놓은 로봇 이름표를 피해 놓는다.
+// 지난번 자리(cache.sides)가 지금도 안 겹치면 그대로 둬 아래·위로 오가지 않게 한다.
+const ROBOT_SIDES = ["below", "above", "right", "left"];
+
+function placeRobotLabels(ctx, labels, scale, staticRects, cache) {
+  const bodies = labels.map((l) => ({ x: l.x - l.r, y: l.y - l.r, w: l.r * 2, h: l.r * 2 }));
+  const placed = [];
+  for (const label of labels) {
+    const box = labelBox(ctx, label, scale);
+    // 자기 몸통은 이름표 후보가 이미 비켜 있으므로 다른 로봇 몸통만 본다.
+    const others = bodies.filter((_, i) => labels[i] !== label);
+    const cost = (rect) => overlapArea(rect, staticRects) + overlapArea(rect, placed) * 4
+      + overlapArea(rect, others) * 4;
+    const last = cache.sides.get(label.robotId);
+    const keep = last ? bestSpot(box, [last], cost) : null;
+    const spot = keep && cost(keep.rect) === 0 ? keep : bestSpot(box, ROBOT_SIDES, cost);
+    cache.sides.set(label.robotId, spot.side);
+    placed.push(spot.rect);
+    drawLabelBox(ctx, label, spot.rect, box.size, box.padX, box.padY, true, scale);
   }
 }
 
-function drawLabelBox(ctx, label, rect, size, padX, padY, robot) {
+function drawLabelBox(ctx, label, rect, size, padX, padY, robot, scale) {
   ctx.save();
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
@@ -291,7 +336,7 @@ function drawLabelBox(ctx, label, rect, size, padX, padY, robot) {
     ctx.fill();
     ctx.fillStyle = "#ffffff";
   } else {
-    ctx.lineWidth = 3 / view.mapScale;
+    ctx.lineWidth = 3 / scale;   // 상세 지도는 배율이 달라 그 지도 배율을 쓴다
     ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
     ctx.fillStyle = "#1c2129";
     ctx.strokeText(label.text, rect.x + padX, rect.y + padY + size * 0.1);
@@ -463,6 +508,6 @@ function drawRobot(ctx, info, pose, robotId, color, scale, labels) {
   ctx.restore();
 
   // 이름표 자리는 화살표 끝(반지름 1.9배) 밖에서 찾는다. 지도 클릭으로 로봇을 고를 수 있게 위치도 남긴다.
-  labels.push({ text: robotId, x: px, y: py, r: r * 1.9, kind: "robot", color });
+  labels.push({ text: robotId, x: px, y: py, r: r * 1.9, kind: "robot", color, robotId });
   view.robotHits.push({ robotId, x: px, y: py, r });
 }
