@@ -111,7 +111,7 @@ function renderCard(robotId, robot, index) {
 
   const meta = [];
   if (robot.pose) {
-    const deg = (robot.pose.yaw * 180 / Math.PI).toFixed(0);
+    const deg = toDeg(robot.pose.yaw);
     meta.push(`(${robot.pose.x.toFixed(2)}, ${robot.pose.y.toFixed(2)}) m · ${deg}°`);
   }
   meta.push(`수신 ${formatAge(robot.last_seen_age)}`);

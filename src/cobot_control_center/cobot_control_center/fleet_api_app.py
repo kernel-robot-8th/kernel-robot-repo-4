@@ -27,7 +27,7 @@
 
 import asyncio
 
-from cobot_control_center.fleet_api_utils import initial_pose_error, MJPEG_BOUNDARY, mjpeg_part
+from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -259,12 +259,12 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         payload = {'type': 'initial_pose', 'robot_id': robot_id,
                    'client_request_id': body.get('client_request_id'),
                    'source': source(request)}
-        pose = body.get('pose')
-        if pose is not None:
-            error = initial_pose_error(pose, map_data[0] if map_data else None)
-            if error:
-                raise HTTPException(status_code=400, detail=error)
-            payload['pose'] = {key: float(pose[key]) for key in ('x', 'y', 'yaw')}
+        if body.get('pose') is not None:
+            map_info = map_data[0] if map_data else None
+            try:
+                payload['pose'] = parse_initial_pose(body['pose'], map_info)
+            except ValueError as err:
+                raise HTTPException(status_code=400, detail=str(err)) from None
         return call_controller(payload)
 
     @app.post('/api/orders/{order_id}/recover')

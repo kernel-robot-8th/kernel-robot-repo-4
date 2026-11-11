@@ -16,6 +16,9 @@ const HEALTH_POLL_MS = 2000;
 
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const $ = (id) => document.getElementById(id);
+// 방향 표시: 지도·로봇은 라디안, 화면 글·입력칸은 정수 도
+const toDeg = (rad) => Math.round(rad * 180 / Math.PI);
+const toRad = (deg) => deg * Math.PI / 180;
 
 // 기반 노드 판정(fleet_status 의 infra) → 점 색과 설명
 const INFRA_STATE = {

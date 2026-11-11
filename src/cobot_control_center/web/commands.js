@@ -90,26 +90,37 @@ function heldZones(robotId) {
   return Object.keys(zones).filter((name) => zones[name] === `occupied_by:${robotId}`);
 }
 
-// 초기위치: 연결·작업 노드·멈춤만 본다. 작업 명령 켜기와 정지 잠금은 막지 않는다
-// (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
-// 막을 이유를 돌려주고, 누를 수 있으면 "".
-function poseBlockReason(robotId, robot) {
-  const active = robotTask(robotId, ACTIVE_TASK);
+// 명령을 막는 이유는 두 묶음이다. 일반 명령과 초기위치가 함께 쓴다 (누를 수 있으면 "").
+// 연결: 읽기 전용 화면, 작업 노드 꺼짐, 로봇 연결 끊김
+function linkBlockReason(robot) {
   return view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
     : !view.controllerOnline ? "작업 노드 꺼짐"
-    : !robot.online ? "연결 끊김"
-    : active ? `작업 중 ${active.task_id}`
+    : !robot.online ? "연결 끊김" : "";
+}
+
+// 움직이는 중: 관제 작업이 진행 중이거나, 작업이 없어도 로봇이 움직이는 상태 (유휴 복귀 등)
+function busyReason(robot, active) {
+  return active ? `작업 중 ${active.task_id}`
     : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
 }
 
-const POSE_TITLE = "로봇을 홈에 놓은 뒤 누름 · AMCL 위치를 홈으로 다시 잡음 "
-  + "(로봇은 움직이지 않음, 작업 명령 켜기 없이 가능)";
+// 초기위치: 연결·멈춤만 본다. 작업 명령 켜기와 정지 잠금은 막지 않는다
+// (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
+function poseBlockReason(robotId, robot) {
+  return linkBlockReason(robot) || busyReason(robot, robotTask(robotId, ACTIVE_TASK));
+}
+
+// 초기위치 버튼 마우스 글 (버튼 data-pose 로 고른다)
+const POSE_TITLE = {
+  home: "로봇을 홈에 놓은 뒤 누름 · AMCL 위치를 홈으로 다시 잡음 (로봇은 움직이지 않음, 작업 명령 켜기 없이 가능)",
+  manual: "확대 지도를 누르고 끌어 위치·방향 지정 · AMCL 위치를 그 자리로 다시 잡음 (로봇은 움직이지 않음)",
+};
 
 // 카드(.pose-row)와 상세 위치 칸이 함께 쓴다. 꺼지면 이유를, 켜지면 설명을 마우스 글로 보인다.
 function renderPoseButton(button, robotId, robot) {
   const why = poseBlockReason(robotId, robot);
   button.disabled = Boolean(why);
-  button.title = why || POSE_TITLE;
+  button.title = why || POSE_TITLE[button.dataset.pose] || "";
 }
 
 function renderCommands(card, robotId, robot) {
@@ -118,13 +129,10 @@ function renderCommands(card, robotId, robot) {
   const problem = currentProblem(robotId);
   const blocker = problem && problem.kind === "load" ? currentProblem(robotId, true) : problem;
   // 잠금은 '작업 명령 켜기'보다 먼저 알린다 (보류된 로봇은 작업 명령이 켜져 있어도 복구해야 풀리므로 켜기만으로는 안 풀린다).
-  const reason = view.readOnly ? "개발 화면 (읽기 전용), 명령은 8080 에서"
-    : !view.controllerOnline ? "작업 노드 꺼짐"
-    : !robot.online ? "연결 끊김"
-    : blocker ? blocker.reason
-    : !view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요"
-    : active ? `작업 중 ${active.task_id}`
-    : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
+  const reason = linkBlockReason(robot)
+    || (blocker ? blocker.reason : "")
+    || (!view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요" : "")
+    || busyReason(robot, active);
   // 나가기는 보유 구역이 있을 때만 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
   // 구역을 잡고 있어도 이동·구역 명령은 켠다: 로봇이 먼저 구역을 나간다 (2026-11-09).
   const held = heldZones(robotId);
@@ -290,21 +298,20 @@ async function onCommand(robotId, cmd) {
 // pose 가 없으면 홈: 화면의 홈 좌표는 확인 창에 보여 주기만 하고, 실제 좌표는 작업 노드가 순찰 설정에서 읽는다.
 // pose {x, y, yaw[rad]} 가 있으면 지도에서 찍은 좌표 (detail.js 좌표 지정). 보냈으면 true.
 async function sendInitialPose(robotId, pose = null) {
-  const deg = (yaw) => Math.round((Number(yaw) || 0) * 180 / Math.PI);
   let where;
   if (pose) {
-    where = `(x ${pose.x.toFixed(2)}, y ${pose.y.toFixed(2)}, ${deg(pose.yaw)}°)`;
+    where = `(x ${pose.x.toFixed(2)}, y ${pose.y.toFixed(2)}, ${toDeg(pose.yaw)}°)`;
   } else {
     const home = view.layers && view.layers.homes && view.layers.homes[robotId];
     where = home
       ? `홈 ${home.name} (x ${Number(home.pose[0]).toFixed(2)}, y ${Number(home.pose[1]).toFixed(2)}, `
-        + `${deg(home.pose[2])}°)`
+        + `${toDeg(Number(home.pose[2]) || 0)}°)`
       : "홈";
   }
   if (!confirm(`${robotId} 로봇이 ${where} 에 있나요?\n`
       + "AMCL 위치를 그 자리로 다시 잡습니다. 로봇은 움직이지 않습니다.")) return false;
   const body = { client_request_id: newRequestId() };
-  if (pose) body.pose = { x: pose.x, y: pose.y, yaw: pose.yaw };
+  if (pose) body.pose = pose;
   const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/initial_pose`, body);
   if (result.ok) {
     const d = result.data;

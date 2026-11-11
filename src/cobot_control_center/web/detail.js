@@ -135,10 +135,11 @@ function setupHead() {
   // 정지 잠금이면 제어권 복구 띠 (release.js).
   box.querySelector(".cmd-head").addEventListener("click", () => onCmdHeadClick(view.detailRobot));
   // 초기위치 [홈] [좌표 지정]: 명령 줄이 아니라 위치 칸에 붙는다 (renderStats). 클릭 연결은 여기서 한 번만.
-  const button = (text, onClick) => {
+  const button = (text, kind, onClick) => {
     const el = document.createElement("button");
     el.type = "button";
     el.className = "pose-btn";
+    el.dataset.pose = kind;   // 마우스 글 종류 (commands.js POSE_TITLE)
     el.textContent = text;
     el.addEventListener("click", () => {
       if (view.detailRobot) onClick(view.detailRobot);
@@ -146,8 +147,8 @@ function setupHead() {
     return el;
   };
   detail.poseBtns = [
-    button("홈", (robotId) => onCommand(robotId, "initial_pose")),
-    button("좌표 지정", openPosePick),
+    button("홈", "home", (robotId) => onCommand(robotId, "initial_pose")),
+    button("좌표 지정", "manual", openPosePick),
   ];
 }
 
@@ -190,7 +191,7 @@ function renderStats(robotId, robot) {
 
   let poseStat;
   if (robot.pose) {
-    const deg = (robot.pose.yaw * 180 / Math.PI).toFixed(0);
+    const deg = toDeg(robot.pose.yaw);
     const wp = robot.waypoint !== null && robot.waypoint !== undefined && robot.waypoint >= 0
       ? ` · 웨이포인트 #${robot.waypoint}` : "";
     poseStat = stat("위치", `(${robot.pose.x.toFixed(2)}, ${robot.pose.y.toFixed(2)}) m`, `${deg}°${wp}`);
@@ -532,7 +533,7 @@ function syncPoseInputs() {
   const p = detail.posePick;
   $("pose-x").value = p.x.toFixed(2);
   $("pose-y").value = p.y.toFixed(2);
-  $("pose-yaw").value = String(Math.round(p.yaw * 180 / Math.PI));
+  $("pose-yaw").value = String(toDeg(p.yaw));
 }
 
 // 입력칸 → 상태 (숫자를 고쳤을 때)
@@ -541,7 +542,7 @@ function readPoseInputs() {
   if (!p) return;
   p.x = parseFloat($("pose-x").value);
   p.y = parseFloat($("pose-y").value);
-  p.yaw = parseFloat($("pose-yaw").value) * Math.PI / 180;
+  p.yaw = toRad(parseFloat($("pose-yaw").value));
   updatePosePick();
 }
 

@@ -87,29 +87,30 @@ def load_map(yaml_path):
     return info, data
 
 
-def initial_pose_error(pose, map_info=None):
+def parse_initial_pose(pose, map_info=None):
     """
-    화면에서 찍은 초기위치 pose {x, y, yaw} 의 문제. 괜찮으면 None.
+    화면에서 찍은 초기위치 pose {x, y, yaw} 를 검사해 float dict 로 돌려준다.
 
-    map_info 가 있으면 지도 범위 안인지도 본다 (지도 밖으로 AMCL 을 잡으면 위치를 잃는다).
-    작업 노드도 숫자 검사를 다시 하지만, 지도는 이 백엔드만 가지고 있어 범위는 여기서 본다.
+    잘못되면 사유를 담은 ValueError. map_info 가 있으면 지도 범위 안인지도 본다
+    (지도 밖으로 AMCL 을 잡으면 위치를 잃는다). 작업 노드도 숫자 검사를 다시 하지만,
+    지도는 이 백엔드만 가지고 있어 범위는 여기서 본다.
     """
-    if not isinstance(pose, dict):
-        return 'pose 는 {x, y, yaw} 여야 합니다'
     try:
+        if not isinstance(pose, dict):
+            raise TypeError
         x, y, yaw = (float(pose[key]) for key in ('x', 'y', 'yaw'))
     except (KeyError, TypeError, ValueError):
-        return 'pose 는 {x, y, yaw} 숫자여야 합니다'
+        raise ValueError('pose 는 {x, y, yaw} 숫자여야 합니다') from None
     if not all(math.isfinite(v) for v in (x, y, yaw)):
-        return 'pose 는 유한한 수여야 합니다'
+        raise ValueError('pose 는 유한한 수여야 합니다')
     if map_info is not None:
         ox, oy = map_info['origin'][:2]
         res = map_info['resolution']
         width = map_info['image_width'] * res
         height = map_info['image_height'] * res
         if not (ox <= x <= ox + width and oy <= y <= oy + height):
-            return f'지도 밖 좌표 ({x:.2f}, {y:.2f}) m'
-    return None
+            raise ValueError(f'지도 밖 좌표 ({x:.2f}, {y:.2f}) m')
+    return {'x': x, 'y': y, 'yaw': yaw}
 
 
 DEFAULT_SITE = 'lab'   # 순찰 설정 sites/<site>.yaml 의 기본 현장

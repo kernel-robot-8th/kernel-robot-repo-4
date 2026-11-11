@@ -48,6 +48,14 @@ def initial_pose_fields(x, y, yaw, xy_var, yaw_var):
     return dict(x=x, y=y, qz=math.sin(yaw / 2), qw=math.cos(yaw / 2), covariance=covariance)
 
 
+class ApiError(ValueError):
+    """웹 백엔드가 그대로 전달할 HTTP 상태와 오류 본문."""
+
+    def __init__(self, status, detail):
+        super().__init__(detail)
+        self.status = status
+
+
 MANUAL_POSE_NAME = '좌표'   # 지도에서 찍은 초기위치의 지점 이름 (기록·응답용)
 
 
@@ -64,14 +72,6 @@ def manual_pose(value):
     if not all(math.isfinite(v) for v in pose):
         raise ApiError(400, 'pose 는 유한한 수여야 합니다')
     return pose
-
-
-class ApiError(ValueError):
-    """웹 백엔드가 그대로 전달할 HTTP 상태와 오류 본문."""
-
-    def __init__(self, status, detail):
-        super().__init__(detail)
-        self.status = status
 
 
 class ControlAPI:
