@@ -293,6 +293,38 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml pinky2:=false pinky3:=false
 - Ctrl+C(SIGINT)와 SIGTERM으로 정상 종료합니다. launch를 `kill -9`로 죽여도 노드는 `exit_on_parent_loss`로 0.4초 안에 스스로 종료합니다.
 - 로봇 쪽 기동은 launch에 넣지 않았습니다. 3-B의 3단계(서비스 또는 직접 실행)를 씁니다.
 
+### 3-F. 할 수 있는 시험 한눈에 보기
+
+위에서 아래로 갈수록 준비물이 많고 위험도가 높습니다. 앞 단계가 통과한 뒤에 다음으로 갑니다.
+
+| 단계 | 시험 | 준비물 | 방법 | 통과 기준 |
+|---|---|---|---|---|
+| 1 | 단위 시험 + 린트 | PC만 | 아래 명령 | `54 tests, 0 errors, 0 failures` |
+| 2 | 가짜 모드 1대 | PC + 브로커 | 3-A | 도메인 102에서 `data: 88.0`이 계속 보임 |
+| 3 | 가짜 모드 3대 동시 | PC + 브로커 (로봇 없음) | 3-A의 launch를 `pinky2:=false pinky3:=false` 없이 실행(3대 모두 켜짐). 한 PC에서 오래 돌릴 때는 `-p load_abort:=50.0` | 각 토픽 받음 = 중계, 유실 0 |
+| 4 | 실물 pinky1 읽기 전용 | pinky1 + 터널 + bringup | 3-B | 요약 로그에서 받음 = 중계, `/scan` 약 10 Hz |
+| 5 | 연결 끊김 복구 | 4단계 상태 + 서비스 | 터널을 끊고 `online` 복구까지 시간 확인 | 약 15초 안에 `online` |
+| 6 | 재부팅 자동 재개 | 서비스 설치(2-7) | pinky1 재부팅 후 bringup만 실행 | 사람 개입 없이 중계 재개 |
+| 7 | 명령(down) | 로봇 구동 | **보류**. 가짜 모드(도메인 101/102)에서만 시험됨 | 팀 승인 후 |
+
+**1단계: 단위 시험 (로봇·브로커 필요 없음, 1분 이내)**
+```bash
+cd ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select cobot_mqtt_bridge
+colcon test --packages-select cobot_mqtt_bridge
+colcon test-result --verbose
+```
+- 확인하는 것: 토픽 YAML 3개 파싱(21/18/18개)과 DDS 브릿지 YAML과의 독립, 전송 상한과 JSON 봉투, 도메인 가드, `cmd_vel` 보호(상한·오래된 메시지·워치독), launch 인자, 서비스 파일(`enable_down` 없음, 재시작 정책), flake8·pep257·copyright.
+- 코드를 고친 뒤에는 **빌드를 먼저** 해야 합니다(설치본이 복사본이라 빌드 없이는 옛 코드로 시험됨).
+
+**실행 중 확인할 값**
+- 로그의 60초 요약: `요약 robot up /scan 받음 N 중계 N 버림 0 오류 0`에서 받음 = 중계, 오류 0이면 정상입니다. `/tf`는 30 Hz 상한 때문에 버림이 생기는 것이 정상입니다.
+- 상태: `mosquitto_sub -h 127.0.0.1 -t 'mqtt_bridge/pinky1/status/#' -v`에서 `online`.
+- 속도: `ros2 topic hz /pinky1/scan` (먼저 `ros2 daemon stop`).
+
+**추가 측정 도구** (`scripts/spikes/mqtt/`, 지연·트래픽·왕복 시간 측정): 사용법은 [`scripts/spikes/mqtt/README.md`](../../../scripts/spikes/mqtt/README.md)를 봅니다. 이 패키지의 실제 측정값은 pinky1 구간 평균 지연 odom 16 ms, scan 24 ms, MQTT 전체 트래픽 약 218 KB/s(그중 `/scan`이 약 84%)입니다.
+
 ## 4. 사용 예시
 
 ### 값 보기 (3-B 5단계 환경에서)
