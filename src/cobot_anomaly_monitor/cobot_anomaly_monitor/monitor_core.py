@@ -8,7 +8,7 @@ import uuid
 
 from .debug_view import (
     parse_zone_status, ready_problems, RouteTrace, STATUS_FIELDS, zone_table)
-from .judgment import is_duplicate, judge
+from .judgment import closed_before, INHERIT_SEC, is_duplicate, judge
 from .scenario_view import (
     cargo_of, driving_of, op_state_of, queue_wait_of, RESUMABLE_STAGES, STAGE_STEP,
     STEP_CARGO_AFTER, STEP_CODES, step_of, zone_of)
@@ -18,6 +18,14 @@ TERMINAL = ('COMPLETED', 'FAILED')
 BLOCKED = ('UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL')
 ACK_STATES = ('ACKNOWLEDGED', 'RESOLVED', 'FALSE_ALARM')
 STOP_REQUEST = {'PAUSE': 'pause', 'ESTOP': 'estop'}
+# 정지 요청이 나간 사건만 스냅샷으로 닫는다. 거절된 정지(_FAILED)는 운영자 확인으로 남긴다.
+STOP_OPEN = tuple(action + suffix for action in STOP_REQUEST for suffix in ('_SENT', '_ACCEPTED'))
+FLEET_RESOLVER = 'fleet'
+FLEET_RESOLVED_NOTE = '관제에서 재개됨(스냅샷으로 확인)'
+STOP_SKIPPED_NOTE = '이미 전체 정지 중'
+# 걸리지 않은 정지는 같은 물체가 다시 감지될 때 다시 요청한다. 간격은 두 배씩 늘려 상한에서 멈춘다.
+RESEND_FIRST_SEC = 5.0
+RESEND_MAX_SEC = 60.0
 REPLY_LIMIT = 200
 LOG_LIMIT = 30
 TASK_LIMIT = 10
@@ -78,6 +86,7 @@ class MonitorCore:
         self.steps = {row['mission_id']: row['current_step_seq'] for row in store.scenarios(500)}
         self.replies = OrderedDict()
         self.control_requests = {}
+        self.stop_sent = OrderedDict()  # event_id -> (마지막 정지 요청 시각, 보낸 횟수)
         self.trace = RouteTrace(points or {})
         self.zones, self.tasks, self.seen = {}, [], {}
         self.graph, self.ros = None, {}
@@ -136,6 +145,7 @@ class MonitorCore:
         self.store.record_trace_snapshot(self.orders.values(), tasks, self.tasks_at, self.status, self.seen)
         for order in self.orders.values():
             self._sync_order(order)
+        self._close_recovered()
         self.flush()
 
     def flush(self):
@@ -304,10 +314,17 @@ class MonitorCore:
         row = self.store.event(event_id)
         detail = json.loads(row['control_detail'] or '{}')
         detail[robot] = {'status': event.get('status'), 'body': event.get('body')}
-        failed = any(not 200 <= (d.get('status') or 0) < 300 for d in detail.values()
+        failed = any(not self._stop_accepted(key, d) for key, d in detail.items()
                      if isinstance(d, dict))
         action = row['control_action'].rsplit('_', 1)[0]
         self.store.set_control(event_id, action + ('_FAILED' if failed else '_ACCEPTED'), detail)
+
+    @staticmethod
+    def _stop_accepted(key, reply):
+        """전체 정지는 2xx만으로 믿지 않는다. 관제가 armed를 껐는지도 본다."""
+        if not 200 <= (reply.get('status') or 0) < 300:
+            return False
+        return key != 'ALL' or (reply.get('body') or {}).get('armed') is False
 
     def on_vision_event(self, raw):
         """이벤트를 판정해 기록하고 모드에 맞게 조치한다."""
@@ -318,9 +335,10 @@ class MonitorCore:
         same = is_duplicate(event, self.store.open_events(), event['detected_at'])
         if same:
             self.store.touch_event(same['event_id'], event['detected_at'])
+            self._retry(same)
             return self.store.event(same['event_id'])
         robots = self.robots_view()
-        result = judge(event, robots)
+        result = self._inherit(event, judge(event, robots), robots)
         linked = robots.get(result['linked_robot_id'], {})
         self.store.add_event({
             'event_id': event['event_id'], 'detected_at': event['detected_at'],
@@ -333,23 +351,88 @@ class MonitorCore:
             'robot_step_at_event': step_code(linked.get('step_seq', 0)),
             'robot_cargo_at_event': linked.get('cargo_state', 'UNKNOWN'),
             'judgment': result['judgment'], 'recommended_action': result['recommended_action'],
+            'stop_scope': result['stop_scope'],
             'stop_targets_json': json.dumps(result['stop_targets']),
             'alarm_text': result['alarm_text'], 'control_action': 'NONE'})
         self._control(event['event_id'], result, robots)
         return self.store.event(event['event_id'])
 
+    def _inherit(self, event, result, robots):
+        """닫힌 로봇 지정 사건 자리의 재감지가 전체 정지로 번지지 않게 그 사건의 범위를 잇는다."""
+        if result['judgment'] != 'LANE_OBSTACLE':
+            return result
+        at = event['detected_at']
+        closed = closed_before(event, self.store.resolved_since(at - INHERIT_SEC), at)
+        if not closed:
+            return result
+        robot = closed['linked_robot_id']
+        return {'judgment': closed['judgment'], 'linked_robot_id': robot,
+                'linked_order_id': robots.get(robot, {}).get('order_id'),
+                'recommended_action': closed['recommended_action'], 'stop_scope': 'ROBOT',
+                'stop_targets': json.loads(closed['stop_targets_json']),
+                'alarm_text': f"[재감지 {closed['event_id']}] {closed['alarm_text']}"}
+
+    def _retry(self, row):
+        """
+        묶인 재감지에서 걸리지 않은 정지를 다시 요청한다.
+
+        관찰 모드에서 기록만 한 사건도 AUTO_HOLD로 바뀐 뒤 다시 감지되면 여기서 세운다.
+        판정은 다시 하지 않고 기록된 조치·범위·대상을 그대로 쓴다.
+        """
+        action = row['control_action']
+        if self.mode != 'AUTO_HOLD' or row['hold_seen'] or not (
+                action == 'OBSERVE_ONLY' or action.endswith(('_SENT', '_ACCEPTED', '_FAILED'))):
+            return
+        targets = json.loads(row['stop_targets_json'])
+        everyone = row['stop_scope'] == 'ALL'
+        if self._all_stopped() if everyone else (
+                targets and all(robot in self.holds for robot in targets)):
+            return
+        sent_at, count = self.stop_sent.get(row['event_id'], (None, 0))
+        if sent_at is not None and self.clock() - sent_at < min(
+                RESEND_FIRST_SEC * 2 ** (count - 1), RESEND_MAX_SEC):
+            return
+        self._control(row['event_id'], {
+            'judgment': row['judgment'], 'recommended_action': row['recommended_action'],
+            'stop_scope': row['stop_scope'], 'stop_targets': targets}, self.robots_view())
+
+    def _all_stopped(self):
+        return self.armed is False and all(robot in self.holds for robot in self.robots)
+
     def _control(self, event_id, result, robots):
         action, targets = result['recommended_action'], result['stop_targets']
-        if action == 'NONE' or not targets:
+        everyone = result['stop_scope'] == 'ALL'
+        if action == 'NONE' or not (targets or everyone):
             return
         if self.mode != 'AUTO_HOLD':
             self.store.set_control(event_id, 'OBSERVE_ONLY', {})
             return
+        reason = f"CCTV {result['judgment']} {event_id}"
+        if everyone:
+            # 전체 정지는 사고와 무관한 주문도 세운다. 먼저 적힌 사유는 덮지 않는다.
+            for robot in self.robots:
+                if robots[robot].get('order_id'):
+                    self.store.set_hold_reason(robots[robot]['order_id'], reason, keep=True)
+            if action == 'PAUSE' and self._all_stopped():
+                # 이미 전체 정지 중이면 pause를 겹쳐 보내지 않는다. estop은 언제나 보낸다.
+                self.store.set_control(event_id, 'PAUSE_ACCEPTED',
+                                       {'ALL': {'skipped': STOP_SKIPPED_NOTE}})
+                return
         self.store.set_control(event_id, action + '_SENT', {})
+        self.stop_sent[event_id] = (self.clock(), self.stop_sent.get(event_id, (None, 0))[1] + 1)
+        self.stop_sent.move_to_end(event_id)
+        while len(self.stop_sent) > REPLY_LIMIT:
+            self.stop_sent.popitem(last=False)
+        if everyone:
+            # 로봇 지정 없는 요청 한 건이 전 로봇 보류와 armed 끄기를 함께 부른다.
+            # 응답 키는 'ALL' 고정이다. None을 쓰면 기록 키가 "null"이 된다.
+            self.request({'type': STOP_REQUEST[action],
+                          'client_request_id': 'cctv_' + event_id[:60]}, (event_id, 'ALL'))
+            return
         for robot in targets:
             order_id = robots[robot].get('order_id')
             if order_id:
-                self.store.set_hold_reason(order_id, f"CCTV {result['judgment']} {event_id}")
+                self.store.set_hold_reason(order_id, reason)
             self.request({'type': STOP_REQUEST[action], 'robot_id': robot,
                           'client_request_id': 'cctv_' + event_id[:60]}, (event_id, robot))
 
@@ -374,8 +457,46 @@ class MonitorCore:
     def close_events(self, mission_id, operator, note=''):
         """관제가 복구를 받은 주문의 열린 이벤트를 닫는다."""
         for row in self.store.open_events():
-            if row['linked_mission_id'] == mission_id:
-                self.store.set_ack(row['event_id'], 'RESOLVED', operator, note, self.clock())
+            if row['linked_mission_id'] != mission_id:
+                continue
+            # 전체 정지는 주문 하나의 복구로 풀리지 않는다. 확인만 남기고 스냅샷이 풀릴 때 닫는다.
+            waiting = row['stop_scope'] == 'ALL' and row['control_action'] in STOP_OPEN
+            self.store.set_ack(row['event_id'], 'ACKNOWLEDGED' if waiting else 'RESOLVED',
+                               operator, note, self.clock())
+
+    def _close_recovered(self):
+        """
+        관제에서 풀린 정지 사건을 닫는다.
+
+        메모리가 아니라 DB의 열린 사건과 방금 받은 스냅샷만 본다(재시작 뒤에도 같다).
+        정지가 스냅샷에 한 번 보인 뒤에만 닫는다. 요청 직후의 옛 스냅샷으로 닫지 않는다.
+        """
+        for row in self.store.open_stop_events(STOP_OPEN):
+            seen, held = self._hold_of(row)
+            if seen and not row['hold_seen']:
+                self.store.mark_hold_seen(row['event_id'])
+            elif not held and row['hold_seen']:
+                self.store.close_recovered(row['event_id'], FLEET_RESOLVER,
+                                           FLEET_RESOLVED_NOTE, self.clock())
+
+    def _hold_of(self, row):
+        """(정지가 반영된 것이 보이는가, 아직 풀리지 않았는가)를 돌려준다."""
+        if row['stop_scope'] == 'ALL':
+            # 전체 정지는 armed가 켜지고, 보류가 비고, 보류 주문이 없어야 풀린 것이다.
+            held = (self.armed is not True or bool(self.holds)
+                    or any(order['state'] in BLOCKED for order in self.orders.values()))
+            # armed만 꺼진 스냅샷은 다른 사유일 수 있다. 관제 응답이나 전 로봇 보류까지 본다.
+            seen = self.armed is False and (
+                row['control_action'].endswith('_ACCEPTED') or self._all_stopped())
+            return seen, held
+        order = self.orders.get(row['linked_mission_id'])
+        if order:
+            held = order['state'] in BLOCKED
+            return held, held
+        held = any(robot in self.holds for robot in json.loads(row['stop_targets_json']))
+        # 연결 주문이 스냅샷에서 사라졌으면 남은 보류가 이 사건의 것인지 알 수 없다.
+        # 정지를 새로 확인한 것으로 치지 않는다. 이미 확인한 사건은 보류가 풀릴 때 닫는다.
+        return held and not row['linked_mission_id'], held
 
     def _link(self, robot, now):
         status = self.status.get(robot) or {}

@@ -31,6 +31,7 @@ class Gateway:
     def __init__(self, stack):
         self.stack = stack
         self.sent, self.halts, self.releases = [], [], []
+        self.stops, self.initial_poses = [], []
         self.sequences = {}
 
     def send(self, robot, payload):
@@ -45,9 +46,20 @@ class Gateway:
 
     def halt(self, robot, route, order_id):
         self.halts.append(robot)
+        self.stack.status[robot]['central_latched'] = True  # 로봇은 풀어 줄 때까지 래치를 든다.
 
     def release(self, robot, route=None):
         self.releases.append(robot)
+        self.stack.status[robot]['central_latched'] = False
+
+    def stop(self, robot):
+        self.stops.append(robot)
+
+    def set_initial_pose(self, robot, *pose):
+        self.initial_poses.append((robot, *pose))
+
+    def ready(self, robot):
+        return True
 
 
 class Stack:
@@ -93,6 +105,7 @@ class Stack:
         return self.console.handle('POST', '/api/fms/control', request)
 
     def stop_requests(self):
+        """정지 요청 목록. 전체 정지에는 robot_id가 없으니 r.get('robot_id')로 읽는다."""
         return [r for r in self.requests if r['type'] in ('pause', 'estop')]
 
     def tick(self, seconds=0.1):

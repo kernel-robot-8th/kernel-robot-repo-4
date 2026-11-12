@@ -51,7 +51,7 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 | 패널 | 보는 것 |
 |---|---|
 | 이동 명령 | `zone`, `goto`, `leave`, `home`을 관제 `create` 요청으로 보냅니다 |
-| 전체 비상 정지 | 관제 `estop` 요청입니다. 복구는 `resolve` 또는 `release_control`입니다 |
+| 전체 비상 정지 | 로봇 지정 없는 관제 `estop` 요청입니다. 복구는 아래 "전체 정지 복구 순서"를 따릅니다 |
 | 구역 점유 | 구역 관리자와 로봇이 말하는 점유자를 나란히 놓습니다. 다르면 불일치입니다 |
 | 연결 진단 | 도메인, 순찰 상태, 토픽 발행자와 수신 나이, `ready()`가 이동을 거절할 이유 |
 | 경유 기록 | `amcl_pose`가 지점 0.15 m 안을 지난 순서입니다. 믿는 위치라서 실제 경로와 다를 수 있습니다 |
@@ -71,6 +71,48 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 
 `VisionEvent.msg`에는 클래스와 맵 좌표가 없습니다. 현장 픽셀 검출은 아래 `pixel_event_node`가 이 형식으로 바꿉니다.
 
+## 정지 범위
+
+판정 결과의 `stop_scope`가 정지 범위입니다. `AUTO_HOLD`에서만 요청이 나갑니다.
+
+| 판정 | 범위 | 요청 |
+|---|---|---|
+| `LOAD_FAIL_PERCHED`, `TRANSIT_PERCHED`, `LOAD_FAIL_DROP`, `UNLOAD_FAIL` | `ROBOT` | `pause`, 그 로봇 |
+| `TRANSIT_DROP`, `LANE_OBSTACLE`, `AMBIGUOUS`(바닥) | `ALL` | `pause`, 로봇 지정 없음 |
+| `RUN_OVER_COLLISION` | `ALL` | `estop`, 로봇 지정 없음 |
+| `LID_OPEN_ANOMALY`, `AMBIGUOUS`(걸침), `NO_POSITION`, `IGNORED` | `ROBOT` | 없음 |
+
+- `ROBOT`은 `stop_targets`의 로봇마다 `robot_id`를 넣어 요청합니다. 관제는 그 로봇만 보류하고 `armed`는 켜 둡니다.
+- `ALL`은 `robot_id` 키가 없는 요청 한 건입니다. 관제는 전 로봇을 보류하고 `armed`를 끕니다. 이때 `stop_targets`는 기록용입니다.
+- 전체 정지 응답은 2xx이고 본문의 `armed`가 `false`일 때만 `*_ACCEPTED`로 적습니다. 아니면 `*_FAILED`입니다. 응답은 `control_detail`의 `ALL` 키에 남습니다.
+- 보류 사유는 전체 정지일 때 로봇에 배정된 진행 중 주문 전부에 적습니다. 이미 사유가 적힌 주문은 덮어쓰지 않습니다.
+- 이미 전체 정지 중(`armed` 꺼짐, 전 로봇 보류)이면 전체 `pause`는 보내지 않고 `PAUSE_ACCEPTED`와 `control_detail`의 `skipped`로 적습니다. `estop`은 언제나 보냅니다.
+- 정지가 스냅샷에 보이지 않은 사건(`hold_seen` 0, 응답 없음·거절 포함)은 같은 물체가 다시 감지될 때 정지를 다시 요청합니다. 간격은 5초에서 두 배씩 늘고 60초에서 멈춥니다. 대상이 이미 보류 중이면 보내지 않습니다. 감지가 끊기면 재요청도 없습니다.
+- `OBSERVE_ONLY`에서 기록만 한 사건은 `AUTO_HOLD`로 바꾼 뒤 같은 물체가 다시 감지되면 기록된 범위대로 정지를 요청합니다. 모드만 바꿔서는 요청이 나가지 않습니다.
+
+### 전체 정지 복구 순서
+
+1. 관제 웹에서 `arm`으로 `armed`를 켭니다. 켜기 전의 `resolve`는 400입니다. 이 콘솔과 중계 웹은 켜기를 받지 않습니다(`armed`가 `false`가 아닌 `arm`은 403, 관제로 보내지 않음). 끄기는 전달합니다. 시뮬에서도 같습니다.
+2. 주문이 걸린 로봇은 주문 `resolve`(`resume` 또는 `fail`)로 풉니다. 이 로봇에 `release_control`을 보내면 409입니다.
+3. 주문 없는 로봇은 한 대씩 `release_control`로 풉니다. 풀기 전의 명령은 409입니다.
+
+로봇 지정 정지는 그 주문의 `resolve` 한 번으로 끝납니다.
+
+### 사건 닫기
+
+- 이 콘솔의 `resolve`는 `operator`가 있어야 합니다. 없으면 관제로 보내지 않고 400입니다.
+- 콘솔 `resolve`가 200이면 그 주문에 연결된 `ROBOT` 사건은 바로 닫습니다. 정지가 걸린 `ALL` 사건은 `ACKNOWLEDGED`(확인한 사람·메모 기록)로만 두고, 아래 조건이 스냅샷에 보일 때 닫습니다.
+- 관제에서 직접 복구해도 스냅샷으로 사건을 닫습니다. 정지가 스냅샷에 한 번 보인 뒤(`hold_seen`)에만 닫습니다. 닫은 사람은 `fleet`으로 적되, 운영자가 먼저 남긴 이름은 그대로 두고 메모는 뒤에 덧붙입니다.
+  - `ROBOT` 사건: 연결 주문이 보류 상태를 벗어나면 닫습니다. 연결 주문이 스냅샷에서 사라졌으면 대상 로봇의 보류가 풀릴 때 닫습니다. 이 경우 정지를 확인하기 전(`hold_seen` 0)이었다면 자동으로 닫지 않으니 운영자가 닫습니다.
+  - `ALL` 사건: `armed`가 켜지고, 보류 로봇이 없고, 보류 주문이 없을 때 닫습니다. 정지 확인은 `armed`가 꺼져 있고 관제 응답이 수락이거나 전 로봇이 보류일 때만 합니다.
+- 거절된 정지(`*_FAILED`), 관찰 모드 기록, 조치 없는 판정은 자동으로 닫지 않습니다.
+- 열린 사건과 같은 자리(30초, 0.25 m)의 재감지는 묶여서 요청이 늘지 않습니다. 전체 정지가 걸린 채 열린 사건은 30초가 지나도 묶습니다. 닫힌 뒤의 재감지는 새 사건이고 정지가 다시 나갑니다.
+- 로봇 지정 정지 사건이 `RESOLVED`로 닫힌 뒤 300초 안에 같은 자리에서 다시 감지되면, 새 판정이 `LANE_OBSTACLE`이어도 닫힌 사건의 판정·범위·대상을 이어받습니다(그 로봇만 정지, 경보 문구에 `재감지`와 앞 사건 ID). 주문이 `fail`로 끝난 뒤 남은 상자가 전체 정지를 부르지 않게 하기 위해서입니다. 300초가 지나면 새로 판정합니다.
+
+### 기록 DB 열 추가
+
+`cctv_anomaly_events`에 `stop_scope`(기본 `ROBOT`)와 `hold_seen`(기본 0)이 추가됐습니다. 이미 있는 DB에는 시작할 때 열 유무를 보고 `ALTER TABLE ADD COLUMN`으로 더합니다. 다른 프로세스가 먼저 더한 경우(`duplicate column name`)는 넘어갑니다. 따로 할 일은 없습니다.
+
 ## 시험
 
 ```bash
@@ -87,7 +129,8 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest test/test_ros_roundtrip.
 
 ## 주의
 
-- `pause`는 대상 로봇을 멈추지만 관제의 `armed`를 꺼서 다른 로봇의 다음 단계도 멈춥니다. 복구는 `arm` 다음 `resolve`입니다.
+- 로봇을 지정한 정지는 그 로봇만 보류하고 관제의 `armed`는 켜 둡니다. 로봇 지정 없는 정지는 전 로봇을 보류하고 `armed`를 끕니다. 판정별 범위는 위 "정지 범위"에 있습니다.
+- `AUTO_HOLD`에서는 콘솔 모의 이벤트의 `box_on_floor`도 전체 정지를 부릅니다. 주문과 로봇이 없어도 `LANE_OBSTACLE`이 나옵니다.
 - `armed`가 꺼진 채 300초를 넘겨 장치 결과가 오면 그 주문은 `UNKNOWN`과 비상 정지로 갑니다.
 - `dock_xy_m` 0.05는 개발용 임시값입니다. 팀 기본은 0.01입니다.
 - 개발 경로 둘은 `ZC`와 주행 통로를 함께 써서 두 로봇이 동시에 달리지 않습니다.

@@ -2,6 +2,7 @@
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging
 import threading
 import time
 import uuid
@@ -12,6 +13,7 @@ CONTROL_TYPES = ('arm', 'inventory', 'order', 'received', 'resolve', 'pause', 'e
                  'release_control', 'create')
 CONSOLE_OPERATIONS = ('goto', 'zone', 'leave', 'home')
 WRITE_ROUTES = ('control', 'mode', 'work')
+ARM_ON_DETAIL = '가동 허용 켜기는 관제 웹에서만 합니다. 이 창구는 끄기만 전달합니다.'
 MOCK_CLASSES = ('box_on_floor', 'box_perched_on_rim', 'box_run_over', 'lid_detached')
 
 
@@ -41,8 +43,8 @@ class ConsoleApi:
         if method == 'POST':
             try:
                 self.run(self.refresh)
-            except TimeoutError:
-                pass
+            except Exception:  # 처리한 요청의 응답은 사본 갱신 실패와 무관하게 돌려준다.
+                logging.exception('콘솔 사본 갱신 실패')
         return status, reply
 
     def _route(self, method, path, body):
@@ -85,6 +87,11 @@ class ConsoleApi:
             return 400, {'detail': str(error)}
         except TimeoutError:
             return 504, {'detail': '모니터 실행기 응답 없음'}
+        except Exception as error:  # 응답 없이 연결이 끊기지 않게 한다.
+            logging.exception('콘솔 요청 처리 실패: %s %s', method, path.split('?')[0])
+            # 오류 문구에는 경로·SQL이 섞일 수 있다. 시뮬 콘솔에서만 그대로 보여 준다.
+            text = f'{type(error).__name__}: {error}' if self.commands else type(error).__name__
+            return 500, {'detail': '내부 오류: ' + text}
         return 404, {'detail': '없는 경로'}
 
     def _control(self, body):
@@ -92,6 +99,13 @@ class ConsoleApi:
         if kind not in CONTROL_TYPES:
             raise ValueError('허용하지 않는 요청 type')
         request = dict(body)
+        if kind == 'arm' and request.get('armed') is not False:
+            return 403, {'detail': ARM_ON_DETAIL}
+        if kind == 'resolve':
+            # 관제는 이름 없는 복구도 받는다. 이 창구는 누가 확인했는지를 계속 요구한다.
+            operator = request.get('operator')
+            if not isinstance(operator, str) or not operator.strip():
+                raise ValueError('operator 필요')
         if kind == 'create':
             if request.get('operation') not in CONSOLE_OPERATIONS:
                 raise ValueError('콘솔의 create는 ' + ', '.join(CONSOLE_OPERATIONS) + '만 허용')
@@ -103,10 +117,16 @@ class ConsoleApi:
         reply = self.wait_reply(request_id)
         if reply is None:
             return 504, {'detail': '관제 응답 없음: fleet_control 실행과 도메인을 확인하세요'}
-        if kind == 'resolve' and reply.get('status') == 200:
-            self.run(lambda: self.core.close_events(
-                request.get('order_id'), request.get('operator'), request.get('note', '')))
-        return reply.get('status', 502), reply.get('body') or {}
+        if kind == 'resolve' and reply.get('status') == 200 and request.get('order_id'):
+            try:
+                self.run(lambda: self.core.close_events(
+                    request.get('order_id'), request.get('operator'), request.get('note', '')))
+            except Exception:  # 복구는 이미 받아들여졌다. 사건 닫기 실패로 응답을 바꾸지 않는다.
+                logging.exception('복구 뒤 사건 닫기 실패')
+        status = reply.get('status')
+        if type(status) is not int or not 100 <= status <= 599:
+            return 502, {'detail': '관제 응답에 status 없음'}
+        return status, reply.get('body') or {}
 
     def _mock(self, body):
         if not self.allow_mock:
@@ -177,15 +197,31 @@ def serve(api, host, port):
             self.end_headers()
             self.wfile.write(data)
 
+        def _guarded(self, work):
+            try:
+                work()
+            except OSError:
+                raise  # 끊긴 연결에는 답할 수 없다.
+            except Exception as error:
+                logging.exception('콘솔 HTTP 처리 실패: %s', self.path.split('?')[0])
+                self._reply(500, {'detail': '내부 오류: ' + type(error).__name__})
+
         def do_GET(self):
-            self._reply(*api.handle('GET', self.path, None))
+            self._guarded(lambda: self._reply(*api.handle('GET', self.path, None)))
 
         def do_POST(self):
+            self._guarded(self._post)
+
+        def _post(self):
             # JSON 강제로 다른 사이트의 단순 폼 전송(CSRF)을 막는다.
             if 'application/json' not in self.headers.get('Content-Type', ''):
                 self._reply(415, {'detail': 'application/json 필요'})
                 return
-            length = int(self.headers.get('Content-Length') or 0)
+            size = (self.headers.get('Content-Length') or '0').strip()
+            if not (size.isascii() and size.isdigit()):
+                self._reply(400, {'detail': 'Content-Length 오류'})
+                return
+            length = int(size)
             if length > BODY_LIMIT:
                 self._reply(413, {'detail': '요청은 16 KiB 이하'})
                 return

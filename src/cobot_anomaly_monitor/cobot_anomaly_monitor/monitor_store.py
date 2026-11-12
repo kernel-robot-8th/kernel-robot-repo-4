@@ -39,10 +39,12 @@ CREATE TABLE IF NOT EXISTS cctv_anomaly_events (
     robot_step_at_event TEXT NOT NULL DEFAULT 'NONE',
     robot_cargo_at_event TEXT NOT NULL DEFAULT 'UNKNOWN',
     judgment TEXT NOT NULL, recommended_action TEXT NOT NULL,
+    stop_scope TEXT NOT NULL DEFAULT 'ROBOT',
     stop_targets_json TEXT NOT NULL DEFAULT '[]', alarm_text TEXT NOT NULL DEFAULT '',
     control_action TEXT NOT NULL, control_detail TEXT NOT NULL DEFAULT '',
     ack_state TEXT NOT NULL DEFAULT 'UNREAD', resolved_by TEXT NOT NULL DEFAULT '',
-    resolved_note TEXT NOT NULL DEFAULT '', resolved_at REAL
+    resolved_note TEXT NOT NULL DEFAULT '', resolved_at REAL,
+    hold_seen INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS trace_orders (
     order_id TEXT PRIMARY KEY, snapshot TEXT NOT NULL
@@ -72,6 +74,11 @@ CREATE TABLE IF NOT EXISTS manual_work (
 CREATE INDEX IF NOT EXISTS manual_work_order ON manual_work(json_extract(request_json,'$.order_id'))
     WHERE json_valid(request_json);
 """
+# 이미 만들어진 DB에는 CREATE TABLE IF NOT EXISTS로 열이 생기지 않는다. 시작 때 따로 더한다.
+ADDED_COLUMNS = (
+    ('cctv_anomaly_events', 'stop_scope', "TEXT NOT NULL DEFAULT 'ROBOT'"),
+    ('cctv_anomaly_events', 'hold_seen', 'INTEGER NOT NULL DEFAULT 0'),
+)
 
 
 class MonitorStore:
@@ -83,6 +90,18 @@ class MonitorStore:
         self.db = sqlite3.connect(path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self._add_columns()
+
+    def _add_columns(self):
+        for table, name, spec in ADDED_COLUMNS:
+            if name in [row['name'] for row in self.db.execute(f'PRAGMA table_info({table})')]:
+                continue
+            try:
+                self._write(f'ALTER TABLE {table} ADD COLUMN {name} {spec}')
+            except sqlite3.OperationalError as error:
+                # 같은 파일을 여는 다른 프로세스가 확인과 추가 사이에 먼저 더한 경우다.
+                if 'duplicate column name' not in str(error):
+                    raise
 
     def close(self):
         """연결을 닫는다."""
@@ -115,9 +134,10 @@ class MonitorStore:
         """주문 상태를 시나리오 표에 맞춘다."""
         self._upsert('scenarios', 'mission_id', row)
 
-    def set_hold_reason(self, mission_id, reason):
-        """CCTV 정지 사유를 남긴다. 관제 주문 상태는 PAUSED 그대로다."""
-        self._write('UPDATE scenarios SET hold_reason=? WHERE mission_id=?', reason, mission_id)
+    def set_hold_reason(self, mission_id, reason, keep=False):
+        """CCTV 정지 사유를 남긴다. 관제 주문 상태는 PAUSED 그대로다. keep이면 있던 사유를 둔다."""
+        self._write('UPDATE scenarios SET hold_reason=? WHERE mission_id=?'
+                    + (" AND hold_reason=''" if keep else ''), reason, mission_id)
 
     def tasks(self, mission_id):
         """시나리오의 단계 이력을 순서대로 읽는다."""
@@ -158,6 +178,19 @@ class MonitorStore:
         return self._rows(
             f'SELECT * FROM cctv_anomaly_events WHERE ack_state IN ({marks})', *OPEN_ACKS)
 
+    def open_stop_events(self, actions):
+        """정지 요청이 나간 채 열려 있는 이벤트만 읽는다. 스냅샷마다 부르므로 범위를 좁힌다."""
+        marks = [', '.join('?' for _ in group) for group in (OPEN_ACKS, actions)]
+        return self._rows(
+            f'SELECT * FROM cctv_anomaly_events WHERE ack_state IN ({marks[0]}) '
+            f'AND control_action IN ({marks[1]})', *OPEN_ACKS, *actions)
+
+    def resolved_since(self, since):
+        """since 뒤에 RESOLVED로 닫힌 이벤트를 늦게 닫힌 것부터 읽는다."""
+        return self._rows(
+            "SELECT * FROM cctv_anomaly_events WHERE ack_state='RESOLVED' AND resolved_at>=? "
+            'ORDER BY resolved_at DESC', since)
+
     def add_event(self, row):
         """판정을 기록한다."""
         self._upsert('cctv_anomaly_events', 'event_id', row)
@@ -172,10 +205,23 @@ class MonitorStore:
         self._write('UPDATE cctv_anomaly_events SET control_action=?, control_detail=? '
                     'WHERE event_id=?', action, json.dumps(detail, ensure_ascii=False), event_id)
 
+    def mark_hold_seen(self, event_id):
+        """정지가 관제 스냅샷에 반영된 것을 본 사건에 표시한다. 재시작 뒤에도 남는다."""
+        self._write('UPDATE cctv_anomaly_events SET hold_seen=1 WHERE event_id=?', event_id)
+
     def set_ack(self, event_id, state, operator, note, at):
         """운영자 확인 결과를 남긴다."""
         self._write('UPDATE cctv_anomaly_events SET ack_state=?, resolved_by=?, resolved_note=?, '
                     'resolved_at=? WHERE event_id=?', state, operator, note, at, event_id)
+
+    def close_recovered(self, event_id, operator, note, at):
+        """관제에서 풀린 사건을 닫는다. 운영자가 먼저 남긴 이름과 메모는 지우지 않는다."""
+        self._write(
+            "UPDATE cctv_anomaly_events SET ack_state='RESOLVED', "
+            "resolved_by=CASE WHEN resolved_by='' THEN ? ELSE resolved_by END, "
+            "resolved_note=CASE WHEN resolved_note='' THEN ? "
+            "ELSE resolved_note || ' / ' || ? END, resolved_at=? WHERE event_id=?",
+            operator, note, note, at, event_id)
 
     def work(self, request_id):
         """수동 작업 요청 한 건을 읽는다."""

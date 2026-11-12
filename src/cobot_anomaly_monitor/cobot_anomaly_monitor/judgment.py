@@ -8,6 +8,8 @@ RUN_OVER_M = 0.20
 # 감지기가 클래스별로 5초마다 다시 내므로 같은 물체는 한 사건으로 합친다.
 DUPLICATE_M = 0.25
 DUPLICATE_SEC = 30.0
+# 닫힌 로봇 지정 사건의 범위를 같은 자리 재감지가 이어받는 시간.
+INHERIT_SEC = 300.0
 
 STEP_LOADING = 3
 STEP_UNLOADING = 6
@@ -15,12 +17,16 @@ DRIVE_STEPS = (4, 5)
 CARGO_ON_BOARD = ('LOADING', 'LOADED', 'UNLOADING')
 
 NONE, PAUSE, ESTOP = 'NONE', 'PAUSE', 'ESTOP'
+# 정지 범위. ROBOT은 stop_targets의 로봇만, ALL은 로봇 지정 없는 전체 정지다.
+# 관제는 전체 정지에서만 작업 명령 스위치(armed)를 끈다.
+ROBOT, ALL = 'ROBOT', 'ALL'
 
 
-def _result(judgment, robot, robots, action=NONE, targets=(), text=''):
+def _result(judgment, robot, robots, action=NONE, targets=(), text='', scope=ROBOT):
     order = robots[robot].get('order_id') if robot else None
     return {'judgment': judgment, 'linked_robot_id': robot, 'linked_order_id': order,
-            'recommended_action': action, 'stop_targets': list(targets), 'alarm_text': text}
+            'recommended_action': action, 'stop_scope': scope,
+            'stop_targets': list(targets), 'alarm_text': text}
 
 
 def _xy(item):
@@ -46,12 +52,6 @@ def _near(robots, xy, radius, cargo=None):
     return [robot_id for _, robot_id in sorted(found)]
 
 
-def _with_driving(robots, named):
-    """지목한 로봇은 서 있어도 넣는다. driving은 순찰 상태 기준이라 정차·QR 동안 거짓이다."""
-    driving = [robot_id for robot_id, robot in robots.items() if robot.get('driving')]
-    return list(dict.fromkeys([*named, *driving]))
-
-
 def _perched(xy, robots):
     hits = _near(robots, xy, NEAR_WORK_M, CARGO_ON_BOARD)
     if len(hits) > 1:
@@ -73,8 +73,9 @@ def _perched(xy, robots):
 def _floor(xy, robots):
     hits = _near(robots, xy, NEAR_TRANSIT_M, CARGO_ON_BOARD)
     if len(hits) > 1:
-        return _result('AMBIGUOUS', None, robots, PAUSE, _with_driving(robots, hits),
-                       '[판정 보류] 바닥 상자 근처에 적재 로봇이 둘 이상입니다.')
+        # 로봇을 특정하지 못하므로 전체를 세운다. 대상 목록은 근처 적재 로봇의 기록용이다.
+        return _result('AMBIGUOUS', None, robots, PAUSE, hits,
+                       '[판정 보류] 바닥 상자 근처에 적재 로봇이 둘 이상입니다.', ALL)
     if hits:
         robot = hits[0]
         step = robots[robot].get('step_seq')
@@ -86,10 +87,12 @@ def _floor(xy, robots):
             return _result('UNLOAD_FAIL', robot, robots, PAUSE, [robot],
                            f'[하역 낙하] {robot} 하역 작업 중 상자가 바닥에 떨어졌습니다.')
         if step in DRIVE_STEPS:
-            return _result('TRANSIT_DROP', robot, robots, PAUSE, _with_driving(robots, [robot]),
-                           f'[주행 중 낙하] {robot} 이동 중 상자가 바닥에 떨어졌습니다.')
-    return _result('LANE_OBSTACLE', None, robots,
-                   text='[진로 장애물] 주행 구간 바닥에 상자가 놓여 있습니다.')
+            # 통로에 떨어진 상자는 다른 로봇의 진로도 막는다. 대상 목록은 지목 로봇 기록용이다.
+            return _result('TRANSIT_DROP', robot, robots, PAUSE, [robot],
+                           f'[주행 중 낙하] {robot} 이동 중 상자가 바닥에 떨어졌습니다.', ALL)
+    # 지목할 로봇이 없어도 전체 정지를 올린다(주문·로봇이 하나도 없어도 나오는 판정).
+    return _result('LANE_OBSTACLE', None, robots, PAUSE,
+                   text='[진로 장애물] 주행 구간 바닥에 상자가 놓여 있습니다.', scope=ALL)
 
 
 def _run_over(xy, robots):
@@ -100,7 +103,7 @@ def _run_over(xy, robots):
         return _result('IGNORED', None, robots)
     robot = hits[0]
     return _result('RUN_OVER_COLLISION', robot, robots, ESTOP, [robot],
-                   f'[충돌 사고] {robot}가 바닥 상자와 충돌했습니다. 즉시 정지합니다.')
+                   f'[충돌 사고] {robot}가 바닥 상자와 충돌했습니다. 즉시 정지합니다.', ALL)
 
 
 def _lid(xy, robots):
@@ -123,8 +126,8 @@ def judge(event, robots):
                   map_x, map_y, bbox
     :param robots: {robot_id: order_id, stage, step_seq, cargo_state, zone, pose_x, pose_y,
                     speed_mps, driving, queue_wait, updated_at}
-    :return: judgment, linked_robot_id, linked_order_id, recommended_action, stop_targets,
-             alarm_text
+    :return: judgment, linked_robot_id, linked_order_id, recommended_action, stop_scope,
+             stop_targets, alarm_text
     """
     xy = _xy(event)
     if xy is None:
@@ -134,15 +137,37 @@ def judge(event, robots):
     return rule(xy, robots) if rule else _result('IGNORED', None, robots)
 
 
+def _same_spot(event, other):
+    """같은 클래스가 DUPLICATE_M 안에서 감지됐는가."""
+    xy, there = _xy(event), _xy(other)
+    return (xy is not None and there is not None
+            and other['vision_class'] == event.get('vision_class')
+            and math.dist(there, xy) <= DUPLICATE_M)
+
+
 def is_duplicate(event, open_events, now):
     """열린 이벤트와 같은 물체면 그 이벤트를 돌려준다. 다시 판정하면 낙하가 장애물로 바뀐다."""
-    xy = _xy(event)
-    if xy is None:
-        return None
     for opened in open_events:
-        other = _xy(opened)
-        if (opened['vision_class'] == event.get('vision_class') and other is not None
-                and math.dist(other, xy) <= DUPLICATE_M
-                and now - opened['last_seen'] <= DUPLICATE_SEC):
+        # 전체 정지가 걸린 채 열린 사건은 감지가 끊겼다 와도 묶는다. 복구 도중의 재감지가
+        # 전체 정지를 한 번 더 부르지 않게 한다.
+        stopping = (opened.get('stop_scope') == ALL
+                    and str(opened.get('control_action')).endswith(('_SENT', '_ACCEPTED')))
+        if _same_spot(event, opened) and (
+                stopping or now - opened['last_seen'] <= DUPLICATE_SEC):
             return opened
+    return None
+
+
+def closed_before(event, closed_events, now):
+    """
+    방금 닫힌 로봇 지정 정지 사건과 같은 물체면 그 사건을 돌려준다.
+
+    주문이 fail로 끝나면 근처에 적재 로봇이 없어 같은 상자가 LANE_OBSTACLE(전체 정지)로
+    다시 판정된다. 닫힌 사건의 범위를 이어받게 해 로봇 한 대의 사고가 전체 정지로 번지지 않게 한다.
+    """
+    for closed in closed_events:
+        if (_same_spot(event, closed) and closed.get('stop_scope') == ROBOT
+                and closed.get('recommended_action') != NONE
+                and now - (closed.get('resolved_at') or 0.0) <= INHERIT_SEC):
+            return closed
     return None

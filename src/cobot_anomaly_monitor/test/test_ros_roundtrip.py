@@ -191,7 +191,9 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch, join):
         def scenario():
             assert console.wait(lambda live: live.get('adapter', {}).get('enabled')
                                 and not live['adapter']['blocked'])
-            assert console.post('control', type='arm', armed=True, source='test')[0] == 200
+            # 가동 허용 켜기는 관제 웹 몫이다. 콘솔은 거절하고 관제에서 직접 켠다.
+            assert console.post('control', type='arm', armed=True, source='test')[0] == 403
+            fleet.scenario.armed = True
             assert console.post('control', type='inventory', sku='SHOE42', available=5)[0] == 200
             outcome['completed'] = console.run_order('order1')
             outcome['steps'] = console.wait(lambda live: console.mission(live, 'order1'))

@@ -1,6 +1,7 @@
 """콘솔 HTTP 시험. 허용 범위 밖 요청이 관제로 나가면 실패해야 한다."""
 
 import json
+import sqlite3
 from urllib import error, request
 
 from cobot_anomaly_monitor.console_api import ConsoleApi, serve
@@ -62,9 +63,24 @@ def test_read_only_still_allows_acknowledging_a_record(tmp_path):
 
 
 def test_control_forwards_allowed_requests_and_returns_the_reply(fx):
-    assert fx.post('/api/fms/control', type='arm', armed=True, source='test') == (
+    assert fx.post('/api/fms/control', type='arm', armed=False, source='test') == (
         200, {'ok': True})
     assert fx.sent[0]['type'] == 'arm' and fx.sent[0]['request_id']
+
+
+@pytest.mark.parametrize('armed', [True, None, 1, 0, 'false'])
+def test_arm_on_is_refused_and_not_forwarded(fx, armed):
+    """가동 허용 켜기는 관제 웹에서만 한다. 끄기가 분명하지 않은 값도 넘기지 않는다."""
+    status, body = fx.post('/api/fms/control', type='arm', armed=armed)
+    assert status == 403 and '관제 웹' in body['detail']
+    assert fx.post('/api/fms/control', type='arm')[0] == 403
+    assert fx.sent == []
+
+
+@pytest.mark.parametrize('status', [None, '200', True, 99, 700])
+def test_reply_without_a_usable_status_is_a_502(fx, status):
+    fx.reply = {'status': status, 'body': {'ok': True}}
+    assert fx.post('/api/fms/control', type='pause', robot_id='pinky1')[0] == 502
 
 
 @pytest.mark.parametrize('kind', ['raw', 'stop', 'manual', None])
@@ -80,7 +96,7 @@ def test_order_gets_an_id(fx):
 
 def test_no_reply_is_reported_not_hidden(fx):
     fx.reply = None
-    status, body = fx.post('/api/fms/control', type='arm', armed=True)
+    status, body = fx.post('/api/fms/control', type='arm', armed=False)
     assert status == 504 and '관제 응답 없음' in body['detail']
 
 
@@ -107,6 +123,32 @@ def test_acknowledge(fx):
     status, row = fx.post(path, ack_state='FALSE_ALARM', operator='kgh', note='그림자')
     assert status == 200 and row['ack_state'] == 'FALSE_ALARM' and row['resolved_by'] == 'kgh'
     assert fx.post('/api/fms/anomalies/none', ack_state='RESOLVED', operator='kgh')[0] == 404
+
+
+@pytest.mark.parametrize('operator', [None, '', ' ', 3])
+def test_resolve_without_operator_is_refused_and_not_forwarded(fx, operator):
+    status, body = fx.post('/api/fms/control', type='resolve', order_id='o1', decision='fail',
+                           operator=operator)
+    assert status == 400 and 'operator' in body['detail']
+    assert fx.sent == []
+
+
+def test_resolve_with_operator_closes_only_that_order(fx):
+    _, loose = fx.post('/api/fms/anomalies', vision_class='box_on_floor', map_x=0.0, map_y=0.0)
+    assert loose['linked_mission_id'] is None
+    assert fx.post('/api/fms/control', type='resolve', order_id='o1', decision='fail',
+                   operator='kgh')[0] == 200
+    # 작업 해제(resolve + task_id)에는 주문이 없다. 주문 없는 사건을 닫으면 안 된다.
+    assert fx.post('/api/fms/control', type='resolve', task_id='t1', operator='kgh')[0] == 200
+    assert fx.store.event(loose['event_id'])['ack_state'] == 'UNREAD'
+
+
+def test_unexpected_error_becomes_a_500_reply(fx, monkeypatch):
+    def broken(mode):
+        raise RuntimeError('db locked')
+    monkeypatch.setattr(fx.core, 'set_mode', broken)
+    status, body = fx.post('/api/fms/mode', mode='AUTO_HOLD')
+    assert status == 500 and 'RuntimeError' in body['detail'] and 'db locked' in body['detail']
 
 
 def test_work_needs_the_adapter(fx):
@@ -163,6 +205,16 @@ def test_http_refuses_bad_and_large_bodies(server):
     assert call(server + '/api/fms/mode', b' ' * 16385)[0] == 413
 
 
+def test_http_unexpected_error_still_answers_json(server, fx, monkeypatch):
+    def broken(*args):
+        raise sqlite3.IntegrityError('NOT NULL constraint failed')
+    monkeypatch.setattr(fx.core, 'request', broken)
+    body = json.dumps({'type': 'resolve', 'order_id': 'o1', 'operator': 'kgh'}).encode()
+    status, reply = call(server + '/api/fms/control', body)
+    assert status == 500 and 'IntegrityError' in reply['detail']
+    assert call(server + '/api/fms/live_state')[0] == 200
+
+
 def test_relay_observer_disallows_ack_and_control_even_if_requested(fx):
     api = ConsoleApi(fx.core, None, lambda job: job(), fx.core.replies.get, observation_only=True)
     api.refresh()
@@ -199,3 +251,61 @@ def test_order_request_reply_history_survives_restart_and_is_not_work(fx):
         assert reopened.observed_work('raw-order') == ([], [])
     finally:
         reopened.close()
+
+
+def test_error_text_is_hidden_outside_the_sim_console(fx, monkeypatch, caplog):
+    def broken(*args):
+        raise sqlite3.OperationalError('unable to open /home/x/monitor.sqlite3')
+    api = ConsoleApi(fx.core, None, lambda job: job(), fx.core.replies.get)
+    monkeypatch.setattr(fx.core, 'acknowledge', broken)
+    status, body = api.handle('POST', '/api/fms/anomalies/e1',
+                              {'ack_state': 'RESOLVED', 'operator': 'kgh'})
+    assert status == 500 and body['detail'] == '내부 오류: OperationalError'
+    # 원인은 로그에 traceback으로 남는다.
+    assert 'unable to open' in caplog.text and 'Traceback' in caplog.text
+
+
+def test_post_is_answered_even_if_the_refresh_fails(fx, monkeypatch):
+    def broken():
+        raise sqlite3.OperationalError('database is locked')
+    monkeypatch.setattr(fx.api, 'refresh', broken)
+    assert fx.post('/api/fms/mode', mode='AUTO_HOLD') == (200, {'mode': 'AUTO_HOLD'})
+
+
+def test_http_post_is_answered_even_if_the_refresh_fails(server, fx):
+    def broken():
+        raise sqlite3.OperationalError('database is locked')
+    fx.api.refresh = broken
+    body = json.dumps({'mode': 'AUTO_HOLD'}).encode()
+    assert call(server + '/api/fms/mode', body) == (200, {'mode': 'AUTO_HOLD'})
+
+
+def test_resolve_reply_survives_a_failed_event_close(fx, monkeypatch):
+    def broken(*args):
+        raise sqlite3.OperationalError('database is locked')
+    monkeypatch.setattr(fx.core, 'close_events', broken)
+    assert fx.post('/api/fms/control', type='resolve', order_id='o1', decision='fail',
+                   operator='kgh')[0] == 200
+
+
+def test_http_handler_error_still_answers_json(server, fx):
+    def broken(*args):
+        raise RuntimeError('boom')
+    fx.api.handle = broken
+    assert call(server + '/api/fms/live_state') == (500, {'detail': '내부 오류: RuntimeError'})
+    assert call(server + '/api/fms/mode', b'{}') == (500, {'detail': '내부 오류: RuntimeError'})
+
+
+@pytest.mark.parametrize('length', ['abc', '-5', '1.5', '١٢'])
+def test_http_refuses_a_bad_content_length(server, fx, length):
+    import http.client
+    host, port = server.rsplit('/', 1)[1].split(':')
+    link = http.client.HTTPConnection(host, int(port), timeout=3)
+    link.putrequest('POST', '/api/fms/mode')
+    link.putheader('Content-Type', 'application/json')
+    link.putheader('Content-Length', length.encode('utf-8').decode('latin-1'))
+    link.endheaders()
+    reply = link.getresponse()
+    assert reply.status == 400 and 'Content-Length' in json.loads(reply.read())['detail']
+    link.close()
+    assert fx.core.mode == 'OBSERVE_ONLY'

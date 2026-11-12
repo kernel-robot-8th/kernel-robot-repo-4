@@ -19,43 +19,56 @@ def test_perched_while_loading_blocks_that_robot():
     assert result['judgment'] == 'LOAD_FAIL_PERCHED'
     assert result['linked_robot_id'] == 'pinky1' and result['linked_order_id'] == 'o1'
     assert result['recommended_action'] == 'PAUSE' and result['stop_targets'] == ['pinky1']
+    assert result['stop_scope'] == 'ROBOT'
 
 
 def test_perched_while_driving_is_transit():
     robots = {'pinky1': robot((0, 0), 4, 'LOADED', True)}
-    assert judge(event('box_perched_on_rim', (0.1, 0)), robots)['judgment'] == 'TRANSIT_PERCHED'
+    result = judge(event('box_perched_on_rim', (0.1, 0)), robots)
+    assert result['judgment'] == 'TRANSIT_PERCHED' and result['stop_scope'] == 'ROBOT'
 
 
 def test_perched_while_unloading_is_unload_fail():
     robots = {'pinky1': robot((0, 0), 6, 'UNLOADING')}
-    assert judge(event('box_perched_on_rim', (0.1, 0)), robots)['judgment'] == 'UNLOAD_FAIL'
+    result = judge(event('box_perched_on_rim', (0.1, 0)), robots)
+    assert result['judgment'] == 'UNLOAD_FAIL' and result['stop_scope'] == 'ROBOT'
 
 
-def test_floor_near_loaded_driver_is_transit_drop_and_stops_all_drivers():
+def test_floor_near_loaded_driver_is_transit_drop_and_stops_everyone():
     robots = {'pinky1': robot((0, 0), 4, 'LOADED', True),
               'pinky2': robot((2, 2), 1, 'EMPTY', True, order='o2'),
               'pinky3': robot((3, 3))}
     result = judge(event('box_on_floor', (0.3, 0)), robots)
     assert result['judgment'] == 'TRANSIT_DROP' and result['linked_robot_id'] == 'pinky1'
-    assert sorted(result['stop_targets']) == ['pinky1', 'pinky2']
+    assert result['recommended_action'] == 'PAUSE' and result['stop_scope'] == 'ALL'
+    assert result['stop_targets'] == ['pinky1']
 
 
 def test_floor_while_loading_stops_only_that_robot():
     robots = {'pinky1': robot((0, 0), 3, 'LOADING'), 'pinky2': robot((2, 2), 1, driving=True)}
     result = judge(event('box_on_floor', (0.3, 0)), robots)
     assert result['judgment'] == 'LOAD_FAIL_DROP' and result['stop_targets'] == ['pinky1']
+    assert result['stop_scope'] == 'ROBOT'
 
 
 def test_floor_while_unloading_is_unload_fail():
     robots = {'pinky1': robot((0, 0), 6, 'UNLOADING')}
-    assert judge(event('box_on_floor', (0.3, 0)), robots)['judgment'] == 'UNLOAD_FAIL'
+    result = judge(event('box_on_floor', (0.3, 0)), robots)
+    assert result['judgment'] == 'UNLOAD_FAIL' and result['stop_scope'] == 'ROBOT'
 
 
-def test_floor_with_only_empty_robots_is_lane_obstacle():
+def test_floor_with_only_empty_robots_is_lane_obstacle_and_stops_everyone():
     robots = {'pinky1': robot((0, 0), 7, 'EMPTY', True)}
     result = judge(event('box_on_floor', (0.1, 0)), robots)
     assert result['judgment'] == 'LANE_OBSTACLE' and result['linked_robot_id'] is None
-    assert result['recommended_action'] == 'NONE'
+    assert result['recommended_action'] == 'PAUSE' and result['stop_scope'] == 'ALL'
+    assert result['stop_targets'] == []
+
+
+def test_lane_obstacle_needs_no_robot_at_all():
+    result = judge(event('box_on_floor', (0.1, 0)), {})
+    assert result['judgment'] == 'LANE_OBSTACLE' and result['linked_order_id'] is None
+    assert result['recommended_action'] == 'PAUSE' and result['stop_scope'] == 'ALL'
 
 
 def test_floor_far_from_loaded_robot_is_not_blamed_on_it():
@@ -68,27 +81,31 @@ def test_two_loaded_robots_in_range_are_not_guessed():
               'pinky2': robot((0.4, 0), 4, 'LOADED', True)}
     result = judge(event('box_on_floor', (0.2, 0)), robots)
     assert result['judgment'] == 'AMBIGUOUS' and result['linked_robot_id'] is None
+    assert result['recommended_action'] == 'PAUSE' and result['stop_scope'] == 'ALL'
     assert sorted(result['stop_targets']) == ['pinky1', 'pinky2']
 
 
-def test_drop_beside_a_docked_robot_stops_that_robot():
+def test_drop_beside_a_docked_robot_names_that_robot_and_stops_everyone():
     robots = {'pinky1': robot((0, 0), 5, 'LOADED', False)}
     result = judge(event('box_on_floor', (0.2, 0)), robots)
     assert result['judgment'] == 'TRANSIT_DROP' and result['stop_targets'] == ['pinky1']
+    assert result['stop_scope'] == 'ALL'
 
 
-def test_transit_drop_lists_each_robot_once():
-    robots = {'pinky1': robot((0, 0), 4, 'LOADED', True)}
-    assert judge(event('box_on_floor', (0.2, 0)), robots)['stop_targets'] == ['pinky1']
-
-
-def test_ambiguous_drop_stops_standing_loaded_robots_too():
+def test_ambiguous_drop_records_only_the_nearby_loaded_robots():
     robots = {'pinky1': robot((0, 0), 5, 'LOADED', False),
               'pinky2': robot((0.4, 0), 3, 'LOADING', False),
               'pinky3': robot((3, 3), 1, 'EMPTY', True)}
     result = judge(event('box_on_floor', (0.2, 0)), robots)
+    assert result['judgment'] == 'AMBIGUOUS' and result['stop_scope'] == 'ALL'
+    assert sorted(result['stop_targets']) == ['pinky1', 'pinky2']
+
+
+def test_perched_between_two_loaded_robots_is_held_without_stop():
+    robots = {'pinky1': robot((0, 0), 3, 'LOADING'), 'pinky2': robot((0.4, 0), 3, 'LOADING')}
+    result = judge(event('box_perched_on_rim', (0.2, 0)), robots)
     assert result['judgment'] == 'AMBIGUOUS'
-    assert sorted(result['stop_targets']) == ['pinky1', 'pinky2', 'pinky3']
+    assert result['recommended_action'] == 'NONE' and result['stop_scope'] == 'ROBOT'
 
 
 def test_run_over_needs_a_moving_robot():
@@ -98,6 +115,7 @@ def test_run_over_needs_a_moving_robot():
     result = judge(event('box_run_over', (0.05, 0)), moving)
     assert result['judgment'] == 'RUN_OVER_COLLISION'
     assert result['recommended_action'] == 'ESTOP' and result['stop_targets'] == ['pinky1']
+    assert result['stop_scope'] == 'ALL'
 
 
 def test_robot_waiting_in_queue_slot_is_not_blamed_for_run_over():
@@ -105,16 +123,17 @@ def test_robot_waiting_in_queue_slot_is_not_blamed_for_run_over():
     assert judge(event('box_run_over', (0.05, 0)), waiting)['judgment'] == 'IGNORED'
 
 
-def test_robot_waiting_in_queue_slot_stays_in_stop_targets():
+def test_robot_waiting_in_queue_slot_is_covered_by_the_full_stop():
     robots = {'pinky1': robot((0, 0), 4, 'LOADED', True),
               'pinky2': robot((2, 2), 1, 'EMPTY', True, queue_wait=True)}
     result = judge(event('box_on_floor', (0.3, 0)), robots)
-    assert 'pinky2' in result['stop_targets']
+    assert result['stop_scope'] == 'ALL' and result['stop_targets'] == ['pinky1']
 
 
 def test_lid_detached_warns_without_stop():
     result = judge(event('lid_detached', (0.1, 0)), {'pinky1': robot((0, 0), 3, 'LOADING')})
     assert result['judgment'] == 'LID_OPEN_ANOMALY' and result['stop_targets'] == []
+    assert result['recommended_action'] == 'NONE' and result['stop_scope'] == 'ROBOT'
 
 
 def test_no_position_is_not_attributed():
