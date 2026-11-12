@@ -7,7 +7,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_DIRTY=unknown
 ARG BUILD_JOBS=2
-ARG CONTROL_CENTER_REVISION=b847b8eff2ea3b3ce34faac89a214898dc54345f
 LABEL org.opencontainers.image.title="cobot-fleet-control" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
       cobot.source.dirty="${SOURCE_DIRTY}"
@@ -38,9 +37,7 @@ WORKDIR /opt/cobot_ws
 COPY cobot_fleet_control src/cobot_fleet_control
 COPY cobot_zone_traffic_control src/cobot_zone_traffic_control
 COPY cobot_domain_bridge src/cobot_domain_bridge
-# build 스크립트가 고정 커밋에서 추출한 원본만 사용한다. Git 인증은 이미지에 전달하지 않는다.
-COPY .docker-context/control-center/revision.txt /opt/cobot/control-center-revision.txt
-RUN test "$(cat /opt/cobot/control-center-revision.txt)" = "${CONTROL_CENTER_REVISION}"
+# 웹 패키지는 build 스크립트가 같은 체크아웃에서 복사해 둔 것을 쓴다 (context 밖이라서).
 COPY .docker-context/control-center/src/cobot_control_center src/cobot_control_center
 COPY .docker-context/control-center/src/cobot_patrol_interfaces src/cobot_patrol_interfaces
 # 로봇 노드는 빌드하지 않고 웹 지도·지점 검증에 필요한 데이터만 포함한다.
@@ -62,7 +59,6 @@ RUN source /opt/ros/jazzy/setup.bash \
     && python -m pip freeze > /opt/cobot/build-versions/python.txt \
     && printf '%s\n' "${SOURCE_REVISION}" > /opt/cobot/build-versions/source-revision.txt \
     && printf '%s\n' "${SOURCE_DIRTY}" > /opt/cobot/build-versions/source-dirty.txt
-RUN printf '%s\n' "${CONTROL_CENTER_REVISION}" > /opt/cobot/build-versions/control-center-revision.txt
 
 COPY cobot_fleet_control/config/docker/entrypoint.sh /opt/cobot/entrypoint.sh
 COPY cobot_fleet_control/config/docker/smoke_check.py /opt/cobot/smoke_check.py

@@ -60,7 +60,8 @@ def test_python_and_base_versions_are_pinned():
     assert '--require-hashes' in dockerfile
     assert '--symlink-install' not in dockerfile
     assert 'USER cobot' in dockerfile
-    assert versions['CONTROL_CENTER_REVISION'] in dockerfile
+    # 웹 패키지도 체크아웃 하나에서 빌드한다. 별도 고정 커밋을 두지 않는다.
+    assert 'CONTROL_CENTER_REVISION' not in dockerfile
     assert 'python3-fastapi python3-uvicorn' in dockerfile
     assert 'src/cobot_patrol_interfaces' in dockerfile
 
@@ -74,14 +75,14 @@ def runner(tmp_path):
     for name in ('cobot_control_center', 'cobot_patrol_interfaces'):
         package = repo / 'src' / name
         package.mkdir(parents=True)
-        (package / 'original.txt').write_text('fixed upstream source\n')
+        (package / 'original.txt').write_text('committed source\n')
     subprocess.run(['git', 'init', '-q', str(repo)], check=True)
     subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
     subprocess.run(
         ['git', '-C', str(repo), '-c', 'user.name=Deployment Test',
          '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture'], check=True)
-    reference = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'],
-                                        text=True).strip()
+    # 커밋 뒤에 고친 웹 파일: 이미지에는 작업 트리 내용이 들어가야 한다.
+    (repo / 'src/cobot_control_center/original.txt').write_text('working tree edit\n')
     binary = tmp_path / 'docker'
     log = tmp_path / 'calls.jsonl'
     binary.write_text("""#!/usr/bin/python3
@@ -95,7 +96,7 @@ with open(os.environ['FAKE_DOCKER_LOG'], 'a') as stream:
 """)
     binary.chmod(0o755)
     environment = {'PATH': str(tmp_path) + os.pathsep + os.defpath,
-                   'FAKE_DOCKER_LOG': str(log), 'CONTROL_CENTER_REVISION': reference}
+                   'FAKE_DOCKER_LOG': str(log)}
 
     def run(*args):
         result = subprocess.run(['/bin/bash', str(config / 'fleet_docker.sh'), *args],
@@ -103,23 +104,23 @@ with open(os.environ['FAKE_DOCKER_LOG'], 'a') as stream:
         calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
         return result, calls
 
-    run.reference_dir = repo / 'src/cobot_navigation/.docker-context/control-center'
-    run.reference_revision = reference
+    run.staged_dir = repo / 'src/cobot_navigation/.docker-context/control-center'
     return run
 
 
 def test_build_only_builds_and_labels_source(runner):
-    """빌드는 원본을 준비하고 버전을 기록하며 서비스를 시작하지 않는다."""
+    """빌드는 같은 체크아웃의 웹 원본을 준비하고 버전을 기록하며 서비스를 시작하지 않는다."""
     result, calls = runner('build')
     assert result.returncode == 0
     assert calls[-1]['args'][-2:] == ['build', 'fleet']
-    assert calls[-1]['dirty'] in ('true', 'false')
+    # 커밋 안 한 웹 수정도 이미지에 들어가므로 dirty 로 남긴다.
+    assert calls[-1]['dirty'] == 'true'
     assert calls[-1]['revision']
     assert not any('up' in call['args'] for call in calls)
-    assert (runner.reference_dir / 'revision.txt').read_text().strip() == runner.reference_revision
-    for name in ('cobot_control_center', 'cobot_patrol_interfaces'):
-        assert (runner.reference_dir / 'src' / name / 'original.txt').read_text() == (
-            'fixed upstream source\n')
+    assert not (runner.staged_dir / 'revision.txt').exists()
+    staged = runner.staged_dir / 'src'
+    assert (staged / 'cobot_control_center/original.txt').read_text() == 'working tree edit\n'
+    assert (staged / 'cobot_patrol_interfaces/original.txt').read_text() == 'committed source\n'
 
 
 def test_down_preserves_volumes_by_default(runner):

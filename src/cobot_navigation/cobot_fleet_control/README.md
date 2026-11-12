@@ -213,7 +213,7 @@ python3 -m pytest src/cobot_navigation/cobot_fleet_control/test -q
 
 control-center 패키지가 Python 경로에 있고 FastAPI/httpx가 설치돼 있으면
 `test_control_center_integration.py`에서 **그 브랜치의 실제 HTTP·WebSocket 코드**로 시험합니다.
-GitHub Actions에서도 b847b8e를 테스트 참조로 체크아웃하고 같은 검사를 수행합니다.
+GitHub Actions에서도 같은 커밋의 `src/cobot_control_center`를 Python 경로에 넣고 같은 검사를 수행합니다.
 ROS 실물·DDS 시험은 별도이며 격리 도메인 77·localhost 조건에서만 실행합니다.
 
 Docker 사용법은 [config/docker/README.md](config/docker/README.md)를 참고하세요.

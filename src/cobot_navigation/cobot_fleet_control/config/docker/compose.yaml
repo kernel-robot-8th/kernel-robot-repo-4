@@ -9,7 +9,6 @@ x-runtime: &runtime
       ROS_BASE_IMAGE: ${ROS_BASE_IMAGE:?versions.env를 지정하세요}
       SOURCE_REVISION: ${COBOT_SOURCE_REVISION:-unknown}
       SOURCE_DIRTY: ${COBOT_SOURCE_DIRTY:-unknown}
-      CONTROL_CENTER_REVISION: ${CONTROL_CENTER_REVISION:?versions.env를 지정하세요}
   # Linux 관제 PC의 DDS multicast와 DDS 공유 메모리 경로를 맞춘다.
   network_mode: host
   ipc: host
