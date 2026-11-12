@@ -24,6 +24,10 @@ def test_compose_uses_one_image_and_persistent_db():
         assert services[name]['environment']['ROS_DOMAIN_ID'] == '100'
         assert services[name]['environment']['CYCLONEDDS_URI'] == (
             '${COBOT_CYCLONEDDS_URI:-file:///opt/cobot/cyclonedds.xml}')
+    # 로봇별 브릿지는 환경변수로 끌 수 있고, 값을 주지 않으면 셋 다 연결한다.
+    for robot in ('pinky1', 'pinky2', 'pinky3'):
+        assert (f'{robot}:=${{COBOT_{robot.upper()}:-true}}'
+                in services['bridge']['command'])
     assert services['fleet']['volumes'] == ['fleet-data:/var/lib/cobot']
     assert 'db_path:=/var/lib/cobot/fleet_control.sqlite3' in services['fleet']['command']
     assert 'broker' not in services

@@ -27,7 +27,15 @@ x-runtime: &runtime
 services:
   bridge:
     <<: *runtime
-    command: [ros2, launch, cobot_domain_bridge, bridges.launch.xml]
+    # 로봇별 브릿지. 주행 개발 중인 로봇은 COBOT_PINKYn=false 로 관제에서 뗀다 (기본: 셋 다 연결).
+    command:
+      - ros2
+      - launch
+      - cobot_domain_bridge
+      - bridges.launch.xml
+      - pinky1:=${COBOT_PINKY1:-true}
+      - pinky2:=${COBOT_PINKY2:-true}
+      - pinky3:=${COBOT_PINKY3:-true}
 
   zone-manager:
     <<: *runtime

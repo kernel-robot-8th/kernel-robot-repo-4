@@ -62,6 +62,22 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 작업 명령은 시작 시 꺼져 있습니다.
 웹 healthcheck는 HTTP 응답만 확인하며 로봇의 통신·배터리·주행 준비 완료와 구분합니다.
 
+### 로봇 하나를 관제에서 떼기
+
+주행 개발 중인 로봇은 그 로봇의 브릿지만 끄고 띄웁니다. 나머지 로봇만 관제에 연결됩니다.
+값을 주지 않으면 pinky1·2·3 브릿지를 모두 켭니다.
+
+```bash
+# pinky2를 빼고 pinky1·3만 관제에 연결
+sudo env COBOT_PINKY2=false bash cobot_fleet_control/config/docker/fleet_docker.sh up
+```
+
+브릿지가 꺼진 로봇은 관제와 양방향으로 끊깁니다. 상태·구역 요청이 오지 않고, 명령·하트비트·구역 허가도 가지 않습니다.
+로봇의 드라이버·Nav2·순찰 노드는 그대로 돌고, 웹에는 끊김으로 표시됩니다.
+관제 모드(`central_controlled: true`)에서 움직이던 로봇은 하트비트가 끊기면 멈추고 잠깁니다. 그러니 로봇이 멈춰 있을 때 뺍니다.
+이미 떠 있는 관제에서 빼려면 `COBOT_PINKYn` 값을 바꿔 `up`을 다시 실행합니다. 설정이 바뀐 bridge 컨테이너가 다시 만들어집니다.
+fleet까지 다시 만들어지면 세션이 바뀌어 움직이던 로봇이 잠기므로, `up` 전에 작업을 멈춥니다.
+
 기본 ROS 도메인은 관제 100, pinky1/2/3은 10/20/30입니다.
 Linux host network/IPC를 사용하며 DDS 탐색 범위는 SUBNET입니다.
 로봇과 같은 네트워크에서 DDS 통신이 가능해야 합니다. Docker가 Wi-Fi·방화벽·DDS 탐색 문제를 자동 해결하지는 않습니다.
