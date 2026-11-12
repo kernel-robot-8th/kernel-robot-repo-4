@@ -469,3 +469,26 @@ PC 터널 서비스와 pinky1 로봇 서비스를 설치(사용자가 `sudo` 로
 - **영향:** 관제 쪽 프로그램(`pinky_control_client.py`, GUI, 구역 관리 등)은 도메인 200에서 실행해야 MQTT로 온 값이 보인다. 도메인 100의 프로그램은 볼 수 없다.
 - **검증:** 단위 시험 54개 통과. 가짜 모드(도메인 101 루프백, 임시 브로커)에서 `patrol_cmd`만 down으로 통과하고 `cmd_vel`/`goal_pose`/`initialpose`/`zone_manager/*`는 차단됨을 확인했다. 도메인 200에는 기존 노드와 토픽이 없다(읽기 전용 확인).
 - **[TODO]** 실물 pinky1 `patrol_cmd` 시험(도메인 200 + 10)은 아직 하지 않았다. 실행 직전에 사람이 로봇 옆에 있는지, `goto` 지점, 보호 값(`watchdog_ms` 등)을 확인한다.
+
+## 실물 `patrol_cmd` 시험 결과 (2026-11-12, 도메인 200 ↔ 10)
+
+- **목적:** 관제의 순찰 명령(`patrol_cmd`)이 MQTT를 거쳐 pinky1 도메인 10의 순찰 노드까지 전달되는지 확인한다. 열 down 토픽은 `patrol_cmd` 하나로 한정했다.
+- **설정:** 양쪽 `enable_down:=true`, 관제 `confirm_real_domain:=200`, 로봇 `confirm_real_domain:=10`. 추가 파라미터 파일로 `exclude_patterns`에 `/cmd_vel`, `/goal_pose`, `/initialpose`, `/zone_manager/*`를 더했고 `watchdog_ms=500`, `max_linear=0.15`, `max_angular=0.4`를 넣었다(제안값, 팀 합의 전). 서비스 파일과 코드는 바꾸지 않고 직접 실행했다(시험 뒤 임시 파일 삭제).
+- **사전 선검증(가짜 모드, 도메인 101, 임시 브로커):** 제외 목록 없음에서는 6개 down 토픽이 모두 통과하고, 제외 목록 적용 시 `patrol_cmd`만 통과했다. 관제 쪽에서도 MQTT `down/`으로 나간 주제는 `patrol_cmd` 하나뿐이었다.
+- **도메인 100 사건:** 처음 관제 쪽을 도메인 100에서 시작했을 때, 다른 팀의 DDS 브릿지(`pinky_bridge_pinky1_only_100` 등)가 `/pinky1/scan` 등 8개 토픽을 이미 발행 중이어서 기존 발행자 검사가 노드를 중단시켰다. 이전에 "브릿지가 꺼져 있다"고 본 판단은 틀렸다(당시 조회가 불완전했던 것으로 추정). 검사가 막아 영향은 없었다. 이후 관제 쪽 도메인을 200으로 분리했다.
+- **결과(도메인 200 + 10, 실물 pinky1):**
+
+| 항목 | 결과 |
+|---|---|
+| 시작 검사 | 통과. 두 역할 모두 `online` |
+| up 중계(15초 구간) | `scan` 151, `odom` 453, `tf` 321, `battery/percent` 3건: 받음 = 중계, 버림·오류 0 |
+| 차단 | 도메인 200에 `/pinky1/cmd_vel`, `goal_pose`, `initialpose` 토픽 없음 |
+| `goto:P1` 전달 | 클라이언트 → MQTT `down/patrol_cmd` → 로봇 쪽 `받음 1 중계 1 오류 0` |
+| 로봇 반응 | **확인 못함.** `/odom` 위치와 `/cmd_vel`이 변하지 않았고 `/patrol_status`에 값이 없었다 |
+
+- **한계·미확인:**
+  - 순찰 노드의 반응 로그를 읽지 못해 이동하지 않은 이유를 알 수 없다. 후보는 이미 P1 근처, 구역 출입 허가 대기(`/zone_manager/*`를 막아 둠), 이름 불일치 또는 위치 추정 문제(`/amcl_pose`가 0,0으로 보임)이다.
+  - 도메인 10의 `/patrol_cmd`에는 다른 팀의 `pinky_bridge_pinky1_only_10`도 발행자로 있다. 두 경로의 명령이 함께 들어올 수 있다.
+  - 로봇이 움직이는 경로(`goto` 후 이동)와 `stop`/`emergency_stop`은 시험하지 않았다.
+  - pinky1 설치본의 설정은 아직 도메인 100 기준이다(동작에는 영향 없음, 맞추려면 복사 필요).
+- **[TODO]** 순찰 노드 반응 확인, `/zone_manager/*` 허용 여부 결정, 보호 값 확정, `stop`/`emergency_stop` 시험.

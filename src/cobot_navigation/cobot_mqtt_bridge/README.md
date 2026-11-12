@@ -25,6 +25,16 @@
 - **명령(`cmd_vel` 등) 안전장치**: 기본 꺼짐. 켜도 속도 상한, 오래된 명령 폐기, 워치독, 끊김 즉시 정지, 실제 도메인 발행 확인 절차가 있습니다.
 - **자동 시작(선택)**: 터널·로봇 쪽 중계용 systemd 서비스 파일 제공(`autossh` 불필요).
 
+### 이해하는 순서 (처음 보는 사람용)
+개념을 아래 순서로 익히면 막혔을 때 어디를 볼지 알 수 있습니다.
+1. **도메인과 두 세계:** 로봇은 ROS 도메인 10, 관제 쪽은 도메인 200이고 서로 직접 만나지 않습니다. 이 패키지가 그 사이를 MQTT로 잇습니다. (아래 "동작 방식")
+2. **역할 두 개:** `robot`(ROS 구독 → MQTT 발행)과 `pc`(MQTT 구독 → ROS 발행). 한 로봇당 각 1개씩 필요합니다.
+3. **방향 두 개:** `up`(로봇 → 관제, 값 보기, 기본 켜짐)과 `down`(관제 → 로봇, 명령, 기본 **꺼짐**). 명령은 로봇을 움직이므로 `enable_down`과 확인 인자가 있어야 켜집니다.
+4. **토픽 목록:** 무엇을 중계할지는 `config/mqtt_topics_pinky1.yaml`이 정합니다. 목록에 없으면 중계되지 않습니다. (4장 "토픽 추가·리맵핑")
+5. **연결 상태:** `status/pc`, `status/robot`이 둘 다 `online`이어야 합니다. 끊기면 값은 버려지고 명령은 사라집니다. (4장 "연결이 끊겼을 때")
+6. **안전 규칙:** 도메인 10과 200에 발행하려면 `confirm_real_domain`이 필요하고, 명령은 제외 목록으로 최소한만 엽니다. (4장 "안전 규칙")
+7. **실행 연습 순서:** 3-A(가짜) → 3-B(실물 읽기) → 3-G(명령). 앞 단계가 되는 것을 본 뒤에 다음으로 갑니다.
+
 ### 동작 방식 (그림)
 ```
  pinky1 (로봇)                      관제 PC
@@ -45,7 +55,7 @@
 | 항목 | 상태 |
 |---|---|
 | 로봇→관제(up) 중계 | 완료. pinky1 실물 10분 시험: 유실 0 |
-| 관제→로봇(down, 명령) | 구현됨, **가짜 모드만 시험**. 기본 꺼짐 |
+| 관제→로봇(down, 명령) | 실물 pinky1에서 `patrol_cmd`(`goto P1`) 전달·이동 성공(2026-11-12, 3-G 절차). 기본은 꺼짐이고 `patrol_cmd` 외 명령 토픽은 막고 시험함. `stop`/`emergency_stop`은 미시험 |
 | 3대(pinky1/2/3) 동시 | 가짜 모드 10분 시험 통과. 실물은 pinky1만 시험 |
 | 재접속·상태 주제 | 완료 (터널 끊김 후 약 10~15초에 복구) |
 | 자동 시작(systemd) | 파일 작성·재부팅 시험 완료, 현재는 꺼 둠 |
@@ -307,7 +317,7 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml pinky2:=false pinky3:=false
 | 4 | 실물 pinky1 읽기 전용 | pinky1 + 터널 + bringup | 3-B | 요약 로그에서 받음 = 중계, `/scan` 약 10 Hz |
 | 5 | 연결 끊김 복구 | 4단계 상태 + 서비스 | 터널을 끊고 `online` 복구까지 시간 확인 | 약 15초 안에 `online` |
 | 6 | 재부팅 자동 재개 | 서비스 설치(2-7) | pinky1 재부팅 후 bringup만 실행 | 사람 개입 없이 중계 재개 |
-| 7 | 명령(down) | 로봇 구동 | **보류**. 가짜 모드(도메인 101/102)에서만 시험됨 | 팀 승인 후 |
+| 7 | 명령(down) `patrol_cmd` | pinky1 + Nav2 + 순찰 노드, 옆에서 지켜볼 사람 | 3-G (**로봇이 움직임**) | 로봇 쪽 `받음 = 중계`, 로봇이 이동 |
 
 **1단계: 단위 시험 (로봇·브로커 필요 없음, 1분 이내)**
 ```bash
@@ -326,6 +336,151 @@ colcon test-result --verbose
 - 속도: `ros2 topic hz /pinky1/scan` (먼저 `ros2 daemon stop`).
 
 **추가 측정 도구** (`scripts/spikes/mqtt/`, 지연·트래픽·왕복 시간 측정): 사용법은 [`scripts/spikes/mqtt/README.md`](../../../scripts/spikes/mqtt/README.md)를 봅니다. 이 패키지의 실제 측정값은 pinky1 구간 평균 지연 odom 16 ms, scan 24 ms, MQTT 전체 트래픽 약 218 KB/s(그중 `/scan`이 약 84%)입니다.
+
+### 3-G. 순찰 명령(`goto` 등) 보내기 — 명령 모드 (로봇이 움직임)
+
+관제에서 `pinky_control_client.py`로 보낸 순찰 명령(`patrol_cmd`)을 MQTT로 pinky1까지 전달합니다. **로봇이 실제로 움직이므로 옆에서 전원을 끌 수 있는 사람이 지켜볼 때만 하세요.** 2026-11-12에 이 절차로 `goto P1`이 전달되어 로봇이 이동했습니다.
+
+**전제:** pinky1에서 bringup, Nav2, 순찰 노드(`pinky1_patrol.launch.xml`)가 켜져 있어야 하고, PC 터널(`mqtt_bridge_tunnel`)이 `active`여야 합니다. 터미널은 A(pinky1), B(PC 관제 노드), C(PC 명령) 세 개를 씁니다.
+
+**왜 따로 켜야 하나:** 서비스와 3-B의 launch는 읽기 전용(`enable_down` 없음)입니다. 명령은 **양쪽 노드를 모두 `enable_down:=true`로 켜고, 열 토픽을 `patrol_cmd` 하나로 줄여야** 합니다. 제외 목록 없이 켜면 `cmd_vel`, `goal_pose`, `initialpose`, `zone_manager/*`까지 모두 열립니다.
+
+**명령이 가는 길 (순서도)** — 번호 순서대로 한 구간씩 지나가며, 한 구간이라도 끊기면 그 뒤로 가지 않습니다.
+```
+ [PC 도메인 200]                                         [pinky1 도메인 10]
+ ① pinky_control_client.py pinky1 goto P1
+        │  ROS 토픽 /pinky1/patrol_cmd (String)
+        ▼
+ ② 관제 노드 (side:=pc, enable_down:=true)
+        │  JSON 로 감싸서 MQTT 발행  (QoS 1)
+        ▼
+ ③ MQTT 브로커 127.0.0.1:1883
+        │  주제 mqtt_bridge/pinky1/down/patrol_cmd
+        │  ── SSH 역방향 터널 ──────────────────────────▶ ④ pinky1 의 127.0.0.1:1883
+        │                                                          │
+        │                                                          ▼
+        │                                              ⑤ 로봇 노드 (side:=robot, enable_down:=true)
+        │                                                  · 제외 목록에 있으면 버림
+        │                                                  · 도메인 10 발행 확인(confirm_real_domain:=10)
+        │                                                          │  ROS 토픽 /patrol_cmd
+        │                                                          ▼
+        │                                              ⑥ 순찰 노드(pinky_patrol_node) → Nav2 → 로봇 이동
+```
+- ②와 ⑤가 둘 다 `enable_down:=true`여야 이어집니다. 한쪽이 꺼져 있으면 그 지점에서 명령이 조용히 버려집니다(클라이언트는 그래도 "전송 완료"라고 출력).
+- 어디서 끊겼는지는 관제에서 `mosquitto_sub -t 'mqtt_bridge/pinky1/down/#'`(②→③), 로봇 노드 로그의 `down /patrol_cmd 받음`(④→⑤), 로봇 움직임(⑥)으로 구간을 나눠 확인합니다.
+
+**켜는 순서 (판단 흐름도)**
+```
+ 시작
+  │
+  ▼
+ 터널 서비스 active?  ──아니오──▶ PC 에서 sudo systemctl start mqtt_bridge_tunnel
+  │예
+  ▼
+ pinky1 에서 bringup · Nav2 · 순찰 노드 켜짐?  ──아니오──▶ pinky1 에서 직접 켠다(로봇 기동은 사용자가)
+  │예
+  ▼
+ pinky1 서비스 mqtt_bridge_robot 이 inactive?  ──아니오──▶ sudo systemctl stop mqtt_bridge_robot  (겹쳐 켜면 서로 끊김)
+  │예
+  ▼
+ 0. ~/mqtt_down_test.yaml 이 PC·pinky1 둘 다 있음?  ──아니오──▶ 만들고 scp
+  │예
+  ▼
+ 2. 터미널 A: pinky1 로봇 노드 켜기  (먼저)
+  ▼
+ 3. 터미널 B: PC 관제 노드 켜기      (그다음, 도메인 200)
+  ▼
+ 4. status/pc, status/robot 둘 다 online?  ──아니오──▶ 아래 "안 될 때" 표로
+  │예
+  ▼
+ 5. 옆에서 지켜볼 사람 있음 + 주변 비었음?  ──아니오──▶ 중단
+  │예
+  ▼
+    goto P1 전송 ──▶ 로봇 쪽 "받음 N 중계 N" 확인 ──▶ 이동 확인
+  │
+  ▼
+ 6. A·B 에서 Ctrl+C ──▶ sudo systemctl start mqtt_bridge_robot 로 서비스 복구
+```
+
+**0. 준비 (처음 한 번, PC)**
+```bash
+cat > ~/mqtt_down_test.yaml <<'EOF'
+"/**":
+  ros__parameters:
+    exclude_patterns: ["*/lane/*", "*/crossline/*", "/cmd_vel", "/goal_pose", "/initialpose", "/zone_manager/*"]
+    watchdog_ms: 500.0
+    max_linear: 0.15
+    max_angular: 0.4
+EOF
+scp ~/mqtt_down_test.yaml pinky@192.168.45.21:~/
+```
+- 이 파일이 없으면 켜지 마세요. `watchdog_ms`, `max_linear`, `max_angular`는 도메인 10에서 `enable_down`을 켜는 데 필요한 값이고(`cmd_vel`은 막혀 있어 실제로 쓰이지 않음), 위 값은 제안값입니다. [TODO] 팀이 정한 값으로 교체
+
+**1. pinky1 서비스 끄기 (PC, `sudo`)**
+```bash
+ssh -t pinky@192.168.45.21 'sudo systemctl stop mqtt_bridge_robot; systemctl is-active mqtt_bridge_robot'
+```
+마지막 줄이 `inactive`여야 합니다. 서비스와 직접 실행 노드를 겹쳐 켜면 서로 연결을 끊습니다.
+
+**2. 터미널 A: pinky1 로봇 쪽 노드** (`ssh pinky@192.168.45.21` 접속 후, 켜 둠)
+```bash
+source /opt/ros/jazzy/setup.bash; source ~/cobot_navigation/install/setup.bash
+export ROS_DOMAIN_ID=10 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp CYCLONEDDS_URI=file:///home/pinky/.ros/cyclonedds_robot.xml
+ros2 run cobot_mqtt_bridge mqtt_bridge_node --ros-args \
+  --params-file ~/cobot_navigation/install/cobot_mqtt_bridge/share/cobot_mqtt_bridge/config/mqtt_bridge.yaml \
+  --params-file ~/mqtt_down_test.yaml \
+  -p robot:=pinky1 -p side:=robot -p enable_down:=true -p confirm_real_domain:=10 \
+  -r __node:=mqtt_bridge_pinky1_robot
+```
+로그에 `시작 ROS_DOMAIN_ID=10`, `MQTT 접속 성공`이 나오고 `enable_down:=false` 문구는 없어야 합니다.
+
+**3. 터미널 B: PC 관제 쪽 노드** (켜 둠)
+```bash
+source /opt/ros/jazzy/setup.bash; source ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/install/setup.bash
+export ROS_DOMAIN_ID=200 CYCLONEDDS_URI=file:///home/jinho/.ros/cyclonedds_pc.xml
+ros2 run cobot_mqtt_bridge mqtt_bridge_node --ros-args \
+  --params-file ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/install/cobot_mqtt_bridge/share/cobot_mqtt_bridge/config/mqtt_bridge.yaml \
+  --params-file ~/mqtt_down_test.yaml \
+  -p robot:=pinky1 -p side:=pc -p enable_down:=true -p confirm_real_domain:=200 \
+  -r __node:=mqtt_bridge_pinky1
+```
+
+**4. 연결 확인 (PC 아무 터미널)** — `pc`와 `robot`이 **둘 다 `online`**이어야 다음으로 갑니다.
+```bash
+mosquitto_sub -h 127.0.0.1 -t 'mqtt_bridge/pinky1/status/#' -v -W 3
+```
+
+**5. 터미널 C: 명령 보내기 (PC 새 터미널)**
+```bash
+source /opt/ros/jazzy/setup.bash; source ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/install/setup.bash
+export ROS_DOMAIN_ID=200 CYCLONEDDS_URI=file:///home/jinho/.ros/cyclonedds_pc.xml
+cd ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_pinky_patrol_cmd
+python3 pinky_control_client.py pinky1 goto P1
+```
+- 정지: `python3 pinky_control_client.py pinky1 emergency_stop`
+- 로봇 이름은 반드시 `pinky1`입니다(`pinky`면 `/pinky/patrol_cmd`로 나가 아무도 받지 않음).
+- 확인: 터미널 A의 `요약(중간) robot down /patrol_cmd 받음 N 중계 N`(15초 주기), 관제에서 `mosquitto_sub -h 127.0.0.1 -t 'mqtt_bridge/pinky1/down/#' -v`
+
+**6. 끝내기:** 터미널 A와 B에서 `Ctrl+C`, 그다음 서비스 복구
+```bash
+ssh -t pinky@192.168.45.21 'sudo systemctl start mqtt_bridge_robot'
+```
+
+**안 될 때**
+
+| 증상 | 원인과 해결 |
+|---|---|
+| 4번에서 `robot`이 `offline` | 2번을 안 켰거나 서비스가 겹침. 1번 확인 |
+| `전송 완료`인데 로봇이 안 움직임 | 로봇 쪽 노드가 꺼져 있으면 명령은 버려집니다(전송 완료는 "내 쪽에서 발행함"일 뿐). 4번 확인 후 A의 `받음` 숫자 확인 |
+| `confirm_real_domain ... 명시해야 한다` | 해당 노드에 `confirm_real_domain:=값`이 빠짐 (`=`가 아니라 `:=`) |
+| `can't open configuration file ...cyclonedds_robot.xml` | PC 터미널에서 `CYCLONEDDS_URI`가 pinky용 파일. PC는 `cyclonedds_pc.xml` |
+| `Error opening YAML file` | `~/mqtt_down_test.yaml` 없음(0번) |
+| 시작 때 `이미 발행자가 있는 토픽` | 해당 도메인에 같은 이름의 다른 발행자(예: 다른 팀의 DDS 브릿지가 도메인 100). 관제 쪽은 도메인 200을 씁니다 |
+| `pinky_control_client.py`를 다른 터미널에서 실행 | 도메인 200이어야 합니다. 102나 100이면 관제 노드와 만나지 않습니다 |
+
+**한계**
+- `stop`, `emergency_stop`, 구역 출입(`/zone_manager/*`를 막았으므로 구역 정차 기능은 동작하지 않을 수 있음)은 아직 시험하지 않았습니다.
+- 도메인 10의 `/patrol_cmd`에는 다른 팀의 DDS 브릿지(`pinky_bridge_pinky1_only_10`)도 발행자로 있어 두 경로의 명령이 함께 들어올 수 있습니다. 시험 중에는 그쪽에서 명령을 보내지 않는지 확인하세요.
 
 ## 4. 사용 예시
 
