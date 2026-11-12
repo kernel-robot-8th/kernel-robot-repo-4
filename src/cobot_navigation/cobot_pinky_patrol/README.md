@@ -129,6 +129,33 @@ ROS CLI 한 번의 조회 제한은 기본 15초(`--probe-timeout`), 단계 전�
 
 지도 YAML·이미지·vendor 패키지 존재를 먼저 확인합니다. SSH 세션 종료 또는 Ctrl+C 시 이 실행기가 시작한 프로세스를 역순 정리합니다. 이미 수동으로 실행한 bringup·Nav2·패트롤과 함께 중복 실행하지 않습니다.
 
+## 전원을 켜면 자동 기동 (systemd)
+
+로봇 부팅 때 systemd 가 위 `robot_startup` 을 실행합니다. 새 기동 코드는 없고 서비스 파일만 둡니다.
+
+| 파일 | 설치 위치 | 역할 |
+|---|---|---|
+| `config/systemd/cobot-robot.service` | `/etc/systemd/system/` | 기동·재시도·종료 방식 |
+| `config/systemd/robot.env.example` | `/etc/cobot/robot.env` | 로봇별 ID·도메인·workspace·지도·underlay |
+
+로봇에서 한 번 설치합니다. `sudo` 가 필요하고, `enable --now` 는 바로 bringup·Nav2·패트롤을 시작합니다.
+
+```bash
+SHARE="$(ros2 pkg prefix --share cobot_pinky_patrol)/config/systemd"
+sudo install -D -m 644 "$SHARE/robot.env.example" /etc/cobot/robot.env
+sudoedit /etc/cobot/robot.env          # ROBOT_ID·DOMAIN_ID(10/20/30) 수정, 경로는 절대 경로
+sudo install -m 644 "$SHARE/cobot-robot.service" /etc/systemd/system/
+sudo systemctl edit cobot-robot        # 로봇 계정이 pinky 가 아니면 [Service] User= 덮어쓰기
+sudo systemctl daemon-reload
+sudo systemctl enable --now cobot-robot
+```
+
+- 상태 확인: `systemctl status cobot-robot`, 로그 `journalctl -u cobot-robot -f`. 준비가 끝나면 `COBOT_ROBOT_READY` 가 찍힙니다.
+- 끄기: `sudo systemctl stop cobot-robot` 이면 세 프로세스를 역순으로 정리하고 다시 뜨지 않습니다. 자동 기동을 그만두려면 `sudo systemctl disable --now cobot-robot` 을 씁니다.
+- 실패하면: 단계 준비 시간 초과나 프로세스 종료는 10초 뒤 다시 시도합니다. 10분에 5번 넘게 실패하면 멈추므로 로그를 보고 고친 뒤 `sudo systemctl restart cobot-robot` 합니다.
+- 다시 떠도 혼자 움직이지 않습니다. `central_controlled: true` 이면 관제 하트비트·세션이 확인되기 전에는 이동 명령을 거절하고, 움직이던 중 끊기면 정지 후 잠급니다(`central_guard.py`). 재부팅은 `patrol_status` 의 새 `boot_id` 로 관제에서 알 수 있습니다.
+- 자동 기동하는 로봇에는 손으로 bringup·Nav2·패트롤을 띄우지 않습니다. 관제의 SSH 기동(`fleet_startup execute:=true`)도 같은 기동기 잠금에 걸려 실패하므로 쓰지 않습니다. 관제 PC 에서는 브릿지·zone_manager·fleet 만 띄웁니다.
+
 ## 명령과 상태
 
 ### 업무 명령
