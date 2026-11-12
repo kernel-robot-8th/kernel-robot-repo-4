@@ -49,7 +49,9 @@
 | 3대(pinky1/2/3) 동시 | 가짜 모드 10분 시험 통과. 실물은 pinky1만 시험 |
 | 재접속·상태 주제 | 완료 (터널 끊김 후 약 10~15초에 복구) |
 | 자동 시작(systemd) | 파일 작성·재부팅 시험 완료, 현재는 꺼 둠 |
-| 실제 도메인 100/10 전환 | **보류** (다른 팀의 DDS 브릿지를 끌 수 있을 때까지) |
+| 실제 도메인 전환 | 관제 쪽 도메인을 **200**으로 분리(다른 팀의 DDS 브릿지가 쓰는 100과 무관). 실물 `patrol_cmd` 시험은 아직 안 함 |
+
+> **관제 쪽 도메인은 200입니다.** 이 패키지가 로봇에서 받은 값을 내보내는 도메인이고, 다른 팀의 DDS 브릿지가 쓰는 100과 분리되어 있습니다. 관제 쪽 프로그램(`pinky_control_client.py`, GUI, 구역 관리 등)은 `export ROS_DOMAIN_ID=200`으로 실행해야 이 값을 볼 수 있습니다. 도메인 100의 프로그램은 이 값을 볼 수 없습니다. 번호는 `pc_domain` 파라미터와 `config/mqtt_topics_pinky*.yaml`의 `from_domain`/`to_domain`에서 바꿉니다.
 
 ## 2. 설치 방법
 
@@ -184,7 +186,7 @@ ROS_DOMAIN_ID=102 ros2 topic echo /pinky1/battery/percent
 - 끝나면 터미널 3, 4를 Ctrl+C로 끄고, 남은 보관 메시지를 지웁니다([3-D](#3-d-끄기와-정리) 참고).
 
 ### 3-B. 실물 pinky1에서 읽어 보기 (직접 켜기)
-**읽기 전용**입니다. 로봇은 움직이지 않고, 관제 쪽은 도메인 102(루프백)에서 받으므로 다른 팀의 도메인 100에 영향이 없습니다.
+**읽기 전용**입니다. 로봇은 움직이지 않고, 관제 쪽은 도메인 102(루프백)에서 받으므로 다른 팀의 도메인 100과 이 패키지의 실제 관제 도메인 200에 영향이 없습니다.
 **전제:** 2장 설치가 끝났고, pinky1에서 로봇 기능(bringup)이 켜져 있어야 데이터가 나옵니다.
 
 **1단계. [PC] 터널 열기**
@@ -285,7 +287,7 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml pinky2:=false pinky3:=false
 |---|---|---|
 | `pinky1`, `pinky2`, `pinky3` | true | 실행할 로봇 (기존 `bridges.launch.xml`과 같은 이름) |
 | `enable_down` | false | 관제→로봇(명령) 중계. [안전 규칙](#안전-규칙) 참고 |
-| `confirm_real_domain` | unset | 실제 도메인 100에 발행하려면 `100` |
+| `confirm_real_domain` | unset | 실제 도메인 200에 발행하려면 `200` |
 | `duration_sec` | 0.0 | 실행 시간 [s], 0이면 계속 |
 | `host`, `port` | 127.0.0.1, 1883 | 브로커 |
 | `params_file` | 설치된 `mqtt_bridge.yaml` | 파라미터 YAML |
@@ -347,8 +349,8 @@ mosquitto_sub -h 127.0.0.1 -t 'mqtt_bridge/pinky1/status/#' -v
 
 | 방향 | 키 (맨 앞 이름) | `remap` | `from_domain` → `to_domain` |
 |---|---|---|---|
-| 로봇 → 관제 (up) | **로봇 쪽** 이름 | **관제 쪽** 이름 | 10 → 100 |
-| 관제 → 로봇 (down) | **관제 쪽** 이름 | **로봇 쪽** 이름 | 100 → 10 |
+| 로봇 → 관제 (up) | **로봇 쪽** 이름 | **관제 쪽** 이름 | 10 → 200 |
+| 관제 → 로봇 (down) | **관제 쪽** 이름 | **로봇 쪽** 이름 | 200 → 10 |
 
 `remap`을 쓰지 않으면 양쪽 이름이 같습니다(예: `/zone_manager/*`).
 ```yaml
@@ -357,13 +359,13 @@ topics:
   /my_status:
     type: std_msgs/msg/String
     from_domain: 10
-    to_domain: 100
+    to_domain: 200
     remap: /pinky1/my_status
 
   # 관제 → 로봇: 관제의 /pinky1/my_cmd 를 로봇의 /my_cmd 로 (명령 방향은 enable_down 을 켜야 중계됨)
   /pinky1/my_cmd:
     type: std_msgs/msg/String
-    from_domain: 100
+    from_domain: 200
     to_domain: 10
     remap: /my_cmd
 ```
@@ -396,11 +398,11 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml          # pinky1/2/3 모�
 | 규칙 | 내용 |
 |---|---|
 | 명령 방향 기본 꺼짐 | `enable_down:=true`를 줘야만 관제→로봇 토픽을 중계합니다 |
-| 관제(pc) 역할이 발행할 수 있는 도메인 | 101·102(시험)는 허용. 도메인 100은 `confirm_real_domain:=100`과 기존 발행자 검사를 통과해야 함. 도메인 10은 **항상 거부** |
+| 관제(pc) 역할이 발행할 수 있는 도메인 | 101·102(시험)는 허용. 실제 관제 도메인 200은 `confirm_real_domain:=200`과 기존 발행자 검사를 통과해야 함. 도메인 10은 **항상 거부** |
 | 로봇(robot) 역할이 명령을 발행할 수 있는 도메인 | 101·102(시험)는 허용. 도메인 10은 `confirm_real_domain:=10`이고 `watchdog_ms`·`max_linear`·`max_angular`가 **모두 0보다 클 때만** 시작. 그 밖은 거부 |
 | `cmd_vel` 보호 | 속도 상한 초과 시 방향 유지한 채 줄임, 오래된 메시지 폐기(`max_age_ms`), 워치독(마지막 명령 뒤 `watchdog_ms` 후 0 속도 1회), 종료 시 0 속도 |
 | 부하 보호 | 로봇 역할은 1분 load가 `load_abort`(3.0)를 넘으면 스스로 중단 |
-| 다른 팀과 겹침 방지 | 다른 팀이 도메인 100에서 DDS 브릿지를 쓰므로, 시험은 루프백 격리 또는 도메인 101/102에서만 합니다 |
+| 다른 팀과 겹침 방지 | 다른 팀의 DDS 브릿지는 도메인 100을 씁니다. 이 패키지는 관제 쪽에 도메인 200을 써서 겹치지 않고, 시험은 루프백 격리 또는 도메인 101/102에서 합니다 |
 
 - 구독 전용(`enable_down` 꺼짐)인 로봇 역할은 ROS에 아무것도 발행하지 않아 도메인 10에서 실행해도 로봇이 움직이지 않습니다.
 - 도메인 브릿지(DDS)와 이 브릿지를 **같은 도메인에서 동시에** 켜지 않습니다(같은 이름을 이중 발행).
@@ -414,7 +416,7 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml          # pinky1/2/3 모�
 | `Permission denied` / 비밀번호 요구 | 2-4의 SSH 키 설정 필요 |
 | `ModuleNotFoundError: paho` | 해당 장비에서 `sudo apt install python3-paho-mqtt` |
 | `ModuleNotFoundError: ament_index_python` (pinky1) | `source /opt/ros/jazzy/setup.bash`를 먼저 하고, `PYTHONPATH`는 덮어쓰지 말고 `...:$PYTHONPATH`로 뒤에 붙임 |
-| `ROS_DOMAIN_ID=... 에서는 발행하지 않는다` | 안전 규칙에 걸림. 시험은 101·102 또는 루프백 격리에서. 도메인 100/10은 승인 절차 필요 |
+| `ROS_DOMAIN_ID=... 에서는 발행하지 않는다` | 안전 규칙에 걸림. 시험은 101·102 또는 루프백 격리에서. 도메인 200/10은 승인 절차 필요 |
 | `ros2 topic list`에 `/parameter_events`, `/rosout`만 보임 (`echo $CYCLONEDDS_URI`는 루프백이 맞는데도) | **ros2 데몬이 옛 설정으로 떠 있음.** `ros2 daemon stop` 후 다시 실행하거나 `--no-daemon`을 붙임. `ps -eo cmd \| grep ros2-daemon`으로 확인 |
 | 같은 증상, 데몬이 원인이 아닐 때 | 보는 터미널의 `CYCLONEDDS_URI`가 루프백이 아님(이 PC 기본값은 네트워크용). launch를 띄운 터미널과 보는 터미널 **둘 다** 3-B 5단계의 `source`·`export`를 입력. `echo $CYCLONEDDS_URI`로 확인 |
 | `online`은 보이는데 관제에 토픽이 없음 | 관제 쪽 launch가 안 떠 있음. `pgrep -af mqtt_bridge_node`로 확인 |
@@ -432,7 +434,7 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml          # pinky1/2/3 모�
 
 | 이름 | 누가 읽나 | 값 예시 | 설명 |
 |---|---|---|---|
-| `ROS_DOMAIN_ID` | 이 패키지, ROS 2 | `101`, `102`(시험), `10`(로봇), `100`(관제 실제) | 어느 ROS 도메인에서 실행할지. 값에 따라 발행 허용 여부가 정해집니다(안전 규칙). 이 PC의 기본값은 `100`입니다 |
+| `ROS_DOMAIN_ID` | 이 패키지, ROS 2 | `101`, `102`(시험), `10`(로봇), `200`(관제 실제) | 어느 ROS 도메인에서 실행할지. 값에 따라 발행 허용 여부가 정해집니다(안전 규칙). 이 PC의 기본값은 `100`입니다 |
 | `CYCLONEDDS_URI` | CycloneDDS | 루프백 XML(3-A, 3-B), PC 기본 `file:///home/jinho/.ros/cyclonedds_pc.xml`, pinky1 `file:///home/pinky/.ros/cyclonedds_robot.xml` | DDS 네트워크 설정. 시험에서는 루프백(`lo`)으로 묶어 다른 장비에 안 보이게 합니다 |
 | `RMW_IMPLEMENTATION` | ROS 2 | `rmw_cyclonedds_cpp` | DDS 구현체. pinky1 직접 실행에서만 지정 |
 | `PYTHONPATH` | 파이썬 | `$HOME/mqtt_bridge/cobot_mqtt_bridge:$PYTHONPATH` | pinky1에서 빌드 없이 실행할 때만. 기존 값 **뒤에** 붙여야 합니다 |
@@ -449,7 +451,7 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml          # pinky1/2/3 모�
 | `host`, `port` | 127.0.0.1, 1883 | 브로커 |
 | `keepalive_sec` | 30 | MQTT keepalive |
 | `topic_prefix` | `mqtt_bridge` | MQTT 주제 앞부분 |
-| `pc_domain`, `robot_domain` | 100, 10 | 관제/로봇 도메인 번호(방향 판별과 안전 검사에 사용) |
+| `pc_domain`, `robot_domain` | 200, 10 | 관제/로봇 도메인 번호(방향 판별과 안전 검사에 사용) |
 | `exclude_patterns` | lane, crossline | 제외할 토픽 (fnmatch) |
 | `latched_topics` | `/tf_static`, `/amcl_pose` | ROS transient_local + MQTT retain |
 | `rate_limits` | `/tf=30.0` | "토픽=Hz". 적지 않은 토픽은 원래 주기. [TODO] 측정 후 조정 |
@@ -457,7 +459,7 @@ ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml          # pinky1/2/3 모�
 | `summary_sec` | 60.0 | 토픽별 통계 로그 주기 |
 | `duration_sec` | 0.0 | 0이면 계속 실행 |
 | `discovery_wait_sec` | 3.0 | 실제 도메인에서 기존 발행자를 확인하기 전 대기 |
-| `confirm_real_domain` | 빈 값 | 실제 도메인에 발행하려면 pc 역할은 `100`, 로봇 역할(명령)은 `10` |
+| `confirm_real_domain` | 빈 값 | 실제 도메인에 발행하려면 pc 역할은 `200`, 로봇 역할(명령)은 `10` |
 | `enable_down` | false | 관제→로봇 명령 중계. 로봇이 움직일 수 있어 기본 꺼짐 |
 | `cmd_vel_topics` | `/cmd_vel` | 속도 보호를 거치는 토픽(로봇 쪽 이름) |
 | `watchdog_ms` | 0.0 | 마지막 `cmd_vel` 뒤 이 시간이 지나면 0 속도 1회 발행. 0이면 꺼짐 |

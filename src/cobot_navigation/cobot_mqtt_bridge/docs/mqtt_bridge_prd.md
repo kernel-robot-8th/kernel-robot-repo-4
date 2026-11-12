@@ -460,3 +460,12 @@ PC 터널 서비스와 pinky1 로봇 서비스를 설치(사용자가 `sudo` 로
 1. ~~새 폴더·패키지 생성~~ — 승인됨(`cobot_mqtt_bridge`).
 2. `cmd_vel` 워치독 기본 시간·속도 상한 값 (팀 합의 필요 — [TODO]).
 3. B단계 진행 승인 (A단계는 승인·완료).
+
+## 관제 쪽 도메인 200 분리 결과 (2026-11-12)
+
+- **배경:** 실물 시험 중 도메인 100에서 다른 팀의 DDS 브릿지(`pinky_bridge_pinky1/2/3_only_100`, `relay_patch_d100`)가 켜져 있는 것을 확인했다. 시작 전 검사가 `/pinky1/scan` 등 8개 토픽의 기존 발행자를 찾아 관제 쪽 노드를 중단시켰다. (그 전에 "브릿지가 꺼져 있다"고 본 판단은 틀렸고, 안전 검사가 막아 피해는 없었다.)
+- **결정:** 이 패키지의 관제 쪽 ROS 도메인을 100에서 **200**으로 바꿔 다른 팀과 분리한다. 로봇 쪽 도메인 10은 그대로다.
+- **변경:** `pc_domain` 기본값과 `config/mqtt_bridge.yaml`, `config/mqtt_topics_pinky1/2/3.yaml`의 `from_domain`/`to_domain`, launch 설명, 시험 값, README.
+- **영향:** 관제 쪽 프로그램(`pinky_control_client.py`, GUI, 구역 관리 등)은 도메인 200에서 실행해야 MQTT로 온 값이 보인다. 도메인 100의 프로그램은 볼 수 없다.
+- **검증:** 단위 시험 54개 통과. 가짜 모드(도메인 101 루프백, 임시 브로커)에서 `patrol_cmd`만 down으로 통과하고 `cmd_vel`/`goal_pose`/`initialpose`/`zone_manager/*`는 차단됨을 확인했다. 도메인 200에는 기존 노드와 토픽이 없다(읽기 전용 확인).
+- **[TODO]** 실물 pinky1 `patrol_cmd` 시험(도메인 200 + 10)은 아직 하지 않았다. 실행 직전에 사람이 로봇 옆에 있는지, `goto` 지점, 보호 값(`watchdog_ms` 등)을 확인한다.

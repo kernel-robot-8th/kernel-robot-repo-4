@@ -115,7 +115,7 @@ class MqttBridge:
         defaults = {
             'robot': '', 'side': '', 'bridge_config': '',
             'host': '127.0.0.1', 'port': 1883, 'keepalive_sec': 30,
-            'topic_prefix': 'mqtt_bridge', 'pc_domain': 100, 'robot_domain': 10,
+            'topic_prefix': 'mqtt_bridge', 'pc_domain': 200, 'robot_domain': 10,
             'exclude_patterns': [''], 'latched_topics': [''], 'rate_limits': [''],
             'load_abort': 3.0, 'load_check_sec': 15.0, 'summary_sec': 60.0,
             'duration_sec': 0.0, 'discovery_wait_sec': 3.0, 'confirm_real_domain': '',

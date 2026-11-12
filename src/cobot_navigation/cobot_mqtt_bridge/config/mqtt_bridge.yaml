@@ -10,7 +10,7 @@
     topic_prefix: "mqtt_bridge"
 
     # 관제 PC 쪽 ROS 도메인 번호 (브릿지 YAML 에서 to_domain 이 이 값이면 로봇→관제 방향)
-    pc_domain: 100
+    pc_domain: 200
     # 로봇 쪽 ROS 도메인 번호 (실제 로봇에 명령을 발행하려면 confirm_real_domain 으로 확인해야 함)
     robot_domain: 10
 
@@ -30,7 +30,7 @@
     summary_sec: 60.0        # 토픽별 통계 로그 주기
     duration_sec: 0.0        # 0 이면 계속 실행, 시험 때는 초 단위로 지정
     discovery_wait_sec: 3.0  # 실제 도메인에서 기존 발행자를 확인하기 전 대기 시간
-    confirm_real_domain: ""  # pc 역할은 "100", robot 역할(명령 발행)은 "10" 을 명시
+    confirm_real_domain: ""  # pc 역할은 "200", robot 역할(명령 발행)은 "10" 을 명시
 
     # 명령 방향(관제→로봇). 로봇이 움직일 수 있어 기본은 꺼짐.
     enable_down: false

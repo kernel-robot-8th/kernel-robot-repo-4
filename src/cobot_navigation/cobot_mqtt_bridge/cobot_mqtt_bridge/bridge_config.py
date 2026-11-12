@@ -37,7 +37,7 @@ DOWN = 'down'
 class BridgeSettings:
     """중계 규칙을 만들 때 필요한 설정 (config/mqtt_bridge.yaml 에서 온다)."""
 
-    pc_domain: int = 100
+    pc_domain: int = 200
     topic_prefix: str = 'mqtt_bridge'
     exclude_patterns: tuple = ()
     latched_topics: tuple = ()

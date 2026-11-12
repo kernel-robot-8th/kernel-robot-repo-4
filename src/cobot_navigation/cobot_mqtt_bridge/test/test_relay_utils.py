@@ -60,17 +60,17 @@ def test_envelope_type_mismatch_raises():
 
 @pytest.mark.parametrize('domain', ['101', '102'])
 def test_isolated_domains_allowed(domain):
-    assert check_publish_domain(domain, '', 100) == ''
+    assert check_publish_domain(domain, '', 200) == ''
 
 
 def test_real_domain_requires_confirmation():
-    assert check_publish_domain('100', '', 100) != ''
-    assert check_publish_domain('100', '100', 100) == ''
+    assert check_publish_domain('200', '', 200) != ''
+    assert check_publish_domain('200', '200', 200) == ''
 
 
 @pytest.mark.parametrize('domain', ['10', '12', '', '77'])
 def test_other_domains_refused(domain):
-    assert check_publish_domain(domain, '100', 100) != ''
+    assert check_publish_domain(domain, '200', 200) != ''
 
 
 @pytest.mark.parametrize('domain', ['101', '102'])
@@ -83,6 +83,6 @@ def test_robot_publish_real_domain_requires_confirmation():
     assert check_robot_publish_domain('10', '10', 10) == ''
 
 
-@pytest.mark.parametrize('domain', ['100', '', '77'])
+@pytest.mark.parametrize('domain', ['200', '', '77'])
 def test_robot_publish_other_domains_refused(domain):
     assert check_robot_publish_domain(domain, '10', 10) != ''

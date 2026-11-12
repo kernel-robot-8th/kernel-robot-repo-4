@@ -100,7 +100,7 @@ def test_topic_yaml_is_independent_of_dds_bridge(tmp_path):
         '  /camera/image_raw/compressed:\n'
         '    type: sensor_msgs/msg/CompressedImage\n'
         '    from_domain: 10\n'
-        '    to_domain: 100\n'
+        '    to_domain: 200\n'
         '    remap: /pinky9/camera/image_raw/compressed\n', encoding='utf-8')
     rule = load_rules(path, 'pinky9', BridgeSettings())[0]
     assert rule.direction == UP
