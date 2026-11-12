@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { stopView } from "@/lib/fmsLiveContext";
 import { useSimCommand } from "./useSimCommand";
 const BUTTON = "h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd]";
 const INPUT = "h-7 px-1.5 text-[10px] bg-[#1c1d22] border border-border text-white";
@@ -11,7 +12,7 @@ function MovePanel({
   send,
 }: {
   robots: string[];
-  blocked: boolean;
+  blocked: (robot: string) => boolean;
   send: (path: string, body: unknown) => Promise<void>;
 }) {
   const [robot, setRobot] = useState(robots[0] ?? "");
@@ -50,13 +51,16 @@ function MovePanel({
           variant="outline"
           size="sm"
           className={BUTTON}
-          disabled={blocked || (needsPoints && names.length === 0)}
+          disabled={blocked(robot) || (needsPoints && names.length === 0)}
           onClick={() =>
             void send("control", { type: "create", robot_id: robot, operation, points: names })
           }
         >
           명령 요청
         </Button>
+        {blocked(robot) && (
+          <span className="text-[10px] text-red-400">{robot} 정지 보류 중: 복구 뒤 명령할 수 있습니다</span>
+        )}
       </div>
     </section>
   );
@@ -68,10 +72,10 @@ export default function ManualMoveTools() {
   const { live, allowed, send, message } = useSimCommand();
   const [mock, setMock] = useState({ vision_class: MOCK_CLASSES[0], map_x: "0.6", map_y: "0.5" });
   if (!live || !allowed) return null;
-  const stopped = Object.keys(live.holds).length > 0;
+  const stop = stopView(live);
   return <section className="border border-border p-3">
     <h2>격리 시뮬 관제 경유 수동 도구</h2>
-    <MovePanel robots={live.robots.map(r => r.robot_id)} blocked={stopped} send={send}/>
+    <MovePanel robots={live.robots.map(r => r.robot_id)} blocked={stop.blocks} send={send}/>
           <div className="flex flex-wrap items-center gap-1.5">
             {live.robots
               .filter((robot) => robot.zone.startsWith("ZONE_") && !robot.order_id)
@@ -81,7 +85,7 @@ export default function ManualMoveTools() {
                   variant="outline"
                   size="sm"
                   className={BUTTON}
-                  disabled={stopped}
+                  disabled={stop.blocks(robot.robot_id)}
                   onClick={() =>
                     void send("control", {
                       type: "create",

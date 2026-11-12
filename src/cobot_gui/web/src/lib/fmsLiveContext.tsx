@@ -39,6 +39,8 @@ export interface Anomaly {
   alarm_text: string;
   ack_state: string;
   repeat_count: number;
+  // 정지 범위. 없으면(이전 기록·이전 감시 노드) ROBOT 으로 본다.
+  stop_scope?: "ROBOT" | "ALL";
 }
 
 export interface WorkRequest {
@@ -138,6 +140,31 @@ export interface LiveState extends DebugState {
   adapter: { enabled: boolean; blocked: string };
   allow_mock: boolean;
   commands_enabled: boolean;
+}
+
+// 병합 뒤 관제 규칙: 로봇 지정 정지는 그 로봇만 보류하고 armed 는 켜 둔다.
+// 로봇 지정 없는 정지는 전 로봇 보류 + armed 꺼짐이다.
+// 보류 없이 armed 만 꺼진 것(시작 직후)은 정지로 보지 않는다.
+// armed 가 다른 사유로 꺼진 채 한 대만 보류된 것도 전체 정지가 아니다. 전 로봇이 보류이거나
+// 정지가 걸린 채 열려 있는 전체 정지 사건(복구 도중 포함)이 있어야 전체 정지로 본다.
+const STOP_SENT = /^(PAUSE|ESTOP)_(SENT|ACCEPTED)$/;
+export function stopView(
+  live:
+    | (Pick<LiveState, "armed" | "holds"> & Partial<Pick<LiveState, "robots" | "anomalies">>)
+    | null
+    | undefined,
+) {
+  const held = live?.holds ? Object.keys(live.holds) : [];
+  const robots = live?.robots ?? [];
+  const everyone = robots.length > 0 && robots.every((robot) => held.includes(robot.robot_id));
+  const event = (live?.anomalies ?? []).some(
+    (row) =>
+      row.stop_scope === "ALL" &&
+      STOP_SENT.test(row.control_action) &&
+      ["UNREAD", "ACKNOWLEDGED"].includes(row.ack_state),
+  );
+  const all = held.length > 0 && live?.armed === false && (everyone || event);
+  return { held, all, blocks: (robot: string) => all || held.includes(robot) };
 }
 
 export interface TraceReply {

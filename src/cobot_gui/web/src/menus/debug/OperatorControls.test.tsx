@@ -161,15 +161,15 @@ describe("역할별 시뮬 관제 도구", () => {
     expect(screen.getByText(/좌표: 미수신/)).toBeInTheDocument();
   });
 
-  it("가동 허용과 시나리오 시작은 관제 요청으로 나간다", async () => {
-    const calls = serve();
+  it("가동 허용 끄기와 시나리오 시작은 관제 요청으로 나간다", async () => {
+    const calls = serve({ ...LIVE, armed: true });
     show(<LiveOverviewPage/>);
-    fireEvent.click(await screen.findByText("가동 허용 켜기"));
+    fireEvent.click(await screen.findByText("가동 허용 끄기"));
     fireEvent.click(screen.getByText("시나리오 B 출고 (ZB)"));
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[0]).toEqual({
       url: "/api/fms/control",
-      body: { type: "arm", armed: true, source: "menu_6_5" },
+      body: { type: "arm", armed: false, source: "menu_6_5" },
     });
     expect(calls[1].body).toEqual({
       type: "order",
@@ -222,7 +222,15 @@ describe("역할별 시뮬 관제 도구", () => {
   it("가동 허용이 꺼져 있으면 재개를 막고, 상·하차 단계에는 재개 버튼이 없다", async () => {
     serve();
     show(<VisionControls/>);
-    expect(await screen.findByText("재개")).toBeDisabled();
+    const resume = await screen.findByText("재개");
+    // 이름과 현장 확인을 다 채워도 가동 허용이 꺼져 있으면 막혀 있어야 한다.
+    fireEvent.change(screen.getByLabelText("운영자"), { target: { value: "kgh" } });
+    for (const label of ["로봇 정지", "팔 퇴피", "화물 확인", "통로·구역 확인"]) {
+      fireEvent.click(screen.getByLabelText(label));
+    }
+    fireEvent.change(screen.getByLabelText("확인 내용"), { target: { value: "상자 제거" } });
+    expect(screen.getAllByText("실패 처리")[0]).toBeEnabled();
+    expect(resume).toBeDisabled();
     expect(screen.getAllByText("재개")).toHaveLength(1);
     expect(screen.getAllByText("실패 처리")).toHaveLength(2);
   });
@@ -270,10 +278,11 @@ describe("역할별 시뮬 관제 도구", () => {
     expect(calls[0]).toEqual({ url: "/api/fms/control", body: { type: "estop" } });
   });
 
-  it("정지 상태이면 이동과 출고를 막고 제어권 반환을 내놓는다", async () => {
-    const calls = serve({ ...LIVE, holds: { pinky2: "ESTOP" } });
+  it("전체 정지(보류 + 가동 꺼짐)이면 이동과 출고를 모두 막고 제어권 반환을 내놓는다", async () => {
+    const calls = serve({ ...LIVE, holds: { pinky1: "ESTOP", pinky2: "ESTOP" } });
     show(<LiveOverviewPage/>, <VisionControls/>, <ManualMoveTools/>);
-    expect(await screen.findByText(/정지.*pinky2/)).toBeInTheDocument();
+    expect(await screen.findByText(/전체 정지 상태.*pinky2.*모든 로봇 명령이 거부/)).toBeInTheDocument();
+    expect(screen.getByText("전체 정지 (가동 꺼짐)")).toBeInTheDocument();
     expect(screen.getByText("명령 요청")).toBeDisabled();
     expect(screen.getByText("시나리오 A 출고 (ZA)")).toBeDisabled();
     expect(screen.getByText("pinky2 구역 이탈")).toBeDisabled();
@@ -287,6 +296,98 @@ describe("역할별 시뮬 관제 도구", () => {
     fireEvent.click(release);
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].body).toMatchObject({ type: "release_control", robot_id: "pinky2", operator: "kgh" });
+  });
+
+  it("로봇 지정 정지는 그 로봇 명령만 막고 다른 로봇과 출고는 열어 둔다", async () => {
+    const calls = serve({ ...LIVE, armed: true, holds: { pinky1: "PAUSE" } });
+    show(<LiveOverviewPage/>, <ManualMoveTools/>);
+    expect(await screen.findByText(/로봇 지정 정지 \(pinky1\).*다른 로봇은 계속/)).toBeInTheDocument();
+    expect(screen.queryByText(/전체 정지 상태/)).not.toBeInTheDocument();
+    expect(screen.getByText("가동 허용됨")).toBeInTheDocument();
+    expect(screen.getByText("일부 정지 1대")).toBeInTheDocument();
+    expect(screen.getByText("시나리오 A 출고 (ZA)")).toBeEnabled();
+    expect(screen.getByText("pinky2 구역 이탈")).toBeEnabled();
+    expect(screen.getByText("명령 요청")).toBeDisabled();
+    expect(screen.getByText(/pinky1 정지 보류 중/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("명령 로봇"), { target: { value: "pinky2" } });
+    expect(screen.queryByText(/정지 보류 중/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("명령 요청"));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].body).toMatchObject({ type: "create", robot_id: "pinky2" });
+  });
+
+  it("보류 없이 가동만 꺼진 상태는 정지로 표시하지 않는다", async () => {
+    serve();
+    show(<LiveOverviewPage/>, <ManualMoveTools/>);
+    expect(await screen.findByText("가동 대기 (Unarmed)")).toBeInTheDocument();
+    expect(screen.queryByText(/정지 상태|로봇 지정 정지|일부 정지/)).not.toBeInTheDocument();
+    expect(screen.getByText("명령 요청")).toBeEnabled();
+    expect(screen.getByText("시나리오 A 출고 (ZA)")).toBeEnabled();
+  });
+
+  it("이상 판정 줄에 정지 범위를 표시하고 범위 값이 없으면 해당 로봇으로 본다", async () => {
+    const [first] = LIVE.anomalies;
+    serve({
+      ...LIVE,
+      anomalies: [
+        { ...first, stop_scope: "ALL" },
+        { ...first, event_id: "e2", judgment: "LOAD_FAIL_DROP" },
+        { ...first, event_id: "e3", judgment: "LID_OPEN_ANOMALY", recommended_action: "NONE", stop_scope: "ROBOT" },
+      ],
+    });
+    show(<VisionControls/>);
+    expect(await screen.findByText("정지 범위: 전체 로봇")).toBeInTheDocument();
+    expect(screen.getAllByText("정지 범위: 해당 로봇")).toHaveLength(1);
+    expect(screen.getByText("LID_OPEN_ANOMALY")).toBeInTheDocument();
+  });
+
+  it("전체 정지 복구는 관제 웹에서 가동을 켜라는 안내만 하고 중계 웹에 켜는 버튼을 두지 않는다", async () => {
+    const calls = serve({ ...LIVE, holds: { pinky1: "PAUSE", pinky2: "PAUSE" } });
+    // 가동 허용 버튼이 있던 주문 패널(실시간 현황 안)까지 함께 그려서 본다.
+    show(<LiveOverviewPage/>, <VisionControls/>, <ManualMoveTools/>);
+    expect(await screen.findByText("전체 정지 복구 순서")).toBeInTheDocument();
+    expect(screen.getByText(/관제 웹에서 작업 명령\(가동 허용\)을 켭니다/)).toBeInTheDocument();
+    expect(screen.getByText(/켜기는 관제 웹에서 합니다/)).toBeInTheDocument();
+    expect(screen.getByText("전체 일시정지 요청")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /가동 허용|작업 명령/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/가동 허용 (켜기|끄기)$/)).not.toBeInTheDocument();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("가동이 다른 사유로 꺼진 채 한 대만 보류면 전체 정지로 보지 않는다", async () => {
+    serve({ ...LIVE, holds: { pinky1: "PAUSE" } });
+    show(<LiveOverviewPage/>, <VisionControls/>, <ManualMoveTools/>);
+    expect(await screen.findByText(/로봇 지정 정지 \(pinky1\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/전체 정지 상태/)).not.toBeInTheDocument();
+    expect(screen.queryByText("전체 정지 복구 순서")).not.toBeInTheDocument();
+    expect(screen.getByText("시나리오 A 출고 (ZA)")).toBeEnabled();
+    expect(screen.getByText("pinky2 구역 이탈")).toBeEnabled();
+  });
+
+  it("전체 정지 사건이 열려 있으면 복구 도중 일부만 보류여도 전체 정지로 본다", async () => {
+    const [first] = LIVE.anomalies;
+    const live = { ...LIVE, holds: { pinky2: "PAUSE" }, anomalies: [{ ...first, stop_scope: "ALL" }] };
+    serve(live);
+    show(<LiveOverviewPage/>, <VisionControls/>);
+    expect(await screen.findByText("전체 정지 복구 순서")).toBeInTheDocument();
+    expect(screen.getByText("전체 정지 (가동 꺼짐)")).toBeInTheDocument();
+    expect(screen.getByText("시나리오 A 출고 (ZA)")).toBeDisabled();
+    cleanup();
+    // 닫힌 사건이나 거절된 정지는 근거가 아니다.
+    for (const change of [{ ack_state: "RESOLVED" }, { control_action: "PAUSE_FAILED" }]) {
+      serve({ ...live, anomalies: [{ ...first, stop_scope: "ALL", ...change }] });
+      show(<LiveOverviewPage/>, <VisionControls/>);
+      expect(await screen.findByText(/로봇 지정 정지 \(pinky2\)/)).toBeInTheDocument();
+      expect(screen.queryByText("전체 정지 복구 순서")).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it("로봇 지정 정지에는 전체 정지 복구 안내를 내지 않는다", async () => {
+    serve({ ...LIVE, armed: true, holds: { pinky1: "PAUSE" } });
+    show(<VisionControls/>);
+    expect(await screen.findByText("복구 요청")).toBeInTheDocument();
+    expect(screen.queryByText("전체 정지 복구 순서")).not.toBeInTheDocument();
   });
 
   it("이동 명령은 로봇 토픽이 아니라 관제 요청으로 나간다", async () => {

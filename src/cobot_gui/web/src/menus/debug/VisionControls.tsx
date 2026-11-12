@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useSimCommand } from "./useSimCommand";
-import type { WorkRequest, Mission } from "@/lib/fmsLiveContext";
+import { stopView, type WorkRequest, type Mission } from "@/lib/fmsLiveContext";
 const BUTTON = "h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd]";
 const INPUT = "h-7 px-1.5 text-[10px] bg-[#1c1d22] border border-border text-white";
 function LoadApproval({
@@ -113,7 +113,7 @@ export default function VisionControls() {
   if (!live || !allowed) return null;
   const blocked = live.missions.filter((mission) => mission.recovery);
   const anomalies = live.anomalies.filter(row => ["UNREAD","ACKNOWLEDGED"].includes(row.ack_state));
-  const held = Object.keys(live.holds);
+  const { held, all: allStopped } = stopView(live);
   const releasable = live.robots.filter(
     (robot) => held.includes(robot.robot_id) && !robot.order_id,
   );
@@ -196,6 +196,11 @@ export default function VisionControls() {
                 <span className="font-mono text-amber-300">{row.judgment}</span>
                 <span>{row.linked_robot_id ?? "로봇 미지정"}</span>
                 <span>{row.alarm_text || row.vision_class}</span>
+                {row.recommended_action !== "NONE" && (
+                  <span className={row.stop_scope === "ALL" ? "font-bold text-red-400" : "text-[#888888]"}>
+                    정지 범위: {row.stop_scope === "ALL" ? "전체 로봇" : "해당 로봇"}
+                  </span>
+                )}
                 <span className="font-mono text-[#888888]">
                   {row.control_action} x{row.repeat_count}
                 </span>
@@ -236,6 +241,14 @@ export default function VisionControls() {
           {(blocked.length > 0 || releasable.length > 0) && (
             <section className="space-y-1">
               <h3 className="text-[11px] font-bold text-amber-400">복구 요청</h3>
+              {allStopped && (
+                <div className="border border-red-700 bg-red-950/60 p-2 text-[10px] text-red-200">
+                  <p className="font-bold text-red-300">전체 정지 복구 순서</p>
+                  <p>1. 관제 웹에서 작업 명령(가동 허용)을 켭니다. 켜기 전에는 재개가 거절됩니다.</p>
+                  <p>2. 멈춘 주문을 재개하거나 실패 처리합니다.</p>
+                  <p>3. 주문이 없는 로봇은 로봇마다 제어권 반환을 누릅니다.</p>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#cccccc]">
                 {EVIDENCE.map((item) => (
                   <label key={item.id} className="flex items-center gap-1">

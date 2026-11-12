@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { stopView } from "@/lib/fmsLiveContext";
 import { useSimCommand } from "./useSimCommand";
 const BUTTON = "h-7 text-[10px] rounded-none bg-[#1c1d22] border-border text-[#dddddd]";
 const INPUT = "h-7 px-1.5 text-[10px] bg-[#1c1d22] border border-border text-white";
@@ -15,7 +16,8 @@ export default function OrderControls() {
   const [stock, setStock] = useState("10");
   const [quantity, setQuantity] = useState("1");
   if (!live || !allowed) return null;
-  const stopped = Object.keys(live.holds).length > 0;
+  // 로봇 지정 정지는 다른 로봇이 주문을 받을 수 있어 막지 않는다. 전체 정지만 막는다.
+  const stopped = stopView(live).all;
   const customer = live.missions.filter(
     (mission) => mission.current_stage === "CUSTOMER" && mission.mission_state === "RUNNING",
   );
@@ -44,16 +46,23 @@ export default function OrderControls() {
     >
       {live.mode === "AUTO_HOLD" ? "관측 전용으로" : "자동 정지 켜기"}
     </Button>
-    <Button
-      variant="outline"
-      size="sm"
-      className={BUTTON}
-      onClick={() =>
-        void send("control", { type: "arm", armed: !live.armed, source: "menu_6_5" })
-      }
-    >
-      {live.armed ? "가동 허용 끄기" : "가동 허용 켜기"}
-    </Button>
+    {/* 가동 허용 켜기는 관제 웹에서만 한다. 여기서는 끄기만 보낸다(감시 노드도 켜기를 거절한다). */}
+    {live.armed ? (
+      <Button
+        variant="outline"
+        size="sm"
+        className={BUTTON}
+        onClick={() =>
+          void send("control", { type: "arm", armed: false, source: "menu_6_5" })
+        }
+      >
+        가동 허용 끄기
+      </Button>
+    ) : (
+      <span className="text-[10px] text-amber-300">
+        가동 허용이 꺼져 있습니다. 켜기는 관제 웹에서 합니다.
+      </span>
+    )}
     <label>주문 수량 <input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)}/></label>
     <div className="flex flex-wrap items-center gap-1.5">
       <input

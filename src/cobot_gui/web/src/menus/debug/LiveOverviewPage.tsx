@@ -2,7 +2,7 @@ import OrderControls from "./OrderControls";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useFmsLive, type RobotView } from "@/lib/fmsLiveContext";
+import { stopView, useFmsLive, type RobotView } from "@/lib/fmsLiveContext";
 
 const STEP_LABELS = ["이동", "접안", "상차", "운송", "접안", "하차", "복귀"];
 
@@ -96,8 +96,9 @@ export default function LiveOverviewPage() {
   const { live, offline, selectedOrderId, setSelectedOrderId } = useFmsLive();
 
   const fleetStale = !live || live.fleet_age_sec == null || live.fleet_age_sec > 5;
-  const held = live?.holds ? Object.keys(live.holds) : [];
+  const { held, all: allStopped } = stopView(live);
   const stopped = held.length > 0;
+  const armUnknown = fleetStale || offline || live?.armed == null;
 
   return (
     <div className="space-y-6">
@@ -119,10 +120,23 @@ export default function LiveOverviewPage() {
           </Badge>
           <Badge
             variant="outline"
-            className={live?.armed ? "border-emerald-600 text-emerald-400" : "border-zinc-600 text-zinc-400"}
+            className={
+              !armUnknown && allStopped
+                ? "border-red-600 text-red-400"
+                : live?.armed ? "border-emerald-600 text-emerald-400" : "border-zinc-600 text-zinc-400"
+            }
           >
-            {fleetStale || offline || live?.armed == null ? "가동 상태 미확인" : live.armed ? "가동 허용됨" : "가동 대기 (Unarmed)"}
+            {armUnknown
+              ? "가동 상태 미확인"
+              : allStopped
+                ? "전체 정지 (가동 꺼짐)"
+                : live?.armed ? "가동 허용됨" : "가동 대기 (Unarmed)"}
           </Badge>
+          {!armUnknown && stopped && !allStopped && (
+            <Badge variant="outline" className="border-amber-600 text-amber-400">
+              일부 정지 {held.length}대
+            </Badge>
+          )}
           <Badge
             variant="outline"
             className={live?.mode === "AUTO_HOLD" ? "border-amber-600 text-amber-400" : "border-zinc-600 text-zinc-400"}
@@ -144,10 +158,17 @@ export default function LiveOverviewPage() {
       </div>
 
     <OrderControls />
-      {stopped && (
+      {stopped && allStopped && (
         <div className="border border-red-700 bg-red-950/60 p-3 text-xs text-red-200">
           <p className="font-bold text-red-300">
-            정지 상태 감지 ({held.join(", ")}): 명령이 거부됩니다. 시뮬 복구 기록은 4번 메뉴에서 확인합니다.
+            전체 정지 상태 ({held.join(", ")}): 모든 로봇 명령이 거부됩니다. 관제 웹에서 작업 명령을 켠 뒤 4번 메뉴에서 복구합니다.
+          </p>
+        </div>
+      )}
+      {stopped && !allStopped && (
+        <div className="border border-amber-700 bg-amber-950/40 p-3 text-xs text-amber-200">
+          <p className="font-bold text-amber-300">
+            로봇 지정 정지 ({held.join(", ")}): 이 로봇 명령만 거부됩니다. 다른 로봇은 계속 동작합니다. 복구는 4번 메뉴에서 합니다.
           </p>
         </div>
       )}
