@@ -1,0 +1,123 @@
+# ==============================================================================
+# Team 4 Official Cobot_map_v6 Waypoints (Synchronized with 10.26 Simulation)
+# ==============================================================================
+# Map Metadata (cobot_map_v6.yaml):
+#   image: cobot_map_v6.pgm (267 x 255 px @ 0.010 m/px)
+#   origin: [-1.490, -1.696, 0.0]
+#   Outer Walls in cobot_map_v6.pgm:
+#     West wall: cols 7..8   -> Inner arena X_sim = 0.000 starts at col = 9  (X_v6 = -1.400)
+#     East wall: cols 263..264 -> Inner arena X_sim = 2.540 ends at col = 262 (X_v6 = +1.140)
+#     South wall: rows 245..246 -> Inner arena Y_sim = 0.000 starts at row = 244 (Y_v6 = -1.596)
+#     North wall: rows 4..5   -> Inner arena Y_sim = 2.390 ends at row = 6   (Y_v6 = +0.794)
+#
+# Coordinate Transform Formula (Inner-Wall Origin Alignment):
+#   X_v6 = X_sim - 1.400
+#   Y_v6 = Y_sim - 1.596
+#   (Note: Outer-border origin formula X_sim - 1.470, Y_sim - 1.676 includes the 7cm/8cm
+#    SLAM outer margin outside the physical walls.)
+#
+# Reconstructed 4-Block Interior Obstacles in cobot_map_v6.pgm:
+#   1. Central Partition Wall: cols 129..135, rows 6..182
+#      Sim: X=[1.20, 1.27], Y=[0.62~0.67, 2.40] | v6: X=[-0.200, -0.130], Y=[-0.976, +0.794]
+#      Bottom Gate Opening: Y_sim=[0.00, 0.62~0.67] (62~67cm wide cable-free passage)
+#   2. Warehouse Loading & 1-Tier Box Rack Block: cols 218..262, rows 35..140
+#      Sim: X=[2.09, 2.54], Y=[1.04, 2.10] | v6: X=[+0.690, +1.140], Y=[-0.556, +0.504]
+#      Contains: OMX-1 & OMX-2 wooden stands (250x200x85mm) + 1-tier box racks A & B (230x150x200mm)
+#   3. Store Unloading Station Block: cols 9..48, rows 46..84
+#      Sim: X=[0.00, 0.40], Y=[1.60, 1.99] | v6: X=[-1.400, -1.000], Y=[+0.004, +0.394]
+#      Contains: OMX-3 wooden stand (250x200x85mm) + Store unloading table
+#   4. Store Lower-Left Counter: cols 9..30, rows 146..244
+#      Sim: X=[0.00, 0.22], Y=[0.00, 0.99] | v6: X=[-1.400, -1.180], Y=[-1.596, -0.606]
+# ==============================================================================
+
+map_metadata:
+  name: "Cobot_map_v6"
+  image: "cobot_map_v6.pgm"
+  width_px: 267
+  height_px: 255
+  resolution_m_per_px: 0.010
+  yaml_origin_xyz: [-1.490, -1.696, 0.0]
+  inner_wall_sim_to_v6_offset_xy: [-1.400, -1.596]
+  outer_border_sim_to_v6_offset_xy: [-1.470, -1.676]
+
+obstacles_v6:
+  central_partition_wall:
+    pgm_cols_rows: [129, 135, 6, 182]
+    sim_bounds_xy_m: [1.200, 1.270, 0.670, 2.400]
+    v6_bounds_xy_m: [-0.200, -0.130, -0.926, 0.794]
+    gate_opening_sim_y_m: [0.000, 0.670]
+  warehouse_station_block:
+    pgm_cols_rows: [218, 262, 35, 140]
+    sim_bounds_xy_m: [2.090, 2.540, 1.040, 2.100]
+    v6_bounds_xy_m: [0.690, 1.140, -0.556, 0.504]
+    components:
+      - "OMX-1 Wooden Stand (250x200x85mm) @ Sim(2.20, 1.99)"
+      - "OMX-2 Wooden Stand (250x200x85mm) @ Sim(2.20, 1.42)"
+      - "1-Tier Box Rack A (230x150x200mm) @ Sim[2.27..2.50, 1.62..1.77]"
+      - "1-Tier Box Rack B (230x150x200mm) @ Sim[2.085..2.315, 1.04..1.19]"
+  store_unloading_block:
+    pgm_cols_rows: [9, 48, 46, 84]
+    sim_bounds_xy_m: [0.000, 0.400, 1.600, 1.990]
+    v6_bounds_xy_m: [-1.400, -1.000, 0.004, 0.394]
+    components:
+      - "OMX-3 Wooden Stand (250x200x85mm) @ Sim(0.21, 1.72)"
+      - "Store Unloading Table @ Sim[0.02..0.10, 1.60..1.99]"
+  store_counter_block:
+    pgm_cols_rows: [9, 30, 146, 244]
+    sim_bounds_xy_m: [0.000, 0.220, 0.000, 0.990]
+    v6_bounds_xy_m: [-1.400, -1.180, -1.596, -0.606]
+
+waypoints:
+  WP_HOME_1:
+    description: "Pinky 1 대기/충전 구역 (창고 상단 좌측, 중앙 가벽과 21cm 이격)"
+    sim_coords: {x: 1.480, y: 2.070, yaw_deg: 270.0}
+    v6_coords:  {x: 0.080, y: 0.474, yaw_rad: -1.571}
+    pgm_pixel:  {col: 157, row: 38, clearance_cm: 22.0}
+
+  WP_HOME_2:
+    description: "Pinky 2 대기/충전 구역 (창고 상단 중단, 중앙 가벽과 21cm 이격)"
+    sim_coords: {x: 1.480, y: 1.870, yaw_deg: 270.0}
+    v6_coords:  {x: 0.080, y: 0.274, yaw_rad: -1.571}
+    pgm_pixel:  {col: 157, row: 58, clearance_cm: 22.0}
+
+  WP_HOME_3:
+    description: "Pinky 3 대기/충전 구역 (창고 상단 하단, 중앙 가벽과 21cm 이격)"
+    sim_coords: {x: 1.480, y: 1.670, yaw_deg: 270.0}
+    v6_coords:  {x: 0.080, y: 0.074, yaw_rad: -1.571}
+    pgm_pixel:  {col: 157, row: 78, clearance_cm: 22.0}
+
+  WH1_DOCK:
+    description: "창고 1번 로봇팔(OMX-1) 상차 도킹 포인트"
+    sim_coords: {x: 1.730, y: 1.990, yaw_deg: 270.0}
+    v6_coords:  {x: 0.330, y: 0.394, yaw_rad: -1.571}
+    pgm_pixel:  {col: 182, row: 46, clearance_cm: 36.0}
+
+  WH2_DOCK:
+    description: "창고 2번 로봇팔(OMX-2) 상차 도킹 포인트"
+    sim_coords: {x: 1.730, y: 1.420, yaw_deg: 270.0}
+    v6_coords:  {x: 0.330, y: -0.176, yaw_rad: -1.571}
+    pgm_pixel:  {col: 182, row: 103, clearance_cm: 36.0}
+
+  GATE_WAREHOUSE:
+    description: "창고 → 매장 하단 게이트(67cm) 진입 대기점"
+    sim_coords: {x: 1.500, y: 0.335, yaw_deg: 180.0}
+    v6_coords:  {x: 0.100, y: -1.261, yaw_rad: 3.142}
+    pgm_pixel:  {col: 159, row: 211, clearance_cm: 33.5}
+
+  WP_GATE_TRANSIT:
+    description: "중앙 가벽 하단 67cm 게이트 통과 중심점"
+    sim_coords: {x: 1.235, y: 0.335, yaw_deg: 180.0}
+    v6_coords:  {x: -0.165, y: -1.261, yaw_rad: 3.142}
+    pgm_pixel:  {col: 132, row: 211, clearance_cm: 29.0}
+
+  GATE_STORE:
+    description: "게이트 통과 후 매장 진입 완료 지점"
+    sim_coords: {x: 0.950, y: 0.335, yaw_deg: 180.0}
+    v6_coords:  {x: -0.450, y: -1.261, yaw_rad: 3.142}
+    pgm_pixel:  {col: 104, row: 211, clearance_cm: 33.5}
+
+  STORE_DOCK:
+    description: "매장 3번 로봇팔(OMX-3) 하차 도킹 포인트"
+    sim_coords: {x: 0.565, y: 1.720, yaw_deg: 180.0}
+    v6_coords:  {x: -0.835, y: 0.124, yaw_rad: 3.142}
+    pgm_pixel:  {col: 65, row: 73, clearance_cm: 17.0}

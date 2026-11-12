@@ -1,0 +1,16 @@
+<launch>
+  <arg name="params_file" default="$(find-pkg-share cobot_amcl_corrector)/config/amcl_corrector_params.yaml"/>
+  <arg name="frame_mode" default="identity"/>
+  <arg name="enable_http" default="true"/>
+  <arg name="http_port" default="8785"/>
+
+  <!-- 중앙 관제/시뮬레이션 도메인(ROS_DOMAIN_ID=100)에서 구동 -->
+  <set_env name="ROS_DOMAIN_ID" value="100"/>
+
+  <node pkg="cobot_amcl_corrector" exec="amcl_corrector_node" name="amcl_corrector_node" output="screen">
+    <param from="$(var params_file)"/>
+    <param name="frame_mode" value="$(var frame_mode)"/>
+    <param name="enable_http" value="$(var enable_http)"/>
+    <param name="http_port" value="$(var http_port)"/>
+  </node>
+</launch>

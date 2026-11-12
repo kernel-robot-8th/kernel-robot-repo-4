@@ -69,7 +69,13 @@ export default function FeedbackPanel() {
 
   // Fetch feedback from server flat-file
   const fetchServerFeedback = useCallback(async () => {
-    if (typeof window === "undefined" || !window.location || !window.location.host || window.location.protocol === "file:") {
+    if (
+      import.meta.env?.MODE === "test" ||
+      typeof window === "undefined" ||
+      !window.location ||
+      !window.location.host ||
+      window.location.protocol === "file:"
+    ) {
       return;
     }
     setIsSyncing(true);

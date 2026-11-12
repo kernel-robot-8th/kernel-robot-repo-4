@@ -1,0 +1,19 @@
+<launch>
+  <arg name="console_host" default="127.0.0.1"/>
+  <arg name="mode" default="OBSERVE_ONLY"/>
+  <arg name="manual_adapter" default="true"/>
+  <arg name="camera_policy" default="field"/>
+  <!-- 켜면 콘솔이 관제에 명령을 요청한다. 시뮬에서만 켠다. 메뉴 6.5에는 실물 명령 경로가 없다. -->
+  <arg name="console_commands" default="false"/>
+  <arg name="db_path" default="~/.cobot/anomaly_monitor.sqlite3"/>
+  <!-- 관제와 같은 ROS 도메인 100에서 실행한다. -->
+  <node pkg="cobot_anomaly_monitor" exec="monitor_node" name="anomaly_monitor" output="screen">
+    <param from="$(find-pkg-share cobot_anomaly_monitor)/config/anomaly_monitor.yaml"/>
+    <param name="console_host" value="$(var console_host)" type="str"/>
+    <param name="cctv_control_mode" value="$(var mode)" type="str"/>
+    <param name="manual_adapter" value="$(var manual_adapter)" type="bool"/>
+    <param name="camera_policy" value="$(var camera_policy)" type="str"/>
+    <param name="console_commands" value="$(var console_commands)" type="bool"/>
+    <param name="db_path" value="$(var db_path)" type="str"/>
+  </node>
+</launch>

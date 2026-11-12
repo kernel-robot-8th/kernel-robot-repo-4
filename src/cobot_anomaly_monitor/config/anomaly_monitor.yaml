@@ -1,0 +1,14 @@
+anomaly_monitor:
+  ros__parameters:
+    robot_ids: [pinky1, pinky2, pinky3]
+    db_path: ~/.cobot/anomaly_monitor.sqlite3   # 관제 DB와 다른 파일
+    cctv_control_mode: OBSERVE_ONLY             # AUTO_HOLD는 웹에서 켠다
+    console_host: 127.0.0.1                     # fms-web-server에서 부르면 172.17.0.1
+    console_port: 8083
+    # 시뮬 어댑터와 같은 도메인에서 동시에 쓰지 않는다
+    manual_adapter: true
+    manual_targets: [vision, navigation, omx1, omx2, omx3]
+    allow_mock_events: true
+    console_commands: false                     # 콘솔 명령. 시뮬에서만 켠다
+    camera_policy: field                        # field는 sim_ 카메라 거절, sim은 sim_만 수신
+    event_topic: /anomaly_monitor/vision_event

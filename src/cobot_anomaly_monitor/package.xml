@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>cobot_anomaly_monitor</name>
+  <version>0.1.0</version>
+  <description>중앙 시나리오 상태를 기록하고 CCTV 이상을 판정하는 중계 장비용 패키지</description>
+  <maintainer email="rkd1rjs2@gmail.com">강건한</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>cobot_amcl_corrector</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>cobot_pinky_patrol</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>cobot_fleet_control</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

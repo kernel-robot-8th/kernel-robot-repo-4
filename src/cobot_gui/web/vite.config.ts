@@ -113,6 +113,21 @@ function feedbackApiPlugin() {
   }
 }
 
+// 메뉴 6.5 콘솔은 중계 장비 monitor_node 로 보낸다. 컨테이너 안의 127.0.0.1 은 호스트가 아니라서
+// fms-web-server 에서는 docker0 게이트웨이를 쓴다. 그때 monitor_node 는 console_host:=172.17.0.1 로 띄운다.
+const monitorUrl =
+  process.env.VITE_ANOMALY_MONITOR_URL ??
+  (fs.existsSync('/.dockerenv') ? 'http://172.17.0.1:8083' : 'http://127.0.0.1:8083')
+
+// 자원 모니터링 메뉴는 중계 장비의 자원 수집기(:8084)로 보낸다. 주소 규칙은 monitorUrl 과 같다.
+const resourceUrl =
+  process.env.VITE_RESOURCE_MONITOR_URL ??
+  (fs.existsSync('/.dockerenv') ? 'http://172.17.0.1:8084' : 'http://127.0.0.1:8084')
+
+// 맵 실시간 화면은 중계 장비 영상 뷰어의 웹 창구(:8893, 읽기 전용, 맵 영역으로 자른 카메라만)로 보낸다.
+// 창구는 docker0 게이트웨이에만 열려 있어서 컨테이너 밖 개발 서버에서는 닿지 않는다.
+const mapViewUrl = process.env.VITE_MAP_VIEW_URL ?? 'http://172.17.0.1:8893'
+
 // 개발 서버의 /api 는 게이트웨이(S2)로 넘긴다. 게이트웨이가 없으면 VITE_DATA=mock (기본) 으로 쓴다.
 export default defineConfig({
   plugins: [react(), tailwindcss(), feedbackApiPlugin()],
@@ -123,6 +138,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '^/api/fms/(live_state|control|mode|work|anomalies|orders)': monitorUrl,
+      '^/api/resources': resourceUrl,
+      '^/api/mapview/': { target: mapViewUrl, rewrite: (path: string) => path.replace(/^\/api\/mapview/, '') },
       '^/api/(?!feedback).*': process.env.VITE_GATEWAY_URL ?? 'http://127.0.0.1:8080',
     },
   },

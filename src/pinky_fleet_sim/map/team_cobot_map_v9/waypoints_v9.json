@@ -1,0 +1,460 @@
+{
+ "schema": "cobot_v9 waypoints transcribed from the team files (read-only); v9 = team map frame, sim = v9 + sim_from_v9_offset_xy_m (derived from the PGM inner walls)",
+ "source": {
+  "repo": "kernel-robot-repo-4",
+  "branch": "feature/navigation",
+  "commit": "1a97ba4cc91afd4f218a2c56804521337a986ca5",
+  "values_last_changed_in": "fe06696fd7acb6c21ed8cf1d52468fe3bb9bdee5 (2026-10-28 17:53 +0900, fix(navigation): 실측 좌표 반영 (P1~P10, 구역 EXIT, 대기 앵커) 및 pinky2 EXIT 정렬)",
+  "files": {
+   "pinky1.yaml": {
+    "path": "src/cobot_navigation/cobot_pinky_patrol/config/pinky1.yaml",
+    "blob": "7c63e06c74b29e63c7b497af31ac96ce4063671d",
+    "sha256": "5a60642b2ecaa9de7800736676768c8d75e08d65f59a7b41e392c333b944ea71"
+   },
+   "pinky2.yaml": {
+    "path": "src/cobot_navigation/cobot_pinky_patrol/config/pinky2.yaml",
+    "blob": "35713db3b1b439730cd297b67942671d8bb10bf2",
+    "sha256": "d1ac03066ac9603dd21ae59dc3b4d4e1c860268314773205cd6dabebce4f1260"
+   },
+   "pinky3.yaml": {
+    "path": "src/cobot_navigation/cobot_pinky_patrol/config/pinky3.yaml",
+    "blob": "9503243728294fcda8ee81787d8ca4130735452f",
+    "sha256": "9a6057e45257d9809f97bda235e1c1d43993deed6300379853b2f7dcec913f07"
+   },
+   "zone_params.yaml": {
+    "path": "src/cobot_navigation/cobot_zone_traffic_control/config/zone_params.yaml",
+    "blob": "f801cd865d0e5d77d43115ea2f7c17b1c94aaf35",
+    "sha256": "020fd9d0ef4a29ba555da48712e4ebc3610c7347c8712570ca1135a7cf87d58e"
+   }
+  }
+ },
+ "sim_from_v9_offset_xy_m": [
+  1.372,
+  1.579
+ ],
+ "yaw_unit": "rad (team value; 1.5 is the team rounding of pi/2 and 3.14 of pi, not changed here)",
+ "points": {
+  "I1": {
+   "v9": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sim": [
+    1.372,
+    1.579,
+    0.0
+   ],
+   "role": "pinky1 home",
+   "team_file": "pinky1.yaml",
+   "team_line": "I1: [0.0, 0.0, 0.0]        # pinky1 홈 (초기 위치, 사용 중)"
+  },
+  "I2": {
+   "v9": [
+    0.0,
+    -0.2,
+    0.0
+   ],
+   "sim": [
+    1.372,
+    1.379,
+    0.0
+   ],
+   "role": "pinky2 home",
+   "team_file": "pinky2.yaml",
+   "team_line": "I2: [0.0, -0.2, 0.0]       # pinky2 홈 (참고용, pinky2.yaml 에서 사용)"
+  },
+  "I3": {
+   "v9": [
+    0.0,
+    -0.4,
+    0.0
+   ],
+   "sim": [
+    1.372,
+    1.179,
+    0.0
+   ],
+   "role": "pinky3 home",
+   "team_file": "pinky3.yaml",
+   "team_line": "I3: [0.0, -0.4, 0.0]       # pinky3 홈 (참고용, pinky3.yaml 에서 사용)"
+  },
+  "ZA": {
+   "v9": [
+    0.6,
+    0.5,
+    -1.5
+   ],
+   "sim": [
+    1.972,
+    2.079,
+    -1.5
+   ],
+   "role": "zone A dock (pinky1~3 identical)",
+   "team_file": "pinky1.yaml",
+   "team_line": "ZA: [0.6, 0.5, -1.5]       # 구역 A 지점 (pinky1~3 동일)"
+  },
+  "ZB": {
+   "v9": [
+    0.6,
+    -0.15,
+    -1.5
+   ],
+   "sim": [
+    1.972,
+    1.429,
+    -1.5
+   ],
+   "role": "zone B dock",
+   "team_file": "pinky1.yaml",
+   "team_line": "ZB: [0.6, -0.15, -1.5]     # 구역 B 지점 (pinky1~3 동일)"
+  },
+  "ZC": {
+   "v9": [
+    -0.5,
+    0.3,
+    1.5
+   ],
+   "sim": [
+    0.872,
+    1.879,
+    1.5
+   ],
+   "role": "zone C dock",
+   "team_file": "pinky1.yaml",
+   "team_line": "ZC: [-0.5, 0.3, 1.5]       # 구역 C 지점 (pinky1~3 동일)"
+  },
+  "ZA_EXIT": {
+   "v9": [
+    0.45,
+    0.2,
+    -1.5
+   ],
+   "sim": [
+    1.822,
+    1.779,
+    -1.5
+   ],
+   "role": "zone A exit",
+   "team_file": "pinky1.yaml",
+   "team_line": "ZA_EXIT: [0.45, 0.2, -1.5]"
+  },
+  "ZB_EXIT": {
+   "v9": [
+    0.45,
+    0.45,
+    -1.5
+   ],
+   "sim": [
+    1.822,
+    2.029,
+    -1.5
+   ],
+   "role": "zone B exit",
+   "team_file": "pinky1.yaml",
+   "team_line": "ZB_EXIT: [0.45, 0.45, -1.5]"
+  },
+  "ZC_EXIT": {
+   "v9": [
+    -0.2,
+    -0.4,
+    1.5
+   ],
+   "sim": [
+    1.172,
+    1.179,
+    1.5
+   ],
+   "role": "zone C exit",
+   "team_file": "pinky1.yaml",
+   "team_line": "ZC_EXIT: [-0.2, -0.4, 1.5]"
+  },
+  "P1": {
+   "v9": [
+    0.17,
+    -0.6,
+    0.0
+   ],
+   "sim": [
+    1.542,
+    0.979,
+    0.0
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P1: [0.17, -0.6, 0.0]      # waypoint 실측 값"
+  },
+  "P2": {
+   "v9": [
+    0.45,
+    -0.6,
+    -1.5
+   ],
+   "sim": [
+    1.822,
+    0.979,
+    -1.5
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P2: [0.45, -0.6, -1.5]     # waypoint 실측 값"
+  },
+  "P3": {
+   "v9": [
+    0.8,
+    -1.0,
+    3.14
+   ],
+   "sim": [
+    2.172,
+    0.579,
+    3.14
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P3: [0.8, -1.0, 3.14]      # waypoint 실측 값"
+  },
+  "P4": {
+   "v9": [
+    0.2,
+    -1.0,
+    -1.5
+   ],
+   "sim": [
+    1.572,
+    0.579,
+    -1.5
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P4: [0.2, -1.0, -1.5]      # waypoint 실측 값"
+  },
+  "P5": {
+   "v9": [
+    -0.25,
+    -1.28,
+    3.14
+   ],
+   "sim": [
+    1.122,
+    0.299,
+    3.14
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P5: [-0.25, -1.28, 3.14]   # waypoint 실측 값"
+  },
+  "P6": {
+   "v9": [
+    -0.25,
+    -1.45,
+    0.0
+   ],
+   "sim": [
+    1.122,
+    0.129,
+    0.0
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P6: [-0.25, -1.45, 0.0]    # waypoint 실측 값"
+  },
+  "P7": {
+   "v9": [
+    0.77,
+    -1.45,
+    1.5
+   ],
+   "sim": [
+    2.142,
+    0.129,
+    1.5
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P7: [0.77, -1.45, 1.5]     # waypoint 실측 값"
+  },
+  "P8": {
+   "v9": [
+    0.95,
+    -1.14,
+    1.5
+   ],
+   "sim": [
+    2.322,
+    0.439,
+    1.5
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P8: [0.95, -1.14, 1.5]     # waypoint 실측 값"
+  },
+  "P9": {
+   "v9": [
+    0.9,
+    -0.65,
+    3.14
+   ],
+   "sim": [
+    2.272,
+    0.929,
+    3.14
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P9: [0.9, -0.65, 3.14]     # waypoint 실측 값"
+  },
+  "P10": {
+   "v9": [
+    0.17,
+    -0.6,
+    0.0
+   ],
+   "sim": [
+    1.542,
+    0.979,
+    0.0
+   ],
+   "role": "general point (outside every zone; goto only, no token)",
+   "team_file": "pinky1.yaml",
+   "team_line": "P10: [0.17, -0.6, 0.0]     # waypoint 실측 값"
+  }
+ },
+ "queues": {
+  "queue_spacing": 0.3,
+  "queue_max": 3,
+  "zones": {
+   "A": {
+    "queue_anchor": [
+     0.15,
+     0.5,
+     0.0
+    ],
+    "queue_back_dir": [
+     0.0,
+     -1.0
+    ],
+    "team_lines": [
+     "queue_anchor: [0.15, 0.5, 0.0]",
+     "queue_back_dir: [0.0, -1.0]"
+    ]
+   },
+   "B": {
+    "queue_anchor": [
+     0.15,
+     0.5,
+     0.0
+    ],
+    "queue_back_dir": [
+     0.0,
+     -1.0
+    ],
+    "team_lines": [
+     "queue_anchor: [0.15, 0.5, 0.0]",
+     "queue_back_dir: [0.0, -1.0]"
+    ]
+   },
+   "C": {
+    "queue_anchor": [
+     -0.2,
+     0.45,
+     1.5
+    ],
+    "queue_back_dir": [
+     0.0,
+     -1.0
+    ],
+    "team_lines": [
+     "queue_anchor: [-0.2, 0.45, 1.5]",
+     "queue_back_dir: [0.0, -1.0]"
+    ]
+   }
+  },
+  "slot_rule": "slot k = queue_anchor[:2] + k * queue_spacing * unit(queue_back_dir), yaw = queue_anchor[2], k = 0..queue_max-1 (zone_params.yaml comment)"
+ },
+ "general_points": {
+  "P1..P10": "measured by the team (\"# waypoint 실측 값\" on every line); outside every zone (README: \"P1~P10 은 모두 구역 밖 일반 지점\"); reached only by goto:<P>[,<P>...] in the given order, with no token (pinky_patrol_node: goto_allowed = general points + own home - zone points)",
+  "P10_equals_P1": true,
+  "no_fixed_loop": "the team code has no fixed patrol loop: start (full loop) is disabled in v1.1.0 (README: \"start(전체 순회)는 v1.1.0 에서 비활성\"); the numbering P1..P10 with P10 = P1 and each yaw facing the next point is read here as a loop P1 -> ... -> P10 [inferred]"
+ },
+ "not_in_team_files": "arm bases, stand / rack positions and marker positions in the v9 frame (only block outlines exist in the map) -> [ASM], measure at P0",
+ "previous": {
+  "commit": "79dbc38fa7b9b956e2fe60800357e98fb085a785",
+  "note": "transcription of 2026-10-28 (team commit 2026-10-27 21:50 +0900); values that differ from the commit above",
+  "files": {
+   "pinky1.yaml": {
+    "blob": "53af881005bd282a69b0e48809f542b06848e5a0",
+    "sha256": "9da2da98c9af464539c16131fa326e7da78c91061067468f28c98e90fb9a83cc"
+   },
+   "pinky2.yaml": {
+    "blob": "702a5aecc870a16df6c15476d8139a0a4d8a4079",
+    "sha256": "b4058c64613feab47c3f65b32b1542bab1614d4da7394832406f147809afad3d"
+   },
+   "pinky3.yaml": {
+    "blob": "5e96b8559783f97cfec78591b5db0b6e5ee7b566",
+    "sha256": "e30517ea21eace3f5a447dbdb713504920ab20b76c9d43512fd64e24b0882b9a"
+   },
+   "zone_params.yaml": {
+    "blob": "871e5600a326098ab97bbbc4270e0573357ecc18",
+    "sha256": "3a10105639226b44b941d2a4b7f272bfd5cdd78e126f82635dca33692e15ecec"
+   }
+  },
+  "points_v9": {
+   "ZA_EXIT": {
+    "previous_v9": [
+     0.5,
+     0.0,
+     -1.5
+    ],
+    "now_v9": [
+     0.45,
+     0.2,
+     -1.5
+    ]
+   },
+   "ZB_EXIT": {
+    "previous_v9": [
+     0.55,
+     -0.6,
+     -1.5
+    ],
+    "now_v9": [
+     0.45,
+     0.45,
+     -1.5
+    ]
+   },
+   "ZC_EXIT": {
+    "previous_v9": [
+     -0.3,
+     -0.4,
+     1.5
+    ],
+    "now_v9": [
+     -0.2,
+     -0.4,
+     1.5
+    ]
+   }
+  },
+  "P1..P10": "[0.0, 0.0, 0.0] in all three files (empty placeholders, \"실측 후 갱신\"); not evaluated then",
+  "queue_anchors": {
+   "A": [
+    0.1,
+    0.6,
+    0.0
+   ],
+   "B": [
+    0.1,
+    0.6,
+    0.0
+   ],
+   "C": [
+    -0.7,
+    -0.08,
+    1.5
+   ]
+  },
+  "queue_back_dir_spacing_max": "unchanged ([0.0, -1.0], 0.3, 3)"
+ }
+}

@@ -129,12 +129,13 @@ def test_zone_settings_are_shared_by_all_robots(n):
 
 def test_manager_anchors_are_apart_from_zone_points():
     """대기 앵커가 그 구역 소속 지점과 같은 좌표면 대기자가 점유자 자리로 간다 -> 분리되어 있어야 한다.
-    A·B 앵커는 (0.15, 0.5, 0.0) 으로 같고 C 는 (-0.2, 0.45, 1.5) 이다 (사용자 지정 2026-10-28)."""
+    A(0.15, 0.5)와 B(0.35, -0.2)는 상호 충돌 방지를 위해 분리되어 있고 C는 (-0.35, 0.0, 1.5)이다."""
     pts, _, _, zone_points = load_cfg(1)
     mgr = manager_params()
     assert mgr['zone_A']['queue_anchor'] == pytest.approx([0.15, 0.5, 0.0])
-    assert mgr['zone_B']['queue_anchor'] == pytest.approx([0.15, 0.5, 0.0])
-    assert mgr['zone_C']['queue_anchor'] == pytest.approx([-0.2, 0.45, 1.5])
+    assert mgr['zone_B']['queue_anchor'] == pytest.approx([0.35, -0.2, 0.0])
+    assert mgr['zone_C']['queue_anchor'] == pytest.approx([-0.35, 0.0, 1.5])
+    assert mgr['zone_A']['queue_anchor'][:2] != mgr['zone_B']['queue_anchor'][:2]
     for zone, members in zone_points.items():
         for m in members:
             assert tuple(mgr[f'zone_{zone}']['queue_anchor'][:2]) != tuple(pts[m][:2]), (zone, m)

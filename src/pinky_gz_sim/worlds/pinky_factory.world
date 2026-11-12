@@ -1,0 +1,338 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="pinky_factory">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin
+      filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands">
+    </plugin>
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+        name="gz::sim::systems::Imu">
+    </plugin>
+    
+    <!-- Sun Light -->
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 2 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.6 0.6 0.6 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>1</constant>
+        <linear>0</linear>
+        <quadratic>0</quadratic>
+      </attenuation>
+      <direction>0 0 -1</direction>
+    </light>
+    
+    <!-- Floor Plane (2.70m x 1.25m) -->
+    <model name="floor">
+      <pose>0 0 0 0 0 0</pose>
+      <static>true</static>
+      <link name="floor_link">
+        <visual name="floor_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>2.70 1.25</size>
+            </plane>
+          </geometry>
+          <material>
+            <diffuse>0.92 0.92 0.94 1</diffuse>
+            <specular>0.3 0.3 0.3 1</specular>
+          </material>
+        </visual>
+        <collision name="floor_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>2.70 1.25</size>
+            </plane>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_without_contact>true</collide_without_contact>
+            </contact>
+          </surface>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Outer Perimeter Walls (2.70m x 1.25m x 0.44m) -->
+    <model name="wall_front">
+      <static>true</static>
+      <pose>0 0.625 0.22 0 0 0</pose>
+      <link name="wall_link_front">
+        <visual name="wall_visual_front">
+          <geometry>
+            <box>
+              <size>2.70 0.02 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.32 0.35 0.40 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+        <collision name="wall_collision_front">
+          <geometry>
+            <box>
+              <size>2.70 0.02 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="wall_back">
+      <static>true</static>
+      <pose>0 -0.625 0.22 0 0 0</pose>
+      <link name="wall_link_back">
+        <visual name="wall_visual_back">
+          <geometry>
+            <box>
+              <size>2.70 0.02 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.32 0.35 0.40 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+        <collision name="wall_collision_back">
+          <geometry>
+            <box>
+              <size>2.70 0.02 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="wall_left">
+      <static>true</static>
+      <pose>-1.35 0 0.22 0 0 0</pose>
+      <link name="wall_link_left">
+        <visual name="wall_visual_left">
+          <geometry>
+            <box>
+              <size>0.02 1.25 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.32 0.35 0.40 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+        <collision name="wall_collision_left">
+          <geometry>
+            <box>
+              <size>0.02 1.25 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="wall_right">
+      <static>true</static>
+      <pose>1.35 0 0.22 0 0 0</pose>
+      <link name="wall_link_right">
+        <visual name="wall_visual_right">
+          <geometry>
+            <box>
+              <size>0.02 1.25 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.32 0.35 0.40 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+        <collision name="wall_collision_right">
+          <geometry>
+            <box>
+              <size>0.02 1.25 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- 1. Bedroom Upper Partition Wall (above door): x=-0.38, y in [0.34, 0.625] -->
+    <model name="bedroom_upper_wall">
+      <static>true</static>
+      <pose>-0.38 0.4825 0.22 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.04 0.285 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.35 0.40 0.45 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.04 0.285 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <!-- Note: Bedroom doorway is open between y=0.08 and y=0.34 (width = 0.26m) -->
+
+    <!-- 2. Central Void Solid Block (black filled box drawn by user): x in [-0.38, 0.08], y in [-0.625, 0.08] -->
+    <model name="central_void_block">
+      <static>true</static>
+      <pose>-0.15 -0.2725 0.22 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.46 0.705 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.05 0.05 0.07 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.46 0.705 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- 3. Right Vertical Partition Wall (drawn by user between Dining and Kitchen): x=0.72, y in [-0.625, 0.00] -->
+    <model name="kitchen_dividing_wall">
+      <static>true</static>
+      <pose>0.72 -0.3125 0.22 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.04 0.625 0.44</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.05 0.05 0.07 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.04 0.625 0.44</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <!-- Note: Passage into Kitchen is open above y=0.00 (width = 0.625m) -->
+
+    <!-- Roborock Charging Dock Station (at top wall, exactly matching image dock) -->
+    <model name="roborock_dock">
+      <static>true</static>
+      <pose>-0.04 0.58 0.09 0 0 0</pose>
+      <link name="dock_link">
+        <visual name="dock_base_visual">
+          <geometry>
+            <box>
+              <size>0.22 0.09 0.18</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.15 0.18 0.22 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+        <visual name="dock_accent_visual">
+          <pose>0 -0.04 0.02 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.16 0.02 0.04</size>
+            </box>
+          </geometry>
+          <material>
+            <diffuse>0.2 0.8 0.4 1</diffuse>
+            <emissive>0.1 0.5 0.2 1</emissive>
+          </material>
+        </visual>
+        <collision name="dock_collision">
+          <geometry>
+            <box>
+              <size>0.22 0.09 0.18</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Overhead Gazebo Monitoring Camera -->
+    <model name="camera">
+      <static>true</static>
+      <pose>0 0 1.65 0 1.570796 1.570796</pose>
+      <link name="link">
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia>
+            <ixx>0.000166667</ixx>
+            <iyy>0.000166667</iyy>
+            <izz>0.000166667</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 0.1 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+        <sensor name="camera" type="camera">
+          <camera>
+            <horizontal_fov>2.094</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>100</far>
+            </clip>
+          </camera>
+          <always_on>1</always_on>
+          <update_rate>30</update_rate>
+          <visualize>true</visualize>
+          <topic>camera</topic>
+        </sensor>
+      </link>
+    </model>
+  </world>
+</sdf>
