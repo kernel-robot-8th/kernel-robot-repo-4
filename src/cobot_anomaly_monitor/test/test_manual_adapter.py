@@ -104,6 +104,23 @@ def test_dock_is_refused_without_a_pose_and_stays_pending(fx):
     assert fx.results == [] and state_of(fx, request) == 'PENDING'
 
 
+def test_dock_without_odom_is_not_reported_stopped(fx):
+    fx.state['speed_mps'] = None
+    request = fx.request('DOCK_PICKUP')
+    fx.adapter.on_request(request)
+    assert fx.adapter.approve(request['request_id'], 'kgh')['data']['stopped'] is False
+
+
+def test_expired_request_does_not_advance_the_sequence(fx):
+    assert fx.adapter.on_request(fx.request())
+    late = fx.request(seq=5, issued_at=fx.now - 6.0)
+    assert not fx.adapter.on_request(late)
+    assert state_of(fx, late) == 'EXPIRED'
+    fresh = fx.request(seq=3)
+    assert fx.adapter.on_request(fresh)
+    assert state_of(fx, fresh) == 'PENDING'
+
+
 def test_dock_is_refused_while_moving(fx):
     fx.state['speed_mps'] = 0.2
     request = fx.request('DOCK_PICKUP')

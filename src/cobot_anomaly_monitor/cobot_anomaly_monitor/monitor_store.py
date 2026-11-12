@@ -44,10 +44,33 @@ CREATE TABLE IF NOT EXISTS cctv_anomaly_events (
     ack_state TEXT NOT NULL DEFAULT 'UNREAD', resolved_by TEXT NOT NULL DEFAULT '',
     resolved_note TEXT NOT NULL DEFAULT '', resolved_at REAL
 );
+CREATE TABLE IF NOT EXISTS trace_orders (
+    order_id TEXT PRIMARY KEY, snapshot TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS trace_attempts (
+    request_id TEXT PRIMARY KEY, order_id TEXT NOT NULL, stage TEXT NOT NULL,
+    robot_id TEXT, attempt INTEGER, first_seen REAL NOT NULL, task TEXT
+);
+CREATE INDEX IF NOT EXISTS trace_attempt_order ON trace_attempts(order_id, first_seen);
+CREATE TABLE IF NOT EXISTS trace_robot_reports (
+    robot_id TEXT NOT NULL, command_id TEXT NOT NULL, observation TEXT NOT NULL,
+    PRIMARY KEY(robot_id, command_id)
+);
+CREATE TABLE IF NOT EXISTS trace_work_wire (
+    order_id TEXT NOT NULL, request_id TEXT NOT NULL, kind TEXT NOT NULL,
+    at REAL NOT NULL, payload TEXT NOT NULL, UNIQUE(order_id, request_id, kind, payload)
+);
+CREATE INDEX IF NOT EXISTS trace_wire_order ON trace_work_wire(order_id);
+CREATE TABLE IF NOT EXISTS trace_terminal_resources (
+    order_id TEXT PRIMARY KEY, recorded_at REAL NOT NULL, event_id INTEGER NOT NULL,
+    job_state TEXT NOT NULL, resources TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS manual_work (
     request_id TEXT PRIMARY KEY, state TEXT NOT NULL, request_json TEXT NOT NULL,
     result_json TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, updated_at REAL NOT NULL
 );
+CREATE INDEX IF NOT EXISTS manual_work_order ON manual_work(json_extract(request_json,'$.order_id'))
+    WHERE json_valid(request_json);
 """
 
 
@@ -163,6 +186,144 @@ class MonitorStore:
         """상태가 같은 수동 작업 요청을 접수 순서로 읽는다."""
         return self._rows('SELECT * FROM manual_work WHERE state=? ORDER BY created_at', state)
 
+    def works_for_order(self, order_id):
+        return self._rows(
+            "SELECT * FROM manual_work WHERE json_valid(request_json) "
+            "AND json_extract(request_json,'$.order_id')=? "
+            "ORDER BY created_at, rowid", order_id)
+
+    def order_work_history(self, order_id):
+        history = []
+        for row in self.works_for_order(order_id):
+            item = dict(json.loads(row['request_json']), state=row['state'],
+                        created_at=row['created_at'], updated_at=row['updated_at'],
+                        result=json.loads(row['result_json']) if row['result_json'] else {})
+            history.append(item)
+        return history
+
+    def observe_work(self, kind, message, at):
+        if not all(isinstance(message.get(key), str) and message[key]
+                   for key in ('order_id', 'request_id', 'stage')):
+            return
+        self._write('INSERT OR IGNORE INTO trace_work_wire VALUES (?,?,?,?,?)',
+                    message['order_id'], message['request_id'], kind, at,
+                    json.dumps(message, sort_keys=True, ensure_ascii=False))
+
+    def record_control(self, kind, order_id, request_id, payload, at):
+        self._write('INSERT OR IGNORE INTO trace_work_wire VALUES (?,?,?,?,?)',
+                    order_id, request_id, kind, at, json.dumps(payload, ensure_ascii=False))
+
+    def wire_page(self, order_id, after):
+        """주문별 수신 원문을 rowid 커서 순으로 조회한다. 페이지당 최대 50건."""
+        rows = self._rows(
+            'SELECT rowid AS id, at, kind, request_id, payload FROM trace_work_wire '
+            'WHERE order_id=? AND rowid>? ORDER BY rowid LIMIT 51', order_id, after)
+        page = rows[:50]
+        for row in page:
+            row['payload'] = json.loads(row['payload'])
+        return {'order_id': order_id, 'events': page,
+                'next_cursor': page[-1]['id'] if len(rows) > 50 else None}
+
+    def observed_work(self, order_id, known_requests=()):
+        rows = self._rows("SELECT * FROM trace_work_wire WHERE order_id=? AND kind IN ('request','result') ORDER BY at,rowid", order_id)
+        requests = {r['request_id']: dict(r) for r in known_requests}
+        results = {}
+        for row in rows:
+            msg = json.loads(row['payload'])
+            rid = row['request_id']
+            if row['kind'] == 'request':
+                request = requests.setdefault(rid, {})
+                if 'wire_observed_at' not in request:
+                    request.update(msg, wire_observed_at=row['at'])
+                    request.setdefault('created_at', row['at'])
+            else:
+                results.setdefault(rid, []).append(dict(at=row['at'], payload=msg))
+        for rid, request in requests.items():
+            request['wire_results'] = results.pop(rid, [])
+        return list(requests.values()), [event for group in results.values() for event in group]
+
+    def record_terminal_resources(self, event):
+        resources = event.get('resources')
+        if (event.get('job_state') not in ('COMPLETED', 'FAILED')
+                or not isinstance(event.get('order_id'), str)
+                or type(event.get('event_id')) is not int
+                or type(event.get('recorded_at')) not in (int, float)
+                or not isinstance(resources, list) or not all(isinstance(r, str) for r in resources)):
+            return
+        self._write(
+            'INSERT INTO trace_terminal_resources VALUES (?,?,?,?,?) ON CONFLICT(order_id) '
+            'DO UPDATE SET recorded_at=excluded.recorded_at,event_id=excluded.event_id,'
+            'job_state=excluded.job_state,resources=excluded.resources '
+            'WHERE (excluded.recorded_at,excluded.event_id) > (recorded_at,event_id)',
+            event['order_id'], event['recorded_at'], event['event_id'], event['job_state'],
+            json.dumps(resources, ensure_ascii=False))
+
+    def terminal_resources(self, order_id):
+        rows = self._rows('SELECT * FROM trace_terminal_resources WHERE order_id=?', order_id)
+        if rows:
+            rows[0]['resources'] = json.loads(rows[0]['resources'])
+            return rows[0]
+
+    def record_trace_snapshot(self, orders, tasks, at, statuses, seen):
+        with self.db:
+            for order in orders:
+                oid = order['order_id']
+                self.db.execute(
+                    'INSERT INTO trace_orders VALUES (?,?) ON CONFLICT(order_id) DO UPDATE '
+                    'SET snapshot=excluded.snapshot WHERE snapshot!=excluded.snapshot',
+                    (oid, json.dumps(order, ensure_ascii=False)))
+                if order.get('request_id') and order.get('stage'):
+                    self.db.execute(
+                        'INSERT OR IGNORE INTO trace_attempts VALUES (?,?,?,?,?,?,NULL)',
+                        (order['request_id'], oid, order['stage'], order.get('robot_id'),
+                         order.get('attempt'), at))
+            for task in tasks:
+                # 구역/정지는 동시점의 관측이다. 명령 수신 확인으로 취급하지 않는다.
+                robot = task.get('robot_id')
+                sample = statuses.get(robot, {})
+                ts = seen.get(robot, {}).get('patrol_status')
+                saved = dict(task)
+                if (ts is not None and 0 <= at - ts <= 3
+                        and abs(ts - task.get('updated_at', 0)) <= 3):
+                    saved['robot_at_observation'] = {
+                        k: sample[k] for k in ('held_zone', 'arrived_zone', 'state', 'central_latched')
+                        if k in sample}
+                payload = json.dumps(saved, ensure_ascii=False)
+                self.db.execute(
+                    'UPDATE trace_attempts SET task=? WHERE request_id=? AND robot_id=? '
+                    "AND task IS NOT ? AND (task IS NULL OR json_extract(task,'$.state') "
+                    "NOT IN ('SUCCEEDED','FAILED','UNKNOWN') OR json_extract(task,'$.state') != ?)",
+                    (payload, task.get('task_id'), robot, payload, task.get('state')))
+
+    def record_robot_report(self, robot, status):
+        cid = status.get('command_id')
+        if not isinstance(cid, str) or not cid:
+            return
+        row = self.db.execute('SELECT observation FROM trace_robot_reports WHERE robot_id=? '
+                              'AND command_id=?', (robot, cid)).fetchone()
+        report = json.loads(row[0]) if row else {}
+        for key in ('held_zone', 'arrived_zone'):
+            if status.get(key):
+                report[key] = status[key]
+        if status.get('task_finished') is True:
+            report.update(task_finished=True, terminal_state=status.get('state'))
+        report['last_state'] = status.get('state')
+        payload = json.dumps(report, ensure_ascii=False)
+        if not row or payload != row[0]:
+            self._write('INSERT OR REPLACE INTO trace_robot_reports VALUES (?,?,?)',
+                        robot, cid, payload)
+
+    def trace_order(self, order_id):
+        row = self.db.execute('SELECT snapshot FROM trace_orders WHERE order_id=?',
+                              (order_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def trace_attempts(self, order_id):
+        return self._rows(
+            'SELECT a.*, r.observation FROM trace_attempts a LEFT JOIN trace_robot_reports r '
+            'ON r.robot_id=a.robot_id AND r.command_id=a.request_id '
+            'WHERE a.order_id=? ORDER BY first_seen, a.rowid', order_id)
+
     def add_work(self, request_id, state, request, at):
         """요청 원문을 남긴다. 같은 request_id는 다시 받지 않는다."""
         self._write('INSERT OR IGNORE INTO manual_work (request_id, state, request_json, '
@@ -174,3 +335,12 @@ class MonitorStore:
         self._write('UPDATE manual_work SET state=?, result_json=?, updated_at=? '
                     'WHERE request_id=?', state, json.dumps(result, ensure_ascii=False), at,
                     request_id)
+
+    def claim_work(self, request_id, state, result, at):
+        """발행 전에 결정권을 한 번만 확보한다. 저장된 결과를 재시작 때 재발행하지 않는다."""
+        with self.db:
+            changed = self.db.execute(
+                "UPDATE manual_work SET state=?, result_json=?, updated_at=? "
+                "WHERE request_id=? AND state='PENDING'",
+                (state, json.dumps(result, ensure_ascii=False), at, request_id))
+            return changed.rowcount == 1

@@ -22,6 +22,7 @@ REPLY_LIMIT = 200
 LOG_LIMIT = 30
 TASK_LIMIT = 10
 CAMERA_POLICIES = ('field', 'sim')
+STILL_SPEED_MPS = 0.03  # manual_adapter.MOVING_SPEED_MPS 와 같은 정지 기준
 
 
 def step_code(step):
@@ -69,6 +70,10 @@ class MonitorCore:
         self.send, self.mode, self.clock = send, mode, clock
         self.status, self.pose, self.speed = {}, {}, {}
         self.orders, self.holds = {}, {}
+        self.stationary_pose = {}
+        self.still_since = {}  # 오도메트리 속도가 STILL_SPEED_MPS 이하로 이어진 시작 시각
+        self.battery = {}
+        self.busy_robots = set()
         self.armed, self.tasks_at = None, None
         self.steps = {row['mission_id']: row['current_step_seq'] for row in store.scenarios(500)}
         self.replies = OrderedDict()
@@ -76,6 +81,7 @@ class MonitorCore:
         self.trace = RouteTrace(points or {})
         self.zones, self.tasks, self.seen = {}, [], {}
         self.graph, self.ros = None, {}
+        self.diagnostics = None
         self.log = deque(maxlen=LOG_LIMIT)
         self.log_rows = {}
 
@@ -84,18 +90,33 @@ class MonitorCore:
 
     def on_status(self, robot, status):
         """순찰 상태를 받는다."""
+        previous = self.status.get(robot, {})
+        if (status.get('busy') is not False or status.get('boot_id') != previous.get('boot_id')
+                or self.clock() - self.seen.get(robot, {}).get('patrol_status', 0) > 3):
+            self.stationary_pose[robot] = False
+        self.store.record_robot_report(robot, status)
         self.status[robot] = status
         self._seen(robot, 'patrol_status')
 
+    def on_battery(self, robot, percent):
+        if 0 <= percent <= 100:
+            self.battery[robot] = percent
+            self._seen(robot, 'battery')
+
     def on_pose(self, robot, x, y, yaw):
         """amcl_pose를 받는다. 정지 중에는 발행이 멈추므로 시간으로 버리지 않는다."""
+        self.stationary_pose[robot] = self.status.get(robot, {}).get('busy') is False
         self.pose[robot] = (x, y, yaw)
         self.trace.update(robot, x, y)
         self._seen(robot, 'amcl_pose')
 
     def on_speed(self, robot, speed):
-        """오도메트리 속도를 받는다."""
+        """오도메트리 속도를 받는다. 멈춘 시간도 잰다(AMCL 은 정지 중 위치를 내지 않는다)."""
         self.speed[robot] = speed
+        if isinstance(speed, (int, float)) and math.isfinite(speed) and abs(speed) <= STILL_SPEED_MPS:
+            self.still_since.setdefault(robot, self.clock())
+        else:
+            self.still_since.pop(robot, None)
         self._seen(robot, 'odom')
 
     def on_zone_status(self, text):
@@ -108,8 +129,11 @@ class MonitorCore:
         """관제 스냅샷을 기록에 맞춘다."""
         self.armed, self.tasks_at = snapshot.get('armed'), self.clock()
         self.holds = snapshot.get('holds') or {}
-        self.tasks = (snapshot.get('tasks') or [])[:TASK_LIMIT]
+        tasks = snapshot.get('tasks') or []
+        self.busy_robots = {t.get('robot_id') for t in tasks if t.get('state') not in ('SUCCEEDED', 'FAILED')}
+        self.tasks = tasks[:TASK_LIMIT]
         self.orders = {order['order_id']: order for order in snapshot.get('orders', [])}
+        self.store.record_trace_snapshot(self.orders.values(), tasks, self.tasks_at, self.status, self.seen)
         for order in self.orders.values():
             self._sync_order(order)
         self.flush()
@@ -222,6 +246,8 @@ class MonitorCore:
             'cargo_state': cargo_of(order) if order else 'EMPTY',
             'zone': zone_of(status, order is not None), 'pose_x': pose[0], 'pose_y': pose[1],
             'pose_yaw': pose[2], 'speed_mps': speed, 'driving': driving_of(status),
+            'battery_percent': self.battery.get(robot),
+            'central_latched': (status or {}).get('central_latched'),
             'queue_wait': queue_wait_of(status, speed),
             'updated_at': self.clock(), 'op_state': op_state,
             'waypoint': str((status or {}).get('detail') or '')}
@@ -234,6 +260,11 @@ class MonitorCore:
         row = {'at': self.clock(), 'type': payload.get('type'),
                'robot_id': payload.get('robot_id'), 'operation': payload.get('operation'),
                'points': payload.get('points'), 'status': None, 'rtt_ms': None, 'detail': ''}
+        order_id = payload.get('order_id') or (payload['order'].get('order_id') if isinstance(payload.get('order'), dict) else None)
+        if isinstance(order_id, str) and order_id:
+            row['order_id'] = order_id
+            self.store.record_control('control_request', order_id, request_id,
+                                      dict(payload, request_id=request_id), row['at'])
         self.log.append(row)
         self.log_rows[request_id] = row
         self.send(dict(payload, request_id=request_id))
@@ -241,6 +272,9 @@ class MonitorCore:
 
     def on_task_event(self, event):
         """요청 응답을 보관하고 CCTV 조치 결과를 기록에 반영한다."""
+        if event.get('type') == 'scenario_bt_snapshot':
+            self.store.record_terminal_resources(event)
+            return
         if event.get('type') != 'reply' or not event.get('request_id'):
             return
         request_id = event['request_id']
@@ -256,8 +290,12 @@ class MonitorCore:
         row = self.log_rows.pop(request_id, None)
         if row:
             body = event.get('body') or {}
+            received = self.clock()
             row.update(status=event.get('status'), detail=body.get('detail', ''),
-                       rtt_ms=round((self.clock() - row['at']) * 1000.0, 1))
+                       rtt_ms=round((received - row['at']) * 1000.0, 1))
+            if row.get('order_id'):
+                self.store.record_control('control_reply', row['order_id'], request_id,
+                                          dict(event, rtt_ms=row['rtt_ms']), received)
         while len(self.log_rows) > REPLY_LIMIT:
             self.log_rows.pop(next(iter(self.log_rows)))
 
@@ -346,6 +384,25 @@ class MonitorCore:
         return {'robot_id': robot, 'status': {key: status.get(key) for key in STATUS_FIELDS},
                 'ages': ages, 'graph': graph, 'problems': ready_problems(robot, self.graph)}
 
+    def allocation_reasons(self, robot, now):
+        status = self.status.get(robot, {})
+        seen = self.seen.get(robot, {})
+        checks = [
+            (self.armed is True, '관제 비무장'),
+            (self.tasks_at is not None and now - self.tasks_at <= 3, '관제 스냅샷 만료'),
+            (robot not in self.holds, '보류'),
+            (not self._active_order(robot), '주문 예약'),
+            (robot not in self.busy_robots, '미종료 작업'),
+            (now - seen.get('patrol_status', float('-inf')) <= 3, '상태 만료'),
+            (now - seen.get('battery', float('-inf')) <= 10, '배터리 만료'),
+            (self.battery.get(robot, -1) >= 20, '배터리 20% 미만 또는 미수신'),
+            (status.get('state') in ('IDLE', 'DONE'), '대기 상태 아님'),
+            (status.get('central_controlled') is True, '중앙 제어 미확인'),
+            (status.get('central_latched') is not True, 'central_latched'),
+            (not status.get('held_zone'), '구역 점유'),
+        ]
+        return [reason for ok, reason in checks if not ok]
+
     def live(self):
         """웹 표시용 현재 상태를 만든다."""
         now = self.clock()
@@ -357,6 +414,8 @@ class MonitorCore:
                 row['recovery'] = 'resume' if row['current_stage'] in RESUMABLE_STAGES else 'fail'
             missions.append(row)
         return {'time': now, 'mode': self.mode, 'armed': self.armed, 'ros': self.ros,
+                'diagnostics': self.diagnostics, 'ready_graph': self.graph,
+                'allocation': {r: self.allocation_reasons(r, now) for r in self.robots},
                 'zones': zone_table(self.zones, self.status), 'tasks': self.tasks,
                 'log': list(reversed(self.log)), 'routes': self.trace.routes,
                 'links': [self._link(robot, now) for robot in self.robots],

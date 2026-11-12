@@ -5,6 +5,7 @@ import json
 import threading
 import time
 import uuid
+from urllib.parse import parse_qs, urlsplit
 
 BODY_LIMIT = 16384
 CONTROL_TYPES = ('arm', 'inventory', 'order', 'received', 'resolve', 'pause', 'estop',
@@ -18,9 +19,10 @@ class ConsoleApi:
     """요청 해석만 맡는다. 저장소와 ROS 접근은 run으로 실행기 스레드에 넘긴다."""
 
     def __init__(self, core, adapter, run, wait_reply, allow_mock=True, clock=time.time,
-                 commands=False):
+                 commands=False, observation_only=False):
         self.core, self.adapter, self.run, self.wait_reply = core, adapter, run, wait_reply
         self.allow_mock, self.clock, self.commands = allow_mock, clock, commands
+        self.observation_only = observation_only
         self.cached = {}
 
     def refresh(self):
@@ -33,6 +35,8 @@ class ConsoleApi:
 
     def handle(self, method, path, body):
         """(HTTP 상태, 본문)을 돌려준다. 쓰기 뒤에는 사본을 바로 맞춰 이중 승인을 막는다."""
+        if self.observation_only and method == 'POST':
+            return 403, {'detail': '중계 관측 전용: 상태 변경 불가'}
         status, reply = self._route(method, path, body)
         if method == 'POST':
             try:
@@ -52,6 +56,17 @@ class ConsoleApi:
         try:
             if method == 'GET' and name == 'live_state' and not rest:
                 return 200, self.cached
+            if method == 'GET' and name == 'orders' and len(rest) == 2 and rest[1] == 'history':
+                cursor = parse_qs(urlsplit(path).query).get('after', ['0'])
+                if len(cursor) != 1 or not cursor[0].isascii() or not cursor[0].isdigit():
+                    raise ValueError('after는 0 이상의 정수')
+                after = int(cursor[0])
+                if after > 2**63 - 1:
+                    raise ValueError('after 범위 초과')
+                return 200, self.run(lambda: self.core.store.wire_page(rest[0], after))
+            if method == 'GET' and name == 'orders' and len(rest) == 2 and rest[1] == 'trace':
+                order_id = rest[0]
+                return 200, self.run(lambda: self._order_trace(order_id))
             if method == 'POST' and name == 'control' and not rest:
                 return self._control(body)
             if method == 'POST' and name == 'mode' and not rest:
@@ -108,6 +123,12 @@ class ConsoleApi:
         if not self.adapter:
             return 409, {'detail': '수동 어댑터 꺼짐'}
         decision = body.get('decision')
+        if decision == 'confirm_arm':
+            return 200, self.run(lambda: self.adapter.confirm_arm(request_id, body.get('operator')))
+        if decision == 'manual_load':
+            return 200, self.run(lambda: self.adapter.manual_load(
+                request_id, body.get('operator'), body.get('note'),
+                body.get('load_present'), body.get('arm_safe')))
         if decision == 'approve':
             return 200, self.run(lambda: self.adapter.approve(
                 request_id, body.get('operator'), body.get('note', ''), body.get('sku')))
@@ -115,6 +136,30 @@ class ConsoleApi:
             return 200, self.run(lambda: self.adapter.reject(
                 request_id, body.get('operator'), body.get('note', ''), body.get('retry_safe')))
         raise ValueError('decision: approve 또는 reject')
+
+    def _order_trace(self, order_id):
+        from .stage_trace import build_stage_trace
+        store = self.core.store
+        reader = self.adapter or store
+        attempts = store.trace_attempts(order_id)
+        known = {r['request_id']: r for r in attempts}
+        known.update({r['request_id']: r for r in reader.order_work_history(order_id)})
+        history, unmatched = store.observed_work(order_id, known.values())
+        order = self.core.orders.get(order_id) or store.trace_order(order_id)
+        if order is None:
+            old = store.scenario(order_id)
+            if old:
+                order = dict(order_id=order_id, robot_id=old['robot_id'], state=old['mission_state'],
+                             stage=old['current_stage'], route=old['route'], detail=old['detail'])
+            elif history or unmatched:
+                order = dict(order_id=order_id, state='UNOBSERVED')
+            else:
+                raise KeyError(order_id)
+        trace = build_stage_trace(order, history, tasks=self.core.tasks,
+                                  attempts=attempts,
+                                  route=self.core._route(order) if order.get('route') else {},
+                                  unmatched=unmatched, terminal=store.terminal_resources(order_id))
+        return {'order_id': order_id, 'order': order, 'trace': trace, 'unmatched_results': unmatched}
 
 
 def serve(api, host, port):

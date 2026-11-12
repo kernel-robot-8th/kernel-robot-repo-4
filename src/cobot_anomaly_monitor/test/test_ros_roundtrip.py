@@ -68,6 +68,12 @@ class Console:
                     continue
                 if work['stage'] == stop_at:
                     return work
+                if work.get('load_join'):
+                    if not work.get('arm_checked'):
+                        status, _ = self.post('work/' + work['request_id'], decision='confirm_arm',
+                                              operator='sim_operator')
+                        assert status in (200, 404)
+                    continue
                 assert self.post('work/' + work['request_id'], decision='approve',
                                  operator='kgh')[0] == 200
             if mission and mission['current_stage'] == 'CUSTOMER':
@@ -79,7 +85,8 @@ class Console:
 @pytest.mark.skipif(
     os.environ.get('ROS_DOMAIN_ID') != '77' or os.environ.get('ROS_LOCALHOST_ONLY') != '1',
     reason='requires isolated ROS_DOMAIN_ID=77 and ROS_LOCALHOST_ONLY=1')
-def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
+@pytest.mark.parametrize('join', [False, True], ids=['manual', 'camera_and_operator'])
+def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch, join):
     rclpy = pytest.importorskip('rclpy')
     from cobot_anomaly_monitor import monitor_node
     from cobot_fleet_control import fleet_control_node
@@ -102,7 +109,9 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
         '-p', f'fleet_control:scenario_config:={dev}',
         '-p', f'anomaly_monitor:db_path:={tmp_path / "monitor.sqlite3"}',
         '-p', 'anomaly_monitor:console_port:=0',
-        '-p', 'anomaly_monitor:console_commands:=true'])
+        '-p', 'anomaly_monitor:console_commands:=true',
+        '-p', 'anomaly_monitor:verify_load_join:=' + str(join).lower(),
+        '-p', 'anomaly_monitor:camera_policy:=' + ('sim' if join else 'field')])
     fleet, monitor, robot, executor = None, None, None, None
     try:
         fleet = fleet_control_node.FleetControlNode()
@@ -142,7 +151,31 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
             status_pub.publish(String(data=json.dumps(dict(
                 state, command_id=payload['command_id'], task_finished=True) | {'state': 'DONE'})))
 
+        camera_pub = robot.create_publisher(String, '/anomaly_monitor/zone_evidence', 10)
+        neighbors = [(robot.create_publisher(String, f'/{r}/patrol_status', 10),
+                      robot.create_publisher(PoseWithCovarianceStamped, f'/{r}/amcl_pose', 10))
+                     for r in ('pinky2', 'pinky3')] if join else []
+        frame_seq = 0
+
         def beat():
+            nonlocal frame_seq
+            if join:
+                state.setdefault('central_latched', False)
+                state['arrived_zone'] = state.get('held_zone')
+                for status, pose in neighbors:
+                    status.publish(String(data=json.dumps({'busy': False, 'state': 'IDLE'})))
+                    other = PoseWithCovarianceStamped()
+                    other.pose.pose.position.x = -0.9
+                    pose.publish(other)
+                if state.get('held_zone') == 'A':
+                    publish_pose(points['ZA'])
+                frame_seq += 1
+                camera_pub.publish(String(data=json.dumps(dict(
+                    source_kind='sim_fixture', stream_id='ceiling', stream_epoch='run',
+                    model_id='pinky-v1', calibration_id='replay-v1', frame_seq=frame_seq,
+                    capture_time=time.time() - .03, clock_error_sec=.01,
+                    marker_state='OK', zones={'ZA': 'LOADED'}))))
+
             status_pub.publish(String(data=json.dumps(state)))
             battery_pub.publish(Float32(data=80.0))
             odom_pub.publish(Odometry())
@@ -202,9 +235,14 @@ def test_order_and_cctv_pause_over_dds(tmp_path, monkeypatch):
             'zone:ZA', 'leave', 'zone:ZC', 'leave', 'home']
         paused = outcome['paused']
         events = {row['event_id']: row for row in paused['anomalies']}
-        assert 'e_sim' not in events
-        assert events['e_real']['judgment'] == 'LOAD_FAIL_PERCHED'
-        assert events['e_real']['linked_mission_id'] == 'order2'
+        matched, excluded = ('e_sim', 'e_real') if join else ('e_real', 'e_sim')
+        assert excluded not in events
+        if join:
+            row = next(w for w in monitor.store.works('APPROVED')
+                       if 'camera_and_operator' in w['result_json'])
+            assert len(json.loads(row['result_json'])['data']['evidence']) == 3
+        assert events[matched]['judgment'] == 'LOAD_FAIL_PERCHED'
+        assert events[matched]['linked_mission_id'] == 'order2'
         assert any(c['command'] == 'emergency_stop' for c in commands)
         assert fleet.count_publishers('/pinky1/patrol_cmd') == 1
         assert fleet.count_subscribers('/control_center/task_request') == 1

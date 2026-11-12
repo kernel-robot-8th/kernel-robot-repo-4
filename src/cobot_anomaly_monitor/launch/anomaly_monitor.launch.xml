@@ -1,7 +1,12 @@
 <launch>
   <arg name="console_host" default="127.0.0.1"/>
   <arg name="mode" default="OBSERVE_ONLY"/>
+  <arg name="observation_only" default="false"/>
   <arg name="manual_adapter" default="true"/>
+  <arg name="verify_load_join" default="false"/>
+  <arg name="calibration_id" default="replay-v1"/>
+  <arg name="scenario_config" default="$(find-pkg-share cobot_anomaly_monitor)/config/scenario_relay_dev.yaml"/>
+  <arg name="site_config" default="$(find-pkg-share cobot_pinky_patrol)/config/sites/lab.yaml"/>
   <arg name="camera_policy" default="field"/>
   <!-- 켜면 콘솔이 관제에 명령을 요청한다. 시뮬에서만 켠다. 메뉴 6.5에는 실물 명령 경로가 없다. -->
   <arg name="console_commands" default="false"/>
@@ -11,7 +16,12 @@
     <param from="$(find-pkg-share cobot_anomaly_monitor)/config/anomaly_monitor.yaml"/>
     <param name="console_host" value="$(var console_host)" type="str"/>
     <param name="cctv_control_mode" value="$(var mode)" type="str"/>
+    <param name="verify_load_join" value="$(var verify_load_join)" type="bool"/>
+    <param name="calibration_id" value="$(var calibration_id)" type="str"/>
+    <param name="scenario_config" value="$(var scenario_config)"/>
+    <param name="observation_only" value="$(var observation_only)" type="bool"/>
     <param name="manual_adapter" value="$(var manual_adapter)" type="bool"/>
+    <param name="site_config" value="$(var site_config)" type="str"/>
     <param name="camera_policy" value="$(var camera_policy)" type="str"/>
     <param name="console_commands" value="$(var console_commands)" type="bool"/>
     <param name="db_path" value="$(var db_path)" type="str"/>

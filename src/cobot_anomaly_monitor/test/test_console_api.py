@@ -161,3 +161,41 @@ def test_http_refuses_bad_and_large_bodies(server):
     assert call(server + '/api/fms/mode', b'{')[0] == 400
     assert call(server + '/api/fms/mode', b'[1]')[0] == 400
     assert call(server + '/api/fms/mode', b' ' * 16385)[0] == 413
+
+
+def test_relay_observer_disallows_ack_and_control_even_if_requested(fx):
+    api = ConsoleApi(fx.core, None, lambda job: job(), fx.core.replies.get, observation_only=True)
+    api.refresh()
+    assert api.handle('GET', '/api/fms/live_state', None)[0] == 200
+    for route in ['control', 'work/r1', 'anomalies/e1', 'mode']:
+        assert api.handle('POST', '/api/fms/' + route, {})[0] == 403
+    assert fx.sent == []
+
+
+def test_order_wire_history_readonly_pagination_and_isolation(fx):
+    api = ConsoleApi(fx.core, None, lambda job: job(), None, observation_only=True)
+    for seq in range(51):
+        msg = dict(order_id='a', request_id=f'r{seq}', stage='PICK')
+        fx.store.observe_work('request', msg, seq + .25)
+    fx.store.observe_work('result', dict(order_id='b', request_id='other', stage='PICK'), 100)
+    path = '/api/fms/orders/a/history'
+    status, first = api.handle('GET', path, None)
+    assert status == 200 and len(first['events']) == 50
+    _, final = api.handle('GET', path + '?after=' + str(first['next_cursor']), None)
+    assert final['next_cursor'] is None
+    assert [(r['payload']['request_id'], r['at']) for r in final['events']] == [('r50', 50.25)]
+    for bad in ['-1', 'x', str(2**63)]:
+        assert api.handle('GET', path + '?after=' + bad, None)[0] == 400
+
+
+def test_order_request_reply_history_survives_restart_and_is_not_work(fx):
+    fx.post('/api/fms/control', type='order', order={'order_id': 'raw-order', 'sku': 'SHOE42'})
+    reopened = MonitorStore(fx.store.db.execute('PRAGMA database_list').fetchone()[2])
+    try:
+        events = reopened.wire_page('raw-order', 0)['events']
+        assert [e['kind'] for e in events] == ['control_request', 'control_reply']
+        assert events[0]['request_id'] == events[1]['request_id']
+        assert events[1]['payload']['rtt_ms'] == 0.0
+        assert reopened.observed_work('raw-order') == ([], [])
+    finally:
+        reopened.close()

@@ -1,6 +1,7 @@
 """중계 장비의 기록·판정 노드. patrol_cmd는 발행하지 않고 관제 요청 토픽만 쓴다."""
 
 from concurrent.futures import Future
+import hashlib
 import json
 import math
 import os
@@ -16,10 +17,11 @@ from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, qos_profile_sensor_data, QoSProfile
 from rclpy.utilities import get_rmw_implementation_identifier
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 import yaml
 
 from .console_api import ConsoleApi, serve
+from .load_evidence import LoadEvidence
 from .manual_adapter import ManualAdapter
 from .monitor_core import camera_allowed, MonitorCore
 from .monitor_store import MonitorStore
@@ -28,10 +30,11 @@ REPLY_WAIT_SEC = 3.0
 ADAPTER_CHECK_SEC = 2.0
 
 
-def load_points(path):
-    """순찰 지점 파일에서 좌표만 읽는다."""
-    data = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
-    return data['pinky_patrol_node']['ros__parameters']['points']
+def load_site(path):
+    """진단 화면의 해시와 실제 사용한 지점을 같은 파일 내용에서 읽는다."""
+    content = Path(path).read_bytes()
+    points = yaml.safe_load(content)['pinky_patrol_node']['ros__parameters']['points']
+    return points, hashlib.sha256(content).hexdigest()
 
 
 def yaw_of(orientation):
@@ -54,10 +57,12 @@ class AnomalyMonitorNode(Node):
             'site_config': str(patrol / 'config/sites/lab.yaml'),
             'cctv_control_mode': 'OBSERVE_ONLY',
             'console_host': '127.0.0.1', 'console_port': 8083,
-            'manual_adapter': True,
+            'manual_adapter': True, 'verify_load_join': False,
+            'evidence_stream': 'ceiling', 'calibration_id': 'replay-v1',
+            'load_model': 'pinky-v1', 'evidence_topic': '/anomaly_monitor/zone_evidence',
             'manual_targets': ['vision', 'navigation', 'omx1', 'omx2', 'omx3'],
             'allow_mock_events': True,
-            'console_commands': False,
+            'console_commands': False, 'observation_only': False,
             'camera_policy': 'field',
             'event_topic': '/anomaly_monitor/vision_event',
             'request_topic': '/control_center/task_request',
@@ -76,18 +81,37 @@ class AnomalyMonitorNode(Node):
         routes = yaml.safe_load(
             Path(config['scenario_config']).read_text(encoding='utf-8'))['routes']
         self.store = MonitorStore(config['db_path'])
-        self.request_pub = self.create_publisher(String, config['request_topic'], 50)
-        self.points = load_points(config['site_config'])
+        if config['observation_only'] and (config['manual_adapter'] or config['console_commands']
+                                           or config['cctv_control_mode'] != 'OBSERVE_ONLY'):
+            raise ValueError('관측 전용 프로필에 제어·수동 어댑터를 함께 사용할 수 없습니다')
+        self.request_pub = (None if config['observation_only'] else
+                            self.create_publisher(String, config['request_topic'], 50))
+        self.points, site_hash = load_site(config['site_config'])
         self.core = MonitorCore(self.store, routes, config['robot_ids'], self._send_request,
                                 config['cctv_control_mode'], points=self.points)
+        if config['camera_policy'] == 'sim':
+            self.create_subscription(String, '/anomaly_monitor/sim_diagnostics', self._diagnostics, 5)
         self.core.ros = {'domain_id': os.environ.get('ROS_DOMAIN_ID', '0'),
-                         'rmw': get_rmw_implementation_identifier()}
+                         'rmw': get_rmw_implementation_identifier(),
+                         'monitor_site': Path(config['site_config']).name,
+                         'site_sha256': site_hash}
+        self.join = None
+        if config['verify_load_join']:
+            if (not config['manual_adapter'] or config['camera_policy'] != 'sim'
+                    or os.environ.get('ROS_DOMAIN_ID') not in ('77', '140')
+                    or os.environ.get('ROS_AUTOMATIC_DISCOVERY_RANGE') != 'LOCALHOST'):
+                raise ValueError('적재 결합 시험은 격리 시뮬 도메인 77/140에서만 허용')
+            self.join = LoadEvidence(self.core, self.points, config['evidence_stream'],
+                                     config['calibration_id'], config['load_model'])
+            self.create_subscription(String, config['evidence_topic'], self._zone_frame, 10)
         self.adapter = self._create_adapter() if config['manual_adapter'] else None
         self.jobs = queue.Queue()
         self.console = ConsoleApi(self.core, self.adapter, self._run, self._wait_reply,
                                   config['allow_mock_events'],
-                                  commands=config['console_commands'])
+                                  commands=config['console_commands'], observation_only=config['observation_only'])
         for robot in config['robot_ids']:
+            self.create_subscription(Float32, f'/{robot}/battery/percent',
+                                     lambda m, r=robot: self.core.on_battery(r, m.data), 10)
             self.create_subscription(String, f'/{robot}/patrol_status',
                                      lambda m, r=robot: self._status(r, m), 10)
             # 브리지가 맞춘 QoS와 상관없이 받도록 best effort로 구독한다.
@@ -100,6 +124,8 @@ class AnomalyMonitorNode(Node):
         self.create_subscription(
             String, config['tasks_topic'], self._tasks,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.create_subscription(String, config['work_request_topic'], self._work_request, 50)
+        self.create_subscription(String, config['work_result_topic'], self._observed_result, 50)
         self.create_subscription(String, config['events_topic'], self._task_event, 50)
         self.create_subscription(String, config['event_topic'], self._vision, 50)
         self.create_subscription(String, config['zone_status_topic'],
@@ -116,22 +142,29 @@ class AnomalyMonitorNode(Node):
         config = self.config
         self.result_pub = self.create_publisher(String, config['work_result_topic'], 50)
         adapter = ManualAdapter(self.store, self._publish_result, config['manual_targets'],
-                                self.points, self.core._robot_view)
+                                self.points, self.core._robot_view, join=self.join,
+                                exclusive=lambda: self.count_publishers(config['work_result_topic']) == 1)
         adapter.blocked = '기동 검사 전'
         self.create_subscription(String, config['heartbeat_topic'], self._heartbeat, 10)
-        self.create_subscription(String, config['work_request_topic'], self._work_request, 50)
         self.adapter_check = self.create_timer(ADAPTER_CHECK_SEC, self._check_adapter)
         return adapter
 
     def _check_adapter(self):
-        """다른 어댑터와 함께 돌면 같은 요청에 답이 둘 나가므로 답하지 않는다."""
-        self.adapter_check.cancel()
+        """다른 어댑터와 함께 돌면 같은 요청에 답이 둘 나가므로 답하지 않는다.
+
+        우리가 먼저 떠도 뒤늦게 올라온 어댑터를 잡아야 하므로 계속 확인한다.
+        """
+        before = self.adapter.blocked
         count = self.count_publishers(self.config['work_result_topic'])
         self.adapter.blocked = f'work_result 발행자 {count}개' if count > 1 else ''
-        if self.adapter.blocked:
+        if self.adapter.blocked and self.adapter.blocked != before:
             self.get_logger().error('수동 어댑터 꺼짐: ' + self.adapter.blocked)
+        elif before and not self.adapter.blocked:
+            self.get_logger().info('수동 어댑터 다시 켜짐: 다른 발행자가 사라졌습니다')
 
     def _send_request(self, payload):
+        if self.request_pub is None:
+            raise RuntimeError('관측 전용 프로필에는 관제 명령 발행자가 없습니다')
         self.request_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
 
     def _publish_result(self, result):
@@ -165,6 +198,8 @@ class AnomalyMonitorNode(Node):
 
     def _link(self, topic):
         return {'publishers': self.count_publishers(topic),
+                'publisher_nodes': sorted(i.node_name for i in self.get_publishers_info_by_topic(topic)),
+                'subscriber_nodes': sorted(i.node_name for i in self.get_subscriptions_info_by_topic(topic)),
                 'subscribers': self.count_subscribers(topic)}
 
     def _read_graph(self):
@@ -236,10 +271,27 @@ class AnomalyMonitorNode(Node):
         if heartbeat is not None:
             self.adapter.on_heartbeat(heartbeat)
 
+    def _diagnostics(self, message):
+        data = self._decode(message, '브리지 진단')
+        if data and isinstance(data.get('links'), list) and isinstance(data.get('warnings'), list):
+            self.core.diagnostics = data
+
+    def _zone_frame(self, message):
+        frame = self._decode(message, '구역 근거')
+        if self.adapter and frame is not None:
+            self.adapter.on_evidence(frame)
+
     def _work_request(self, message):
         request = self._decode(message, '작업 요청')
         if request is not None:
-            self.adapter.on_request(request)
+            self.store.observe_work('request', request, time.time())
+            if self.adapter:
+                self.adapter.on_request(request)
+
+    def _observed_result(self, message):
+        result = self._decode(message, '작업 결과')
+        if result is not None:
+            self.store.observe_work('result', result, time.time())
 
     def destroy_node(self):
         """HTTP를 먼저 멈춘 뒤 저장소를 닫는다."""

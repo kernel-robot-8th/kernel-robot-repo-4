@@ -8,7 +8,7 @@ anomaly_monitor:
     # 시뮬 어댑터와 같은 도메인에서 동시에 쓰지 않는다
     manual_adapter: true
     manual_targets: [vision, navigation, omx1, omx2, omx3]
-    allow_mock_events: true
+    allow_mock_events: false                    # 모의 이벤트 주입. 시뮬에서만 켠다
     console_commands: false                     # 콘솔 명령. 시뮬에서만 켠다
     camera_policy: field                        # field는 sim_ 카메라 거절, sim은 sim_만 수신
     event_topic: /anomaly_monitor/vision_event
