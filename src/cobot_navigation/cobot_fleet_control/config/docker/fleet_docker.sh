@@ -35,29 +35,25 @@ operation="$1"
 shift
 case "$operation" in
   build)
-    # 현재 브랜치의 옛 control-center 대신 검증 기준 커밋의 원본을 빌드한다.
+    # 웹 패키지도 주행 코드와 같은 체크아웃에서 가져와 이미지 하나 = 체크아웃 하나로 맞춘다.
+    # build context(src/cobot_navigation) 밖에 있어서 .docker-context 로 복사해 넘긴다.
     repo_root="$(cd -- "${nav_root}/../.." && pwd)"
     # sudo 기동도 사용자가 지정한 이 저장소 하나만 신뢰한다.
     git_repo=(git -c "safe.directory=${repo_root}" -C "$repo_root")
-    reference_revision="${CONTROL_CENTER_REVISION:-$(sed -n 's/^CONTROL_CENTER_REVISION=//p' "${config_dir}/versions.env")}"
-    if [[ ! "$reference_revision" =~ ^[a-f0-9]{40}$ ]]; then
-      echo 'CONTROL_CENTER_REVISION은 40자리 Git 커밋이어야 합니다.' >&2; exit 2
-    fi
-    if ! "${git_repo[@]}" cat-file -e "${reference_revision}^{commit}" 2>/dev/null; then
-      "${git_repo[@]}" fetch origin "$reference_revision"
-    fi
+    web_packages=(src/cobot_control_center src/cobot_patrol_interfaces)
     context_root="${nav_root}/.docker-context"
     mkdir -p "$context_root"
     control_center_stage="$(mktemp -d "${context_root}/control-center.XXXXXX")"
     trap 'rm -rf -- "$control_center_stage"' EXIT
-    "${git_repo[@]}" archive "$reference_revision" src/cobot_control_center src/cobot_patrol_interfaces \
+    tar -C "$repo_root" --exclude='__pycache__' --exclude='*.pyc' -cf - "${web_packages[@]}" \
       | tar -x -C "$control_center_stage"
-    printf '%s\n' "$reference_revision" > "${control_center_stage}/revision.txt"
     rm -rf -- "${context_root}/control-center"
     mv -- "$control_center_stage" "${context_root}/control-center"
     revision="$("${git_repo[@]}" rev-parse HEAD 2>/dev/null || printf unknown)"
     dirty=false
-    if [[ -n "$("${git_repo[@]}" status --porcelain -- "$nav_root" 2>/dev/null)" ]]; then dirty=true; fi
+    if [[ -n "$("${git_repo[@]}" status --porcelain -- "$nav_root" "${web_packages[@]/#/${repo_root}/}" 2>/dev/null)" ]]; then
+      dirty=true
+    fi
     export COBOT_SOURCE_REVISION="$revision" COBOT_SOURCE_DIRTY="$dirty"
     "${compose[@]}" build "$@" fleet
     ;;
@@ -84,7 +80,7 @@ case "$operation" in
   versions)
     "${compose[@]}" images fleet
     "${compose[@]}" exec -T fleet bash -c \
-      'cat /opt/cobot/build-versions/source-revision.txt /opt/cobot/build-versions/source-dirty.txt /opt/cobot/build-versions/control-center-revision.txt /opt/cobot/build-versions/python.txt /opt/cobot/build-versions/dpkg.tsv'
+      'cat /opt/cobot/build-versions/source-revision.txt /opt/cobot/build-versions/source-dirty.txt /opt/cobot/build-versions/python.txt /opt/cobot/build-versions/dpkg.tsv'
     ;;
   export-bt)
     if [[ $# -ne 1 || ! "$1" =~ ^[A-Za-z0-9_-]{1,80}$ ]]; then

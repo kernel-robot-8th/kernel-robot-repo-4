@@ -23,8 +23,8 @@ Docker 소켓 접근 권한이 이미 있으면 fleet_docker.sh의 sudo는 생�
 설치기는 기존 Docker·containerd 패키지를 자동 제거하지 않습니다.
 Docker와 Compose가 이미 있으면 설치 대신 버전·데몬 접근을 확인합니다.
 이미지 빌드에는 Ubuntu/ROS 패키지 저장소와 PyPI 접근이 필요합니다.
-고정 웹 커밋이 로컬 Git에 없으면 build가 호스트에서 origin으로부터 가져옵니다.
-웹 원본은 .docker-context/control-center에 추출하며 Git 인증을 이미지에 전달하지 않습니다.
+웹 패키지(cobot_control_center·cobot_patrol_interfaces)도 주행 코드와 같은 지금 체크아웃에서 빌드합니다.
+build 경로 밖에 있어서 .docker-context/control-center로 복사해 넘기며, 고친 채 커밋하지 않은 웹도 dirty로 기록합니다.
 
 `build`, `config`, `check`는 웹 서버나 로봇 통신 노드를 시작하지 않습니다.
 `check`는 이미지의 Python·기존 웹 모듈을 import하고 지도·지점 설정으로 기동 계획을 검증합니다.
@@ -62,6 +62,22 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 작업 명령은 시작 시 꺼져 있습니다.
 웹 healthcheck는 HTTP 응답만 확인하며 로봇의 통신·배터리·주행 준비 완료와 구분합니다.
 
+### 로봇 하나를 관제에서 떼기
+
+주행 개발 중인 로봇은 그 로봇의 브릿지만 끄고 띄웁니다. 나머지 로봇만 관제에 연결됩니다.
+값을 주지 않으면 pinky1·2·3 브릿지를 모두 켭니다.
+
+```bash
+# pinky2를 빼고 pinky1·3만 관제에 연결
+sudo env COBOT_PINKY2=false bash cobot_fleet_control/config/docker/fleet_docker.sh up
+```
+
+브릿지가 꺼진 로봇은 관제와 양방향으로 끊깁니다. 상태·구역 요청이 오지 않고, 명령·하트비트·구역 허가도 가지 않습니다.
+로봇의 드라이버·Nav2·순찰 노드는 그대로 돌고, 웹에는 끊김으로 표시됩니다.
+관제 모드(`central_controlled: true`)에서 움직이던 로봇은 하트비트가 끊기면 멈추고 잠깁니다. 그러니 로봇이 멈춰 있을 때 뺍니다.
+이미 떠 있는 관제에서 빼려면 `COBOT_PINKYn` 값을 바꿔 `up`을 다시 실행합니다. 설정이 바뀐 bridge 컨테이너가 다시 만들어집니다.
+fleet까지 다시 만들어지면 세션이 바뀌어 움직이던 로봇이 잠기므로, `up` 전에 작업을 멈춥니다.
+
 기본 ROS 도메인은 관제 100, pinky1/2/3은 10/20/30입니다.
 Linux host network/IPC를 사용하며 DDS 탐색 범위는 SUBNET입니다.
 로봇과 같은 네트워크에서 DDS 통신이 가능해야 합니다. Docker가 Wi-Fi·방화벽·DDS 탐색 문제를 자동 해결하지는 않습니다.
@@ -83,7 +99,7 @@ sudo env COBOT_WEB_HOST=0.0.0.0 COBOT_WEB_PORT=8080 bash cobot_fleet_control/con
 
 ## 포함되는 코드와 의존성
 
-- 기존 웹: `versions.env`의 control-center 고정 커밋에서 cobot_control_center·cobot_patrol_interfaces를 가져와 수정 없이 빌드
+- 기존 웹: 주행 코드와 같은 체크아웃의 cobot_control_center·cobot_patrol_interfaces를 수정 없이 빌드
 - ROS Jazzy·C++ 브릿지 의존성, FastAPI·Uvicorn: 이미지 빌드 시 apt 설치
 - py_trees·pydot·pyparsing·설치 도구: requirements.lock의 버전·해시로 venv에 설치
 - 지도: map_view_pc/maps/cobot_map_v9.yaml·pgm
@@ -96,9 +112,10 @@ sudo env COBOT_WEB_HOST=0.0.0.0 COBOT_WEB_PORT=8080 bash cobot_fleet_control/con
 
 ## 버전·데이터와 조회
 
-`versions.env`는 ROS 이미지 digest·관제 이미지 태그·control-center 커밋을 기록합니다.
+`versions.env`는 ROS 이미지 digest·관제 이미지 태그를 기록합니다.
+이미지 안 코드 버전은 빌드한 체크아웃 하나의 커밋(source-revision.txt)과 커밋 안 한 수정 여부(source-dirty.txt)로 확인합니다.
 완성 이미지는 같은 ID/digest로 배포하고 apt 설치 버전은 이미지 안 dpkg.tsv에 기록합니다.
-현재 고정한 것은 ROS 베이스·웹 소스·Python lock이며 apt 저장소 전체를 시점 고정한 것은 아닙니다.
+현재 고정한 것은 ROS 베이스·Python lock이며 apt 저장소 전체를 시점 고정한 것은 아닙니다.
 
 ```bash
 sudo bash cobot_fleet_control/config/docker/fleet_docker.sh versions

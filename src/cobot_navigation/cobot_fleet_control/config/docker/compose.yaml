@@ -9,7 +9,6 @@ x-runtime: &runtime
       ROS_BASE_IMAGE: ${ROS_BASE_IMAGE:?versions.env를 지정하세요}
       SOURCE_REVISION: ${COBOT_SOURCE_REVISION:-unknown}
       SOURCE_DIRTY: ${COBOT_SOURCE_DIRTY:-unknown}
-      CONTROL_CENTER_REVISION: ${CONTROL_CENTER_REVISION:?versions.env를 지정하세요}
   # Linux 관제 PC의 DDS multicast와 DDS 공유 메모리 경로를 맞춘다.
   network_mode: host
   ipc: host
@@ -28,7 +27,15 @@ x-runtime: &runtime
 services:
   bridge:
     <<: *runtime
-    command: [ros2, launch, cobot_domain_bridge, bridges.launch.xml]
+    # 로봇별 브릿지. 주행 개발 중인 로봇은 COBOT_PINKYn=false 로 관제에서 뗀다 (기본: 셋 다 연결).
+    command:
+      - ros2
+      - launch
+      - cobot_domain_bridge
+      - bridges.launch.xml
+      - pinky1:=${COBOT_PINKY1:-true}
+      - pinky2:=${COBOT_PINKY2:-true}
+      - pinky3:=${COBOT_PINKY3:-true}
 
   zone-manager:
     <<: *runtime

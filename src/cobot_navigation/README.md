@@ -114,5 +114,5 @@ P36~P50 같은 미등록 예비 지점은 사용할 수 없습니다.
 
 `cobot_fleet_control/test`에는 실행 로직·웹 요청 계약·실제 control-center FastAPI/TaskStore와의
 HTTP·WebSocket 호환 시험이 있습니다. 웹 통합 시험은 control-center 패키지와 FastAPI/httpx가 있을 때 실행합니다.
-GitHub Actions `fleet-control` job은 비교 기준 브랜치의 코드를 고정 커밋으로 체크아웃해 같은 시험을 실행합니다.
+GitHub Actions `fleet-control` job은 같은 커밋의 `src/cobot_control_center`로 같은 시험을 실행합니다.
 실제 ROS DDS 왕복 시험은 격리 도메인 77·localhost에서만 실행합니다.
