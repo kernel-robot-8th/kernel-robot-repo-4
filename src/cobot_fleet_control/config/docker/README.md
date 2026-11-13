@@ -10,7 +10,7 @@ Ubuntu 24.04 Linux 관제 PC에서 기존 웹, fleet, bridge, zone-manager를 �
 [Docker 공식 Ubuntu 설치 절차](https://docs.docker.com/engine/install/ubuntu/)
 
 ```bash
-cd ~/ws/kernel-robot-repo-4/src/cobot_navigation
+cd ~/ws/kernel-robot-repo-4/src
 sudo bash cobot_fleet_control/config/docker/install_host.sh
 sudo bash cobot_fleet_control/config/docker/install_host.sh --check
 sudo bash cobot_fleet_control/config/docker/fleet_docker.sh build
@@ -24,7 +24,7 @@ Docker 소켓 접근 권한이 이미 있으면 fleet_docker.sh의 sudo는 생�
 Docker와 Compose가 이미 있으면 설치 대신 버전·데몬 접근을 확인합니다.
 이미지 빌드에는 Ubuntu/ROS 패키지 저장소와 PyPI 접근이 필요합니다.
 웹 패키지(cobot_control_center·cobot_patrol_interfaces)도 주행 코드와 같은 지금 체크아웃에서 빌드합니다.
-build 경로 밖에 있어서 .docker-context/control-center로 복사해 넘기며, 고친 채 커밋하지 않은 웹도 dirty로 기록합니다.
+build context가 src/라서 관제·웹·주행 패키지를 그대로 넘기며, 고친 채 커밋하지 않은 것이 있으면 dirty로 기록합니다.
 
 `build`, `config`, `check`는 웹 서버나 로봇 통신 노드를 시작하지 않습니다.
 `check`는 이미지의 Python·기존 웹 모듈을 import하고 지도·지점 설정으로 기동 계획을 검증합니다.
@@ -107,7 +107,7 @@ sudo env COBOT_WEB_HOST=0.0.0.0 COBOT_WEB_PORT=8080 bash cobot_fleet_control/con
 - fleet: 같은 지점 설정을 사용해 명령 전달 전 목적지 검증
 
 새 PC에서는 호스트의 별도 `install/control_center_web/local_setup.bash`가 필요 없습니다.
-기존 수동 설치 경로는 [전체 HTML](../../../docs/central_scenario_control.html#ui-transport)의 대안으로 유지합니다.
+기존 수동 설치 경로는 [전체 HTML](../../../cobot_navigation/docs/central_scenario_control.html#ui-transport)의 대안으로 유지합니다.
 웹의 개별 이동·정지·해제 계약을 재사용하며 전체 주문·수령·복구 UI 추가 연결은 남아 있습니다.
 
 ## 버전·데이터와 조회

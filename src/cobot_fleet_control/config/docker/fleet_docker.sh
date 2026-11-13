@@ -2,7 +2,8 @@
 # 관제 Docker 실행 진입점. build/config는 로봇 통신 프로세스를 실행하지 않는다.
 set -euo pipefail
 config_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-nav_root="$(cd -- "${config_dir}/../../.." && pwd)"
+# build context 는 src/ 다 (이 패키지와 주행·웹 패키지가 모두 그 아래에 있다).
+src_root="$(cd -- "${config_dir}/../../.." && pwd)"
 
 usage() {
   cat <<'HELP'
@@ -35,23 +36,18 @@ operation="$1"
 shift
 case "$operation" in
   build)
-    # 웹 패키지도 주행 코드와 같은 체크아웃에서 가져와 이미지 하나 = 체크아웃 하나로 맞춘다.
-    # build context(src/cobot_navigation) 밖에 있어서 .docker-context 로 복사해 넘긴다.
-    repo_root="$(cd -- "${nav_root}/../.." && pwd)"
+    repo_root="$(cd -- "${src_root}/.." && pwd)"
     # sudo 기동도 사용자가 지정한 이 저장소 하나만 신뢰한다.
     git_repo=(git -c "safe.directory=${repo_root}" -C "$repo_root")
-    web_packages=(src/cobot_control_center src/cobot_patrol_interfaces)
-    context_root="${nav_root}/.docker-context"
-    mkdir -p "$context_root"
-    control_center_stage="$(mktemp -d "${context_root}/control-center.XXXXXX")"
-    trap 'rm -rf -- "$control_center_stage"' EXIT
-    tar -C "$repo_root" --exclude='__pycache__' --exclude='*.pyc' -cf - "${web_packages[@]}" \
-      | tar -x -C "$control_center_stage"
-    rm -rf -- "${context_root}/control-center"
-    mv -- "$control_center_stage" "${context_root}/control-center"
+    # 이미지에 들어가는 폴더. 고친 채 커밋하지 않은 것이 있으면 dirty 로 남긴다.
+    image_sources=(src/cobot_fleet_control src/cobot_control_center src/cobot_patrol_interfaces
+                   src/cobot_navigation/cobot_zone_traffic_control
+                   src/cobot_navigation/cobot_domain_bridge
+                   src/cobot_navigation/cobot_pinky_patrol/config
+                   src/cobot_navigation/map_view_pc/maps)
     revision="$("${git_repo[@]}" rev-parse HEAD 2>/dev/null || printf unknown)"
     dirty=false
-    if [[ -n "$("${git_repo[@]}" status --porcelain -- "$nav_root" "${web_packages[@]/#/${repo_root}/}" 2>/dev/null)" ]]; then
+    if [[ -n "$("${git_repo[@]}" status --porcelain -- "${image_sources[@]}" 2>/dev/null)" ]]; then
       dirty=true
     fi
     export COBOT_SOURCE_REVISION="$revision" COBOT_SOURCE_DIRTY="$dirty"

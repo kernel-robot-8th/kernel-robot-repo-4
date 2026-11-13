@@ -23,6 +23,7 @@
 │   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
 │   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
+│   ├── cobot_fleet_control/    # [관제] 작업 노드 fleet_control_node (주문 BT, 주행·팔·비전에 요청만 보냄)
 │   ├── cobot_mock/             # [관제] 개발·시험용 가짜 핑키 (격리 도메인 전용, 폴더째 빼도 됨)
 │   ├── cobot_gazebo/           # [관제] 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드, 시뮬 도메인 140~143, worlds/ 예외)
 │   ├── pinky_interfaces_stub/  # [관제] 시뮬 PC 전용 대체 pinky_interfaces (SetLed). 실물 로봇에서는 빌드 안 함
@@ -51,7 +52,7 @@
 | 주행 | `cobot_navigation` | 김진호 |
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
-| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_mock`, `cobot_gazebo`, `pinky_interfaces_stub`, `cobot_patrol_interfaces`(합칠 때 공통으로) | 김지혜 |
+| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_fleet_control`(지혁 님 작성, 이어받음), `cobot_mock`, `cobot_gazebo`, `pinky_interfaces_stub`, `cobot_patrol_interfaces`(합칠 때 공통으로) | 김지혜 |
 | 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
 | 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
 

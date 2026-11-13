@@ -10,6 +10,17 @@ from .fleet_startup import FleetStartup
 from .web_profiles import export_profiles, load_profiles, read_parameters
 
 
+def fleet_config_path():
+    """이 패키지의 fleet_control.yaml. 주행 폴더(navigation_root) 밖으로 옮겨서 따로 찾는다."""
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        share = Path(get_package_share_directory('cobot_fleet_control'))
+        return share / 'config/fleet_control.yaml'
+    except (ImportError, LookupError):
+        # 설치·source 없이 소스에서 바로 돌릴 때 (CI의 pytest 등).
+        return Path(__file__).resolve().parents[1] / 'config/fleet_control.yaml'
+
+
 def build_plan(navigation_root, control_center_share, output_dir, site='lab',
                host='127.0.0.1', port=8080, start_fleet=True):
     """웹 코드를 복제하지 않고 기존 관제 패키지의 실행 설정을 재사용한다."""
@@ -22,7 +33,7 @@ def build_plan(navigation_root, control_center_share, output_dir, site='lab',
     if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError('웹 port 범위는 1~65535')
     config_dir = root / 'cobot_pinky_patrol/config'
-    robots = read_parameters(root / 'cobot_fleet_control/config/fleet_control.yaml')['robot_ids']
+    robots = read_parameters(fleet_config_path())['robot_ids']
     zone_params = root / 'cobot_zone_traffic_control/config/zone_params.yaml'
     if set(read_parameters(zone_params)['robot_ids']) != set(robots):
         raise ValueError('fleet과 zone_manager의 로봇 목록을 일치시키세요')

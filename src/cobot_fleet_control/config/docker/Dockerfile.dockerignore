@@ -1,0 +1,32 @@
+# 관제 패키지와 웹에 필요한 현장 데이터만 build context(src/)로 보낸다.
+# BuildKit 은 Dockerfile 옆의 Dockerfile.dockerignore 를 이 build 에만 쓴다.
+**
+!cobot_fleet_control/
+!cobot_fleet_control/**
+!cobot_control_center/
+!cobot_control_center/**
+!cobot_patrol_interfaces/
+!cobot_patrol_interfaces/**
+!cobot_navigation/
+!cobot_navigation/cobot_zone_traffic_control/
+!cobot_navigation/cobot_zone_traffic_control/**
+!cobot_navigation/cobot_domain_bridge/
+!cobot_navigation/cobot_domain_bridge/**
+!cobot_navigation/cobot_pinky_patrol/
+!cobot_navigation/cobot_pinky_patrol/config/
+!cobot_navigation/cobot_pinky_patrol/config/**
+!cobot_navigation/map_view_pc/
+!cobot_navigation/map_view_pc/maps/
+!cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml
+!cobot_navigation/map_view_pc/maps/cobot_map_v9.pgm
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/test/
+**/.env
+**/*.local.*
+**/*.env
+!cobot_fleet_control/config/docker/versions.env
+**/*.pem
+**/*.key
+**/secrets/

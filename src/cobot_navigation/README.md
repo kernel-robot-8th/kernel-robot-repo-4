@@ -32,7 +32,7 @@ control-center 브랜치의 `src/cobot_control_center/web`입니다.
 
 | 폴더 | 역할 |
 |---|---|
-| `cobot_fleet_control` | 주문별 전체 BT·주행 BT, 웹 요청 호환, 실시간 BT 조회, SQLite 실행 원장 |
+| `cobot_fleet_control` (`src/cobot_fleet_control/` 로 이동, 관제 담당) | 주문별 전체 BT·주행 BT, 웹 요청 호환, 실시간 BT 조회, SQLite 실행 원장 |
 | `cobot_domain_bridge` | 관제 도메인 100과 로봇 10/20/30 사이 중계 |
 | `cobot_zone_traffic_control` | 구역 진입·FIFO 슬롯·실제 이탈 전 점유 유지 |
 | `cobot_pinky_patrol` | 로봇 측 Nav2 실행, 명령 ID·세션·통신 감시 |
@@ -90,7 +90,7 @@ ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
 
 관제에서 SSH로 순차 기동하려면 `cobot_fleet_control/config/fleet_startup.yaml`의 계정을 채웁니다.
 `ros2 launch cobot_fleet_control fleet_startup.launch.xml`은 미리보기이고,
-`execute:=true`를 지정해야 실제 기동합니다. 자세한 절차는 [fleet README](cobot_fleet_control/README.md)를 봅니다.
+`execute:=true`를 지정해야 실제 기동합니다. 자세한 절차는 [fleet README](../cobot_fleet_control/README.md)를 봅니다.
 
 ## 시나리오·추론 PC 경계
 

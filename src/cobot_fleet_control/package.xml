@@ -2,8 +2,9 @@
 <package format="3">
   <name>cobot_fleet_control</name><version>0.1.0</version>
   <description>Pinky 주문별 전체 BT·주행 BT·실시간 관측과 DB·ROS 어댑터</description>
-  <maintainer email="cobot@example.com">cobot navigation team</maintainer>
+  <maintainer email="cobot@example.com">김지혜 (로봇 수행 관제)</maintainer>
   <license>Apache-2.0</license>
+  <author>JiHyeokHeo</author>
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>rclpy</exec_depend><exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>

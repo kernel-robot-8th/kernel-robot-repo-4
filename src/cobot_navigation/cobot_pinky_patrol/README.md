@@ -77,7 +77,7 @@ ROS_DOMAIN_ID=10 ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pink
 
 `robot_id`는 필수이고 `site` 기본값은 `lab`입니다. 기존 bringup에 LED 서버가 없으면 `start_led:=true`를 추가합니다. 기본값은 false이며 노드에서 서버를 자동 실행하지 않습니다. LED 응답이 지연되어도 주행·정지 콜백은 계속 처리합니다.
 
-관제 PC에서는 기존 도메인 브릿지와 zone_manager를 실행합니다. 도메인은 관제 100, 로봇 10/20/30입니다. [전체 실행 안내](../README.md), [MQTT·관제 계약](../cobot_fleet_control/README.md)을 참고하세요.
+관제 PC에서는 기존 도메인 브릿지와 zone_manager를 실행합니다. 도메인은 관제 100, 로봇 10/20/30입니다. [전체 실행 안내](../README.md), [MQTT·관제 계약](../../cobot_fleet_control/README.md)을 참고하세요.
 
 ### 구역 예약과 도착 상태
 
@@ -112,7 +112,7 @@ ros2 run cobot_pinky_patrol pinky_patrol_node --ros-args \
 
 ## 관제의 원격 통합 기동
 
-관제는 이 패키지의 `robot_startup` 실행기를 SSH로 호출해 `pinky_bringup/bringup_robot.launch.xml` → `pinky_navigation/bringup_launch.xml map:=...` → 공통 패트롤 launch를 순서대로 시작할 수 있습니다. 각 단계의 최소 간격과 준비 검사·시간 제한을 적용하며 세 프로세스를 계속 관리합니다. [관제 통합 기동·IP·SSH 설정](../cobot_fleet_control/README.md#관제에서-로봇까지-순차-기동)을 참고하세요.
+관제는 이 패키지의 `robot_startup` 실행기를 SSH로 호출해 `pinky_bringup/bringup_robot.launch.xml` → `pinky_navigation/bringup_launch.xml map:=...` → 공통 패트롤 launch를 순서대로 시작할 수 있습니다. 각 단계의 최소 간격과 준비 검사·시간 제한을 적용하며 세 프로세스를 계속 관리합니다. [관제 통합 기동·IP·SSH 설정](../../cobot_fleet_control/README.md#관제에서-로봇까지-순차-기동)을 참고하세요.
 
 관제의 `fleet_startup.launch.xml`은 기본 미리보기이므로 이때는 로봇의 `robot_startup`이 실행되지 않습니다. `execute:=true`를 지정하고 SSH 설정·설치 검사가 통과하면 자동 호출됩니다. 로봇마다 Python 파일을 따로 만들거나 SSH 접속 후 다시 실행할 필요는 없습니다. [두 기동기의 역할과 실행 순서](../docs/control_server_bt_report.html#startup-flow)를 참고하세요.
 

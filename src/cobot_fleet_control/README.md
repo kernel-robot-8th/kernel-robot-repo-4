@@ -5,7 +5,7 @@
 뷰어는 기본 8091 포트에서 실행 원장만 읽습니다. 작업 명령은 기존 control-center를 거칩니다.
 모델 추론은 별도 PC의 통신 API와 실행 어댑터를 통해 연결해야 합니다.
 
-[전체 구현·통신·검증 HTML](../docs/central_scenario_control.html)
+[전체 구현·통신·검증 HTML](../cobot_navigation/docs/central_scenario_control.html)
 
 ## 웹 계약
 
@@ -201,14 +201,14 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 `evidence.sku`, `load_present=true`, `arm_safe=true`, `pickup_path_clear=true`를 전달합니다.
 상차장 도착·정지·최신 통신·구역과 예약을 검증한 뒤 실제 구역 이탈부터 재개하며,
 센서 결과와 구분한 `operator_load_confirmation`·`operator_completed` 및 감사 이벤트를 보존합니다.
-수동 확인 명령·응답·감사 이력 조회 예시는 HTML의 [수동 상차 확인](../docs/central_scenario_control.html#manual-load)에 있습니다.
+수동 확인 명령·응답·감사 이력 조회 예시는 HTML의 [수동 상차 확인](../cobot_navigation/docs/central_scenario_control.html#manual-load)에 있습니다.
 별도 추론 PC에는 아직 ROS·통신 API가 없으며 원격 HTTP 추론 제어는 별도 연동 작업입니다.
 추론 코드·가중치·LeRobot·GPU 라이브러리를 이 패키지에 넣지 않습니다.
 
 ## 검증
 
 ```bash
-python3 -m pytest src/cobot_navigation/cobot_fleet_control/test -q
+python3 -m pytest src/cobot_fleet_control/test -q
 ```
 
 control-center 패키지가 Python 경로에 있고 FastAPI/httpx가 설치돼 있으면

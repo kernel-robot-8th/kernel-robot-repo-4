@@ -7,7 +7,8 @@ import threading
 from types import SimpleNamespace
 
 
-ROOT = Path(__file__).resolve().parents[2]
+PACKAGE = Path(__file__).resolve().parents[1]
+ROOT = PACKAGE.parent / 'cobot_navigation'
 
 
 def definitions(path, names, method=None):
@@ -67,7 +68,7 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
 
 def test_command_path_check_blocks_duplicate_senders_but_not_watchers():
     """들여다보는(echo) 구독자는 막지 않고, 보내는 쪽이 둘이면 막는다 (2026-11-09)."""
-    path = ROOT / 'cobot_fleet_control/cobot_fleet_control/fleet_control_node.py'
+    path = PACKAGE / 'cobot_fleet_control/fleet_control_node.py'
     namespace = {}
     exec(definitions(path, set(), ('FleetControlNode', 'ready')), namespace)
     ready = namespace['ready']

@@ -107,7 +107,7 @@ def test_upstream_websocket_receives_existing_task_envelope(web):
 def test_upstream_map_layers_read_exported_current_profiles(tmp_path):
     utils = pytest.importorskip('cobot_control_center.fleet_api_utils')
     from cobot_fleet_control.web_profiles import export_profiles
-    nav = Path(__file__).resolve().parents[2]
+    nav = Path(__file__).resolve().parents[2] / 'cobot_navigation'
     export_profiles(nav / 'cobot_pinky_patrol/config', 'lab',
                     ['pinky1', 'pinky2', 'pinky3'], tmp_path)
     layers = utils.load_map_layers(

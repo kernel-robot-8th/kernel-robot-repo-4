@@ -56,7 +56,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: |
-          /tmp/fleet-control-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_navigation/cobot_fleet_control/test src/cobot_navigation/cobot_pinky_patrol/test/test_central_guard.py
+          /tmp/fleet-control-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_fleet_control/test src/cobot_navigation/cobot_pinky_patrol/test/test_central_guard.py
   fleet-docker:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -65,12 +65,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Resolve deployment and build the complete control image
-        working-directory: src/cobot_navigation
+        working-directory: src
         run: |
           bash cobot_fleet_control/config/docker/fleet_docker.sh config
           bash cobot_fleet_control/config/docker/fleet_docker.sh build
       - name: Check web dependencies and launch plan without robot communication
-        working-directory: src/cobot_navigation
+        working-directory: src
         run: |
           source cobot_fleet_control/config/docker/versions.env
           docker run --rm --network none "$COBOT_IMAGE" bash -c 'python -c "import py_trees, fastapi, uvicorn; import cobot_control_center.fleet_api_node; import cobot_control_center.fleet_status_node" && ros2 run cobot_fleet_control control_center_web --navigation-root /opt/cobot_ws/src --mode preview --fleet existing'

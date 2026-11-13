@@ -74,7 +74,7 @@ def test_python_and_base_versions_are_pinned():
 def runner(tmp_path):
     """Docker 실행을 기록만 하는 대체 CLI. 컨테이너·네트워크는 켜지 않는다."""
     repo = tmp_path / 'repo'
-    config = repo / 'src/cobot_navigation/cobot_fleet_control/config/docker'
+    config = repo / 'src/cobot_fleet_control/config/docker'
     shutil.copytree(CONFIG, config)
     for name in ('cobot_control_center', 'cobot_patrol_interfaces'):
         package = repo / 'src' / name
@@ -108,12 +108,12 @@ with open(os.environ['FAKE_DOCKER_LOG'], 'a') as stream:
         calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
         return result, calls
 
-    run.staged_dir = repo / 'src/cobot_navigation/.docker-context/control-center'
+    run.repo = repo
     return run
 
 
 def test_build_only_builds_and_labels_source(runner):
-    """빌드는 같은 체크아웃의 웹 원본을 준비하고 버전을 기록하며 서비스를 시작하지 않는다."""
+    """빌드는 같은 체크아웃의 웹 원본 상태로 버전을 기록하며 서비스를 시작하지 않는다."""
     result, calls = runner('build')
     assert result.returncode == 0
     assert calls[-1]['args'][-2:] == ['build', 'fleet']
@@ -121,10 +121,8 @@ def test_build_only_builds_and_labels_source(runner):
     assert calls[-1]['dirty'] == 'true'
     assert calls[-1]['revision']
     assert not any('up' in call['args'] for call in calls)
-    assert not (runner.staged_dir / 'revision.txt').exists()
-    staged = runner.staged_dir / 'src'
-    assert (staged / 'cobot_control_center/original.txt').read_text() == 'working tree edit\n'
-    assert (staged / 'cobot_patrol_interfaces/original.txt').read_text() == 'committed source\n'
+    # build context 가 src/ 라서 웹 패키지를 따로 복사해 두지 않는다.
+    assert not any(runner.repo.rglob('.docker-context'))
 
 
 def test_down_preserves_volumes_by_default(runner):

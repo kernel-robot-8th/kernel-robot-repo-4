@@ -80,7 +80,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 
 ## 작업·주문 (fleet_control_node)
 
-작업 상태, 관제 재시작 뒤 처리(`UNKNOWN`), 수동 명령(`raw_cmd`) 검사는 작업 노드가 정합니다 → [`cobot_fleet_control/README.md`](../../cobot_navigation/cobot_fleet_control/README.md). 이 백엔드는 `/control_center/tasks` 에 실려 오는 값을 그대로 보여 줍니다. 예전 작업 노드 `task_manager_node` 는 2026-11-09 에 지웠습니다.
+작업 상태, 관제 재시작 뒤 처리(`UNKNOWN`), 수동 명령(`raw_cmd`) 검사는 작업 노드가 정합니다 → [`cobot_fleet_control/README.md`](../../cobot_fleet_control/README.md). 이 백엔드는 `/control_center/tasks` 에 실려 오는 값을 그대로 보여 줍니다. 예전 작업 노드 `task_manager_node` 는 2026-11-09 에 지웠습니다.
 
 ### `/api/health` 의 `orders`
 

@@ -13,7 +13,7 @@ setup(
         ('share/cobot_fleet_control/docs', glob('docs/*.html')),
     ],
     install_requires=['setuptools', 'py_trees==2.2.3'],
-    maintainer='cobot navigation team', maintainer_email='cobot@example.com',
+    maintainer='김지혜 (로봇 수행 관제)', maintainer_email='cobot@example.com',
     description='Pinky 주문별 전체 시나리오 BT·주행 BT와 실시간 관측 도구',
     license='Apache-2.0',
     entry_points={'console_scripts': [

@@ -35,14 +35,14 @@ ENV PATH="/opt/cobot/venv/bin:${PATH}" \
 
 WORKDIR /opt/cobot_ws
 COPY cobot_fleet_control src/cobot_fleet_control
-COPY cobot_zone_traffic_control src/cobot_zone_traffic_control
-COPY cobot_domain_bridge src/cobot_domain_bridge
-# 웹 패키지는 build 스크립트가 같은 체크아웃에서 복사해 둔 것을 쓴다 (context 밖이라서).
-COPY .docker-context/control-center/src/cobot_control_center src/cobot_control_center
-COPY .docker-context/control-center/src/cobot_patrol_interfaces src/cobot_patrol_interfaces
+COPY cobot_navigation/cobot_zone_traffic_control src/cobot_zone_traffic_control
+COPY cobot_navigation/cobot_domain_bridge src/cobot_domain_bridge
+# 웹 패키지도 같은 체크아웃(build context = src/)에서 가져온다.
+COPY cobot_control_center src/cobot_control_center
+COPY cobot_patrol_interfaces src/cobot_patrol_interfaces
 # 로봇 노드는 빌드하지 않고 웹 지도·지점 검증에 필요한 데이터만 포함한다.
-COPY cobot_pinky_patrol/config src/cobot_pinky_patrol/config
-COPY map_view_pc/maps/cobot_map_v9.yaml map_view_pc/maps/cobot_map_v9.pgm src/map_view_pc/maps/
+COPY cobot_navigation/cobot_pinky_patrol/config src/cobot_pinky_patrol/config
+COPY cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml cobot_navigation/map_view_pc/maps/cobot_map_v9.pgm src/map_view_pc/maps/
 # 런타임에는 호스트 소스를 마운트하지 않는다. 이미지 자체가 배포 코드 버전이다.
 RUN source /opt/ros/jazzy/setup.bash \
     && CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS}" MAKEFLAGS="-j${BUILD_JOBS}" \

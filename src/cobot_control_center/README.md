@@ -39,7 +39,7 @@
 | `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 8초 끊기면 offline (`stale_timeout_sec`) |
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 토픽 값을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
 
-작업 노드 `fleet_control_node` 는 이 패키지가 아니라 `src/cobot_navigation/cobot_fleet_control/` 에 있습니다 ([README](../cobot_navigation/cobot_fleet_control/README.md)).
+작업 노드 `fleet_control_node` 는 이 패키지가 아니라 `src/cobot_fleet_control/` 에 있습니다 ([README](../cobot_fleet_control/README.md)).
 
 `map_contract.py`(`map_hash`, `map_lint`)는 맵 계약 도구로, 이 문서 범위 밖입니다.
 
@@ -293,5 +293,5 @@ curl http://127.0.0.1:8080/api/robots/pinky1
 
 - **새 의존성**: fastapi·uvicorn(·websockets·httpx)은 팀 허락을 PR 에서 받습니다. `.venv` 없이 빌드하면 `fleet_api_node` 와 그 시험이 실패합니다.
 - **`web/` 위치**: CLAUDE.md §3-7 은 웹 자원을 `cobot_gui/web/` 에만 두게 하지만, 관제 전용 화면이라 이 패키지에 두었습니다. 규칙 개정 합의가 필요합니다.
-- **명령 기능은 실물을 움직입니다**: 예전 작업 노드 `task_manager_node`(2026-11-09 삭제)로는 2026-11-02 실물 pinky2 에서 명령 전달·정지·결과 모름 해제까지 확인했습니다. 작업 노드 `fleet_control_node` 를 이 관제 화면과 함께 실물에서 돌린 기록은 이 README 에 아직 없습니다 (fleet 쪽 기록은 [`cobot_fleet_control/README.md`](../cobot_navigation/cobot_fleet_control/README.md)). 실물 시험은 매번 사용자·현장 확인 뒤, 한 대씩 합니다.
+- **명령 기능은 실물을 움직입니다**: 예전 작업 노드 `task_manager_node`(2026-11-09 삭제)로는 2026-11-02 실물 pinky2 에서 명령 전달·정지·결과 모름 해제까지 확인했습니다. 작업 노드 `fleet_control_node` 를 이 관제 화면과 함께 실물에서 돌린 기록은 이 README 에 아직 없습니다 (fleet 쪽 기록은 [`cobot_fleet_control/README.md`](../cobot_fleet_control/README.md)). 실물 시험은 매번 사용자·현장 확인 뒤, 한 대씩 합니다.
 - **로그인 없음**: bringup 기본(`host=0.0.0.0`)은 내부망의 누구나 명령을 보낼 수 있습니다. 믿을 수 없는 망이면 `host:=127.0.0.1` 로 띄우고 SSH 터널로만 접속합니다. 여러 사람이 쓰게 되면 로그인·권한을 먼저 넣습니다.
