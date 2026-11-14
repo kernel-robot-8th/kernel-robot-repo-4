@@ -1,6 +1,7 @@
 """관제 원장에 시나리오 상태·재고 예약·자원 소유 관계를 기록한다."""
 
 import json
+import sqlite3
 import time
 
 from .repository import encode
@@ -26,6 +27,15 @@ class ScenarioRepository:
                 robot_id TEXT PRIMARY KEY, reason TEXT NOT NULL
             );
         ''')
+        # 선반 칸은 나중에 추가한 선택 항목이다. 현장 원장을 지우지 않도록 칼럼만 더한다.
+        columns = {row['name'] for row in self.db.execute('PRAGMA table_info(scenario_stock)')}
+        for column in ('shelf_row', 'shelf_col'):
+            if column not in columns:
+                self.db.execute(f'ALTER TABLE scenario_stock ADD COLUMN {column} INTEGER')
+        self.db.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS scenario_stock_slot '
+            'ON scenario_stock(shelf_row, shelf_col) WHERE shelf_row IS NOT NULL')
+        self.db.commit()
 
     def orders(self):
         """접수 순서를 반환해 선입선출 배정 순서를 일정하게 유지한다."""
@@ -53,12 +63,36 @@ class ScenarioRepository:
         with self.db:
             self.db.execute('DELETE FROM scenario_holds WHERE robot_id=?', (robot_id,))
 
-    def set_stock(self, sku, quantity):
-        """이미 예약된 수량과 별개로 가용 재고를 설정한다."""
-        with self.db:
-            self.db.execute('INSERT OR REPLACE INTO scenario_stock VALUES (?,?)',
-                            (sku, quantity))
-            self._event({'type': 'inventory', 'sku': sku, 'available': quantity})
+    def set_stock(self, sku, quantity, shelf_row=None, shelf_col=None):
+        """이미 예약된 수량과 별개로 가용 재고를 설정한다. 칸을 생략하면 기존 칸을 유지한다."""
+        try:
+            with self.db:
+                self.db.execute(
+                    'INSERT INTO scenario_stock(sku, available, shelf_row, shelf_col) '
+                    'VALUES (?,?,?,?) ON CONFLICT(sku) DO UPDATE SET '
+                    'available=excluded.available, '
+                    'shelf_row=COALESCE(excluded.shelf_row, shelf_row), '
+                    'shelf_col=COALESCE(excluded.shelf_col, shelf_col)',
+                    (sku, quantity, shelf_row, shelf_col))
+                event = {'type': 'inventory', 'sku': sku, 'available': quantity}
+                if shelf_row is not None:
+                    event.update(shelf_row=shelf_row, shelf_col=shelf_col)
+                self._event(event)
+        except sqlite3.IntegrityError as error:
+            raise ValueError('선반 칸 중복: 한 칸에는 SKU 하나만 둘 수 있습니다') from error
+
+    def stock(self):
+        """고객 화면이 가용 수량과 선반 칸을 볼 수 있게 재고 전체를 반환한다."""
+        return [dict(sku=r[0], available=r[1], shelf_row=r[2], shelf_col=r[3])
+                for r in self.db.execute(
+                    'SELECT sku, available, shelf_row, shelf_col FROM scenario_stock '
+                    'ORDER BY sku')]
+
+    def location(self, sku):
+        """SKU의 선반 (행, 열). 칸을 등록하지 않았으면 None."""
+        row = self.db.execute(
+            'SELECT shelf_row, shelf_col FROM scenario_stock WHERE sku=?', (sku,)).fetchone()
+        return (row[0], row[1]) if row and row[0] is not None else None
 
     def create(self, payload, snapshot):
         """실물 명령을 내리기 전에 재고 예약과 주문 접수를 하나의 트랜잭션으로 처리한다."""
@@ -122,7 +156,7 @@ class ScenarioRepository:
         """실제 작업 영역에서 벗어났음을 확인한 뒤에만 자원을 반납한다."""
         with self.db:
             if restock:
-                self.db.execute('INSERT INTO scenario_stock VALUES (?,?) '
+                self.db.execute('INSERT INTO scenario_stock(sku, available) VALUES (?,?) '
                                 'ON CONFLICT(sku) DO UPDATE '
                                 'SET available=available+excluded.available',
                                 (snapshot['sku'], snapshot['quantity']))

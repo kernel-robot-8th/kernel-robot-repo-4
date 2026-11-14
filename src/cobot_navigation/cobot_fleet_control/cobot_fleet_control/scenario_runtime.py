@@ -18,6 +18,7 @@ class ScenarioContext:
         self.allow_dispatch = True
         self.pending = None
         self.customer_received = False
+        self.customer_declined = False
         self.dock_data = {}
 
     @property
@@ -81,11 +82,15 @@ class ScenarioContext:
                 actor, action = WORK[stage]
                 if order['kind'] == 'return' and stage == 'UNLOAD':
                     action = 'warehouse_store'
-                service.gateway.work(dict(
+                work = dict(
                     request_id=request_id, order_id=order['order_id'], robot_id=order['robot_id'],
                     stage=stage, target=route.get(actor, actor), action=action,
                     sku=order['sku'], quantity=order['quantity'], attempt=order['attempt'],
-                    route=route, timeout_sec=service.config['step_timeout_sec']))
+                    route=route, timeout_sec=service.config['step_timeout_sec'])
+                if order.get('shelf_row') is not None:
+                    # 선반 칸을 아는 주문만 팔이 집을 행·열을 함께 받는다.
+                    work.update(shelf_row=order['shelf_row'], shelf_col=order['shelf_col'])
+                service.gateway.work(work)
         except Exception as error:
             self.interrupt('단계 전달 실패: ' + str(error))
 
@@ -118,6 +123,9 @@ class ScenarioContext:
                      detail=order['failure'] or '필수 작업과 HOME 복귀 완료', updated_at=time.time())
         self.service.store.close_order(
             order, restock=order['kind'] == 'return' and not order['failure'])
+        if (order.get('customer_declined') and order['kind'] == 'delivery'
+                and not order['failure']):
+            self.service.collect_declined(order)
         return True
 
 

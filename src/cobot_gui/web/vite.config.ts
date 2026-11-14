@@ -121,6 +121,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // 관제 화면(index.html)과 고객 화면(customer.html)을 따로 만든다. customer_gateway 는 customer.html 만 내보낸다.
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        customer: path.resolve(__dirname, 'customer.html'),
+      },
+    },
+  },
   server: {
     proxy: {
       '^/api/(?!feedback).*': process.env.VITE_GATEWAY_URL ?? 'http://127.0.0.1:8080',
