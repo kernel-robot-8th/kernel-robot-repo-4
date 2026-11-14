@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  fms_core 주문 부분 (관제 PC). 로봇에 명령을 보내지 않는다 (시뮬레이션 단계 진행).
+  ros2 launch cobot_control_center order_manager.launch.xml
+-->
+<launch>
+  <arg name="params_file" default="$(find-pkg-share cobot_control_center)/config/order_manager.yaml"/>
+  <node pkg="cobot_control_center" exec="order_manager_node" name="order_manager" output="screen">
+    <param from="$(var params_file)"/>
+  </node>
+</launch>

@@ -24,18 +24,21 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/order_manager.yaml']),
+        ('share/' + package_name + '/launch', ['launch/order_manager.launch.xml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='rkd1rjs2',
     maintainer_email='rkd1rjs2@gmail.com',
-    description='FMS 관제 코어: 지금은 맵 계약 도구(map_hash, map_lint)만 있다',
+    description='FMS 관제 코어: 맵 계약 도구와 고객 주문 관리(SQLite)',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'map_hash = cobot_control_center.map_contract:hash_main',
             'map_lint = cobot_control_center.map_contract:lint_main',
+            'order_manager_node = cobot_control_center.order_manager_node:main',
         ],
     },
 )
