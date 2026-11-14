@@ -11,6 +11,7 @@
 # Goal
 string ACTION_TYPE_LOAD="LOAD"
 string ACTION_TYPE_UNLOAD="UNLOAD"
+string ACTION_TYPE_REPACK="REPACK"   # 고객이 취소한 신발을 핑키 위에서 정돈해 다시 싣는다 (WP_UNLOAD, 초안)
 
 CommandHeader header             # 세션 펜싱·서명. header.robot_id = 이 Goal 을 받는 팔 (omx_1~3)
 string robot_id                  # 대상 핑키 (pinky_1~3)

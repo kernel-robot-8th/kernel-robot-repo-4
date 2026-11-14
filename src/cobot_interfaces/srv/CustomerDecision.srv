@@ -1,0 +1,27 @@
+# CustomerDecision.srv - 고객이 받은 신발을 살지 정한다 (고객 화면 -> 게이트웨이 -> fms_core)
+# 서비스 이름: /control_center/customer_decision (이름 초안)
+# 주문이 UNLOADING(고객 앞 도착, 결정 대기)일 때만 받는다 (초안, D14).
+# 결제는 가짜다. PAID 는 고객 화면의 '결제 완료' 버튼으로 온다. 실제 결제 연동은 없다.
+# CANCEL 이면 핑키가 OMX_3 작업대로 가서 팔이 신발을 정돈해 다시 싣고(HandoverTask REPACK) 창고로 돌아간다.
+
+string DECISION_PAID="PAID"
+string DECISION_CANCEL="CANCEL"
+
+string order_id            # 주문 ID
+string decision            # 위 DECISION_* 중 하나
+string requester_id        # 고객 화면 세션 ID (원장 actor_id 용)
+string gw_nonce            # 게이트웨이 nonce
+string gw_sig              # HMAC-SHA256(게이트웨이 키). 없으면 BAD_SIGNATURE
+---
+string RESULT_ACCEPTED="ACCEPTED"
+string RESULT_REJECTED="REJECTED"
+
+string REJECT_BAD_SIGNATURE="BAD_SIGNATURE"
+string REJECT_UNKNOWN_ORDER="UNKNOWN_ORDER"
+string REJECT_WRONG_STAGE="WRONG_STAGE"
+string REJECT_BAD_DECISION="BAD_DECISION"
+string REJECT_LEDGER_UNAVAILABLE="LEDGER_UNAVAILABLE"
+
+string result              # 위 RESULT_* 중 하나
+string reject_code         # 거부 사유. 받았으면 ""
+string stage               # 처리 뒤 주문 단계 (OrderStatus.STAGE_* 값)

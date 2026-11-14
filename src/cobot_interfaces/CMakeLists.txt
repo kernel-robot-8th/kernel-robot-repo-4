@@ -63,6 +63,7 @@ set(msg_files
 
 set(srv_files
   "srv/ConsoleLease.srv"
+  "srv/CustomerDecision.srv"
   "srv/OperatorCommand.srv"
   "srv/QueryAudit.srv"
   "srv/ReconcileReport.srv"

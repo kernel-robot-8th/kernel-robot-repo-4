@@ -72,7 +72,7 @@ def test_package_has_expected_files(defs):
     for iface in defs.values():
         counts[iface.kind] += 1
     # 파일을 더하거나 빼면 이 숫자와 docs/fms_interfaces.md 의 개수 줄을 같은 PR 에서 고친다.
-    assert counts == {'msg': 30, 'srv': 5, 'action': 2}
+    assert counts == {'msg': 30, 'srv': 6, 'action': 2}
 
 
 def test_contract_passes(defs):
