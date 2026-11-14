@@ -1,0 +1,13 @@
+fleet_control:
+  ros__parameters:
+    robot_ids: [pinky1, pinky2, pinky3]
+    db_path: ~/.cobot/fleet_control.sqlite3
+    tick_sec: 0.1
+    heartbeat_sec: 0.5
+    heartbeat_ttl_sec: 3.0
+    command_ttl_sec: 5.0
+    request_topic: /control_center/task_request
+    events_topic: /control_center/task_events
+    tasks_topic: /control_center/tasks
+    work_request_topic: /fleet/work_request
+    work_result_topic: /fleet/work_result
