@@ -1,0 +1,10 @@
+<launch>
+  <!-- 위치 재설정 노드. ROS_DOMAIN_ID 는 장비별로 따로 지정 (pinky1=10, pinky2=20, pinky3=30)
+       robot 은 기본값이 없다: 다른 로봇의 waypoint 로 조용히 동작하지 않도록 반드시 지정한다. -->
+  <arg name="robot" description="로봇 이름 (pinky1 / pinky2 / pinky3). config/&lt;robot&gt;.yaml 의 points 를 쓴다"/>
+  <node pkg="cobot_pinky_patrol" exec="pinky_pose_recovery_node" name="pinky_pose_recovery_node" output="screen">
+    <param from="$(find-pkg-share cobot_pinky_patrol)/config/pose_recovery.yaml"/>
+    <!-- 뒤에 오는 param 이 앞의 yaml 값을 덮어쓴다 -->
+    <param name="points_file" value="$(find-pkg-share cobot_pinky_patrol)/config/$(var robot).yaml"/>
+  </node>
+</launch>
