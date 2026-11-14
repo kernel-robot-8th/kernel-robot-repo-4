@@ -1,0 +1,29 @@
+<?xml version='1.0'?>
+<!--
+YOLO 사람 인식 노드. 핑키와 연결된 PC 에서 실행한다.
+  ros2 launch cobot_person_detector person_detector.launch.xml model_path:=<best.pt>
+  브릿지 경유 예: image_topic:=/pinky1/camera/image_raw/compressed use_compressed:=true output_topic:=/pinky1/person_detections
+-->
+<launch>
+    <arg name="model_path" description="YOLO .pt 파일 경로"/>
+    <arg name="namespace" default=""/>
+    <arg name="use_sim_time" default="false"/>
+    <arg name="params_file" default="$(find-pkg-share cobot_person_detector)/config/person_detector.yaml"/>
+    <arg name="image_topic" default="camera/image_raw"/>
+    <arg name="use_compressed" default="false"/>
+    <arg name="output_topic" default="person_detections"/>
+    <arg name="device" default="cpu"/>
+
+    <group>
+        <push-ros-namespace namespace="$(var namespace)"/>
+        <node pkg="cobot_person_detector" exec="person_detector_node" name="person_detector_node" output="screen">
+            <param from="$(var params_file)"/>
+            <param name="model_path" value="$(var model_path)"/>
+            <param name="use_sim_time" value="$(var use_sim_time)"/>
+            <param name="image_topic" value="$(var image_topic)"/>
+            <param name="use_compressed" value="$(var use_compressed)"/>
+            <param name="output_topic" value="$(var output_topic)"/>
+            <param name="device" value="$(var device)" type="str"/>
+        </node>
+    </group>
+</launch>
