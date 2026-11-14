@@ -16,7 +16,7 @@ setup(
         ('share/' + package_name + '/config', glob('config/*.yaml')),
         ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'pyyaml'],
     zip_safe=True,
     maintainer='pinky',
     maintainer_email='pinky@todo.todo',
@@ -32,6 +32,7 @@ setup(
             'pinky_patrol_node_pinky1 = cobot_pinky_patrol.pinky_patrol_node_pinky1:main',
             'pinky_patrol_node_pinky2 = cobot_pinky_patrol.pinky_patrol_node_pinky2:main',
             'pinky_patrol_node_pinky3 = cobot_pinky_patrol.pinky_patrol_node_pinky3:main',
+            'pinky_pose_recovery_node = cobot_pinky_patrol.pinky_pose_recovery_node:main',
         ],
     },
 )
