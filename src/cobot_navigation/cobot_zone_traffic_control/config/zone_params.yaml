@@ -28,7 +28,7 @@ zone_manager_node:
       queue_anchor: [0.15, 0.5, 0.0]     # A 와 같은 대기 위치·yaw (토큰·대기열은 구역별로 따로)
       queue_back_dir: [0.0, -1.0]
     zone_C:
-      queue_anchor: [-0.2, 0.45, 1.5]    # slot 0 위치 [x, y, yaw(rad)] (1.5 = 좌측 90°)
+      queue_anchor: [-0.6, -0.20, 1.5]    # slot 0 위치 [x, y, yaw(rad)] (1.5 = 좌측 90°)
       queue_back_dir: [0.0, -1.0]
     # 아래는 모든 구역 공통
     # 간격 d = 0.30 m (사용자 의도값). 0.20 m 에서는 로봇끼리 부딪혔고, 0.50 m 도 시험했으나 0.30 m 로 확정 (2026-10-14)

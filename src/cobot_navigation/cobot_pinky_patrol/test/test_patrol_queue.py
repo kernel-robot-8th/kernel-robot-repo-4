@@ -66,16 +66,6 @@ ISOLATED = (os.environ.get('ROS_DOMAIN_ID') == '77'
 # ==============================================================================
 # 정적 검증 (ROS 불필요)
 # ==============================================================================
-@pytest.mark.skip(reason='R1: v1.1.0 순회(WAYPOINTS/ZONE_*_INDEX) 주석 처리 -- 되살릴 때 skip 제거')
-@pytest.mark.parametrize('n', [1, 2])
-def test_waypoint_indexes_match_door_names(n):
-    """WAYPOINTS 순번(ZONE_*_INDEX)이 문 좌표(ZONE_*_NAME)와 일치해야 start 경로가 맞게 동작한다."""
-    cls = importlib.import_module(MODS[n]).PinkyPatrolNode
-    # R3 이후 WAYPOINTS 는 좌표가 아닌 지점 이름 리스트 (되살릴 때 이 비교를 이름 기준으로 맞춘다)
-    assert cls.WAYPOINTS[cls.ZONE_ENTRY_INDEX] == cls.ZONE_ENTRY_NAME
-    assert cls.WAYPOINTS[cls.ZONE_EXIT_INDEX] == cls.ZONE_EXIT_NAME
-
-
 @pytest.mark.parametrize('n', [1, 2, 3])
 def test_no_hardcoded_queue_coordinates(n):
     """로봇 코드에는 슬롯 좌표가 없다: points 에 RED*/WAIT*/QUEUE* 항목이 없어야 한다 (슬롯은 매니저가 줌)."""
@@ -381,7 +371,6 @@ def make_robot(env, n, robot_id, travel=0.3):
                               _held_zone=None, _idle_deadline=None, _last_point=None,
                               idle_return_sec=1.0, _thread=None)
     r.gate = env.Gate(nav, robot_id)
-    # WAYPOINTS / ZONE_*_INDEX / _run_patrol 은 v1.1.0 순회 중단(R1)으로 주석 처리되어 없다.
     for name in ('NAV_RETRIES',):
         setattr(r, name, getattr(cls, name))
     # 좌표/홈/구역은 노드가 파라미터로 받는 YAML 과 같은 값
@@ -570,32 +559,6 @@ def test_grant_returns_immediately_without_going_to_anchor(env):
     env.pump(lambda: False, 0.8)
     assert len(r.navigator.goals) == n_end                       # 반환 뒤 앵커 등 새 goal 이 나가지 않음
     r.gate.notify_exit()
-    assert env.pump(lambda: env.status['A'] == 'free', 4)
-
-
-@pytest.mark.skip(reason='R1: v1.1.0 순회(_run_patrol) 주석 처리 -- 되살릴 때 skip 제거')
-def test_pinky2_start_path_uses_corrected_indexes(env):
-    """pinky2 start 경로: 구역 A ENTRY 에서 진입 절차 -> ZB -> ... -> 구역 EXIT 에서 락 반납 -> I2."""
-    r = make_robot(env, 2, 'pinky2')
-    t, out = run_in_thread(r._run_patrol)
-    assert env.pump(lambda: not t.is_alive(), 15)
-    g = r.navigator.goals
-    assert len(g) == 5, g
-    assert g[3] == EXIT and g[3][2] == pytest.approx(3.14, abs=0.01)
-    assert states(r)[-1] == 'DONE'
-    assert env.pump(lambda: env.status['A'] == 'free', 4)   # ZONE_EXIT(3번) 도착 때 notify_exit
-
-
-@pytest.mark.skip(reason='R1: v1.1.0 순회(_run_patrol) 주석 처리 -- 되살릴 때 skip 제거')
-def test_pinky1_start_path_waits_in_queue(env):
-    occ = occupy(env)
-    r = make_robot(env, 1, 'pinky1x')
-    t, out = run_in_thread(r._run_patrol)
-    assert env.pump(lambda: 'QUEUEING' in states(r), 10)
-    assert SLOT0 in r.navigator.goals
-    occ.notify_exit()
-    assert env.pump(lambda: not t.is_alive(), 20)
-    assert states(r)[-1] == 'DONE'
     assert env.pump(lambda: env.status['A'] == 'free', 4)
 
 
