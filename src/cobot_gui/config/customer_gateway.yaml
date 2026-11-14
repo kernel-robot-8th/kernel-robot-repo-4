@@ -5,11 +5,12 @@ customer_gateway:
     host: "0.0.0.0"
     # 6000 은 크롬이 막는 포트(ERR_UNSAFE_PORT)라 쓰지 않는다.
     port: 8080
-    # 게이트웨이 서명 키 파일 (fms_core 와 같은 키). 비면 서명 없이 보낸다 (개발 모드). 커밋하지 않는다.
-    gateway_key_file: ""
-    # [s] fms_core 서비스 응답을 기다리는 시간
-    service_timeout_sec: 3.0
-    # /control_center/orders 의 KEEP_LAST 깊이 (fms_core 와 같게)
-    orders_qos_depth: 50
+    # cobot_fleet_control 의 관제 토픽 (그 패키지의 config/fleet_control.yaml 과 같게 둔다)
+    request_topic: /control_center/task_request
+    events_topic: /control_center/task_events
+    tasks_topic: /control_center/tasks
+    # [s] fleet_control 응답을 기다리는 시간
+    request_timeout_sec: 3.0
+    # [s] 상태 스냅숏(1초 주기)이 이보다 오래되면 재고를 모르는 것으로 본다
+    snapshot_stale_sec: 5.0
     # web_root, catalog_file 은 비워 두면 install 경로를 쓴다 (launch 에서 바꿀 수 있다).
-    # layout_file(매장 배치)은 launch 가 cobot_bringup 경로를 넣는다.

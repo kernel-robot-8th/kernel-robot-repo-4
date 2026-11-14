@@ -3,16 +3,14 @@
 <package format="3">
   <name>cobot_gui</name>
   <version>0.0.0</version>
-  <description>FMS 관제 대시보드(GUI) 패키지. 메뉴 레지스트리(config/menu_tree.yaml)와 그 검사·문서 생성 도구, 고객 주문 게이트웨이(관제 PC, customer_gateway)가 있다. 로봇 토픽을 발행하지 않는다. 다른 패키지와는 cobot_interfaces 로만 통신한다.</description>
+  <description>FMS 관제 대시보드(GUI) 패키지. 메뉴 레지스트리(config/menu_tree.yaml)와 그 검사·문서 생성 도구, 고객 주문 게이트웨이(관제 PC, customer_gateway)가 있다. 로봇 토픽을 발행하지 않는다. 게이트웨이는 cobot_fleet_control 과 관제 토픽(std_msgs/String JSON)으로만 통신한다.</description>
   <maintainer email="rkd1rjs2@gmail.com">rkd1rjs2</maintainer>
   <license>Apache-2.0</license>
 
-  <!-- cobot_bringup 의 매장 배치(config/store_layout.yaml)를 실행 때 읽지만 여기 적지 않는다.
-       bringup 이 나중에 이 패키지 launch 를 include 하면 순환 의존이 된다 (cobot_control_center 와 같은 방식). -->
   <exec_depend>ament_index_python</exec_depend>
-  <exec_depend>cobot_interfaces</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

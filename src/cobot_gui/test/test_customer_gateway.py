@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""고객 게이트웨이 HTTP 처리를 ROS 없이 가짜 backend 로 본다."""
+"""고객 게이트웨이 HTTP 처리를 ROS 없이 가짜 fleet_control 로 본다."""
 
-import hashlib
-import hmac
 import json
 from pathlib import Path
 import threading
@@ -26,52 +24,72 @@ from cobot_gui import customer_gateway_utils as gw
 import pytest
 
 CATALOG = Path(__file__).resolve().parents[1] / 'config' / 'customer_catalog.yaml'
-LAYOUT = (Path(__file__).resolve().parents[2] / 'cobot_bringup' / 'config'
-          / 'store_layout.yaml')
+SHOE = 'SHOE_RUN_WHITE_260'
+SOLD_OUT = 'SHOE_SANDAL_BEIGE_240'
 
 
-class FakeBackend:
-    """fms_core 대신 쓰는 가짜."""
+class FakeFleet:
+    """cobot_fleet_control 의 요청·응답과 스냅숏을 흉내 낸다 (그 패키지 README 의 '고객 주문 화면용 요청')."""
 
     def __init__(self):
         self.orders = {}
         self.calls = []
         self.down = False
+        self.stock = {SHOE: 3, SOLD_OUT: 0}
+        self.places = {'BENCH_1': {'name': '고객 벤치 1'}}
 
     def available(self, sku):
-        return 0 if sku == 'SHOE_SANDAL_BEIGE_240' else 3
+        return self.stock.get(sku, 0)
+
+    def destinations(self):
+        return self.places
 
     def get_order(self, order_id):
         return self.orders.get(order_id)
 
-    def submit_order(self, fields):
-        self.calls.append(('submit', fields))
+    def request(self, payload):
+        self.calls.append(payload)
         if self.down:
             return None
-        order_id = 'ORD-{:05d}'.format(len(self.orders) + 1)
-        self.orders[order_id] = {'order_id': order_id, 'sku': fields['sku'],
-                                 'stage': 'RECEIVED', 'failure_reason': ''}
-        return {'result': 'ACCEPTED', 'reject_code': '', 'order_id': order_id,
-                'duplicate': False}
+        if payload['type'] == 'order':
+            data = payload['order']
+            if self.stock.get(data['sku'], 0) < data['quantity']:
+                return {'status': 400, 'body': {'detail': '재고 부족: 주문 거절'}}
+            self.stock[data['sku']] -= data['quantity']
+            order = dict(data, state='WAITING', stage='MOVE_PICKUP', detail='',
+                         customer_received=False, customer_timed_out=False,
+                         customer_declined=False)
+            self.orders[data['order_id']] = order
+            return {'status': 202, 'body': order}
+        order = self.orders[payload['order_id']]
+        if order['state'] != 'RUNNING' or order['stage'] != 'CUSTOMER':
+            return {'status': 400, 'body': {'detail': '고객 수령 대기 중인 주문만 확인 가능'}}
+        flag = 'customer_received' if payload['type'] == 'received' else 'customer_declined'
+        order.update({flag: True, 'stage': 'LEAVE_DROPOFF'})
+        return {'status': 200, 'body': order}
 
-    def decide(self, fields):
-        self.calls.append(('decide', fields))
-        order = self.orders[fields['order_id']]
-        if order['stage'] != 'UNLOADING':
-            return {'result': 'REJECTED', 'reject_code': 'WRONG_STAGE', 'stage': order['stage']}
-        order['stage'] = 'HANDOVER_CONFIRMED' if fields['decision'] == 'PAID' else 'CANCELLED'
-        return {'result': 'ACCEPTED', 'reject_code': '', 'stage': order['stage']}
+    def move(self, order_id, **changes):
+        self.orders[order_id].update(changes)
 
 
 @pytest.fixture
 def api():
-    backend = FakeBackend()
-    return gw.CustomerApi(gw.load_catalog(str(CATALOG), str(LAYOUT)), backend), backend
+    fleet = FakeFleet()
+    return gw.CustomerApi(gw.load_catalog(str(CATALOG)), fleet), fleet
 
 
-def _order(api_obj, session='s1', key='k1', loc='BENCH_1', sku='SHOE_RUN_WHITE_260'):
+def _order(api_obj, session='s1', key='k1', loc='BENCH_1', sku=SHOE):
     return api_obj.handle('POST', '/orders', {}, {
         'sku': sku, 'loc': loc, 'client_key': key, 'session': session})
+
+
+def _status(api_obj, order_id='cust-k1', session='s1'):
+    return api_obj.handle('GET', '/orders/' + order_id, {'session': [session]}, {})
+
+
+def _decide(api_obj, decision, order_id='cust-k1', session='s1'):
+    return api_obj.handle('POST', '/orders/{}/decision'.format(order_id), {},
+                          {'session': session, 'decision': decision})
 
 
 def test_catalog_has_location_and_stock(api):
@@ -80,79 +98,133 @@ def test_catalog_has_location_and_stock(api):
     assert status == 200
     assert body['location'] == {'id': 'BENCH_1', 'name': '고객 벤치 1'}
     stock = {item['sku']: item['available'] for item in body['items']}
-    assert stock['SHOE_SANDAL_BEIGE_240'] == 0
-    assert stock['SHOE_RUN_WHITE_260'] == 3
+    assert stock[SOLD_OUT] == 0
+    assert stock[SHOE] == 3
 
 
 def test_catalog_unknown_location_is_null(api):
-    api_obj, _ = api
+    api_obj, fleet = api
     assert api_obj.handle('GET', '/catalog', {'loc': ['X']}, {})[1]['location'] is None
+    # 스냅숏을 아직 못 받았으면 자리를 모른다.
+    fleet.places = None
+    assert api_obj.handle('GET', '/catalog', {'loc': ['BENCH_1']}, {})[1]['location'] is None
 
 
-def test_order_flow_through_api(api):
-    api_obj, backend = api
+def test_order_goes_to_fleet_with_destination(api):
+    api_obj, fleet = api
+    assert _order(api_obj) == (200, {'order_id': 'cust-k1', 'view': 'preparing'})
+    assert fleet.calls == [{'type': 'order', 'order': {
+        'order_id': 'cust-k1', 'sku': SHOE, 'quantity': 1, 'destination': 'BENCH_1'}}]
+    assert _status(api_obj)[1] == {
+        'order_id': 'cust-k1', 'sku': SHOE, 'stage': 'RECEIVED', 'view': 'preparing',
+        'failure_reason': ''}
+
+
+def test_purchase_and_decline_map_to_fleet_requests(api):
+    api_obj, fleet = api
+    _order(api_obj)
+    # 도착 전 결정은 fleet_control 이 거절한다.
+    status, body = _decide(api_obj, 'PAID')
+    assert (status, body['error'], body['stage']) == (409, 'WRONG_STAGE', 'RECEIVED')
+    fleet.move('cust-k1', state='RUNNING', stage='CUSTOMER')
+    assert _status(api_obj)[1]['view'] == 'arrived'
+    status, body = _decide(api_obj, 'CANCEL')
+    assert (status, body['view'], body['stage']) == (200, 'cancelled', 'CANCELLED')
+    assert fleet.calls[-1] == {'type': 'declined', 'order_id': 'cust-k1'}
+
+    _order(api_obj, key='k2')
+    fleet.move('cust-k2', state='RUNNING', stage='CUSTOMER')
+    status, body = _decide(api_obj, 'PAID', order_id='cust-k2')
+    assert (status, body['view']) == (200, 'paid')
+    assert fleet.calls[-1] == {'type': 'received', 'order_id': 'cust-k2'}
+    assert _decide(api_obj, 'MAYBE', order_id='cust-k2') == (400, {'error': 'BAD_DECISION'})
+
+
+def test_out_of_stock_does_not_create_order(api):
+    api_obj, fleet = api
+    assert _order(api_obj, sku=SOLD_OUT) == (
+        200, {'order_id': 'cust-k1', 'view': 'out_of_stock'})
+    assert fleet.calls == []
+    # 스냅숏이 오래돼 재고를 모를 때는 fleet_control 의 거절로 품절을 안다.
+    fleet.available = lambda sku: None
+    assert _order(api_obj, sku=SOLD_OUT, key='k2')[1]['view'] == 'out_of_stock'
+    assert _status(api_obj, 'cust-k2')[0] == 404
+
+
+def test_fleet_rejection_is_409_with_detail(api):
+    api_obj, fleet = api
+    fleet.request = lambda payload: {'status': 400, 'body': {'detail': '선반 3열의 상차 구역 미등록'}}
     status, body = _order(api_obj)
-    assert (status, body) == (200, {'order_id': 'ORD-00001', 'view': 'preparing'})
-    assert backend.calls[0][1] == {
-        'idempotency_key': 'cust-k1', 'sku': 'SHOE_RUN_WHITE_260', 'qty': 1,
-        'table_id': 'BENCH_1', 'requester_role': 'customer', 'requester_id': 's1'}
-    status, body = api_obj.handle('GET', '/orders/ORD-00001', {'session': ['s1']}, {})
-    assert body['view'] == 'preparing'
-    # 도착 전 결정은 fms_core 가 거부한다.
-    status, body = api_obj.handle('POST', '/orders/ORD-00001/decision', {},
-                                  {'session': 's1', 'decision': 'PAID'})
-    assert (status, body['error']) == (409, 'WRONG_STAGE')
-    backend.orders['ORD-00001']['stage'] = 'UNLOADING'
-    assert api_obj.handle('GET', '/orders/ORD-00001', {'session': ['s1']}, {})[1]['view'] == (
-        'arrived')
-    status, body = api_obj.handle('POST', '/orders/ORD-00001/decision', {},
-                                  {'session': 's1', 'decision': 'CANCEL'})
-    assert (status, body['view']) == (200, 'cancelled')
+    assert (status, body) == (409, {'error': 'ORDER_REJECTED',
+                                    'detail': '선반 3열의 상차 구역 미등록'})
 
 
 def test_other_session_cannot_see_or_decide(api):
-    api_obj, backend = api
+    api_obj, fleet = api
     _order(api_obj)
-    backend.orders['ORD-00001']['stage'] = 'UNLOADING'
-    assert api_obj.handle('GET', '/orders/ORD-00001', {'session': ['s2']}, {})[0] == 404
-    assert api_obj.handle('POST', '/orders/ORD-00001/decision', {},
-                          {'session': 's2', 'decision': 'PAID'})[0] == 404
+    fleet.move('cust-k1', state='RUNNING', stage='CUSTOMER')
+    assert _status(api_obj, session='s2')[0] == 404
+    assert _decide(api_obj, 'PAID', session='s2')[0] == 404
+    assert len(fleet.calls) == 1
 
 
 @pytest.mark.parametrize('kwargs,error', [
     ({'loc': 'NOWHERE'}, 'UNKNOWN_LOCATION'),
     ({'sku': 'NOPE'}, 'UNKNOWN_SKU'),
     ({'key': 'has space'}, 'BAD_REQUEST'),
+    ({'key': 'dot.key'}, 'BAD_REQUEST'),
+    ({'session': ''}, 'BAD_REQUEST'),
 ])
 def test_bad_order_is_rejected(api, kwargs, error):
-    api_obj, backend = api
+    api_obj, fleet = api
     status, body = _order(api_obj, **kwargs)
     assert (status, body['error']) == (400, error)
-    assert backend.calls == []
+    assert fleet.calls == []
 
 
-def test_control_center_down_is_503(api):
-    api_obj, backend = api
-    backend.down = True
-    assert _order(api_obj)[0] == 503
+def test_fleet_down_is_503(api):
+    api_obj, fleet = api
+    fleet.down = True
+    assert _order(api_obj) == (503, {'error': 'CONTROL_CENTER_UNAVAILABLE'})
+    fleet.down = False
+    fleet.places = None
+    assert _order(api_obj, key='k2') == (503, {'error': 'CONTROL_CENTER_UNAVAILABLE'})
 
 
-@pytest.mark.parametrize('stage,failure,view', [
-    ('', '', 'preparing'), ('IN_TRANSIT', '', 'preparing'), ('UNLOADING', '', 'arrived'),
-    ('COMPLETED', '', 'paid'), ('CANCELLED', '', 'cancelled'), ('FAILED', 'X', 'failed'),
-    ('RECEIVED', 'INVENTORY_UNAVAILABLE', 'out_of_stock'),
+@pytest.mark.parametrize('order,expected', [
+    (None, ('', 'preparing')),
+    ({'state': 'WAITING', 'stage': 'MOVE_PICKUP'}, ('RECEIVED', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'MOVE_PICKUP'}, ('ASSIGNED', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'PICK'}, ('LOADING', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'CORRECT_PICKUP'}, ('LOADING', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'MOVE_DROPOFF'}, ('IN_TRANSIT', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'VERIFY_UNLOAD'}, ('IN_TRANSIT', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'CUSTOMER'}, ('UNLOADING', 'arrived')),
+    # 정지·현장 확인 중에는 결정을 받을 수 없으므로 도착 화면을 띄우지 않는다.
+    ({'state': 'ESTOP', 'stage': 'CUSTOMER'}, ('IN_TRANSIT', 'preparing')),
+    ({'state': 'UNKNOWN', 'stage': 'LOAD'}, ('LOADING', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'RETURN_HOME', 'customer_received': True},
+     ('HANDOVER_CONFIRMED', 'paid')),
+    ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT', 'customer_received': True},
+     ('HANDOVER_CONFIRMED', 'paid')),
+    ({'state': 'RUNNING', 'stage': 'LEAVE_DROPOFF', 'customer_declined': True},
+     ('CANCELLED', 'cancelled')),
+    ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT', 'customer_timed_out': True},
+     ('CANCELLED', 'cancelled')),
+    ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT'}, ('CANCELLED', 'cancelled')),
+    ({'state': 'FAILED', 'stage': 'DOCK_PICKUP', 'customer_received': True},
+     ('FAILED', 'failed')),
 ])
-def test_stage_to_view(stage, failure, view):
-    assert gw.stage_to_view(stage, failure) == view
+def test_order_progress(order, expected):
+    assert gw.order_progress(order) == expected
 
 
-def test_signature_matches_control_center_formula():
-    # cobot_control_center/order_flow.py 와 같은 식: 필드를 '\n' 으로 이은 HMAC-SHA256.
-    expected = hmac.new(b'k', b'a\nb\n1\nn', hashlib.sha256).hexdigest()
-    assert gw.gateway_signature(b'k', ['a', 'b', 1, 'n']) == expected
-    assert gw.sign_request(b'', ['a']) == ('', '')
-    nonce, sig = gw.sign_request(b'k', ['a'])
-    assert sig == gw.gateway_signature(b'k', ['a', nonce])
+def test_failed_order_shows_reason(api):
+    api_obj, fleet = api
+    _order(api_obj)
+    fleet.move('cust-k1', state='FAILED', detail='정차 공차 초과')
+    body = _status(api_obj)[1]
+    assert (body['view'], body['failure_reason']) == ('failed', '정차 공차 초과')
 
 
 def test_static_serves_only_customer_files(tmp_path):
@@ -177,12 +249,14 @@ def test_http_server_end_to_end(tmp_path, api):
     try:
         with urlopen(base + '/?loc=BENCH_1') as response:
             assert response.read() == b'<html>shop</html>'
-        data = json.dumps({'sku': 'SHOE_RUN_WHITE_260', 'loc': 'BENCH_1',
+        data = json.dumps({'sku': SHOE, 'loc': 'BENCH_1',
                            'client_key': 'k1', 'session': 's1'}).encode()
         request = Request(base + '/api/customer/orders', data=data, method='POST',
                           headers={'Content-Type': 'application/json'})
         with urlopen(request) as response:
-            assert json.loads(response.read())['order_id'] == 'ORD-00001'
+            assert json.loads(response.read())['order_id'] == 'cust-k1'
+        with urlopen(base + '/api/customer/orders/cust-k1?session=s1') as response:
+            assert json.loads(response.read())['view'] == 'preparing'
         with pytest.raises(HTTPError) as error:
             urlopen(base + '/index.html')
         assert error.value.code == 404
@@ -194,23 +268,19 @@ def test_http_server_end_to_end(tmp_path, api):
         server.server_close()
 
 
-def test_catalog_validation(tmp_path):
+@pytest.mark.parametrize('text', [
+    'items:\n  - {sku: A, name: a, price: 1}\n  - {sku: A, name: b}\n',
+    'items:\n  - {sku: "A B", name: a, price: 1}\n',
+])
+def test_catalog_validation(tmp_path, text):
     path = tmp_path / 'c.yaml'
-    path.write_text('items:\n  - {sku: A, name: a, price: 1}\n  - {sku: A, name: b}\n')
+    path.write_text(text)
     with pytest.raises(ValueError):
-        gw.load_catalog(str(path), str(LAYOUT))
+        gw.load_catalog(str(path))
 
 
 def test_catalog_with_locations_is_refused(tmp_path):
     path = tmp_path / 'c.yaml'
     path.write_text('locations:\n  BENCH_1: {name: x}\nitems: []\n')
-    with pytest.raises(ValueError, match='store_layout.yaml'):
-        gw.load_catalog(str(path), str(LAYOUT))
-
-
-def test_locations_come_from_store_layout(tmp_path):
-    assert gw.load_locations(str(LAYOUT))['BENCH_1'] == {'name': '고객 벤치 1'}
-    bad = tmp_path / 'layout.yaml'
-    bad.write_text('locations:\n  BENCH_1: {name: x}\n')
-    with pytest.raises(ValueError, match='waypoint'):
-        gw.load_locations(str(bad))
+    with pytest.raises(ValueError, match='destinations'):
+        gw.load_catalog(str(path))

@@ -958,43 +958,6 @@ export const ConsoleLeaseResponseConst = {
   REASON_ROLE_FORBIDDEN: "ROLE_FORBIDDEN",
 } as const;
 
-/** CustomerDecision.srv Request */
-export interface CustomerDecisionRequest {
-  /** 주문 ID */
-  order_id: string;
-  /** 위 DECISION_* 중 하나 */
-  decision: string;
-  /** 고객 화면 세션 ID (원장 actor_id 용) */
-  requester_id: string;
-  /** 게이트웨이 nonce */
-  gw_nonce: string;
-  /** HMAC-SHA256(게이트웨이 키). 없으면 BAD_SIGNATURE */
-  gw_sig: string;
-}
-export const CustomerDecisionRequestConst = {
-  DECISION_PAID: "PAID",
-  DECISION_CANCEL: "CANCEL",
-} as const;
-
-/** CustomerDecision.srv Response */
-export interface CustomerDecisionResponse {
-  /** 위 RESULT_* 중 하나 */
-  result: string;
-  /** 거부 사유. 받았으면 "" */
-  reject_code: string;
-  /** 처리 뒤 주문 단계 (OrderStatus.STAGE_* 값) */
-  stage: string;
-}
-export const CustomerDecisionResponseConst = {
-  RESULT_ACCEPTED: "ACCEPTED",
-  RESULT_REJECTED: "REJECTED",
-  REJECT_BAD_SIGNATURE: "BAD_SIGNATURE",
-  REJECT_UNKNOWN_ORDER: "UNKNOWN_ORDER",
-  REJECT_WRONG_STAGE: "WRONG_STAGE",
-  REJECT_BAD_DECISION: "BAD_DECISION",
-  REJECT_LEDGER_UNAVAILABLE: "LEDGER_UNAVAILABLE",
-} as const;
-
 /** OperatorCommand.srv Request */
 export interface OperatorCommandRequest {
   /** UUID. 멱등 키 */
@@ -1176,8 +1139,6 @@ export interface HandoverTaskGoal {
 export const HandoverTaskGoalConst = {
   ACTION_TYPE_LOAD: "LOAD",
   ACTION_TYPE_UNLOAD: "UNLOAD",
-  /** 고객이 취소한 신발을 핑키 위에서 정돈해 다시 싣는다 (WP_UNLOAD, 초안) */
-  ACTION_TYPE_REPACK: "REPACK",
 } as const;
 
 /** HandoverTask.action Result */
@@ -1357,7 +1318,6 @@ export const CONTRACT_NAMES: string[] = [
   "VisionEvent",
   "Waypoint",
   "ConsoleLease",
-  "CustomerDecision",
   "OperatorCommand",
   "QueryAudit",
   "ReconcileReport",

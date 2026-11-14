@@ -167,7 +167,6 @@
 | `/control_center/operator_command` | `OperatorCommand` | 게이트웨이 → fms_core | 1.4 ACK_ALARM, 2.4 SEND_MISSION·CANCEL_MISSION, 5.1 SET_MODE, 5.3 PAUSE·RESUME, 5.4 SOFT_LATCH·RESET·RECONCILE·APPROVE·START |
 | `/control_center/console_lease` (이름 초안) | `ConsoleLease` | 게이트웨이 → fms_core | 5.1 콘솔 획득·갱신·반납 |
 | `/control_center/submit_order` (이름 초안) | `SubmitOrder` | 게이트웨이 → fms_core | 보조 A 주문 호출 (메뉴 트리 밖, D14) |
-| `/control_center/customer_decision` (이름 초안) | `CustomerDecision` | 고객 게이트웨이 → fms_core | 보조 A 고객 화면의 구매(가짜 결제)·취소. 주문이 `UNLOADING` 일 때만 받는다 (D14 초안) |
 | `/control_center/query_audit` (이름 초안) | `QueryAudit` | 게이트웨이 → fms_core | 1.5, 2.5, 3.6, 5.6 (읽기) |
 | `/control_center/reconcile_report` (이름 초안) | `ReconcileReport` | 게이트웨이 → fms_core | 5.4 (읽기) |
 
@@ -180,8 +179,6 @@
 | 액션 | 타입 | 클라이언트 → 서버 | 쓰는 때 | 메뉴 |
 |---|---|---|---|---|
 | `/manipulation/<arm_id>/handover` | `HandoverTask` | fms_core (유일) → 팔 노드 | D7 이 FMS_TRIGGER 일 때만. 기본값 MANUAL_START 에서는 쓰지 않는다 | 3.2 |
-
-- `HandoverTask` 의 `ACTION_TYPE_REPACK` (초안): 고객이 취소한 신발을 `WP_UNLOAD`(OMX_3)에서 핑키 위에 정돈해 다시 싣는다. 선반으로 되돌리는 동작은 아직 없다. 지금 fms_core 는 팔과 연결되지 않아 이 단계를 시뮬레이션으로만 지난다.
 | 이름 미정 | `RecoveryTask` | — | SR-17 단계에서 다시 정의한다. MVP 미사용 | — |
 
 ## 10. 원소 메시지
@@ -213,7 +210,7 @@ ROS 2 는 메시지 안에 이름 없는 구조체 배열을 둘 수 없다. 그
 | `robot_boot_id` | `RobotStatus`, `ArmStatus` | 로봇·팔 | fms_core | 대상 UNKNOWN, lease UNKNOWN_BLOCKED, epoch +1, Reconcile 대상 |
 | `client_request_id` | `OperatorCommand` | 브라우저 (게이트웨이가 전달) | fms_core | 같은 요청이면 같은 응답(`DUPLICATE`). 발행은 1회 |
 | `console_token` | `OperatorCommand` | fms_core (`ConsoleLease`) | fms_core | `NO_CONSOLE` |
-| `gw_sig`·`gw_nonce` | `OperatorCommand`, `ConsoleLease`, `SubmitOrder`, `CustomerDecision` | 게이트웨이 | fms_core | `BAD_SIGNATURE` (정지 계열 제외) |
+| `gw_sig`·`gw_nonce` | `OperatorCommand`, `ConsoleLease`, `SubmitOrder` | 게이트웨이 | fms_core | `BAD_SIGNATURE` (정지 계열 제외) |
 
 `CommandAck`·`CompletionEvidence` 는 원인 명령의 `command_id` 를 싣는다 (`CompletionEvidence` 는 `task_id` 도). 나머지 ID(`tx_id`·`order_id`)는 원장의 COMMAND_ISSUED 기록에서 `command_id` 로 잇는다.
 
@@ -304,7 +301,6 @@ ROS 2 는 메시지 안에 이름 없는 구조체 배열을 둘 수 없다. 그
 | `MediaHealth.frozen` (해시를 못 보면 UNKNOWN) | `frozen_state` 문자열 (LIVE·FROZEN·UNKNOWN) | bool 로는 '모름' 을 나타낼 수 없다 |
 | `ConsoleLease` 응답 `holder` | `holder_id`·`holder_role` | 화면이 역할도 보여야 한다 |
 | `SubmitOrder` 응답 | `reject_code` 추가 | 거부·예외 사유 |
-| 고객 구매·취소 입력 없음 | `CustomerDecision` 추가, `HandoverTask` 에 `ACTION_TYPE_REPACK` 추가 | 고객 주문 화면(보조 A)의 구매·취소와 취소 뒤 재상차. 자세한 흐름은 `src/cobot_control_center/docs/order_flow.md` |
 | `QueryAudit` 의 '기간' | `from_time`·`to_time` | `from` 은 예약어다 |
 | `HwEstopState`·`AlarmEvent` 등 | `std_msgs/Header` 로 시각을 싣는다 | 측정 시각을 한 방식으로 |
 | 맵 YAML 위치 `cobot_navigation/config/` 권고 | 공통 패키지 `cobot_bringup/config/maps/` (맵 PR) | 주행 담당 패키지를 요청 없이 고치지 않으려고 |

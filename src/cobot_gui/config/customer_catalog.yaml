@@ -1,8 +1,9 @@
 # 고객 주문 화면(보조 A)의 신발 목록. 관제 PC 의 customer_gateway 가 읽는다.
 # 설명: src/cobot_gui/docs/customer_app.md
 #
-# 자리(QR 위치 ID) 목록은 여기 두지 않는다. cobot_bringup/config/store_layout.yaml 의 locations 하나만 쓴다.
-# items: sku 는 fms_core 재고(initial_inventory)의 SKU 와 맞춘다. price 는 [원].
+# 자리(QR 위치 ID) 목록과 재고는 여기 두지 않는다. cobot_fleet_control 이 알려 준다
+#   (자리: 그 패키지 config/scenario.yaml 의 destinations, 재고·선반 칸: type=inventory 요청).
+# items: sku 는 fleet_control 재고의 SKU 와 맞춘다 (영문·숫자·밑줄·하이픈). price 는 [원].
 #   image 는 web/public/customer/shoes/ 아래 파일 이름 (비면 그림 대신 아이콘). 장당 100 KB 이하로 줄여 넣는다.
 #   지금 목록은 자리 채움 예시다. 실제 신발 예시를 받으면 바꾼다.
 items:
