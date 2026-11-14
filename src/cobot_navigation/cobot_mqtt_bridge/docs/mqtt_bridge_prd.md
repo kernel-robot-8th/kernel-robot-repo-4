@@ -498,3 +498,11 @@ PC 터널 서비스와 pinky1 로봇 서비스를 설치(사용자가 `sudo` 로
 - **변경:** `config/mqtt_topics_pinky2.yaml`의 20, `config/mqtt_topics_pinky3.yaml`의 30을 10으로 바꿨다(`from_domain`/`to_domain` 값만). 코드는 이미 10을 가정하므로 수정하지 않았다.
 - **전제:** 3대가 같은 도메인이므로 로봇 DDS가 LAN에 열려 있으면 서로 섞인다. 각 로봇의 CycloneDDS 설정을 루프백 전용으로 먼저 바꿔야 한다. **[TODO]** pinky1~3의 현재 `cyclonedds_robot.xml`과 `ROS_DOMAIN_ID` 확인.
 - **영향:** 로봇 구분은 `robot` 이름과 MQTT 주제(`mqtt_bridge/<robot>/...`)로 한다. 도메인으로는 구분하지 않는다.
+
+## 한 줄 실행 launch (2026-11-14)
+- **변경:** `launch/mqtt_bridge.launch.xml`에 `mode:=read|cmd`를 추가했다. 관제 쪽 노드(도메인 `pc_domain`, 기본 200)와 로봇 쪽 노드(`ssh -tt`, 도메인 10)를 PC 한 줄로 같이 켜고 `Ctrl+C` 한 번으로 끈다. 환경변수(`ROS_DOMAIN_ID`, `CYCLONEDDS_URI`)는 launch 안에서 정한다.
+- **cmd 모드:** `enable_down`, `confirm_real_domain`, `config/mqtt_down.yaml`(열 명령 `patrol_cmd` 하나, 보호 값)을 양쪽에 자동으로 붙인다. `goto` 전송(`pinky_control_client.py`)은 launch에 넣지 않고 사람이 따로 보낸다.
+- **기본값 변경:** `pinky2`, `pinky3` 기본값을 false로 바꿨다(`pinky1`만 켬). 로봇 쪽 자동 시작은 pinky1만 지원한다.
+- **전제:** pinky1의 읽기 전용 서비스 `mqtt_bridge_robot`을 끈다(같은 MQTT 접속을 쓴다). 켜져 있으면 로봇 쪽 노드는 시작하지 않고 이유를 출력한다. 코드는 pinky1의 `~/mqtt_bridge`에 복사한 것을 쓴다(빌드 불필요).
+- **검증:** 단위 시험 57개 통과. `ssh`를 가짜로 바꿔 두 모드의 원격 명령과 관제 쪽 down 토픽(read=없음, cmd=`patrol_cmd`만)을 확인했다. **[TODO]** 실물에서 `Ctrl+C` 시 로봇 쪽 노드 종료, `goto` 시험, 보호 값 팀 합의.
+

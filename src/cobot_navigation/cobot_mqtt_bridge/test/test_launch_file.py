@@ -48,13 +48,33 @@ def test_down_is_off_by_default():
 
 @pytest.mark.skipif(not DOMAIN_BRIDGE_LAUNCH.exists(), reason='bridges.launch.xml 이 없음')
 def test_robot_args_match_domain_bridge_launch():
+    # 인자 이름만 맞춘다. 기본값은 한 줄 실행을 위해 pinky1 만 켜는 쪽으로 다르다.
     mine = args_of(LAUNCH)
     theirs = args_of(DOMAIN_BRIDGE_LAUNCH)
-    for robot in ROBOTS:
-        assert mine[robot] == theirs[robot]
+    assert all(robot in mine and robot in theirs for robot in ROBOTS)
 
 
 def test_launch_enables_exit_on_parent_loss():
     for node in ET.parse(LAUNCH).getroot().iter('node'):
         params = {p.get('name'): p.get('value') for p in node.iter('param') if p.get('name')}
         assert params['exit_on_parent_loss'] == 'true'
+
+
+def test_one_line_launch_defaults():
+    args = args_of(LAUNCH)
+    assert args['mode'] == 'read'
+    assert (args['pinky1'], args['pinky2'], args['pinky3']) == ('true', 'false', 'false')
+    assert args['pc_domain'] == '200' and args['robot_domain'] == '10'
+
+
+def test_cmd_mode_opens_down_only_in_cmd():
+    text = LAUNCH.read_text(encoding='utf-8')
+    # 명령 모드 값(enable_down, 보호 값 파일)은 mode 가 cmd 일 때만 붙는다.
+    assert "'$(var mode)' == 'cmd'" in text
+    assert text.count('mqtt_down.yaml') >= 2
+
+
+def test_robot_side_refuses_when_service_is_active():
+    text = LAUNCH.read_text(encoding='utf-8')
+    assert 'systemctl is-active --quiet mqtt_bridge_robot' in text
+    assert 'ssh -tt' in text
