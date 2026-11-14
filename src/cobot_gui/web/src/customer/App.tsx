@@ -397,7 +397,7 @@ function Arrived({
           구매하지 않을게요
         </button>
       </div>
-      <p className="c-hint">구매하지 않으시면 신발을 Cobot 위에 다시 올려 주세요. Cobot이 정리해서 가져갈게요.</p>
+      <p className="c-hint">구매하지 않으셔도 괜찮아요. 신발은 그대로 두시면 Cobot이 정리해서 가져갈게요.</p>
     </section>
   );
 }
