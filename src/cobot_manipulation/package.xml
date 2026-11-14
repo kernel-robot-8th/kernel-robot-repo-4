@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_manipulation</name>
+  <version>0.0.0</version>
+  <description>Station PC 팔 노드. 관제(fleet_control)의 /fleet/work_request 를 받아 팔 1대씩 처리하고 /fleet/work_result 로 실측 결과를 돌려준다. 팔은 OpenRB-150 보드의 USB 시리얼(/dev/serial/by-id)로 알아본다. 실제 팔 동작 백엔드는 아직 없고, 시험용 fake 백엔드는 격리 도메인에서만 돈다.</description>
+  <maintainer email="bebe217@gmail.com">jihye kim</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,0 +1,12 @@
+# 팔 자리 이름 ↔ 그 자리에 있어야 할 OpenRB-150 보드 시리얼.
+# 팔 자리 이름은 관제 cobot_fleet_control/config/scenario.yaml 의 pickup_arm·dropoff_arm 과 같다.
+# 시리얼 확인: ls -l /dev/serial/by-id  →  usb-ROBOTIS_OpenRB-150_<시리얼>-if00
+# 빈 칸이면 그 팔은 UNKNOWN 으로 두고 일을 하지 않는다.
+arms:
+  omx1:
+    # 2026-11-14 이 PC 에 꽂혀 있던 보드. 실제로 omx1 자리 팔인지 이름표로 확인할 것.
+    serial: 6D96FA0450323952582E3120FF052A1E
+  omx2:
+    serial: ""
+  omx3:
+    serial: ""

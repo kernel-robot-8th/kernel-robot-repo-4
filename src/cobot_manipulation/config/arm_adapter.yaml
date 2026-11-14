@@ -1,0 +1,13 @@
+# 팔 어댑터 노드 공통 파라미터. 팔마다 다른 값(arm_id)은 launch 에서 준다.
+/**:
+  ros__parameters:
+    # 관제 fleet_control 의 work_request_topic·work_result_topic 과 같아야 한다.
+    request_topic: /fleet/work_request
+    result_topic: /fleet/work_result
+    # none: 모든 작업 거절 (실제 팔 백엔드가 생길 때까지 기본). fake: 격리 도메인 시험 전용.
+    backend: none
+    fake_duration_sec: 2.0      # [s] fake 백엔드가 성공을 돌려주기까지
+    dedupe_size: 256            # 기억하는 최근 request_id 수 (중복 실행 방지)
+    serial_by_id_dir: /dev/serial/by-id
+    detect_period_sec: 1.0      # [s] 보드 연결 다시 확인 주기
+    tick_sec: 0.1               # [s] 백엔드 작업 완료 확인 주기
