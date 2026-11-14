@@ -254,7 +254,7 @@ plan 먼저(새 폴더 launch/, config/ 생성 승인 포함).
 ### E단계: pinky2·pinky3 확장
 **목표**: 3대를 한 launch로 동시에 중계한다.
 **작업**
-- 로봇별 MQTT 주제 분리(`mqtt_bridge/pinky2/...`), 도메인 20·30 로봇 쪽 사용. `zone_manager/*` 처럼 remap이 없는 토픽은 로봇별 MQTT 주제로 올리고 PC 쪽에서 **같은 이름 하나로 합쳐서** 발행(메시지 안 `robot_id`로 구분되는 기존 동작 유지).
+- 로봇별 MQTT 주제 분리(`mqtt_bridge/pinky2/...`), 로봇 쪽 도메인은 3대 모두 10(아래 "로봇 도메인 10 통일" 참고). `zone_manager/*` 처럼 remap이 없는 토픽은 로봇별 MQTT 주제로 올리고 PC 쪽에서 **같은 이름 하나로 합쳐서** 발행(메시지 안 `robot_id`로 구분되는 기존 동작 유지).
 - 브로커 연결 수·초당 메시지 수 측정.
 **완료 기준**
 - 3대 동시 10분, 유실 < 0.1 %, PC CPU·브로커 CPU 기록.
@@ -492,3 +492,9 @@ PC 터널 서비스와 pinky1 로봇 서비스를 설치(사용자가 `sudo` 로
   - 로봇이 움직이는 경로(`goto` 후 이동)와 `stop`/`emergency_stop`은 시험하지 않았다.
   - pinky1 설치본의 설정은 아직 도메인 100 기준이다(동작에는 영향 없음, 맞추려면 복사 필요).
 - **[TODO]** 순찰 노드 반응 확인, `/zone_manager/*` 허용 여부 결정, 보호 값 확정, `stop`/`emergency_stop` 시험.
+
+## 로봇 도메인 10 통일 (2026-11-14)
+- **결정:** 로봇 쪽 ROS 도메인은 pinky1·2·3 모두 10, 관제 PC 쪽은 200으로 고정한다. 로봇 쪽 DDS는 로봇 안(루프백 전용)에서만 쓰고, 로봇↔관제 통신은 MQTT만 쓴다.
+- **변경:** `config/mqtt_topics_pinky2.yaml`의 20, `config/mqtt_topics_pinky3.yaml`의 30을 10으로 바꿨다(`from_domain`/`to_domain` 값만). 코드는 이미 10을 가정하므로 수정하지 않았다.
+- **전제:** 3대가 같은 도메인이므로 로봇 DDS가 LAN에 열려 있으면 서로 섞인다. 각 로봇의 CycloneDDS 설정을 루프백 전용으로 먼저 바꿔야 한다. **[TODO]** pinky1~3의 현재 `cyclonedds_robot.xml`과 `ROS_DOMAIN_ID` 확인.
+- **영향:** 로봇 구분은 `robot` 이름과 MQTT 주제(`mqtt_bridge/<robot>/...`)로 한다. 도메인으로는 구분하지 않는다.

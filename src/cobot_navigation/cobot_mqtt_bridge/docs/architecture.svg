@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 540" width="1100" height="540" role="img" aria-labelledby="t d">
+  <title id="t">cobot_mqtt_bridge 구성도</title>
+  <desc id="d">pinky1(ROS 도메인 10)의 robot 역할 노드가 SSH 역방향 터널을 거쳐 관제 PC의 MQTT 브로커에 연결되고, pc 역할 노드가 값을 ROS 도메인 200으로 내보낸다. up은 로봇에서 관제로, down(명령)은 관제에서 로봇으로 흐른다.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .box { fill: #f8fafc; stroke: #64748b; stroke-width: 1.5; }
+      .zone { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; }
+      .node { fill: #eef2ff; stroke: #4f46e5; stroke-width: 1.8; }
+      .broker { fill: #ecfdf5; stroke: #059669; stroke-width: 1.8; }
+      .ros { fill: #fff7ed; stroke: #ea580c; stroke-width: 1.8; }
+      .pipe { fill: #f1f5f9; stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 5 4; }
+      .t { font-family: "Noto Sans CJK KR", "Noto Sans KR", "NanumGothic", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; fill: #1e293b; }
+      .h { font-size: 17px; font-weight: 700; }
+      .m { font-size: 14px; }
+      .s { font-size: 12.5px; fill: #475569; }
+      .zt { font-size: 18px; font-weight: 700; fill: #334155; }
+      .up { stroke: #2563eb; stroke-width: 3; fill: none; }
+      .down { stroke: #d97706; stroke-width: 3; fill: none; stroke-dasharray: 9 6; }
+      .link { stroke: #475569; stroke-width: 2.2; fill: none; }
+      .upt { fill: #1d4ed8; font-size: 13.5px; font-weight: 700; }
+      .downt { fill: #b45309; font-size: 13.5px; font-weight: 700; }
+    </style>
+    <marker id="aUp" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+    <marker id="aDown" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker>
+    <marker id="aLink" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1100" height="540"/>
+  <text class="t zt" x="30" y="34">cobot_mqtt_bridge 구성도</text>
+  <text class="t s" x="30" y="54">로봇(ROS 도메인 10)과 관제(ROS 도메인 200)는 직접 만나지 않고, MQTT 브로커를 거쳐 토픽을 주고받습니다.</text>
+
+  <!-- 왼쪽: pinky1 -->
+  <rect class="zone" x="30" y="78" width="300" height="372" rx="14"/>
+  <text class="t zt" x="50" y="106">pinky1 (로봇)</text>
+  <text class="t s" x="50" y="124">프롬프트 pinky@…</text>
+  <text class="t m" x="50" y="156">여기서 켜는 것</text>
+  <text class="t s" x="50" y="178">· bringup · Nav2 · 순찰 노드 (직접 기동)</text>
+  <text class="t s" x="50" y="196">· robot 역할 노드 (서비스 또는 직접 실행)</text>
+
+  <rect class="node" x="55" y="232" width="250" height="92" rx="10"/>
+  <text class="t h" x="72" y="258">robot 역할 노드</text>
+  <text class="t m" x="72" y="281">ROS 구독 → MQTT 발행 (up)</text>
+  <text class="t m" x="72" y="302">MQTT 구독 → /patrol_cmd (down)</text>
+
+  <rect class="ros" x="55" y="358" width="250" height="68" rx="10"/>
+  <text class="t h" x="72" y="383">ROS 도메인 10</text>
+  <text class="t s" x="72" y="404">/scan /odom /tf /battery …</text>
+  <text class="t s" x="72" y="420">bringup · Nav2 · 순찰 노드</text>
+
+  <!-- 로봇 내부: ROS ↔ robot 노드 -->
+  <path class="up" d="M150 358 L150 326" marker-end="url(#aUp)"/>
+  <path class="down" d="M210 326 L210 358" marker-end="url(#aDown)"/>
+
+  <!-- 가운데: SSH 역방향 터널 -->
+  <rect class="pipe" x="345" y="214" width="170" height="130" rx="12"/>
+  <text class="t h" x="430" y="236" text-anchor="middle">SSH 역방향 터널</text>
+  <path class="up" d="M352 268 L508 268" marker-end="url(#aUp)"/>
+  <text class="t upt" x="430" y="260" text-anchor="middle">up · 값 (QoS 0)</text>
+  <path class="down" d="M508 306 L352 306" marker-end="url(#aDown)"/>
+  <text class="t downt" x="430" y="328" text-anchor="middle">down · 명령 (QoS 1)</text>
+  <text class="t s" x="430" y="362" text-anchor="middle">pinky1 127.0.0.1:1883</text>
+  <text class="t s" x="430" y="378" text-anchor="middle">→ PC 브로커</text>
+  <text class="t s" x="430" y="394" text-anchor="middle">(브로커를 밖에 열지 않음)</text>
+
+  <!-- 오른쪽: 관제 PC -->
+  <rect class="zone" x="530" y="78" width="540" height="372" rx="14"/>
+  <text class="t zt" x="550" y="106">관제 PC</text>
+  <text class="t s" x="550" y="124">프롬프트 jinho@…</text>
+  <text class="t m" x="550" y="156">여기서 켜는 것</text>
+  <text class="t s" x="550" y="178">· MQTT 브로커, 터널 서비스 (상시)</text>
+  <text class="t s" x="550" y="196">· pc 역할 노드 (launch) · GUI · 명령 보내기</text>
+
+  <rect class="broker" x="555" y="232" width="180" height="92" rx="10"/>
+  <text class="t h" x="572" y="258">MQTT 브로커</text>
+  <text class="t m" x="572" y="281">mosquitto</text>
+  <text class="t s" x="572" y="302">127.0.0.1:1883 (PC 안에서만)</text>
+
+  <rect class="node" x="800" y="232" width="245" height="92" rx="10"/>
+  <text class="t h" x="817" y="258">pc 역할 노드</text>
+  <text class="t m" x="817" y="281">MQTT 구독 → ROS 발행 (up)</text>
+  <text class="t m" x="817" y="302">ROS 구독 → MQTT 발행 (down)</text>
+
+  <path class="link" d="M735 278 L800 278" marker-start="url(#aLink)" marker-end="url(#aLink)"/>
+
+  <rect class="ros" x="800" y="358" width="245" height="68" rx="10"/>
+  <text class="t h" x="817" y="383">ROS 도메인 200</text>
+  <text class="t s" x="817" y="404">/pinky1/scan /pinky1/odom …</text>
+  <text class="t s" x="817" y="420">GUI · pinky_control_client.py</text>
+
+  <path class="up" d="M880 324 L880 358" marker-end="url(#aUp)"/>
+  <path class="down" d="M960 358 L960 326" marker-end="url(#aDown)"/>
+
+  <!-- 범례 -->
+  <rect class="box" x="30" y="468" width="1040" height="58" rx="10"/>
+  <line class="up" x1="50" y1="490" x2="100" y2="490" marker-end="url(#aUp)"/>
+  <text class="t m" x="110" y="495">up: 로봇 → 관제 (값 보기, 기본 켜짐)</text>
+  <line class="down" x1="430" y1="490" x2="480" y2="490" marker-end="url(#aDown)"/>
+  <text class="t m" x="490" y="495">down: 관제 → 로봇 (명령, 기본 꺼짐 · enable_down 필요)</text>
+  <text class="t s" x="50" y="516">다른 팀의 DDS 브릿지는 도메인 100을 쓰는 별개 시스템이며, 이 패키지와 같은 도메인에서 동시에 켜지 않습니다.</text>
+</svg>
