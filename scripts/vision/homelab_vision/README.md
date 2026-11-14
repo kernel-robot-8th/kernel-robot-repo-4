@@ -16,6 +16,7 @@ omen-8 에는 아무것도 보내지 않았고, 실제 브로커(1883)와 실제
 - 앱(`app/`): MJPEG 를 읽어 두 모델로 추론하고, 구역 판정 근거를 MQTT 로 내보낸다.
   - 주제: `relay/evidence/zones`, `relay/evidence/boxes` (QoS 1, retain 없음),
     `relay/status/vision` (1초 상태, QoS 0, 유언 "offline")
+  - 메시지 필드·수신 규칙·관제 연동(비전 어댑터 개발용): [MQTT_MESSAGE_SPEC.md](MQTT_MESSAGE_SPEC.md)
   - `PUBLISH=false`(기본)면 MQTT 라이브러리를 불러오지도 않는다. 연결 0.
   - 듣는 포트 없음. 프레임과 사진을 디스크에 쓰지 않는다. ROS 를 쓰지 않는다.
 - `compose.yaml`: omen-8 에서 나중에 쓸 구성. 여기서는 실행하지 않았다.
