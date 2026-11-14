@@ -3,6 +3,7 @@ import {
   Bot,
   Check,
   CircleCheck,
+  CreditCard,
   Footprints,
   LoaderCircle,
   MapPin,
@@ -415,22 +416,31 @@ function Payment({
 }) {
   return (
     <section className="c-center">
-      <h1 className="c-title">QR 코드로 결제해 주세요</h1>
+      <h1 className="c-title">결제해 주세요</h1>
       <p className="c-amount">{formatPrice(shoe.price)}</p>
+      <div className="c-actions">
+        <button type="button" className="c-btn c-btn-primary" disabled={busy} onClick={onPaid}>
+          {busy ? <LoaderCircle className="c-spin" size={18} /> : <CreditCard size={18} />}
+          결제하기
+        </button>
+      </div>
+      <div className="c-divider" role="separator">
+        <span>또는 다른 기기로 QR 코드 스캔</span>
+      </div>
       <div className="c-qr">
         <img src="/customer/pay_qr.svg" alt="결제 QR 코드 (예시)" />
       </div>
-      <p className="c-hint">시연용 결제 화면이에요. 실제로 결제되지 않아요.</p>
       <div className="c-actions">
-        <button type="button" className="c-btn c-btn-primary" disabled={busy} onClick={onPaid}>
-          {busy ? <LoaderCircle className="c-spin" size={18} /> : <CircleCheck size={18} />}
-          결제를 완료했어요
+        <button type="button" className="c-btn c-btn-ghost" disabled={busy} onClick={onPaid}>
+          <CircleCheck size={18} />
+          QR 결제를 완료했어요
         </button>
-        <button type="button" className="c-btn c-btn-ghost" disabled={busy} onClick={onBack}>
+        <button type="button" className="c-btn c-btn-text" disabled={busy} onClick={onBack}>
           <Undo2 size={18} />
           이전으로
         </button>
       </div>
+      <p className="c-hint">시연용 결제 화면이에요. 실제로 결제되지 않아요.</p>
     </section>
   );
 }

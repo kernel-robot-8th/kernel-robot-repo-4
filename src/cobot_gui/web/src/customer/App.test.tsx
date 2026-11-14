@@ -68,7 +68,8 @@ describe("고객 주문 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: /구매하기/ }));
     expect(screen.getByAltText("결제 QR 코드 (예시)")).toBeInTheDocument();
     expect(screen.getByText("89,000원")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /결제를 완료했어요/ }));
+    expect(screen.getByRole("button", { name: /QR 결제를 완료했어요/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "결제하기" }));
     await flush();
     expect(screen.getByText("구매가 완료됐어요")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /다른 신발 보기/ }));

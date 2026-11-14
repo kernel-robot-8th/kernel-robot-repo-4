@@ -400,6 +400,32 @@ body {
   gap: 10px;
 }
 
+.c-btn-text {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--c-muted);
+  font-weight: 600;
+}
+
+.c-divider {
+  width: 100%;
+  margin: 24px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+.c-divider::before,
+.c-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--c-line);
+}
+
 .c-amount {
   margin: 4px 0 0;
   font-size: 28px;
@@ -407,7 +433,7 @@ body {
 }
 
 .c-qr {
-  width: 220px;
+  width: 180px;
   margin-top: 16px;
   padding: 14px;
   border-radius: 20px;
