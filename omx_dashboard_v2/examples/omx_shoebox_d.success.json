@@ -1,0 +1,18 @@
+{
+  "_설명": "omx_chain.py 연속 실행에서 이 번들 단계의 성공 판단 설정. model 을 비워 두면 성공 판단 없이 지금처럼 시간 기준으로 동작. 자세한 뜻은 dashboard_v2/success_judge.py 맨 위 참고",
+  "model": "",
+  "camera": "top",
+  "conf": 0.5,
+  "imgsz": 640,
+  "hz": 10,
+  "arm_class": "inside_box",
+  "arm_s": 1.0,
+  "target": "closed_box",
+  "hold_s": 5.0,
+  "min_ratio": 0.8,
+  "forbid": {
+    "inside_box": 0.1,
+    "shoe": 0.1
+  },
+  "gap_s": 1.0
+}

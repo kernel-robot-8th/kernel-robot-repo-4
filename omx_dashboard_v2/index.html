@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMX Studio · v2</title>
+<style>
+:root {
+  color-scheme:dark;
+  --bg:#0c1119; --surface:#141c28; --ink:#e2eaf5; --muted:#9aaac0;
+  --faint:#8fa1ba; --line:#263448; --accent:#55d6c8; --go:#70d6b0;
+  --stop:#ff8794; --wait:#eac574; --mono:ui-monospace,"DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:14px/1.55 "Noto Sans CJK KR",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+.wrap{max-width:1640px;margin:auto;padding:12px 20px 24px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:0;position:sticky;top:0;z-index:10;background:var(--bg)}
+.brand{flex:1;min-width:0;display:flex;align-items:center;gap:16px}
+.eyebrow{display:none}
+h1{font-size:18px;line-height:1.35;letter-spacing:-.025em;margin:0;font-weight:700;white-space:nowrap}
+.brand p{font-size:11px;color:var(--muted);margin:0}
+.pill{display:flex;align-items:center;gap:9px;max-width:38%;font-size:12px;line-height:1.4;padding:11px 14px;background:var(--surface);border:1px solid var(--line);border-radius:9px}
+.pill span:last-child{overflow:hidden;text-overflow:ellipsis}
+.led{display:inline-block;width:8px;height:8px;flex:none;border-radius:50%;background:#62768f}
+.led.on{background:var(--go);box-shadow:0 0 0 3px #1b3b33}
+.led.wait{background:var(--wait);animation:pulse 1.3s infinite}
+.led.err,.led.rec{background:var(--stop)}
+.led.rec{animation:pulse 1.3s infinite}
+@keyframes pulse{50%{opacity:.4}}
+.neu{appearance:none;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:#c5d3e5;padding:9px 13px;font-weight:500;transition:background .15s,border-color .15s,box-shadow .15s}
+.neu:hover:not(:disabled){border-color:#4c7d8e;background:#1c3040;color:#b0f4e9}
+.neu:active:not(:disabled){background:#22494d}
+.neu:disabled{opacity:.45;cursor:not-allowed}
+.neu:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #58b7b1;outline-offset:3px}
+.neu[aria-pressed="true"]{color:#93e7da;background:#163a3b;border-color:#36716f}
+.estop{background:#2e1e29;border-color:#63313f;color:#ff9aa6;padding:12px 19px;font-weight:700;white-space:nowrap}
+.estop:hover:not(:disabled){background:#422430;border-color:#a35669;color:#ffb1ba}
+.estop:disabled{background:#172231;color:#72839c;border-color:#263448;opacity:1}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+.main-column,.side-column{min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px}
+.card h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;line-height:1.5;margin:0 0 15px;letter-spacing:-.02em;font-weight:700}
+.card h2 small{color:var(--faint);font-size:11px;font-weight:400;letter-spacing:0}
+.section-number{color:#8ddfd5;font:600 11px var(--mono);background:#163436;border-radius:5px;padding:4px 6px;margin-right:2px}
+.refresh{margin-left:auto;padding:5px 9px;font-size:11px;font-weight:500;border-color:transparent;background:#1b293b}
+.tasks{display:flex;gap:8px;flex-wrap:wrap}
+.tasks .neu{font-size:12px;padding:9px 13px;border-radius:7px}
+.tasks .count{margin-left:9px;font:10px var(--mono);color:var(--faint)}
+.tasks .neu[aria-pressed="true"] .count{color:var(--accent)}
+.note{color:var(--faint);font-size:12px;margin:0}
+.step-row{display:flex;gap:20px;align-items:center}
+.step-value{min-width:90px;padding:13px 14px;border:1px solid #2a3a50;background:#101925;border-radius:9px;color:#8be4d8;text-align:center;font:600 21px/1.1 var(--mono)}
+.step-value small{display:block;margin-top:5px;font:10px/1.4 sans-serif;color:var(--faint)}
+.slider{flex:1;min-width:0;padding:4px 6px 0}
+input[type=range]{appearance:none;width:100%;height:5px;background:#2b4058;border-radius:10px;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);border:3px solid #141c28;box-shadow:0 0 0 1px #3e7d80}
+input[type=range]:disabled{opacity:.5;cursor:not-allowed}
+.ticks{display:flex;justify-content:space-between;gap:3px;margin-top:12px}
+.ticks button{border:0;border-radius:4px;background:transparent;padding:3px 4px;color:var(--faint);font:11px var(--mono)}
+.ticks button.sel{background:#163a3b;color:var(--accent);font-weight:700}
+.models{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:12px}
+.model{position:relative;text-align:left;display:flex;align-items:stretch;flex-direction:column;gap:11px;padding:17px;min-height:184px;border-radius:10px;background:#141c28}
+.model:hover:not(:disabled){box-shadow:0 4px 16px #00000035;background:#141c28}
+.model .top{width:100%;display:flex;align-items:center;gap:8px}
+.model .name{font-size:17px;font-weight:700;letter-spacing:-.025em;overflow-wrap:anywhere}
+.model .state{font-size:10px;color:var(--faint);margin-left:auto;white-space:nowrap}
+.model .desc{font-size:11px;line-height:1.6;color:var(--muted);flex:1}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-size:10px;font-weight:400;line-height:1.3;padding:4px 6px;background:#1c2b3e;border-radius:4px;color:#a0b3cb}
+.chip.hl{background:#163a3b;color:#88dacf}
+.chip.warn{background:#332a18;color:#eac574}
+.model-action{display:flex;align-items:center;justify-content:space-between;color:var(--accent);font-size:11px;font-weight:600;border-top:1px solid #293a50;padding-top:11px;margin-top:3px}
+.model-action span{font-size:15px;line-height:1}
+.model[aria-pressed="true"]{border-color:#36695b;background:#142c29;color:var(--ink)}
+.model[aria-pressed="true"] .state{color:var(--go)}
+.model[aria-pressed="true"] .model-action{color:var(--go);border-color:#294c42}
+.model.pending .state,.model.pending .model-action{color:var(--wait)}
+.model.stopping .state,.model.stopping .model-action{color:var(--stop)}
+.side-column .card{padding:19px}
+.side-intro{font-size:11px;color:var(--muted);margin:-5px 0 18px}
+.quick-fields{display:grid;grid-template-columns:1fr 1fr;gap:18px 12px}
+.quick-fields .field:first-child{grid-column:1/-1}
+.quick-fields .hint,.quick-fields .lab code{display:none}
+.quick-fields .field:first-child .seg{flex-wrap:nowrap}
+.quick-fields .field:last-child{grid-column:1/-1}
+.quick-fields .field .lab{font-size:11px}
+.connection{margin:18px 0 0;padding-top:14px;border-top:1px solid #293a50;font-size:11px;color:var(--muted)}
+.connection div{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:7px 0}
+.connection code{font-size:10px;color:#b0c4df;overflow-wrap:anywhere;text-align:right}
+.settings-link{width:100%;margin-top:15px;color:var(--accent);font-size:12px;background:#153033;border-color:#2d5559}
+.guide{background:#132632;border:1px solid #294355;border-radius:10px;padding:16px;color:#9db5cc;font-size:11px;line-height:1.8}
+.guide strong{display:block;font-size:12px;color:#a6e5de;margin-bottom:5px}
+.guide p{margin:0}
+details summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:'＋';color:var(--faint);margin-left:auto;font-size:18px;font-weight:400}
+details[open] summary::after{content:'−'}
+details summary small{color:var(--faint);font-size:10px;font-weight:400;overflow-wrap:anywhere}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;margin-top:14px}
+.chain-row{display:grid;grid-template-columns:44px minmax(0,1fr) 92px;gap:10px;align-items:center;margin-bottom:10px;color:var(--muted);font-size:12px}
+.chain-row.now{color:var(--accent);font-weight:700}
+.chain-row select,.chain-row input{width:100%;min-width:0;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px}
+.chain-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.chain-actions button{flex:1 1 140px;padding:10px;font-size:13px}
+.chain-actions .auto-toggle{flex:0 1 170px;font-weight:700}
+.chain-actions .auto-toggle[aria-pressed="true"]{background:#163a3b;color:var(--accent);border-color:var(--accent)}
+.runclock{flex-basis:100%;order:10;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 24px;align-items:end;padding:14px 20px 12px;background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--accent);border-radius:12px}
+.runclock[hidden]{display:none}
+.runclock .rc-label{grid-column:1/-1;font-size:15px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.runclock .rc-time{font:700 64px/1 var(--mono);color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.runclock .rc-time small{font-size:28px;color:var(--muted);font-weight:400;margin-left:8px}
+.runclock .rc-total{text-align:right;font:700 26px/1.2 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.runclock .rc-total span{display:block;font-size:12px;font-weight:400;line-height:1.4;font-family:inherit;color:var(--muted)}
+.runclock .rc-bar{grid-column:1/-1;height:10px;border-radius:5px;background:#0c1119;overflow:hidden}
+.runclock .rc-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s linear}
+.runclock .rc-sum{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.runclock.wait{border-left-color:var(--wait)}.runclock.wait .rc-time{color:var(--wait)}.runclock.wait .rc-bar i{background:var(--wait)}
+.runclock.init{border-left-color:#8fb4ff}.runclock.init .rc-time{color:#8fb4ff}.runclock.init .rc-bar i{background:#8fb4ff}
+.runclock.over .rc-time{color:var(--stop)}
+.runclock.done{border-left-color:var(--line)}.runclock.done .rc-time{color:var(--muted)}
+.runclock .rc-judge{grid-column:1/-1;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted)}
+.runclock .rc-judge b{font:700 20px/1 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.runclock .rc-judge .jbar{flex:0 0 160px;height:8px;border-radius:4px;background:#0c1119;overflow:hidden}
+.runclock .rc-judge .jbar i{display:block;height:100%;width:0;background:var(--go);transition:width .25s linear}
+.runclock .rc-judge span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.runclock .rc-judge.success b{color:var(--go)}.runclock .rc-judge.fail b,.runclock .rc-judge.error b{color:var(--stop)}
+.chain-judge{margin:4px 0 0;font-size:12px;color:var(--muted)}.chain-judge .warn{color:var(--wait)}
+@media(max-width:760px){.runclock .rc-time{font-size:44px}.runclock .rc-time small{font-size:20px}}
+.prep-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.prep-row button{padding:12px 18px;font-size:14px;font-weight:700;color:#8fb4ff;border-color:#34507a;background:#16233a}
+.prep-row button:disabled{color:#72839c;border-color:var(--line);background:#141c28}
+.prep-row button.ready{color:#092723;background:var(--wait);border-color:var(--wait)}
+.prep-row .note{flex:1 1 260px;font:11px/1.6 var(--mono)}
+.runclock.prep{border-left-color:#8fb4ff}.runclock.prep .rc-time{color:#8fb4ff}.runclock.prep .rc-bar i{background:#8fb4ff}
+.runclock.ready{border-left-color:var(--wait)}.runclock.ready .rc-time{color:var(--wait)}.runclock.ready .rc-bar i{background:var(--wait)}
+.runclock.load{border-left-color:#8fb4ff}.runclock.load .rc-time{color:#8fb4ff}
+.pgroup{padding-top:20px;margin-top:20px;border-top:1px solid #293a50}
+.pgroup h3{font-size:12px;margin:0;color:#c0d3e9}
+.field{display:flex;flex-direction:column;gap:7px;min-width:0;color:var(--muted);font-size:12px}
+.field.wide{grid-column:span 2}
+.field .lab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.field .lab code{font:10px var(--mono);color:#8497b0}
+.field .hint{color:#8fa4bd;font-size:10px;line-height:1.6}
+.field.changed .lab>span::after{content:' •';color:var(--accent)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg .neu{font-size:11px;padding:8px 9px;flex:1}
+.tog{align-self:flex-start;display:flex;align-items:center;gap:8px;font-size:11px;padding:8px 12px}
+.tog[aria-pressed=true] .led{background:var(--go)}
+input[type=text],input[type=number]{min-width:0;width:100%;border:1px solid #2b3a50;border-radius:7px;background:#0e1723;padding:9px 10px;color:#c2d4ec;font-size:12px}
+input:focus{background:var(--surface);border-color:#4b9c9a}
+.settings-actions{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+.settings-actions .neu{font-size:11px}
+.settings-actions .hint{color:var(--faint);font-size:10px}
+#torqueBtn{color:#ff9aa6;border-color:#63313f}
+.log-tools{display:flex;justify-content:flex-end;margin:10px 0 8px}
+.log{margin:0;height:220px;padding:15px;border:1px solid #263448;border-radius:8px;background:#101925;color:#adbed4;font:11px/1.7 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto}
+.log .e{color:#ff8794}.log .s{color:var(--go)}.log .w{color:var(--wait)}.log .i{color:#82cfff}
+.toast{position:fixed;z-index:20;bottom:24px;left:50%;transform:translate(-50%,10px);opacity:0;pointer-events:none;background:#25394d;color:#e2eaf5;padding:12px 20px;border-radius:9px;font-size:13px;box-shadow:0 5px 25px #00000055;max-width:calc(100% - 40px);transition:.2s}
+.toast.show{opacity:1;transform:translate(-50%,0)}.toast.err{background:#8b344a}
+.tabs{display:flex;gap:6px}.tabs .neu{font-size:12px}
+.rec-top,.rec-count,.rec-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rec-phase{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700}
+.rec-count{margin-left:auto}.stat{padding:9px 14px;background:#1a283a;border-radius:8px;text-align:center}
+.stat b{display:block;font:600 20px var(--mono)}.stat small{font-size:10px;color:var(--faint)}
+.bar{height:6px;margin:20px 0 7px;background:#293a50;border-radius:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);transition:width .4s}.bar.reset i{background:var(--wait)}
+.bar-label{display:flex;justify-content:space-between;color:var(--faint);font-size:11px}
+.rec-actions{margin-top:20px}.rec-actions .go{background:var(--accent);color:#092723}
+.rec-actions kbd{font-size:10px;margin-left:7px;color:#8fa1ba}
+.target{margin-top:16px;font-size:11px;color:var(--muted)}
+.dsets{display:flex;gap:10px;flex-wrap:wrap}.dsets .neu{text-align:left}.dsets small{display:block;font-size:10px;color:var(--faint)}
+@media(max-width:1200px){.brand p{display:none}}
+@media(max-width:1000px){.workspace{grid-template-columns:minmax(0,1fr) 280px}.wrap{padding:18px}.models{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}.pill{max-width:30%}}
+@media(max-width:760px){.workspace{grid-template-columns:1fr}header{flex-wrap:wrap}.brand{flex-basis:100%}.pill{max-width:75%;flex:1}.side-column{display:grid;grid-template-columns:1fr;gap:0}.quick-fields{grid-template-columns:repeat(2,1fr)}.field.wide{grid-column:auto}details summary{flex-wrap:wrap}.models{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.guide{margin-bottom:16px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="eyebrow">OMX / INFERENCE STUDIO</div>
+      <h1>모델 추론</h1>
+      <p id="subtitle">학습한 모델을 선택하고, 로봇의 동작을 확인하세요.</p>
+    </div>
+    <nav class="tabs" aria-label="화면 전환">
+      <button class="neu" data-tabbtn="infer">모델 추론</button>
+      <button class="neu" data-tabbtn="rec">데이터 녹화</button>
+    </nav>
+    <div class="runclock" id="runClock" hidden aria-live="off">
+      <div class="rc-label" id="rcLabel"></div>
+      <div class="rc-time" id="rcTime"></div>
+      <div class="rc-total" id="rcTotal"></div>
+      <div class="rc-bar"><i id="rcBar"></i></div>
+      <div class="rc-judge" id="rcJudge" hidden></div>
+      <div class="rc-sum" id="rcSum"></div>
+    </div>
+    <div class="pill" id="pill" role="status"><span class="led" id="pillLed"></span><span id="pillText">대기 중</span></div>
+    <button class="neu estop" id="estop" disabled>■ 실행 정지</button>
+  </header>
+  <div class="workspace" data-tab="infer">
+    <div class="main-column">
+      <section class="card">
+        <h2><span class="section-number">01</span> 태스크 선택 <button class="neu refresh" id="refreshBtn" title="모델 폴더 다시 읽기">↻ 새로고침</button></h2>
+        <div class="tasks" id="tasks"><p class="note">모델 목록을 불러오는 중…</p></div>
+        <div class="prep-row">
+          <button class="neu" id="prepBtn">초기 자세로 이동 후 대기</button>
+          <span class="note" id="prepNote"></span>
+        </div>
+      </section>
+      <section class="card" id="stepCard" data-tab="infer">
+        <h2><span class="section-number">02</span> 학습 체크포인트 <small>비교할 학습 스텝을 선택하세요</small></h2>
+        <div id="stepBody"></div>
+      </section>
+      <section class="card">
+        <h2><span class="section-number">03</span> 모델 실행 <small id="modelNote"></small></h2>
+        <div class="models" id="models"></div>
+      </section>
+      <section class="card" id="chainCard">
+        <h2><span class="section-number">04</span> 연속 실행 <small>로봇 연결과 토크를 유지한 채 모델 두 개를 이어서 실행</small></h2>
+        <div class="chain-row" id="chainRow1"><span>1단계</span><select id="chainModel1" aria-label="1단계 모델"></select><input id="chainSec1" type="number" min="5" max="600" aria-label="1단계 시간(초)" title="이 시간이 지나면 다음 모델로"></div>
+        <div class="chain-row" id="chainRow2"><span>2단계</span><select id="chainModel2" aria-label="2단계 모델"></select><input id="chainSec2" type="number" min="5" max="600" aria-label="2단계 시간(초)" title="이 시간이 지나면 끝남"></div>
+        <p class="note">오른쪽 칸은 최대 실행 시간(초)입니다. 각 단계는 시작 전에 학습 데이터의 시작 자세로 천천히 이동한 뒤 추론합니다 (2단계 전에는 그리퍼가 열림). 1단계가 끝나면 토크를 유지한 채 멈춰 있고, 버튼을 눌러야 2단계가 시작됩니다. <b>자동 넘김</b>을 켜면 1초 뒤 자동으로 2단계로 넘어갑니다 (실행 중에도 바꿀 수 있음). 2단계가 끝나거나 정지하면 토크가 꺼져 팔이 내려앉을 수 있습니다.</p>
+        <p class="chain-judge" id="chainJudge" hidden></p>
+        <div class="chain-actions"><button class="neu auto-toggle" id="chainAuto" aria-pressed="false">자동 넘김 꺼짐</button><button class="neu" id="chainStart">연속 실행 시작</button><button class="neu" id="chainNext">1단계 끝내고 멈추기</button></div>
+      </section>
+    </div>
+    <aside class="side-column">
+      <section class="card">
+        <h2>실행 설정</h2>
+        <p class="side-intro">다음에 시작하는 모델부터 적용됩니다.</p>
+        <div class="quick-fields" id="quickGroups"></div>
+        <div class="connection">
+          <div><span>팔로워</span><code id="sitePort">—</code></div>
+          <div><span>상단 카메라</span><code id="siteTop">—</code></div>
+          <div><span>손목 카메라</span><code id="siteWrist">—</code></div>
+        </div>
+        <button class="neu settings-link" id="openSettings">포트 · 카메라 · 세부 설정 ↗</button>
+      </section>
+      <div class="guide"><strong>모델 비교하기</strong><p>같은 태스크와 체크포인트에서 모델을 바꿔 실행해 보세요. 실행 중인 모델을 다시 누르면 정지합니다.</p></div>
+    </aside>
+  </div>
+  <section class="card" data-tab="infer">
+    <details id="paramBox">
+      <summary>세부 설정 <small id="paramSummary"></small></summary>
+      <div id="paramGroups"></div>
+      <div class="settings-actions">
+        <button class="neu" id="resetParams">기본값 복원</button>
+        <button class="neu" id="torqueBtn">토크 끄기</button>
+        <span class="hint">민트색 점은 변경한 설정입니다. 토크를 끄기 전에 로봇 팔을 받쳐 주세요.</span>
+      </div>
+    </details>
+  </section>
+  <section class="card" data-tab="rec">
+    <div class="rec-top">
+      <div class="rec-phase"><span class="led" id="recLed"></span><span id="recPhase">대기 중</span></div>
+      <div class="rec-count">
+        <div class="stat"><b id="recEp">-</b><small>에피소드 번호</small></div>
+        <div class="stat"><b id="recSaved">0</b><small>이번에 저장</small></div>
+        <div class="stat"><b id="recDisc">0</b><small>버림</small></div>
+      </div>
+    </div>
+    <div class="bar" id="recBar"><i></i></div>
+    <div class="bar-label"><span id="recBarL"></span><span id="recBarR"></span></div>
+    <div class="rec-actions">
+      <button class="neu go" id="recStart">● 녹화 시작</button>
+      <button class="neu" data-cmd="next" title="녹화 중이면 이번 에피소드 저장, 정리 중이면 바로 다음 녹화">→ 다음<kbd>→</kbd></button>
+      <button class="neu" data-cmd="rerecord" title="이번 에피소드를 버리고 다시 찍기">↺ 다시 찍기<kbd>←</kbd></button>
+      <button class="neu" data-cmd="stop" title="지금 에피소드까지 저장하고 끝내기">■ 저장하고 끝내기<kbd>Esc</kbd></button>
+      <button class="neu" data-cmd="discard_stop" title="지금 에피소드는 버리고 끝내기">✕ 버리고 끝내기</button>
+    </div>
+    <div class="target" id="recTarget"></div>
+  </section>
+
+  <section class="card" data-tab="rec">
+    <h2><span>데이터셋</span> <small id="dsRoot"></small> <button class="neu refresh" id="dsRefresh">↻ 새로고침</button></h2>
+    <div class="dsets" id="dsets"><p class="note">불러오는 중…</p></div>
+  </section>
+
+  <section class="card" data-tab="rec">
+    <details id="recBox" open>
+      <summary>녹화 설정 <small id="recSummary"></small></summary>
+      <div id="recSite"></div>
+      <div id="recGroups"><p class="note">설정 목록을 불러오는 중…</p></div>
+      <div class="settings-actions">
+        <button class="neu" id="resetRec">기본값으로</button>
+        <span class="hint">현장 설정(포트·카메라)은 추론 탭과 같이 씀 · 녹화 중엔 바꿔도 다음 녹화부터 적용</span>
+      </div>
+    </details>
+  </section>
+
+
+  <section class="card">
+    <details id="logBox">
+      <summary>실행 로그 <small id="logNote"></small></summary>
+      <div class="log-tools"><button class="neu refresh" id="copyBtn" title="실행 로그 복사">로그 복사</button></div>
+      <pre class="log" id="log">모델을 실행하면 연결 상태와 진행 기록이 표시됩니다.</pre>
+    </details>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+let tasks = [];
+let curTask = null;
+const stepIdx = {};          // 태스크별 슬라이더 위치
+let status = { running: false };
+let pendingKey = null;       // 시작 요청을 보냈지만 아직 running 확인 전
+
+/* ---------- 파라미터 패널 (서버의 목록으로 화면을 그림, 값은 이 브라우저에 저장) ---------- */
+function makePanel(storeKey, legacyKey) {
+  const P = { schema: [], values: {} };
+  P.defaults = () => Object.fromEntries(P.schema.map((p) => [p.key, p.default]));
+  P.load = (schema) => {
+    P.schema = schema;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(storeKey) || "{}"); } catch (e) {}
+    if (!Object.keys(saved).length && legacyKey) { try { saved = JSON.parse(localStorage.getItem(legacyKey) || "{}"); } catch (e) {} }
+    const d = P.defaults();
+    Object.keys(d).forEach((k) => (P.values[k] = k in saved ? saved[k] : d[k]));
+  };
+  P.save = () => { try { localStorage.setItem(storeKey, JSON.stringify(P.values)); } catch (e) {} };
+  P.reset = () => { Object.assign(P.values, P.defaults()); P.save(); };
+  P.visible = (p) => {
+    if (!p.show_if) return true;
+    const [k, cond] = p.show_if; const v = P.values[k];
+    return cond === "gt1" ? Number(v) > 1 : cond.includes(v);
+  };
+  P.renderInto = (box, groupFilter = () => true) => {
+    const d = P.defaults();
+    box.innerHTML = "";
+    [...new Set(P.schema.map((p) => p.group))].filter(groupFilter).forEach((g) => {
+      const items = P.schema.filter((p) => p.group === g && P.visible(p));
+      if (!items.length) return;
+      const sec = document.createElement("div"); sec.className = "pgroup";
+      sec.innerHTML = `<h3>${esc(g)}</h3><div class="fields"></div>`;
+      items.forEach((p) => sec.querySelector(".fields").appendChild(fieldEl(P, p, d[p.key])));
+      box.appendChild(sec);
+    });
+  };
+  return P;
+}
+const INF = makePanel("omxStudioV2Params");
+const REC = makePanel("omxStudioV2RecParams");
+const params = INF.values;   // 추론 파라미터 (기존 코드에서 쓰는 이름)
+const SITE = "현장 설정";
+
+function renderAllParams() {
+  if (INF.schema.length) {
+    INF.renderInto($("paramGroups"));
+    const quick = $("quickGroups"); quick.replaceChildren();
+    ["device", "episode_time", "num_episodes", "max_relative_target"].forEach((key) => {
+      const p = INF.schema.find((x) => x.key === key);
+      if (p) quick.appendChild(fieldEl(INF, p, p.default));
+    });
+    $("sitePort").textContent = INF.values.port;
+    $("siteTop").textContent = INF.values.top;
+    $("siteWrist").textContent = INF.values.wrist;
+    INF.renderInto($("recSite"), (g) => g === SITE);   // 녹화 탭에도 같은 현장 설정을 보여줌
+  }
+  if (REC.schema.length) REC.renderInto($("recGroups"));
+  renderParamSummary();
+}
+function renderParamSummary() {
+  const P = INF.values;
+  if (INF.schema.length) {
+    const ens = { off: `n=${P.n_action_steps}`, builtin: `내장 앙상블 ${P.te_coeff}`, kstep: `k스텝 k=${P.ens_k} m=${P.ens_m}` }[P.ensemble];
+    $("paramSummary").textContent = `${P.device} · ${ens} · 최대이동 ${P.max_relative_target} · ${P.episode_time}s×${P.num_episodes} · ${P.port}`;
+  }
+  const R = REC.values;
+  if (REC.schema.length) {
+    $("recSummary").textContent = `${R.dataset_name} · ${R.num_episodes}개 × ${R.episode_time}s (정리 ${R.reset_time}s) · 팔로워 ${P.port} · 리더 ${R.leader_port}`;
+    renderRecTarget();
+  }
+}
+function fieldEl(P, p, def) {
+  const vals = P.values;
+  const f = document.createElement("div");
+  f.className = "field" + (p.type === "text" ? " wide" : "") + (String(vals[p.key]) !== String(def) ? " changed" : "");
+  const range = p.min != null ? `<code>${p.min}~${p.max}</code>` : "";
+  f.innerHTML = `<div class="lab"><span>${esc(p.label)}</span>${range}</div>`;
+  const set = (v) => { vals[p.key] = v; P.save(); renderAllParams(); renderCurrentModels(); };
+  if (p.type === "select") {
+    const seg = document.createElement("div"); seg.className = "seg";
+    p.options.forEach(([val, lab]) => {
+      const b = document.createElement("button"); b.className = "neu"; b.textContent = lab;
+      b.setAttribute("aria-pressed", String(vals[p.key] === val));
+      b.onclick = () => set(val);
+      seg.appendChild(b);
+    });
+    f.appendChild(seg);
+  } else if (p.type === "bool") {
+    const b = document.createElement("button"); b.className = "neu tog";
+    const on = Boolean(vals[p.key]);
+    b.setAttribute("aria-pressed", String(on));
+    b.innerHTML = `<span class="led"></span>${on ? "켜짐" : "꺼짐"}`;
+    b.onclick = () => set(!on);
+    f.appendChild(b);
+  } else {
+    const inp = document.createElement("input");
+    inp.type = (p.type === "int" || p.type === "float") ? "number" : "text";
+    inp.spellcheck = false; inp.value = vals[p.key];
+    if (p.placeholder) inp.placeholder = p.placeholder;
+    if (p.min != null) { inp.min = p.min; inp.max = p.max; inp.step = p.step || 1; }
+    inp.onchange = () => {
+      let v = inp.value.trim();
+      if (p.type === "int" || p.type === "float") {
+        v = p.type === "int" ? parseInt(v, 10) : parseFloat(v);
+        if (Number.isNaN(v)) v = def;
+        v = Math.min(p.max, Math.max(p.min, v));
+      }
+      set(v);
+    };
+    f.appendChild(inp);
+  }
+  if (p.help) { const h = document.createElement("div"); h.className = "hint"; h.textContent = p.help; f.appendChild(h); }
+  return f;
+}
+$("resetParams").onclick = () => { INF.reset(); renderAllParams(); renderCurrentModels(); toast("추론 파라미터를 기본값으로 되돌렸어"); };
+$("resetRec").onclick = () => { REC.reset(); renderAllParams(); toast("녹화 설정을 기본값으로 되돌렸어"); };
+
+/* ---------- 탭 ---------- */
+let curTab = "infer";
+try { curTab = localStorage.getItem("omxStudioV2Tab") || "infer"; } catch (e) {}
+const SUBTITLE = { infer: "학습한 모델을 선택하고, 로봇의 동작을 확인하세요.",
+                   rec: "리더암으로 팔로워를 움직이며 학습 에피소드를 녹화" };
+function applyTabVisibility() {
+  document.querySelectorAll("[data-tab]").forEach((el) => (el.hidden = el.dataset.tab !== curTab || el.dataset.empty === "1"));
+}
+function showTab(t) {
+  if (IS_APP) { t = "infer"; document.querySelector(".tabs").hidden = true; }   // 프로그램 창에선 녹화를 팀 수집 대시보드 탭이 맡음
+  curTab = t;
+  try { localStorage.setItem("omxStudioV2Tab", t); } catch (e) {}
+  applyTabVisibility();
+  document.querySelectorAll("[data-tabbtn]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tabbtn === t)));
+  $("subtitle").textContent = SUBTITLE[t];
+  if (t === "rec") loadDatasets();
+}
+document.querySelectorAll("[data-tabbtn]").forEach((b) => (b.onclick = () => showTab(b.dataset.tabbtn)));
+
+/* ---------- 녹화 ---------- */
+let datasets = [];
+let dsRoot = "~/il_ws/datasets";
+let recPending = false;
+async function loadDatasets() {
+  try {
+    const d = await api("/api/datasets");
+    datasets = d.datasets; dsRoot = d.root;
+    $("dsRoot").textContent = dsRoot;
+    renderDatasets(); renderRecTarget();
+  } catch (e) { $("dsets").innerHTML = `<p class="note">못 불러옴: ${esc(e.message)}</p>`; }
+}
+$("dsRefresh").onclick = loadDatasets;
+function renderDatasets() {
+  const box = $("dsets");
+  if (!datasets.length) { box.innerHTML = '<p class="note">아직 녹화한 데이터셋이 없어. 아래 설정에서 이름을 정하고 녹화를 시작하면 여기 생겨.</p>'; return; }
+  box.innerHTML = "";
+  datasets.forEach((d) => {
+    const b = document.createElement("button"); b.className = "neu";
+    b.setAttribute("aria-pressed", String(d.name === REC.values.dataset_name));
+    b.innerHTML = `${esc(d.name)}<small>${d.episodes}개 · ${d.frames} 프레임 · ${esc(d.cameras.join("/"))}</small>`;
+    b.title = "이 데이터셋에 이어서 녹화";
+    b.onclick = () => { REC.values.dataset_name = d.name; REC.save(); renderAllParams(); renderDatasets(); };
+    box.appendChild(b);
+  });
+}
+function renderRecTarget() {
+  const R = REC.values;
+  const hit = datasets.find((d) => d.name === R.dataset_name);
+  const repo = `${R.hf_user || "local"}/${R.dataset_name}`;
+  $("recTarget").innerHTML = `저장 위치 <code>${esc(dsRoot)}/${esc(R.dataset_name)}</code> · <code>${esc(repo)}</code> · ` +
+    (hit ? `기존 <b>${hit.episodes}개</b>에 이어서 녹화` : "새 데이터셋으로 만듦") +
+    (R.task ? "" : ` · <span style="color:var(--stop)">작업 문장을 넣어줘</span>`);
+}
+
+const PHASE = {
+  starting: ["준비 중 — 로봇·카메라 연결", "led wait"],
+  rec: ["녹화 중", "led rec"],
+  reset: ["정리 시간 — 물체를 제자리에", "led wait"],
+  finishing: ["저장 마무리 중 — 영상 인코딩", "led wait"],
+  done: ["끝남", "led"],
+};
+let recTick = { phase: null, base: 0, at: 0 };
+function renderRec() {
+  const isRec = status.kind === "record";
+  const r = isRec ? status.rec : null;
+  const running = status.running && isRec;
+  let [label, led] = ["대기 중", "led"];
+  if (recPending) [label, led] = ["시작하는 중…", "led wait"];
+  else if (r) [label, led] = PHASE[r.phase] || [r.phase, "led"];
+  if (r && !running && status.exit_code && ![0, 130, -2].includes(status.exit_code)) [label, led] = [`에러로 종료 (code ${status.exit_code}) — 로그 확인`, "led err"];
+  $("recPhase").textContent = label; $("recLed").className = led;
+  $("recEp").textContent = r && r.episode != null ? `#${r.episode}` : "-";
+  $("recSaved").textContent = r ? `${r.saved} / ${r.num_episodes}` : "0";
+  $("recDisc").textContent = r ? r.discarded : "0";
+
+  // 진행 막대: 서버가 준 단계 경과 시간에서 이어서 부드럽게 증가
+  const bar = $("recBar"), fill = bar.querySelector("i");
+  let total = 0, el = 0;
+  if (running && r && (r.phase === "rec" || r.phase === "reset")) {
+    total = r.phase === "rec" ? r.episode_time : r.reset_time;
+    if (recTick.phase !== r.phase + r.episode + r.saved + r.discarded) recTick = { phase: r.phase + r.episode + r.saved + r.discarded, base: r.phase_elapsed, at: Date.now() };
+    el = Math.min(total, recTick.base + (Date.now() - recTick.at) / 1000);
+  }
+  bar.className = "bar" + (r && r.phase === "reset" ? " reset" : "");
+  fill.style.width = total ? `${(100 * el / total).toFixed(1)}%` : (r && r.phase === "done" ? "100%" : "0%");
+  $("recBarL").textContent = total ? `${r.phase === "rec" ? "녹화" : "정리"} ${el.toFixed(0)}s / ${total}s` : "";
+  $("recBarR").textContent = r ? `${r.dataset}${r.resume ? ` (기존 ${r.existing}개 + 이어서)` : ""}` : "";
+
+  $("recStart").disabled = status.running || recPending;
+  document.querySelectorAll("[data-cmd]").forEach((b) => (b.disabled = !running || status.stopping));
+}
+setInterval(() => { if (status.running && status.kind === "record") renderRec(); }, 250);
+
+$("recStart").onclick = async () => {
+  if (!REC.values.task) { toast("작업 문장을 먼저 넣어줘", true); $("recBox").open = true; return; }
+  recPending = true; renderRec();
+  try {
+    status = await api("/api/record/start", { site: INF.values, params: REC.values }); statusAt = Date.now();
+    toast(`녹화 시작 — ${REC.values.dataset_name}`);
+  } catch (e) { toast(e.message, true); }
+  finally { recPending = false; render(); renderRec(); renderLog(); }
+};
+async function recCmd(cmd) {
+  try { status = await api("/api/record/cmd", { cmd }); statusAt = Date.now(); renderRec(); renderLog(); }
+  catch (e) { toast(e.message, true); }
+}
+document.querySelectorAll("[data-cmd]").forEach((b) => (b.onclick = () => recCmd(b.dataset.cmd)));
+document.addEventListener("keydown", (e) => {
+  if (curTab !== "rec" || !(status.running && status.kind === "record") || status.stopping) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
+  const cmd = { ArrowRight: "next", ArrowLeft: "rerecord", Escape: "stop" }[e.key];
+  if (cmd) { e.preventDefault(); recCmd(cmd); }
+});
+
+/* ---------- helpers ---------- */
+let toastTimer;
+function toast(msg, err = false) {
+  const t = $("toast");
+  t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.className = "toast"), err ? 5000 : 2500);
+}
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
+  return data;
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- model logic ---------- */
+function stepsFor(task) {
+  // 체크포인트가 여러 개인 모델들의 스텝만 슬라이더에 올림
+  const set = new Set();
+  task.families.filter((f) => f.checkpoints.length > 1)
+    .forEach((f) => f.checkpoints.forEach((c) => c.steps != null && set.add(c.steps)));
+  return [...set].sort((a, b) => a - b);
+}
+function selectedStep(task) {
+  const steps = stepsFor(task);
+  if (!steps.length) return null;
+  if (stepIdx[task.id] == null || stepIdx[task.id] >= steps.length) stepIdx[task.id] = steps.length - 1;
+  return steps[stepIdx[task.id]];
+}
+function ckptFor(task, fam) {
+  if (fam.checkpoints.length === 1) return fam.checkpoints[0];
+  const s = selectedStep(task);
+  return fam.checkpoints.find((c) => c.steps === s) || null;
+}
+function findByKey(key) {
+  for (const t of tasks) for (const f of t.families) for (const c of f.checkpoints) if (c.key === key) return { t, f, c };
+  return null;
+}
+const fmtStep = (n) => (n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1) + "k" : n / 1000 + "k") : String(n));
+
+/* ---------- 런타임 표시 ---------- */
+let statusAt = Date.now();
+const mmss = (s) => { s = Math.max(0, Math.floor(s)); return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+function renderClock() {
+  const el = $("runClock");
+  if (!status.kind || status.kind === "record" || status.elapsed == null) { el.hidden = true; return; }
+  el.hidden = false;
+  const live = status.running ? (Date.now() - statusAt) / 1000 : 0;
+  const total = (status.elapsed || 0) + live;
+  const done = !status.running;
+  let label, cur, limit = null, kind = "stage", sum = "";
+  const ch = status.chain;
+  const pr = status.prep;
+  const PH = { prep: "준비 자세 이동", ready: "준비 대기", load: "모델 불러오기", wait: "대기" };
+  if (pr && !pr.used) {
+    const ph = status.phases || [];
+    const p = ph[ph.length - 1];
+    kind = p ? p.kind : "prep";
+    cur = p ? p.elapsed + (p.done ? 0 : live) : total;
+    label = !p ? `연결 중 · ${pr.label}` : p.kind === "ready"
+      ? `준비 완료 — ${pr.label} 초기 자세에서 토크 유지, 대기 · 03 모델 실행 또는 04 연속 실행을 누르면 시작`
+      : `${pr.label} 초기 자세로 이동 중`;
+    sum = ph.map((x) => `${PH[x.kind] || x.kind} ${mmss(x.elapsed + (x === p && !x.done ? live : 0))}`).join("  ·  ");
+  } else if (ch) {
+    const ph = status.phases || ch.phases || [];
+    const p = ph[ph.length - 1];
+    if (!p) { label = "모델 불러오는 중 (로봇 연결 전)"; cur = total; kind = "init"; }
+    else {
+      cur = p.elapsed + (p.done ? 0 : live);
+      kind = p.kind;
+      const name = ch.stages[p.stage - 1] ? ch.stages[p.stage - 1].name : "";
+      if (p.kind === "load") label = "모델 불러오는 중 (토크 유지, 대기 자세)";
+      else if (p.kind === "prep" || p.kind === "ready") label = "준비 자세";
+      else if (p.kind === "init") label = `${p.stage}단계 시작 자세로 이동 중 · ${name}`;
+      else if (p.kind === "wait") label = status.success && status.success.state === "fail"
+        ? "대기 — 성공 판단이 안 나와서 자동 넘김 안 함 · 확인 후 '2단계 시작' 버튼을 누르면 이어서 실행"
+        : status.auto ? "자동 넘김 — 곧 2단계로 넘어감" : "대기 — 토크 유지, 멈춰 있음 · '2단계 시작' 버튼을 누르면 이어서 실행";
+      else if (p.kind === "stage") { label = `${p.stage}단계 실행 중 · ${name}`; limit = ch.stages[p.stage - 1].seconds; }
+    }
+    const per = {};
+    ph.forEach((x) => { const k = x.kind === "stage" ? `${x.stage}단계` : x.kind === "init" ? `${x.stage}단계 자세 이동` : PH[x.kind]; per[k] = (per[k] || 0) + x.elapsed + (x === p && !x.done ? live : 0); });
+    sum = Object.entries(per).map(([k, v]) => `${k} ${mmss(v)}`).join("  ·  ");
+  } else {
+    label = `실행 중 · ${status.ckpt_name || ""}`;
+    cur = total; limit = params.episode_time;
+  }
+  if (done) { label = `끝남 — ${status.ckpt_name || ""}`; kind = "done"; }
+  el.className = `runclock ${kind}` + (!done && limit && cur > limit ? " over" : "");
+  $("rcLabel").textContent = label;
+  $("rcTime").innerHTML = done ? mmss(total) + "<small>전체</small>" : mmss(cur) + (limit ? `<small>/ ${mmss(limit)}</small>` : "");
+  $("rcTotal").innerHTML = done ? "" : `${mmss(total)}<span>전체 경과</span>`;
+  $("rcBar").style.width = done ? "100%" : limit ? `${Math.min(100, (cur / limit) * 100)}%` : kind === "wait" ? "100%" : "0%";
+  $("rcSum").textContent = sum;
+  $("rcSum").hidden = !sum;
+  renderJudge();
+}
+const JUDGE_LABEL = { arming: "시작 확인 중", armed: "판단 중", counting: "유지 중", success: "성공", fail: "성공 안 남", stopped: "버튼으로 끝냄", error: "검출 오류" };
+function renderJudge() {
+  const el = $("rcJudge"), j = status.success;
+  if (!j) { el.hidden = true; return; }
+  el.hidden = false;
+  el.className = `rc-judge ${j.state}`;
+  const need = j.need || 5;
+  const prog = j.state === "success" ? need : j.progress;
+  const head = prog != null ? `${prog.toFixed(1)} / ${need.toFixed(1)}s` : JUDGE_LABEL[j.state] || j.state;
+  const pct = prog != null ? Math.min(100, (100 * prog) / need) : 0;
+  el.innerHTML = `<span>성공 판단</span><b>${esc(head)}</b><div class="jbar"><i style="width:${pct}%"></i></div><span title="${esc(j.text)}">${esc(prog != null ? (JUDGE_LABEL[j.state] || "") + " · " + j.text.replace(/^진행 [\d.]+\/[\d.]+s · /, "") : j.text)}</span>`;
+}
+setInterval(renderClock, 250);
+
+/* ---------- 초기 자세 준비 ---------- */
+const prepReady = () => Boolean(status.running && status.prep && status.prep.ready && !status.prep.used && !status.stopping);
+const POSE_SHORT = { shoulder_pan: "pan", shoulder_lift: "lift", elbow_flex: "elbow", wrist_flex: "wflex", wrist_roll: "roll", gripper: "grip" };
+function renderPrep() {
+  const b = $("prepBtn"), note = $("prepNote");
+  const t = tasks.find((x) => x.id === curTask);
+  const pr = status.running ? status.prep : null;
+  b.classList.toggle("ready", Boolean(pr && pr.ready && !pr.used));
+  if (pr && !pr.used) {
+    b.disabled = true;
+    b.textContent = pr.ready ? `준비됨 — ${pr.label} 초기 자세에서 대기` : `${pr.label} 초기 자세로 이동 중…`;
+    note.textContent = pr.ready ? "03 모델 실행 또는 04 연속 실행을 누르면 이 자세에서 바로 이어서 시작. 취소는 '실행 정지' (토크 꺼짐)" : "토크를 켠 채 천천히 이동 중";
+    return;
+  }
+  b.textContent = t ? `초기 자세로 이동 후 대기 · ${t.label}` : "초기 자세로 이동 후 대기";
+  b.disabled = Boolean(status.running || pendingKey || !t || !t.init_pose);
+  note.textContent = !t ? "태스크를 먼저 골라줘" : !t.init_pose ? "이 태스크는 초기 자세 파일(init_pose.json)이 없음"
+    : Object.entries(t.init_pose).map(([k, v]) => `${POSE_SHORT[k] || k} ${v}`).join("  ");
+}
+$("prepBtn").onclick = async () => {
+  const t = tasks.find((x) => x.id === curTask);
+  if (!t) return;
+  try { status = await api("/api/prepare", { task: t.id, params }); statusAt = Date.now(); toast(`${t.label} 초기 자세로 이동`); }
+  catch (e) { toast(e.message, true); }
+  render(); renderLog();
+};
+
+/* ---------- 연속 실행 ---------- */
+const chainSel = { m1: "", m2: "", s1: 90, s2: 90, auto: false };
+try { Object.assign(chainSel, JSON.parse(localStorage.getItem("omxChainV1") || "{}")); } catch (e) {}
+function saveChain() { try { localStorage.setItem("omxChainV1", JSON.stringify(chainSel)); } catch (e) {} }
+let chainOptsSig = null;
+function renderChainOptions() {
+  const sig = JSON.stringify(tasks.map((t) => t.families.map((f) => f.checkpoints.map((c) => c.key))));
+  if (sig === chainOptsSig) return;
+  chainOptsSig = sig;
+  const optsFor = (taskId) => '<option value="">모델 선택</option>' + tasks.filter((t) => t.id === taskId).map((t) =>
+    t.families.flatMap((f) => f.checkpoints.map((c) => `<option value="${esc(c.key)}">${esc(c.name)}</option>`)).join("")).join("");
+  // 순서 고정: 1단계 = shoebox_d, 2단계 = move_in_success
+  [["chainModel1", "m1", "omx_shoebox_d"], ["chainModel2", "m2", "omx_move_in_success"]].forEach(([id, k, taskId]) => {
+    $(id).innerHTML = optsFor(taskId);
+    $(id).value = chainSel[k];
+    chainSel[k] = $(id).value;   // 목록에서 사라진 모델은 선택 해제
+  });
+}
+function renderChainState() {
+  const chain = status.running ? status.chain : null;
+  const lock = (status.running && !prepReady()) || Boolean(pendingKey);
+  ["chainModel1", "chainModel2", "chainSec1", "chainSec2"].forEach((id) => ($(id).disabled = lock));
+  $("chainStart").disabled = lock || !chainSel.m1 || !chainSel.m2;
+  const canNext = chain && !status.stopping && chain.current && (chain.waiting || chain.current < chain.stages.length);
+  $("chainNext").disabled = !canNext;
+  const live = status.running && (status.chain || status.prep);
+  const auto = live ? Boolean(status.auto) : Boolean(chainSel.auto);
+  $("chainAuto").setAttribute("aria-pressed", String(auto));
+  $("chainAuto").textContent = auto ? "자동 넘김 켜짐" : "자동 넘김 꺼짐";
+  $("chainAuto").disabled = Boolean(status.stopping);
+  $("chainNext").textContent = chain && chain.waiting ? "2단계 시작" : auto ? "1단계 끝내고 2단계로" : "1단계 끝내고 멈추기";
+  $("chainRow1").classList.toggle("now", Boolean(chain && chain.current === 1));
+  $("chainRow2").classList.toggle("now", Boolean(chain && chain.current === 2));
+  const lines = [["1단계", chainSel.m1], ["2단계", chainSel.m2]].map(([n, key]) => {
+    const hit = key && findByKey(key);
+    const sj = hit && hit.t.success;
+    if (!sj) return null;
+    if (sj.model_ok) return `${n} 성공 판단: ${esc(sj.desc)}`;
+    if (sj.error) return `<span class="warn">${n} ${esc(sj.desc)}</span>`;
+    return `<span class="warn">${n} 성공 판단: ${sj.model ? "모델 파일 없음 — 실행하면 멈춤" : "판단 모델 미설정 — 시간 기준"} (${esc(sj.desc)})</span>`;
+  }).filter(Boolean);
+  $("chainJudge").innerHTML = lines.join("<br>");
+  $("chainJudge").hidden = !lines.length;
+}
+[["chainModel1", "m1"], ["chainModel2", "m2"], ["chainSec1", "s1"], ["chainSec2", "s2"]].forEach(([id, k]) => {
+  $(id).onchange = (e) => { chainSel[k] = k[0] === "s" ? Number(e.target.value) : e.target.value; saveChain(); renderChainState(); };
+});
+$("chainSec1").value = chainSel.s1; $("chainSec2").value = chainSel.s2;
+$("chainAuto").onclick = async () => {
+  const live = status.running && (status.chain || status.prep);
+  const on = !(live ? status.auto : chainSel.auto);
+  chainSel.auto = on; saveChain();
+  if (live) {
+    try { status = await api("/api/chain/auto", { on }); statusAt = Date.now(); } catch (e) { toast(e.message, true); }
+  }
+  toast(on ? "자동 넘김 켜짐 — 1단계가 끝나면 바로 2단계로" : "자동 넘김 꺼짐 — 1단계가 끝나면 멈춰서 기다림");
+  renderChainState();
+};
+$("chainStart").onclick = async () => {
+  try {
+    status = await api("/api/chain/start", { params, auto: Boolean(chainSel.auto), stages: [{ key: chainSel.m1, seconds: chainSel.s1 }, { key: chainSel.m2, seconds: chainSel.s2 }] }); statusAt = Date.now();
+    toast("연속 실행 시작");
+  } catch (e) { toast(e.message, true); }
+  render(); renderLog();
+};
+$("chainNext").onclick = async () => {
+  try { status = await api("/api/chain/next", {}); statusAt = Date.now(); toast(status.chain && status.chain.waiting ? "2단계 시작" : "1단계를 끝내고 멈추는 중"); } catch (e) { toast(e.message, true); }
+  render(); renderLog();
+};
+
+/* ---------- render ---------- */
+function renderTasks() {
+  const box = $("tasks");
+  if (!tasks.length) {
+    box.innerHTML = '<p class="note">모델 폴더에서 모델을 못 찾았어. ~/il_ws/models 에 체크포인트를 받아뒀는지 확인해줘.</p>';
+    return;
+  }
+  box.innerHTML = "";
+  tasks.forEach((t) => {
+    const n = t.families.reduce((a, f) => a + f.checkpoints.length, 0);
+    const b = document.createElement("button");
+    b.className = "neu"; b.setAttribute("aria-pressed", String(t.id === curTask));
+    b.innerHTML = `${esc(t.label)}<span class="count">${n}</span>`;
+    b.onclick = () => { curTask = t.id; render(); };
+    box.appendChild(b);
+  });
+}
+
+function renderSteps(task) {
+  const body = $("stepBody");
+  const steps = stepsFor(task);
+  $("stepCard").dataset.empty = steps.length ? "" : "1";   // 체크포인트가 하나씩뿐인 태스크는 슬라이더 숨김
+  applyTabVisibility();
+  if (!steps.length) { body.innerHTML = ""; return; }
+  const idx = stepIdx[task.id] ?? steps.length - 1;
+  body.innerHTML = `
+    <div class="step-row">
+      <div class="step-value"><span id="stepVal">${fmtStep(steps[idx])}</span><small>스텝</small></div>
+      <div class="slider">
+        <input type="range" id="stepRange" min="0" max="${steps.length - 1}" step="1" value="${idx}"
+          aria-label="학습 스텝" ${status.running ? "disabled" : ""}>
+        <div class="ticks">${steps.map((s, i) => `<button data-i="${i}" class="${i === idx ? "sel" : ""}" ${status.running ? "disabled" : ""}>${fmtStep(s)}</button>`).join("")}</div>
+      </div>
+    </div>`;
+  const set = (i) => { stepIdx[task.id] = i; renderSteps(task); renderModels(task); };
+  $("stepRange").oninput = (e) => set(Number(e.target.value));
+  body.querySelectorAll(".ticks button").forEach((b) => (b.onclick = () => set(Number(b.dataset.i))));
+}
+
+function renderModels(task) {
+  const box = $("models");
+  box.innerHTML = "";
+  task.families.forEach((fam) => {
+    const c = ckptFor(task, fam);
+    const isRunning = status.running && c && status.ckpt_key === c.key;
+    const famRunning = status.running && fam.checkpoints.some((x) => x.key === status.ckpt_key);
+    const isPending = c && pendingKey === c.key;
+    const b = document.createElement("button");
+    b.className = "neu model" + (isPending ? " pending" : "") + (isRunning && status.stopping ? " stopping" : "");
+    b.setAttribute("aria-pressed", String(Boolean(isRunning || isPending)));
+
+    let stateTxt = "꺼짐";
+    if (isPending) stateTxt = "시작 중…";
+    else if (isRunning && status.stopping) stateTxt = "정지 중…";
+    else if (isRunning) stateTxt = `실행 중 · ${Math.round(status.elapsed || 0)}s`;
+    else if (famRunning) stateTxt = "다른 스텝 실행 중";
+
+    const info = c ? c.info : fam.checkpoints[0].info;
+    const chips = [];
+    if (c) chips.push(`<span class="chip">${c.label} 스텝</span>`);
+    else chips.push(`<span class="chip warn">${fmtStep(selectedStep(task))} 없음</span>`);
+    if (info.chunk) chips.push(`<span class="chip">chunk ${info.chunk}</span>`);
+    if (info.state_dim) chips.push(`<span class="chip">${info.state_dim === 7 ? "관절6+전류" : "관절 " + info.state_dim}</span>`);
+    if (fam.checkpoints.length > 1) chips.push(`<span class="chip">ckpt ${fam.checkpoints.length}개</span>`);
+    const TYPE_LABEL = { smolvla: "SmolVLA", diffusion: "Diffusion", pi0: "π0", pi05: "π0.5", vqbet: "VQ-BeT", tdmpc: "TD-MPC" };
+    const ptype = info.type || "act";
+    if (ptype !== "act") {
+      if ((TYPE_LABEL[ptype] || ptype) !== fam.label) chips.unshift(`<span class="chip hl">${esc(TYPE_LABEL[ptype] || ptype)}</span>`);
+      if (params.ensemble !== "off") chips.push(`<span class="chip" title="ACT 전용 옵션이라 이 모델은 '끔'으로 실행">섞기 자동 끔</span>`);
+      if (ptype === "smolvla" && !params.task) chips.push(`<span class="chip warn" title="SmolVLA는 작업 문장을 보고 움직임">작업 문장 필요</span>`);
+    }
+    const heavy = /resnet(50|101|152)/.test(info.backbone || "") || info.depth || ["smolvla", "pi0", "pi05"].includes(ptype);
+    if (info.backbone && info.backbone !== "resnet18") chips.push(`<span class="chip hl">${esc(info.backbone.replace("resnet", "R"))}</span>`);
+    if (info.depth) chips.push(`<span class="chip hl">깊이</span>`);
+    if (heavy && params.device === "cpu") chips.push(`<span class="chip warn" title="작성자 권장: CUDA GPU">GPU 권장</span>`);
+    if (info.depth && params.depth_device === "cpu") chips.push(`<span class="chip warn" title="MoGe-2 를 CPU로 돌리면 깊이가 몇 초씩 늦음">깊이 CPU 느림</span>`);
+
+    const ledCls = isRunning ? (status.stopping ? "led wait" : "led on") : isPending ? "led wait" : "led";
+    b.innerHTML = `
+      <div class="top"><span class="${ledCls}"></span><span class="name">${esc(fam.label)}</span><span class="state">${stateTxt}</span></div>
+      <div class="desc">${esc(fam.desc || (c ? c.name : fam.checkpoints.map((x) => x.name).join(", ")))}</div>
+      <div class="chips">${chips.join("")}</div>
+      <div class="model-action">${isRunning ? (status.stopping ? "정지하는 중" : "실행 정지") : isPending ? "시작하는 중" : c ? "이 모델 실행" : "체크포인트 없음"}<span>${isRunning ? "■" : "↗"}</span></div>`;
+    b.title = c ? c.key : "슬라이더에서 이 모델에 있는 스텝을 골라줘";
+
+    const blocked = !c || (status.running && !isRunning && !prepReady()) || (pendingKey && !isPending) || (isRunning && status.stopping);
+    b.disabled = Boolean(blocked);
+    b.onclick = () => (isRunning ? stop() : start(c));
+    box.appendChild(b);
+  });
+}
+
+function renderStatus() {
+  const led = $("pillLed"), txt = $("pillText");
+  const hit = status.ckpt_key ? findByKey(status.ckpt_key) : null;
+  const isRec = status.kind === "record" && status.rec;
+  const name = isRec ? `녹화 ${status.rec.dataset}` : hit ? `${hit.t.label} / ${hit.f.label} · ${hit.c.label}` : status.ckpt_name || "";
+  if (status.running && isRec) {
+    const r = status.rec;
+    led.className = status.stopping || r.phase !== "rec" ? "led wait" : "led rec";
+    txt.textContent = `${status.stopping ? "끝내는 중" : (PHASE[r.phase] || [r.phase])[0].split(" — ")[0]} — ${r.dataset} · 저장 ${r.saved}/${r.num_episodes}`;
+  } else if (status.running) {
+    led.className = status.stopping ? "led wait" : "led on";
+    const ch = status.chain;
+    txt.textContent = ch
+      ? `${status.stopping ? "정지 중" : "연속 실행 중"} — ${ch.waiting ? "토크 유지, 멈춤 — 2단계 시작 버튼을 눌러줘" : ch.current ? `${ch.current}/${ch.stages.length}단계 ${ch.stages[ch.current - 1].name}` : "모델 불러오는 중"} · 전체 ${Math.round(status.elapsed || 0)}s`
+      : status.prep && !status.prep.used
+        ? `${status.stopping ? "정지 중" : status.prep.ready ? "초기 자세에서 대기 중" : "초기 자세로 이동 중"} — ${status.prep.label} · ${Math.round(status.elapsed || 0)}s`
+        : `${status.stopping ? "정지 중" : "실행 중"} — ${name} · ${Math.round(status.elapsed || 0)}s / ${params.episode_time}s`;
+  } else if (pendingKey || recPending) {
+    led.className = "led wait"; txt.textContent = "시작하는 중…";
+  } else if (status.exit_code != null && status.exit_code !== 0 && status.exit_code !== -2 && status.exit_code !== 130) {
+    led.className = "led err"; txt.textContent = `에러로 종료 (code ${status.exit_code}) — 로그 확인`;
+  } else if (status.exit_code != null) {
+    led.className = "led"; txt.textContent = `끝남 — ${name}`;
+  } else {
+    led.className = "led"; txt.textContent = "대기 중";
+  }
+  $("estop").disabled = !status.running || status.stopping;
+  $("torqueBtn").disabled = status.running;
+  renderChainState();
+  renderPrep();
+  renderClock();
+  $("estop").title = status.kind === "record" ? "녹화 강제 중지 (지금 에피소드는 저장 안 됨)" : "추론 정지";
+}
+
+function renderLog() {
+  const el = $("log");
+  const lines = status.log || [];
+  if (!lines.length) return;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.innerHTML = lines.map((l) => {
+    const cls = /Traceback|Error|error|Exception|FATAL|failed/.test(l) ? "e"
+      : /^\[알림\]/.test(l) ? "w" : /^\$ |^\[/.test(l) ? "i" : /connected|Recording episode|완료/.test(l) ? "s" : "";
+    return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
+  }).join("\n");
+  if (atBottom) el.scrollTop = el.scrollHeight;
+  $("logNote").textContent = status.kind === "record" && status.rec ? `녹화 · ${status.rec.dataset}` : status.ckpt_name || "";
+}
+
+function renderCurrentModels() {
+  const t = tasks.find((x) => x.id === curTask);
+  if (t) renderModels(t);
+}
+
+function render() {
+  renderChainOptions();
+  renderTasks();
+  const task = tasks.find((t) => t.id === curTask);
+  if (!task) { $("stepCard").dataset.empty = "1"; applyTabVisibility(); $("models").innerHTML = ""; renderStatus(); return; }
+  $("modelNote").textContent = `${task.families.length}개 모델 · 버튼을 누르면 실행`;
+  renderSteps(task);
+  renderModels(task);
+  renderStatus();
+}
+
+/* ---------- actions ---------- */
+async function start(c) {
+  if (!c) return;
+  pendingKey = c.key; render();
+  try {
+    status = await api("/api/start", { key: c.key, params }); statusAt = Date.now();
+    toast(`${c.name} 시작`);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    pendingKey = null; render(); renderLog();
+  }
+}
+async function stop() {
+  try { status = await api("/api/stop", {}); statusAt = Date.now(); toast("정지 요청 보냄"); } catch (e) { toast(e.message, true); }
+  render(); renderLog();
+}
+$("estop").onclick = stop;
+$("torqueBtn").onclick = async () => {
+  if (!confirm("토크를 끄면 팔이 떨어질 수 있어. 손으로 받쳤어?")) return;
+  try {
+    const r = await api("/api/torque_off", { params });
+    status.log = [`[토크 끄기] ${params.port}`, ...r.output.split("\n")];
+    renderLog(); toast("토크 끔");
+  } catch (e) { toast(e.message, true); }
+};
+
+/* ---------- polling ---------- */
+/* ---------- 로그 클립보드 ---------- */
+const IS_APP = new URLSearchParams(location.search).has("app");   // 프로그램 창(app.py)은 파이썬 쪽에서 자동 복사
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+  ta.remove(); return ok;
+}
+async function copyLog(auto = false) {
+  try {
+    const { text } = await api("/api/log");
+    if (await copyText(text)) toast(auto ? "실행 끝 — 로그를 클립보드에 복사했어 (Ctrl+V)" : "로그를 클립보드에 복사했어");
+    else if (!auto) toast("클립보드 복사 실패", true);
+  } catch (e) { if (!auto) toast(e.message, true); }
+}
+$("copyBtn").onclick = () => copyLog(false);
+
+async function poll() {
+  try {
+    const s = await api("/api/status");
+    const changed = s.running !== status.running || s.stopping !== status.stopping || s.ckpt_key !== status.ckpt_key || s.exit_code !== status.exit_code || s.run_id !== status.run_id;
+    status = s; statusAt = Date.now();
+    if (changed && !s.running && s.exit_code != null && ![0, 130, -2].includes(s.exit_code)) $("logBox").open = true;
+    if (changed && !s.running && s.exit_code != null && !IS_APP) copyLog(true);
+    if (changed && !s.running && s.exit_code != null) {
+      if (s.kind === "record") { loadDatasets(); if (s.exit_code === 0) toast(`녹화 끝 — 이번에 ${s.rec ? s.rec.saved : 0}개 저장`); }
+      else if (s.exit_code === 0) toast("추론 끝");
+    }
+    renderRec();
+    if (status.running && curTask == null) {
+      const hit = findByKey(status.ckpt_key); if (hit) curTask = hit.t.id;
+    }
+    changed ? render() : (renderStatus(), status.running && renderModels(tasks.find((t) => t.id === curTask) || { families: [] }));
+    renderLog();
+  } catch (e) {
+    $("pillLed").className = "led err"; $("pillText").textContent = "서버 연결 끊김 — server.py가 켜져 있는지 확인";
+  }
+  setTimeout(poll, status.running || pendingKey ? 700 : 1500);
+}
+
+async function loadModels() {
+  const data = await api("/api/models");
+  tasks = data.tasks;
+  if (!tasks.some((t) => t.id === curTask)) curTask = null;
+}
+$("openSettings").onclick = () => {
+  $("paramBox").open = true;
+  $("paramBox").scrollIntoView({ behavior: "smooth", block: "start" });
+};
+$("refreshBtn").onclick = async () => {
+  try { await loadModels(); if (!curTask && tasks[0]) curTask = tasks[0].id; render(); toast("모델 목록을 다시 읽었어"); }
+  catch (e) { toast(e.message, true); }
+};
+
+(async function init() {
+  try {
+    INF.load((await api("/api/params")).params);
+    REC.load((await api("/api/rec_params")).params);
+    renderAllParams();
+  } catch (e) {
+    $("paramGroups").innerHTML = `<p class="note">파라미터 목록을 못 불러옴: ${esc(e.message)}</p>`;
+  }
+  showTab(curTab);
+  try {
+    await loadModels();
+    status = await api("/api/status"); statusAt = Date.now();
+    const hit = status.ckpt_key && findByKey(status.ckpt_key);
+    curTask = hit ? hit.t.id : (tasks[0] && tasks[0].id);
+    if (status.running && status.kind === "record") showTab("rec");
+    render(); renderLog(); renderRec();
+  } catch (e) {
+    $("tasks").innerHTML = `<p class="note">서버에 연결 못 함: ${esc(e.message)}</p>`;
+  }
+  poll();
+})();
+</script>
+</body>
+</html>
