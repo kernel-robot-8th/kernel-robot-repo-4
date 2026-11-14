@@ -1,0 +1,8 @@
+<launch>
+  <!-- 추론 PC에서 실행한다. ROS_DOMAIN_ID·CYCLONEDDS_URI는 관제 fleet과 같게 맞춘다. -->
+  <arg name="params_file" default="$(find-pkg-share cobot_manipulation)/config/omx_infer_worker.yaml"
+       description="현장 infer.sh 경로를 기입한 파라미터 파일"/>
+  <node pkg="cobot_manipulation" exec="omx_infer_worker_node" name="omx_infer_worker" output="screen">
+    <param from="$(var params_file)"/>
+  </node>
+</launch>

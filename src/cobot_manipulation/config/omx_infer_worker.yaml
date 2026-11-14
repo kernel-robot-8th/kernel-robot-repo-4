@@ -1,0 +1,12 @@
+omx_infer_worker:
+  ros__parameters:
+    arm_id: omx1                     # scenario.yaml의 pickup_arm 값과 같아야 fleet이 결과를 받는다
+    actions: [pick]                  # load 성공 판정은 별도 통신(YOLO)이 맡는다
+    # 추론 PC에서 infer.sh 절대 경로를 두 번째 항목에 기입한다. {slot}이 위치 번호(1~4)로 바뀐다.
+    command: ['bash', '', '{slot}']
+    working_dir: ''                  # 비우면 노드 실행 위치
+    slot_key: slot                   # 작업 요청 JSON에서 위치 번호를 읽을 키
+    allowed_slots: [1, 2, 3, 4]
+    timeout_margin_sec: 10.0         # fleet 요청 timeout_sec보다 먼저 끝내 결과를 보낼 여유
+    work_request_topic: /fleet/work_request
+    work_result_topic: /fleet/work_result
