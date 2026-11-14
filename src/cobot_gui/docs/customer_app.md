@@ -1,6 +1,7 @@
-# 고객 주문 화면 (보조 A, sub PC)
+# 고객 주문 화면 (보조 A, 관제 PC)
 
 - 상태: 초안 (2026-11-14). 메뉴 트리 밖 화면이다 (D14). 관제 대시보드와 따로 돈다.
+- sub PC 는 두지 않는다. 게이트웨이와 order_manager 가 모두 관제 PC 에서 돈다 (2026-11-14 변경).
 - 고객은 자기 핸드폰으로 자리의 QR 을 찍어 들어온다. 앱 설치는 없다.
 - 주문 처리(DB·단계)는 관제 PC 의 order_manager 가 한다: `src/cobot_control_center/docs/order_flow.md`.
 
@@ -12,10 +13,10 @@
 | 가짜 결제 QR | `web/public/customer/pay_qr.svg` (고정 이미지, 스캔되지 않는다) |
 | 신발 이미지 | `web/public/customer/shoes/` (폴더를 만들어 넣는다. 장당 100 KB 이하, 가로 600 px 정도. 원본 사진은 커밋하지 않는다) |
 | 게이트웨이 노드 | `cobot_gui/customer_gateway_node.py` (rclpy), HTTP 처리 `cobot_gui/customer_gateway_utils.py` (파이썬 표준 `http.server`) |
-| 설정 | `config/customer_gateway.yaml`, 신발·자리 목록 `config/customer_catalog.yaml` |
+| 설정 | `config/customer_gateway.yaml`, 신발 목록 `config/customer_catalog.yaml`, 자리 목록 `cobot_bringup/config/store_layout.yaml` |
 | launch | `launch/customer_gateway.launch.xml` |
 
-- 게이트웨이는 `customer.html` 과 `assets/`, `customer/` 만 내보낸다. 관제 화면(`index.html`)은 sub PC 에서 열리지 않는다.
+- 게이트웨이는 `customer.html` 과 `assets/`, `customer/` 만 내보낸다. 관제 화면(`index.html`)은 이 포트(8080)로 열리지 않는다. 같은 PC 라도 고객 핸드폰이 관제 화면에 닿지 않게 하기 위해서다.
 - 새 의존성은 없다 (React·lucide 는 이미 있는 것, 서버는 표준 라이브러리).
 
 ## 2. 자리 QR
@@ -23,14 +24,15 @@
 QR 내용은 주소 하나다.
 
 ```
-http://<sub PC IP>:8080/?loc=BENCH_1
+http://<관제 PC IP>:8080/?loc=BENCH_1
 ```
 
-- 핸드폰과 sub PC 는 같은 Wi-Fi 에 있어야 한다. `localhost` 는 핸드폰 자신이라 쓸 수 없다.
-- IP 가 QR 에 인쇄되므로 공유기에서 sub PC IP 를 고정한다 (DHCP 예약).
+- 핸드폰과 관제 PC 는 같은 Wi-Fi 에 있어야 한다. `localhost` 는 핸드폰 자신이라 쓸 수 없다.
+- IP 가 QR 에 인쇄되므로 공유기에서 관제 PC IP 를 고정한다 (DHCP 예약).
 - 포트 6000 은 크롬이 막는다. 8080 을 쓴다.
-- 좌표는 QR 에 넣지 않는다. 위치 ID → 웨이포인트는 order_manager 설정에 있다. 맵이 바뀌어도 QR 을 다시 인쇄하지 않는다.
-- 자리를 늘리려면 `customer_catalog.yaml` 과 `order_manager.yaml` 의 `locations` 에 같은 ID 를 더하고 QR 을 인쇄한다.
+- 좌표는 QR 에 넣지 않는다. 위치 ID → 웨이포인트는 매장 배치 파일에 있다. 맵이 바뀌어도 QR 을 다시 인쇄하지 않는다.
+- 자리를 늘리려면 `cobot_bringup/config/store_layout.yaml` 의 `locations` 에만 한 줄 더하고 QR 을 인쇄한다.
+  게이트웨이(자리 이름)와 order_manager(웨이포인트)가 같은 파일을 읽는다.
   QR 그림은 아무 QR 생성기로 위 주소를 넣어 만든다.
 
 ## 3. 화면 흐름
@@ -68,5 +70,6 @@ colcon build --symlink-install --packages-up-to cobot_gui
 ros2 launch cobot_gui customer_gateway.launch.xml
 ```
 
-- 관제 PC 에서 `ros2 launch cobot_control_center order_manager.launch.xml` 이 함께 돌아야 한다. 두 PC 의 `ROS_DOMAIN_ID` 는 같아야 한다 (값은 `docs/fms_interfaces.md`, 임의로 바꾸지 않는다).
+- 같은 관제 PC 에서 `ros2 launch cobot_control_center order_manager.launch.xml` 이 함께 돌아야 한다. 두 터미널의 `ROS_DOMAIN_ID` 는 같아야 한다 (값은 `docs/fms_interfaces.md`, 임의로 바꾸지 않는다).
+- 빌드할 때 `cobot_bringup` 도 함께 고른다 (매장 배치 파일이 그 install 에 있다): `colcon build --symlink-install --packages-up-to cobot_gui cobot_control_center cobot_bringup`
 - 화면만 볼 때 (ROS 없이): `cd src/cobot_gui/web && npm run dev` 후 `http://localhost:5173/customer.html?loc=BENCH_1` (모의 서버). 빌드본은 주소에 `&mock=1` 을 붙이면 모의 서버를 쓴다.

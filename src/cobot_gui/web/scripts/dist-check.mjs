@@ -16,7 +16,7 @@ export function checkDist(dir) {
     return [`${dir}/index.html 이 없다. 먼저 npm run build`];
   }
   const files = ["index.html"];
-  // 고객 화면(sub PC)도 같은 규칙을 지킨다.
+  // 고객 화면(customer_gateway 가 내보냄)도 같은 규칙을 지킨다.
   if (existsSync(join(dir, "customer.html"))) files.push("customer.html");
   const assets = join(dir, "assets");
   if (existsSync(assets)) {

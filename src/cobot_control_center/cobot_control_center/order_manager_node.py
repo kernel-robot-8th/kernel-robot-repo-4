@@ -19,6 +19,7 @@ fms_core 의 주문 부분 (보조 A 고객 주문). 관제 PC 에서 돈다.
                /control_center/customer_decision (CustomerDecision)
 - 발행: /control_center/orders (OrderStatus), /control_center/inventory (InventoryState)
 - DB: SQLite (order_db.py). 단계 규칙은 order_flow.py.
+- 매장 배치(선반 열 -> 웨이포인트, 자리 QR): layout_file 파라미터 (cobot_bringup/config/store_layout.yaml)
 
 로봇에 명령을 보내지 않는다. 로봇 단계는 시뮬레이션으로 넘어간다 (order_flow.py 머리말).
 """
@@ -29,8 +30,10 @@ import time
 from builtin_interfaces.msg import Time
 from cobot_control_center.order_db import OrderDb
 from cobot_control_center.order_flow import (
-    OrderFlowConfig, OrderService, parse_inventory, parse_pairs,
-    REJECT_BAD_SIGNATURE, REJECT_LEDGER_UNAVAILABLE, RESULT_REJECTED, SignatureChecker)
+    OrderFlowConfig, OrderService, parse_inventory,
+    REJECT_BAD_SIGNATURE, REJECT_LEDGER_UNAVAILABLE, RESULT_REJECTED, SignatureChecker,
+    slot_label)
+from cobot_control_center.store_layout import load_store_layout
 from cobot_interfaces.msg import InventoryItem, InventoryState, OrderStatus
 from cobot_interfaces.srv import CustomerDecision, SubmitOrder
 import rclpy
@@ -46,32 +49,42 @@ class OrderManagerNode(Node):
         super().__init__('order_manager')
         self.declare_parameter('db_path', '~/.ros/cobot_orders.sqlite3')
         self.declare_parameter('gateway_key_file', '')
-        self.declare_parameter('locations', ['BENCH_1=WP_BENCH_DELIVERY'])
+        self.declare_parameter('layout_file', '')
         self.declare_parameter('robot_ids', ['pinky_1'])
         self.declare_parameter('initial_inventory', [''])
         self.declare_parameter('sim_step_sec', 3.0)
         self.declare_parameter('tick_period_sec', 0.5)
         self.declare_parameter('orders_qos_depth', 50)
-        self.declare_parameter('warehouse_waypoint', 'WP_LOAD_1')
         self.declare_parameter('repack_waypoint', 'WP_UNLOAD')
         self.declare_parameter('home_waypoint', 'WP_HOME_1')
 
         def param(name):
             return self.get_parameter(name).value
 
+        layout_file = os.path.expanduser(param('layout_file'))
+        if not layout_file:
+            raise RuntimeError('layout_file 이 비었다 (cobot_bringup/config/store_layout.yaml)')
+        layout = load_store_layout(layout_file)
+        self.get_logger().info('매장 배치: {} ({}행 {}열, 자리 {}곳)'.format(
+            layout_file, layout.rows, len(layout.columns), len(layout.locations)))
+
         db_path = os.path.expanduser(param('db_path'))
         if db_path != ':memory:':
             os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
         self._db = OrderDb(db_path)
         inventory = [item for item in param('initial_inventory') if item]
-        if self._db.seed_inventory(parse_inventory(inventory)):
+        if self._db.seed_inventory(parse_inventory(inventory, layout)):
             self.get_logger().info('초기 재고 {}건을 넣었다'.format(len(inventory)))
+        for row in self._db.list_inventory():
+            if not layout.has_slot(row['shelf_row'], row['shelf_col']):
+                self.get_logger().error(
+                    '재고 {} 의 칸 {} 이 매장 배치에 없다. 이 신발 주문은 실패한다 (UNKNOWN_SHELF)'
+                    .format(row['sku'], slot_label(row['shelf_row'], row['shelf_col'])))
 
         config = OrderFlowConfig(
-            locations=parse_pairs(param('locations')),
+            layout=layout,
             robot_ids=param('robot_ids'),
             step_sec=param('sim_step_sec'),
-            warehouse_waypoint=param('warehouse_waypoint'),
             repack_waypoint=param('repack_waypoint'),
             home_waypoint=param('home_waypoint'))
         self._service = OrderService(self._db, config)
@@ -192,7 +205,8 @@ class OrderManagerNode(Node):
         for row in self._service.list_inventory():
             item = InventoryItem()
             item.sku = row['sku']
-            item.location_id = row['location_id']
+            # 메시지는 바꾸지 않고 칸 이름을 넣는다 (예: R2C3).
+            item.location_id = slot_label(row['shelf_row'], row['shelf_col'])
             item.qty_on_hand = row['qty_on_hand']
             item.qty_reserved = row['qty_reserved']
             items.append(item)

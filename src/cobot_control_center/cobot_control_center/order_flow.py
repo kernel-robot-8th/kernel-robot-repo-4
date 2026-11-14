@@ -26,6 +26,9 @@ ROS 없이 돈다. 시각은 밖에서 넣는다(초). 노드는 order_manager_n
   UNLOADING + PAID   -> HANDOVER_CONFIRMED -> RETURNING -> COMPLETED
   UNLOADING + CANCEL -> CANCELLED (고객 쪽 끝)
       그 뒤 로봇 단계(robot_step): TO_REPACK -> REPACKING -> TO_WAREHOUSE -> 끝
+
+신발 위치는 선반 (행, 열)이다. 핑키는 열 앞 웨이포인트로 가고, 팔은 행 높이에서 집는다.
+열 -> 웨이포인트는 매장 배치 파일(store_layout.py)에 있다.
 """
 
 import hashlib
@@ -52,7 +55,8 @@ AUTO_NEXT = {
     STAGE_RETURNING: STAGE_COMPLETED,
 }
 
-# 취소 뒤 로봇 단계. 신발은 핑키 위에 그대로 두고 창고로 돌아간다 (선반 복귀는 아직 없다).
+# 취소 뒤 로봇 단계. 신발은 핑키 위에 그대로 두고 그 신발의 선반 열 앞으로 돌아간다
+# (선반에 다시 꽂는 동작은 아직 없다).
 ROBOT_STEP_TO_REPACK = 'TO_REPACK'
 ROBOT_STEP_REPACKING = 'REPACKING'
 ROBOT_STEP_TO_WAREHOUSE = 'TO_WAREHOUSE'
@@ -75,6 +79,8 @@ REJECT_WRONG_STAGE = 'WRONG_STAGE'
 REJECT_BAD_DECISION = 'BAD_DECISION'
 
 FAILURE_UNKNOWN_TABLE = 'UNKNOWN_TABLE'
+# 재고 칸의 열이 매장 배치에 없다 (배치 파일을 바꾼 뒤 DB 를 다시 만들지 않은 경우).
+FAILURE_UNKNOWN_SHELF = 'UNKNOWN_SHELF'
 FAILURE_BAD_REQUEST = 'BAD_REQUEST'
 
 ALLOWED_ROLES = ('customer', 'staff', 'operator')
@@ -86,13 +92,12 @@ PAYMENT_CANCELLED = 'CANCELLED'
 class OrderFlowConfig:
     """단계 진행에 쓰는 값. 노드가 파라미터에서 채운다."""
 
-    def __init__(self, locations, robot_ids, step_sec,
-                 warehouse_waypoint, repack_waypoint, home_waypoint):
-        """locations: {table_id: waypoint_id}. robot_ids: 배정 후보(돌아가며 고른다)."""
-        self.locations = dict(locations)
+    def __init__(self, layout, robot_ids, step_sec, repack_waypoint, home_waypoint):
+        """layout: StoreLayout (자리·선반 배치). robot_ids: 배정 후보(돌아가며 고른다)."""
+        self.layout = layout
+        self.locations = layout.location_waypoints()
         self.robot_ids = list(robot_ids)
         self.step_sec = float(step_sec)
-        self.warehouse_waypoint = warehouse_waypoint
         self.repack_waypoint = repack_waypoint
         self.home_waypoint = home_waypoint
 
@@ -142,10 +147,20 @@ class OrderService:
                 'created_at': now,
                 'updated_at': now,
             }
+            item = self._db.get_inventory(sku)
+            if item is not None:
+                order.update(shelf_row=item['shelf_row'], shelf_col=item['shelf_col'],
+                             load_waypoint_id=self._config.layout.column_waypoint(
+                                 item['shelf_col']))
             reject_code = ''
+            failure = ''
             if not waypoint_id:
                 # 모르는 자리의 주문은 받아 두되 실패로 둔다 (SubmitOrder 에 거부 코드가 없다).
-                order.update(stage=STAGE_FAILED, failure_reason=FAILURE_UNKNOWN_TABLE,
+                failure = FAILURE_UNKNOWN_TABLE
+            elif item is not None and not order['load_waypoint_id']:
+                failure = FAILURE_UNKNOWN_SHELF
+            if failure:
+                order.update(stage=STAGE_FAILED, failure_reason=failure,
                              stage_history=[[STAGE_RECEIVED, now], [STAGE_FAILED, now]])
             elif self._reserve(sku, qty):
                 order.update(reserved=1, next_step_at=now + self._config.step_sec)
@@ -158,7 +173,7 @@ class OrderService:
                                'table_id={} sku={} qty={}'.format(table_id, sku, qty))
             if order['stage'] == STAGE_FAILED:
                 self._db.add_event(order_id, now, 'stage', STAGE_FAILED, '',
-                                   FAILURE_UNKNOWN_TABLE)
+                                   order['failure_reason'])
         return _submit_result(RESULT_ACCEPTED, reject_code, order_id)
 
     # --- 고객 결정 (CustomerDecision) ---
@@ -221,6 +236,11 @@ class OrderService:
                 (int(order['order_id'].split('-')[-1]) - 1) % len(self._config.robot_ids)]
             extra['robot_id'] = robot_id
             self._db.add_event(order['order_id'], now, 'robot', 'ASSIGNED', '', robot_id)
+        if nxt == STAGE_LOADING:
+            self._db.add_event(order['order_id'], now, 'robot', 'LOADING', '',
+                               'goto {} pick row {} col {}'.format(
+                                   order['load_waypoint_id'], order['shelf_row'],
+                                   order['shelf_col']))
         self._set_stage(order, now, nxt, '')
         waits = nxt in (STAGE_UNLOADING, STAGE_COMPLETED)
         self._db.update_order(
@@ -234,14 +254,15 @@ class OrderService:
         detail = {
             ROBOT_STEP_REPACKING: 'HandoverTask REPACK at {}'.format(
                 self._config.repack_waypoint),
-            ROBOT_STEP_TO_WAREHOUSE: 'goto {}'.format(self._config.warehouse_waypoint),
-            ROBOT_STEP_DONE: 'shoe stays on robot at warehouse',
+            ROBOT_STEP_TO_WAREHOUSE: 'goto {}'.format(order['load_waypoint_id']),
+            ROBOT_STEP_DONE: 'shoe stays on robot at shelf row {} col {}'.format(
+                order['shelf_row'], order['shelf_col']),
         }.get(nxt, '')
         self._db.add_event(order['order_id'], now, 'robot', nxt, '', detail)
         values = {'robot_step': nxt, 'updated_at': now,
                   'next_step_at': None if nxt == ROBOT_STEP_DONE else now + self._config.step_sec}
         if nxt == ROBOT_STEP_DONE and order['reserved']:
-            # 신발이 창고에 돌아왔다. 가점유만 푼다 (선반 복귀 동작은 아직 없다, 초안).
+            # 신발이 선반 열 앞에 돌아왔다. 가점유만 푼다 (선반 복귀 동작은 아직 없다, 초안).
             self._db.change_inventory(order['sku'], 0, -order['qty'])
             values['reserved'] = 0
         self._db.update_order(order['order_id'], **values)
@@ -279,26 +300,35 @@ class OrderService:
         return stage
 
 
-def parse_pairs(items, sep='='):
-    """['A=B', ...] 를 {'A': 'B'} 로 바꾼다. ROS 파라미터가 dict 를 못 받아서 쓴다."""
-    result = {}
-    for item in items:
-        key, found, value = item.partition(sep)
-        if not found or not key.strip() or not value.strip():
-            raise ValueError('"키{}값" 형식이 아니다: {!r}'.format(sep, item))
-        result[key.strip()] = value.strip()
-    return result
+def parse_inventory(items, layout=None):
+    """
+    ['SKU:행:열:수량', ...] 를 [(sku, row, col, qty)] 로 바꾼다.
 
-
-def parse_inventory(items):
-    """['SKU:LOCATION:QTY', ...] 를 [(sku, location, qty)] 로 바꾼다."""
+    layout(StoreLayout)을 주면 선반에 없는 칸과 한 칸에 두 SKU 를 거부한다.
+    """
     result = []
+    slots = {}
     for item in items:
         parts = [p.strip() for p in item.split(':')]
-        if len(parts) != 3 or not parts[0] or not parts[1]:
-            raise ValueError('"SKU:위치:수량" 형식이 아니다: {!r}'.format(item))
-        result.append((parts[0], parts[1], int(parts[2])))
+        try:
+            if len(parts) != 4 or not parts[0]:
+                raise ValueError
+            sku, row, col, qty = parts[0], int(parts[1]), int(parts[2]), int(parts[3])
+        except ValueError:
+            raise ValueError('"SKU:행:열:수량" 형식이 아니다: {!r}'.format(item)) from None
+        if layout is not None and not layout.has_slot(row, col):
+            raise ValueError('선반에 없는 칸이다 ({}행 {}열): {!r}'.format(row, col, item))
+        if (row, col) in slots:
+            raise ValueError('{}행 {}열에 SKU 가 둘이다: {} , {}'.format(
+                row, col, slots[(row, col)], sku))
+        slots[(row, col)] = sku
+        result.append((sku, row, col, qty))
     return result
+
+
+def slot_label(row, col):
+    """InventoryItem.location_id 에 넣는 칸 이름. 예: 2행 3열 -> 'R2C3'."""
+    return 'R{}C{}'.format(row, col)
 
 
 def gateway_signature(key, fields):

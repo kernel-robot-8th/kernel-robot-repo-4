@@ -26,6 +26,8 @@ from cobot_gui import customer_gateway_utils as gw
 import pytest
 
 CATALOG = Path(__file__).resolve().parents[1] / 'config' / 'customer_catalog.yaml'
+LAYOUT = (Path(__file__).resolve().parents[2] / 'cobot_bringup' / 'config'
+          / 'store_layout.yaml')
 
 
 class FakeBackend:
@@ -64,7 +66,7 @@ class FakeBackend:
 @pytest.fixture
 def api():
     backend = FakeBackend()
-    return gw.CustomerApi(gw.load_catalog(str(CATALOG)), backend), backend
+    return gw.CustomerApi(gw.load_catalog(str(CATALOG), str(LAYOUT)), backend), backend
 
 
 def _order(api_obj, session='s1', key='k1', loc='BENCH_1', sku='SHOE_RUN_WHITE_260'):
@@ -196,4 +198,19 @@ def test_catalog_validation(tmp_path):
     path = tmp_path / 'c.yaml'
     path.write_text('items:\n  - {sku: A, name: a, price: 1}\n  - {sku: A, name: b}\n')
     with pytest.raises(ValueError):
-        gw.load_catalog(str(path))
+        gw.load_catalog(str(path), str(LAYOUT))
+
+
+def test_catalog_with_locations_is_refused(tmp_path):
+    path = tmp_path / 'c.yaml'
+    path.write_text('locations:\n  BENCH_1: {name: x}\nitems: []\n')
+    with pytest.raises(ValueError, match='store_layout.yaml'):
+        gw.load_catalog(str(path), str(LAYOUT))
+
+
+def test_locations_come_from_store_layout(tmp_path):
+    assert gw.load_locations(str(LAYOUT))['BENCH_1'] == {'name': '고객 벤치 1'}
+    bad = tmp_path / 'layout.yaml'
+    bad.write_text('locations:\n  BENCH_1: {name: x}\n')
+    with pytest.raises(ValueError, match='waypoint'):
+        gw.load_locations(str(bad))

@@ -23,7 +23,8 @@ import json
 import sqlite3
 import threading
 
-SCHEMA_VERSION = 1
+# 2: 재고 위치를 선반 (행, 열)로 바꾸고 주문에 칸·열 웨이포인트를 남긴다.
+SCHEMA_VERSION = 2
 
 _SCHEMA = (
     """
@@ -35,9 +36,11 @@ _SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS inventory (
         sku TEXT PRIMARY KEY,
-        location_id TEXT NOT NULL,
+        shelf_row INTEGER NOT NULL CHECK (shelf_row >= 1),
+        shelf_col INTEGER NOT NULL CHECK (shelf_col >= 1),
         qty_on_hand INTEGER NOT NULL CHECK (qty_on_hand >= 0),
-        qty_reserved INTEGER NOT NULL DEFAULT 0 CHECK (qty_reserved >= 0)
+        qty_reserved INTEGER NOT NULL DEFAULT 0 CHECK (qty_reserved >= 0),
+        UNIQUE (shelf_row, shelf_col)
     )
     """,
     """
@@ -51,6 +54,9 @@ _SCHEMA = (
         requester_role TEXT NOT NULL DEFAULT '',
         requester_id TEXT NOT NULL DEFAULT '',
         robot_id TEXT NOT NULL DEFAULT '',
+        shelf_row INTEGER,
+        shelf_col INTEGER,
+        load_waypoint_id TEXT NOT NULL DEFAULT '',
         stage TEXT NOT NULL,
         stage_history TEXT NOT NULL DEFAULT '[]',
         failure_reason TEXT NOT NULL DEFAULT '',
@@ -84,7 +90,8 @@ _SCHEMA = (
 
 _ORDER_COLUMNS = (
     'order_id', 'idempotency_key', 'sku', 'qty', 'table_id', 'waypoint_id',
-    'requester_role', 'requester_id', 'robot_id', 'stage', 'stage_history',
+    'requester_role', 'requester_id', 'robot_id', 'shelf_row', 'shelf_col',
+    'load_waypoint_id', 'stage', 'stage_history',
     'failure_reason', 'retry_count', 'reserved', 'robot_step', 'next_step_at',
     'created_at', 'updated_at',
 )
@@ -102,12 +109,28 @@ class OrderDb:
         if path != ':memory:':
             # 쓰다가 전원이 꺼져도 DB 가 깨지지 않게 한다.
             self._conn.execute('PRAGMA journal_mode = WAL')
+        self._check_schema_version(path)
         with self.transaction():
             for statement in _SCHEMA:
                 self._conn.execute(statement)
             self._conn.execute(
                 'INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)',
                 ('schema_version', str(SCHEMA_VERSION)))
+
+    def _check_schema_version(self, path):
+        # CREATE TABLE IF NOT EXISTS 는 옛 표를 그대로 둔다. 옛 DB 를 조용히 쓰지 않게 막는다.
+        has_meta = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'").fetchone()
+        if not has_meta:
+            return
+        row = self._conn.execute(
+            "SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
+        if row is not None and row[0] != str(SCHEMA_VERSION):
+            self._conn.close()
+            raise RuntimeError(
+                '주문 DB 스키마 v{} 는 지금 코드(v{})와 맞지 않는다. '
+                '{} 를 지우고 다시 시작한다 (주문이 사라지고 재고를 다시 채운다).'.format(
+                    row[0], SCHEMA_VERSION, path))
 
     def close(self):
         """연결을 닫는다."""
@@ -121,13 +144,14 @@ class OrderDb:
     # --- 재고 ---
 
     def seed_inventory(self, items):
-        """재고가 비어 있을 때만 초기 재고를 넣는다. items: [(sku, location_id, qty)]."""
+        """재고가 비어 있을 때만 초기 재고를 넣는다. items: [(sku, shelf_row, shelf_col, qty)]."""
         with self.transaction():
             count = self._conn.execute('SELECT COUNT(*) FROM inventory').fetchone()[0]
             if count:
                 return False
             self._conn.executemany(
-                'INSERT INTO inventory (sku, location_id, qty_on_hand) VALUES (?, ?, ?)',
+                'INSERT INTO inventory (sku, shelf_row, shelf_col, qty_on_hand) '
+                'VALUES (?, ?, ?, ?)',
                 items)
             return True
 

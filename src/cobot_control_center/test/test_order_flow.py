@@ -14,22 +14,38 @@
 
 """고객 주문 단계 규칙과 SQLite 저장을 ROS 없이 본다."""
 
+from pathlib import Path
+import sqlite3
+
+from cobot_control_center import order_db
 from cobot_control_center import order_flow as flow
 from cobot_control_center.order_db import OrderDb
+from cobot_control_center.store_layout import load_store_layout, parse_store_layout
 import pytest
 
 STEP = 3.0
+LAYOUT_FILE = (Path(__file__).resolve().parents[2] / 'cobot_bringup' / 'config'
+               / 'store_layout.yaml')
+
+
+def _layout():
+    return parse_store_layout({
+        'shelf': {'rows': 3, 'columns': {1: 'WP_SHELF_C1', 2: 'WP_SHELF_C2', 3: 'WP_SHELF_C3'}},
+        'locations': {'BENCH_1': {'name': '벤치', 'waypoint': 'WP_BENCH_DELIVERY'}},
+    })
+
+
+def _config(layout=None):
+    return flow.OrderFlowConfig(
+        layout=layout or _layout(), robot_ids=['pinky_1', 'pinky_2'], step_sec=STEP,
+        repack_waypoint='WP_UNLOAD', home_waypoint='WP_HOME_1')
 
 
 @pytest.fixture
 def service():
     db = OrderDb(':memory:')
-    db.seed_inventory([('SHOE_A', 'RACK_A', 2), ('SHOE_B', 'RACK_B', 0)])
-    config = flow.OrderFlowConfig(
-        locations={'BENCH_1': 'WP_BENCH_DELIVERY'}, robot_ids=['pinky_1', 'pinky_2'],
-        step_sec=STEP, warehouse_waypoint='WP_LOAD_1', repack_waypoint='WP_UNLOAD',
-        home_waypoint='WP_HOME_1')
-    yield flow.OrderService(db, config), db
+    db.seed_inventory([('SHOE_A', 2, 3, 2), ('SHOE_B', 1, 1, 0)])
+    yield flow.OrderService(db, _config()), db
     db.close()
 
 
@@ -54,6 +70,12 @@ def test_submit_reserves_and_reaches_unloading(service):
         'RECEIVED', 'ASSIGNED', 'LOADING', 'IN_TRANSIT', 'UNLOADING']
     assert order['robot_id'] == 'pinky_1'
     assert order['waypoint_id'] == 'WP_BENCH_DELIVERY'
+    # 신발이 있는 칸과 그 열 앞 웨이포인트를 주문에 남긴다.
+    assert (order['shelf_row'], order['shelf_col']) == (2, 3)
+    assert order['load_waypoint_id'] == 'WP_SHELF_C3'
+    loading = [e['detail'] for e in db.list_events('ORD-00001')
+               if e['kind'] == 'robot' and e['value'] == 'LOADING']
+    assert loading == ['goto WP_SHELF_C3 pick row 2 col 3']
     # 고객이 정할 때까지 더 넘어가지 않는다.
     svc.tick(now + 100)
     assert svc.get_order('ORD-00001')['stage'] == flow.STAGE_UNLOADING
@@ -76,12 +98,12 @@ def test_paid_sells_shoe_and_completes(service):
     assert result == {'result': 'ACCEPTED', 'reject_code': '', 'stage': 'HANDOVER_CONFIRMED'}
     assert db.get_payment('ORD-00001')['status'] == 'PAID'
     assert db.get_inventory('SHOE_A') == {
-        'sku': 'SHOE_A', 'location_id': 'RACK_A', 'qty_on_hand': 1, 'qty_reserved': 0}
+        'sku': 'SHOE_A', 'shelf_row': 2, 'shelf_col': 3, 'qty_on_hand': 1, 'qty_reserved': 0}
     _run_until(svc, 'ORD-00001', now, flow.STAGE_COMPLETED)
     assert svc.get_order('ORD-00001')['next_step_at'] is None
 
 
-def test_cancel_repacks_and_returns_to_warehouse(service):
+def test_cancel_repacks_and_returns_to_shelf_column(service):
     svc, db = service
     svc.submit(0.0, 'k1', 'SHOE_A', 1, 'BENCH_1')
     now = _run_until(svc, 'ORD-00001', 0.0, flow.STAGE_UNLOADING)
@@ -95,6 +117,9 @@ def test_cancel_repacks_and_returns_to_warehouse(service):
     assert order['robot_step'] == flow.ROBOT_STEP_DONE
     robot = [e['value'] for e in db.list_events('ORD-00001') if e['kind'] == 'robot']
     assert robot[-4:] == ['TO_REPACK', 'REPACKING', 'TO_WAREHOUSE', 'DONE']
+    to_warehouse = [e['detail'] for e in db.list_events('ORD-00001')
+                    if e['kind'] == 'robot' and e['value'] == 'TO_WAREHOUSE']
+    assert to_warehouse == ['goto WP_SHELF_C3']
     # 신발은 팔리지 않았다. 창고에 돌아온 뒤 가점유만 풀린다.
     assert db.get_inventory('SHOE_A')['qty_on_hand'] == 2
     assert db.get_inventory('SHOE_A')['qty_reserved'] == 0
@@ -129,6 +154,24 @@ def test_unknown_table_fails(service):
     assert order['failure_reason'] == 'UNKNOWN_TABLE'
 
 
+def test_shelf_column_missing_from_layout_fails():
+    db = OrderDb(':memory:')
+    db.seed_inventory([('SHOE_A', 1, 9, 1)])
+    svc = flow.OrderService(db, _config())
+    order = svc.get_order(svc.submit(0.0, 'k1', 'SHOE_A', 1, 'BENCH_1')['order_id'])
+    assert order['stage'] == flow.STAGE_FAILED
+    assert order['failure_reason'] == flow.FAILURE_UNKNOWN_SHELF
+    assert db.get_inventory('SHOE_A')['qty_reserved'] == 0
+    db.close()
+
+
+def test_one_sku_per_slot():
+    db = OrderDb(':memory:')
+    with pytest.raises(sqlite3.IntegrityError):
+        db.seed_inventory([('SHOE_A', 1, 1, 1), ('SHOE_B', 1, 1, 1)])
+    db.close()
+
+
 def test_bad_role_is_rejected(service):
     svc, _ = service
     assert svc.submit(0.0, 'k1', 'SHOE_A', 1, 'BENCH_1', 'robot')['reject_code'] == (
@@ -138,14 +181,25 @@ def test_bad_role_is_rejected(service):
 def test_orders_survive_reopen(tmp_path):
     path = str(tmp_path / 'orders.sqlite3')
     db = OrderDb(path)
-    db.seed_inventory([('SHOE_A', 'RACK_A', 1)])
-    config = flow.OrderFlowConfig({'BENCH_1': 'WP_X'}, ['pinky_1'], STEP, 'A', 'B', 'C')
-    flow.OrderService(db, config).submit(0.0, 'k1', 'SHOE_A', 1, 'BENCH_1')
+    db.seed_inventory([('SHOE_A', 1, 1, 1)])
+    flow.OrderService(db, _config()).submit(0.0, 'k1', 'SHOE_A', 1, 'BENCH_1')
     db.close()
     db = OrderDb(path)
     assert db.get_order('ORD-00001')['sku'] == 'SHOE_A'
-    assert db.seed_inventory([('SHOE_A', 'RACK_A', 9)]) is False
+    assert db.seed_inventory([('SHOE_A', 1, 1, 9)]) is False
     db.close()
+
+
+def test_old_schema_db_is_refused(tmp_path):
+    path = str(tmp_path / 'orders.sqlite3')
+    OrderDb(path).close()
+    conn = sqlite3.connect(path)
+    conn.execute("UPDATE meta SET value = '1' WHERE key = 'schema_version'")
+    conn.commit()
+    conn.close()
+    with pytest.raises(RuntimeError, match='지우고 다시 시작'):
+        OrderDb(path)
+    assert order_db.SCHEMA_VERSION == 2
 
 
 def test_signature_checker():
@@ -160,10 +214,37 @@ def test_signature_checker():
     assert flow.SignatureChecker(b'').check(fields, '', '')
 
 
-def test_parse_helpers():
-    assert flow.parse_pairs(['BENCH_1=WP_A', ' T2 = WP_B ']) == {'BENCH_1': 'WP_A', 'T2': 'WP_B'}
-    assert flow.parse_inventory(['S:R:3']) == [('S', 'R', 3)]
+def test_parse_inventory():
+    layout = _layout()
+    assert flow.parse_inventory([' S : 2 : 3 : 4 '], layout) == [('S', 2, 3, 4)]
+    for bad in (['S:1:1'], ['S:A:1:1'], [':1:1:1']):
+        with pytest.raises(ValueError):
+            flow.parse_inventory(bad, layout)
+    with pytest.raises(ValueError, match='선반에 없는 칸'):
+        flow.parse_inventory(['S:4:1:1'], layout)
+    with pytest.raises(ValueError, match='선반에 없는 칸'):
+        flow.parse_inventory(['S:1:4:1'], layout)
+    with pytest.raises(ValueError, match='SKU 가 둘'):
+        flow.parse_inventory(['S:1:1:1', 'T:1:1:1'], layout)
+    assert flow.slot_label(2, 3) == 'R2C3'
+
+
+def test_store_layout_file():
+    layout = load_store_layout(str(LAYOUT_FILE))
+    assert layout.rows == 3
+    assert sorted(layout.columns) == [1, 2, 3]
+    assert layout.has_slot(3, 3) and not layout.has_slot(4, 1) and not layout.has_slot(1, 4)
+    assert layout.location_waypoints()['BENCH_1'] == 'WP_BENCH_DELIVERY'
+
+
+@pytest.mark.parametrize('data', [
+    {'shelf': {'rows': 0, 'columns': {1: 'WP_A'}}},
+    {'shelf': {'rows': 3, 'columns': {}}},
+    {'shelf': {'rows': 3, 'columns': {'one': 'WP_A'}}},
+    {'shelf': {'rows': 3, 'columns': {1: ''}}},
+    {'shelf': {'rows': 3, 'columns': {1: 'WP_A'}}, 'locations': {'B 1': {'waypoint': 'W'}}},
+    {'shelf': {'rows': 3, 'columns': {1: 'WP_A'}}, 'locations': {'B1': {'name': 'x'}}},
+])
+def test_store_layout_validation(data):
     with pytest.raises(ValueError):
-        flow.parse_pairs(['oops'])
-    with pytest.raises(ValueError):
-        flow.parse_inventory(['S:R'])
+        parse_store_layout(data)

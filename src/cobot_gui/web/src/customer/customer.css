@@ -1,4 +1,4 @@
-/* 고객 핸드폰 화면 (sub PC 가 내보낸다). 관제 화면(index.css)과 따로 둔다. 외부 글꼴·CDN 없음. */
+/* 고객 핸드폰 화면 (관제 PC 의 customer_gateway 가 내보낸다). 관제 화면(index.css)과 따로 둔다. 외부 글꼴·CDN 없음. */
 :root {
   --c-bg: #f6f3ee;
   --c-card: #ffffff;

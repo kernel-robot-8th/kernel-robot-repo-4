@@ -1,4 +1,4 @@
-// 고객 주문 화면의 서버 연결 (sub PC 의 customer_gateway, /api/customer/*).
+// 고객 주문 화면의 서버 연결 (관제 PC 의 customer_gateway, /api/customer/*).
 // API 설명: src/cobot_gui/docs/customer_app.md
 // 모의 모드: 개발 서버(npm run dev)에서 VITE_DATA 가 gateway 가 아니거나, 주소에 ?mock=1 이 있으면
 // 브라우저 안의 가짜 서버로 흐름을 흉내 낸다. 설치본(npm run build)은 기본으로 실제 서버를 부른다.

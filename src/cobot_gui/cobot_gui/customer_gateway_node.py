@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-고객 게이트웨이 노드 (sub PC). 고객 핸드폰에 주문 화면과 API 를 내보낸다.
+고객 게이트웨이 노드 (관제 PC). 고객 핸드폰에 주문 화면과 API 를 내보낸다.
 
 - HTTP: 고객 화면(web/dist/customer.html)과 /api/customer/* (customer_gateway_utils.py)
 - ROS: /control_center/submit_order, /control_center/customer_decision 호출,
@@ -48,6 +48,8 @@ class CustomerGatewayNode(Node):
         self.declare_parameter('web_root', os.path.join(share, 'web', 'dist'))
         self.declare_parameter('catalog_file', os.path.join(share, 'config',
                                                             'customer_catalog.yaml'))
+        # 자리 목록은 매장 배치 파일에 있다 (order_manager 와 같은 파일). launch 가 경로를 넣는다.
+        self.declare_parameter('layout_file', '')
         self.declare_parameter('gateway_key_file', '')
         self.declare_parameter('service_timeout_sec', 3.0)
         self.declare_parameter('orders_qos_depth', 50)
@@ -88,7 +90,10 @@ class CustomerGatewayNode(Node):
         web_root = param('web_root')
         if not os.path.isfile(os.path.join(web_root, 'customer.html')):
             self.get_logger().warn('웹 빌드 필요: {} 에 customer.html 이 없다'.format(web_root))
-        api = CustomerApi(load_catalog(param('catalog_file')), self)
+        layout_file = os.path.expanduser(param('layout_file'))
+        if not layout_file:
+            raise RuntimeError('layout_file 이 비었다 (cobot_bringup/config/store_layout.yaml)')
+        api = CustomerApi(load_catalog(param('catalog_file'), layout_file), self)
         self._server = make_server(param('host'), int(param('port')), api, web_root,
                                    logger=self.get_logger().debug)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)

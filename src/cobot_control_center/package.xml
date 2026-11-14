@@ -7,8 +7,8 @@
   <maintainer email="rkd1rjs2@gmail.com">rkd1rjs2</maintainer>
   <license>Apache-2.0</license>
 
-  <!-- cobot_bringup 의 맵 파일을 실행 때 읽지만 여기 적지 않는다. bringup 은 나중에 각 패키지
-       launch 를 include 하려고 이 패키지에 의존하게 되어, 적으면 순환 의존이 된다.
+  <!-- cobot_bringup 의 맵 파일과 매장 배치(config/store_layout.yaml)를 실행 때 읽지만 여기 적지 않는다.
+       bringup 은 나중에 각 패키지 launch 를 include 하려고 이 패키지에 의존하게 되어, 적으면 순환 의존이 된다.
        빌드는 두 패키지를 함께 고른다 (docs/fms_map_contract.md 2절). -->
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>builtin_interfaces</exec_depend>

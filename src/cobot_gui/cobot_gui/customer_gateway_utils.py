@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-고객 게이트웨이의 HTTP 처리 (sub PC, 보조 A 고객 주문).
+고객 게이트웨이의 HTTP 처리 (관제 PC, 보조 A 고객 주문).
 
 ROS 없이 돈다. ROS 쪽(서비스 호출, 주문 구독)은 backend 로 넣는다 (customer_gateway_node.py).
 고객 핸드폰 -> HTTP -> 이 모듈 -> backend -> fms_core 순서다. 핸드폰은 ROS 에 닿지 않는다.
@@ -35,7 +35,8 @@ import yaml
 
 API_PREFIX = '/api/customer'
 CUSTOMER_PAGE = 'customer.html'
-# sub PC 는 고객 화면만 내보낸다. 관제 화면(index.html)은 내보내지 않는다.
+# 고객 핸드폰이 Wi-Fi 로 붙는 포트다. 관제 PC 에서 돌지만 고객 화면만 내보낸다.
+# 관제 화면(index.html)은 이 포트로 열리지 않아야 한다.
 STATIC_DIRS = ('assets', 'customer')
 MAX_BODY_BYTES = 4096
 
@@ -89,11 +90,38 @@ def sign_request(key, fields):
     return nonce, gateway_signature(key, list(fields) + [nonce])
 
 
-def load_catalog(path):
-    """신발 목록과 자리 목록 YAML 을 읽고 검사한다."""
+def load_locations(layout_path):
+    """
+    매장 배치 파일(cobot_bringup/config/store_layout.yaml)의 자리 목록을 읽는다.
+
+    order_manager 도 같은 파일을 읽는다. 패키지끼리 import 하지 않아서 읽는 코드는 따로 둔다
+    (cobot_control_center 의 store_layout.py, CLAUDE.md §3-6).
+    :return: {위치 ID: {'name': 이름}}
+    """
+    with open(layout_path, encoding='utf-8') as stream:
+        data = yaml.safe_load(stream) or {}
+    locations = {}
+    errors = []
+    for loc, info in (data.get('locations') or {}).items():
+        if not _ID_RE.match(str(loc)):
+            errors.append('위치 ID 형식이 아니다: {!r}'.format(loc))
+        elif not isinstance(info, dict) or not info.get('waypoint'):
+            errors.append('locations.{} 에 waypoint 가 없다'.format(loc))
+        else:
+            locations[str(loc)] = {'name': str(info.get('name') or loc)}
+    if errors:
+        raise ValueError('; '.join(errors))
+    return locations
+
+
+def load_catalog(path, layout_path):
+    """신발 목록 YAML 과 매장 배치의 자리 목록을 읽고 검사한다."""
     with open(path, encoding='utf-8') as stream:
         data = yaml.safe_load(stream) or {}
-    locations = data.get('locations') or {}
+    if 'locations' in data:
+        raise ValueError('자리 목록은 cobot_bringup/config/store_layout.yaml 로 옮겼다. '
+                         '{} 에서 locations 를 지운다'.format(path))
+    locations = load_locations(layout_path)
     items = data.get('items') or []
     errors = []
     skus = set()
@@ -104,9 +132,6 @@ def load_catalog(path):
         if item.get('sku') in skus:
             errors.append('sku 가 겹친다: {}'.format(item.get('sku')))
         skus.add(item.get('sku'))
-    for loc in locations:
-        if not _ID_RE.match(str(loc)):
-            errors.append('위치 ID 형식이 아니다: {!r}'.format(loc))
     if errors:
         raise ValueError('; '.join(errors))
     return {'locations': locations, 'items': items}
@@ -143,8 +168,7 @@ class CustomerApi:
         info = self._catalog['locations'].get(loc)
         if info is None:
             return None
-        name = info.get('name', loc) if isinstance(info, dict) else str(info)
-        return {'id': loc, 'name': name}
+        return {'id': loc, 'name': info['name']}
 
     def _catalog_view(self, loc):
         items = []

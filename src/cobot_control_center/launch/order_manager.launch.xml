@@ -8,7 +8,10 @@
 -->
 <launch>
   <arg name="params_file" default="$(find-pkg-share cobot_control_center)/config/order_manager.yaml"/>
+  <!-- 매장 배치는 팀 공통 설정이다. customer_gateway 와 같은 파일을 읽는다. -->
+  <arg name="layout_file" default="$(find-pkg-share cobot_bringup)/config/store_layout.yaml"/>
   <node pkg="cobot_control_center" exec="order_manager_node" name="order_manager" output="screen">
     <param from="$(var params_file)"/>
+    <param name="layout_file" value="$(var layout_file)"/>
   </node>
 </launch>
