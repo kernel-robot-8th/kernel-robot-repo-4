@@ -136,7 +136,9 @@ ROS CLI 한 번의 조회 제한은 기본 15초(`--probe-timeout`), 단계 전�
 | 파일 | 설치 위치 | 역할 |
 |---|---|---|
 | `config/systemd/cobot-robot.service` | `/etc/systemd/system/` | 기동·재시도·종료 방식 |
-| `config/systemd/robot.env.example` | `/etc/cobot/robot.env` | 로봇별 ID·도메인·workspace·지도·underlay |
+| `config/systemd/robot.env.example` | `/etc/cobot/robot.env` | 로봇별 ID·도메인·workspace·지도·underlay·DDS(사이클론) |
+
+DDS 설정은 `robot.env` 에 둡니다. `~/.bashrc` 의 `RMW_IMPLEMENTATION`·`CYCLONEDDS_URI` export 는 systemd 에 전달되지 않아, 비워 두면 Fast DDS 로 떠서 관제(사이클론) 브릿지와 일부 토픽만 이어집니다. 예시는 로봇의 `~/.ros/cyclonedds_robot.xml` 을 가리키므로 설치 전에 그 파일이 있는지 확인합니다.
 
 로봇에서 한 번 설치합니다. `sudo` 가 필요하고, `enable --now` 는 바로 bringup·Nav2·패트롤을 시작합니다.
 
@@ -150,7 +152,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now cobot-robot
 ```
 
-- 상태 확인: `systemctl status cobot-robot`, 로그 `journalctl -u cobot-robot -f`. 준비가 끝나면 `COBOT_ROBOT_READY` 가 찍힙니다.
+- 상태 확인: `systemctl status cobot-robot`, 로그 `journalctl -u cobot-robot -f`. 준비가 끝나면 `COBOT_ROBOT_READY` 가 찍힙니다. DDS 확인: `grep -o 'librmw_[a-z]*_cpp' /proc/$(pgrep -f pinky_patrol_node)/maps | sort -u` 가 `librmw_cyclonedds_cpp` 여야 합니다.
 - 끄기: `sudo systemctl stop cobot-robot` 이면 세 프로세스를 역순으로 정리하고 다시 뜨지 않습니다. 자동 기동을 그만두려면 `sudo systemctl disable --now cobot-robot` 을 씁니다.
 - 실패하면: 단계 준비 시간 초과나 프로세스 종료는 10초 뒤 다시 시도합니다. 10분에 5번 넘게 실패하면 멈추므로 로그를 보고 고친 뒤 `sudo systemctl restart cobot-robot` 합니다.
 - 다시 떠도 혼자 움직이지 않습니다. `central_controlled: true` 이면 관제 하트비트·세션이 확인되기 전에는 이동 명령을 거절하고, 움직이던 중 끊기면 정지 후 잠급니다(`central_guard.py`). 재부팅은 `patrol_status` 의 새 `boot_id` 로 관제에서 알 수 있습니다.

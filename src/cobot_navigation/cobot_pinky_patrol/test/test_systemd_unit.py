@@ -11,6 +11,8 @@ import pytest
 SYSTEMD = Path(__file__).resolve().parents[1] / 'config/systemd'
 # RobotStartup.close() 의 단계별 대기(SIGINT 10 + SIGTERM 3 + SIGKILL 1 초) × 3단계.
 WORST_CLOSE_SEC = 3 * (10 + 3 + 1)
+# ExecStart 인자가 아니라 robot_startup 자식에게 환경으로만 넘기는 변수.
+DDS_KEYS = {'RMW_IMPLEMENTATION', 'CYCLONEDDS_URI'}
 
 
 def load_unit():
@@ -59,9 +61,21 @@ def test_restart_only_on_failure_and_stop_gives_cleanup_time():
 def test_exec_start_variables_exist_in_env_example():
     command = load_unit()['Service']['ExecStart']
     used = set(re.findall(r'\$\$\{([A-Z_]+)\}', command))
-    assert used == env_keys()
+    assert used <= env_keys()
+    # ExecStart 에 안 쓰이는 값은 자식 노드로 그대로 넘길 DDS 설정만 둔다.
+    assert env_keys() - used == DDS_KEYS
     # $$ 없이 쓰면 systemd 가 먼저 빈 값으로 풀어 버린다.
     assert not re.search(r'(?<!\$)\$\{', command)
+
+
+def test_env_example_uses_cyclone_with_absolute_uri():
+    # systemd 는 .bashrc 를 읽지 않으므로 비우면 Fast DDS 로 떠 관제 브릿지와 어긋난다.
+    values = env_values()
+    assert values['RMW_IMPLEMENTATION'] == 'rmw_cyclonedds_cpp'
+    uri = values['CYCLONEDDS_URI']
+    # EnvironmentFile 은 셸 확장이 없어 ~·$USER 가 그대로 남는다.
+    assert uri.startswith('file:///')
+    assert '~' not in uri and '$' not in uri
 
 
 def test_exec_start_arguments_match_robot_startup(capsys):
