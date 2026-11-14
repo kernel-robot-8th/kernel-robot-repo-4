@@ -27,6 +27,19 @@ cmd_vel 보호(워치독·속도 상한)가 모두 있어야 한다. cmd_vel 은
 폐기, 워치독 정지를 거친다.
 
 종료 코드: 0 = 한 건 이상 중계, 1 = 한 건도 중계 못 함, 2 = 설정·접속·안전 검사 오류.
+
+이 파일을 읽는 순서 (main() 이 아래 순서로 부른다):
+  1. prepare()    파라미터 검사, 규칙 만들기, 안전 검사 (bridge_config, relay_utils 사용)
+  2. build_ros()  규칙마다 ROS 구독자(source) 또는 발행자(sink) 만들기
+  3. connect()    MQTT 브로커 접속
+  4. run()        ROS 를 돌리며 감시 (워치독·연결·부모 프로세스)
+  5. close()      종료 상태 알리고 정리
+
+메시지가 흐르는 길 (같은 규칙에서 한쪽은 source, 반대쪽은 sink 가 된다):
+  source 역할: ROS 구독 -> _on_ros_message -> JSON 봉투 -> MQTT 발행
+  sink   역할: MQTT 수신 -> _on_mqtt_message -> 봉투 풀기(+cmd_vel 보호) -> ROS 발행
+  예) up 의 /odom: robot 역할이 source, pc 역할이 sink.
+      down 의 /patrol_cmd: pc 역할이 source, robot 역할이 sink.
 """
 
 import json
@@ -58,7 +71,7 @@ EXIT_NOTHING = 1
 EXIT_SETUP_FAILED = 2
 
 SIDES = ('robot', 'pc')
-SPIN_TIMEOUT_SEC = 0.1
+SPIN_TIMEOUT_SEC = 0.1  # ROS 콜백을 처리하는 한 번의 대기 시간(이 주기로 워치독도 확인한다)
 QOS_DEPTH = 10
 CONNECT_TIMEOUT_SEC = 5.0
 TWIST_TYPE = 'geometry_msgs/msg/Twist'
@@ -67,7 +80,11 @@ MQTT_QOS = {UP: 0, DOWN: 1}
 
 
 class TopicStats:
-    """토픽 하나의 통계. 받음/중계/버림/오류."""
+    """
+    토픽 하나의 통계. 받음/중계/버림/오류.
+
+    종료 때와 주기적으로 로그에 요약을 남겨 "얼마나 중계됐고 왜 줄었는지" 확인하는 용도다.
+    """
 
     def __init__(self):
         self.seen = 0
@@ -77,33 +94,38 @@ class TopicStats:
 
 
 class MqttBridge:
-    """ROS 노드와 MQTT 클라이언트를 묶어 토픽을 중계한다."""
+    """
+    ROS 노드와 MQTT 클라이언트를 묶어 토픽을 중계한다.
+
+    스레드가 둘이다: ROS 콜백(메인 스레드)과 paho 의 MQTT 네트워크 스레드.
+    둘이 같이 만지는 값(통계, 워치독)은 self._lock 으로 보호한다.
+    """
 
     def __init__(self, node):
         self._node = node
         self._log = node.get_logger()
         self._declare_parameters()
-        self._robot = self._param('robot')
-        self._side = self._param('side')
+        self._robot = self._param('robot')  # 예: pinky1
+        self._side = self._param('side')  # 'robot' 또는 'pc'
         self._lock = threading.Lock()
-        self._rules = []
-        self._stats = {}
-        self._gates = {}
-        self._by_mqtt = {}
-        self._sinks = {}
-        self._cmd_vel_topic = ''
-        self._watchdog = None
-        self._connected = threading.Event()
-        self._connect_rc = None
-        self._stop = threading.Event()
-        self._abort_reason = ''
-        self._link_up = False
-        self._ever_connected = False
-        self._latched_payloads = {}
-        self._peer_state = ''
-        self._parent_pid = os.getppid()
-        self._status_topic = ''
-        self._peer_status_topic = ''
+        self._rules = []  # prepare() 가 채우는 TopicRule 목록
+        self._stats = {}  # mqtt 주제 -> TopicStats
+        self._gates = {}  # mqtt 주제 -> RateGate (전송 상한)
+        self._by_mqtt = {}  # mqtt 주제 -> TopicRule (받은 MQTT 메시지의 규칙을 찾는 표)
+        self._sinks = {}  # mqtt 주제 -> (ROS 발행자, 메시지 클래스)
+        self._cmd_vel_topic = ''  # cmd_vel 보호를 적용할 mqtt 주제 (없으면 빈 문자열)
+        self._watchdog = None  # cmd_vel 이 있을 때만 만든다
+        self._connected = threading.Event()  # 접속 시도 결과가 나왔다는 신호
+        self._connect_rc = None  # 접속 결과 코드 (0 이 성공)
+        self._stop = threading.Event()  # 종료 요청 신호
+        self._abort_reason = ''  # 비어 있지 않으면 안전상 스스로 종료하는 이유
+        self._link_up = False  # 지금 MQTT 가 연결돼 있는가
+        self._ever_connected = False  # 한 번이라도 접속한 적이 있는가 (재접속 구분용)
+        self._latched_payloads = {}  # 래치 토픽의 마지막 값 (재접속 때 다시 올린다)
+        self._peer_state = ''  # 상대 역할의 마지막 상태 (online/offline)
+        self._parent_pid = os.getppid()  # launch/ssh 가 죽으면 이 값이 바뀌어 알아챈다
+        self._status_topic = ''  # 내 상태를 알리는 mqtt 주제
+        self._peer_status_topic = ''  # 상대 상태를 듣는 mqtt 주제
         # clean_session=True: 끊긴 사이 값은 의미가 없다. 래치 토픽은 retain 으로 복구한다.
         self._client = mqtt.Client(clean_session=True)
         self._client.on_connect = self._on_connect
@@ -112,6 +134,7 @@ class MqttBridge:
 
     # ----- 설정 -----
     def _declare_parameters(self):
+        """모든 파라미터를 기본값과 함께 선언한다. 실제 값은 config/mqtt_bridge.yaml 이 덮어쓴다."""
         defaults = {
             'robot': '', 'side': '', 'bridge_config': '',
             'host': '127.0.0.1', 'port': 1883, 'keepalive_sec': 30,
@@ -129,6 +152,7 @@ class MqttBridge:
             self._node.declare_parameter(name, value, descriptor)
 
     def _param(self, name):
+        """파라미터 값 하나를 읽는다."""
         return self._node.get_parameter(name).value
 
     def _list_param(self, name):
@@ -149,7 +173,11 @@ class MqttBridge:
         return os.path.join(base, f'mqtt_topics_{self._robot}.yaml')
 
     def _is_source(self, rule):
-        """이 역할이 ROS 를 구독해 MQTT 로 보내는 쪽이면 True (아니면 MQTT 를 받아 ROS 발행)."""
+        """
+        이 역할이 ROS 를 구독해 MQTT 로 보내는 쪽이면 True (아니면 MQTT 를 받아 ROS 발행).
+
+        robot+up, pc+down 이 source 이고 robot+down, pc+up 이 sink 다.
+        """
         return (rule.direction == UP) == (self._side == 'robot')
 
     def _ros_topic(self, rule):
@@ -157,7 +185,12 @@ class MqttBridge:
         return rule.robot_topic if self._side == 'robot' else rule.pc_topic
 
     def prepare(self):
-        """파라미터를 검사하고 규칙을 만든다. 문제가 있으면 사유 문장을, 없으면 빈 문자열."""
+        """
+        파라미터를 검사하고 규칙을 만든다. 문제가 있으면 사유 문장을, 없으면 빈 문자열.
+
+        이 프로그램의 "문제 있으면 사유 문장 반환" 방식은 다른 검사 함수도 같다.
+        main() 이 사유가 있으면 출력하고 종료 코드 2 로 끝낸다.
+        """
         if not self._robot:
             return 'robot 파라미터가 필요하다 (예: -p robot:=pinky1)'
         if self._side not in SIDES:
@@ -176,6 +209,7 @@ class MqttBridge:
         enable_down = bool(self._param('enable_down'))
         if not enable_down:
             self._log.info('enable_down:=false 라 down(관제→로봇) 토픽은 중계하지 않는다')
+        # 명령(down)은 기본으로 꺼 둔다. enable_down 이 켜져야 down 규칙이 목록에 남는다.
         self._rules = [rule for rule in all_rules if enable_down or rule.direction == UP]
         if not self._rules:
             return '중계할 토픽이 없다'
@@ -189,7 +223,13 @@ class MqttBridge:
         return self._check_safety()
 
     def _check_safety(self):
-        """역할에 맞는 발행 도메인 검사와 cmd_vel 보호 검사를 한다."""
+        """
+        역할에 맞는 발행 도메인 검사와 cmd_vel 보호 검사를 한다.
+
+        pc 역할은 발행할 도메인이 허용되는지만 본다. robot 역할은 ROS 로 발행하는 규칙(sink,
+        곧 명령)이 하나라도 있을 때만 검사한다. 읽기 전용이면 로봇에 아무것도 내보내지 않으므로
+        도메인이 10 이어도 통과한다.
+        """
         domain = os.environ.get('ROS_DOMAIN_ID', '')
         confirm = str(self._param('confirm_real_domain'))
         sinks = [rule for rule in self._rules if not self._is_source(rule)]
@@ -203,7 +243,12 @@ class MqttBridge:
         return self._check_cmd_vel_guard(domain)
 
     def _check_cmd_vel_guard(self, domain):
-        """cmd_vel 중계가 있으면 보호 파라미터를 확인한다. 실제 도메인은 모두 필수."""
+        """
+        cmd_vel 중계가 있으면 보호 파라미터를 확인한다. 실제 도메인은 모두 필수.
+
+        시험 도메인(101/102)은 보호 값이 0 이어도 경고만 하고 시작한다(개발 편의).
+        실제 도메인은 워치독·선속도·각속도 상한 중 하나라도 0 이면 시작하지 않는다.
+        """
         topics = self._list_param('cmd_vel_topics') or ('/cmd_vel',)
         for rule in self._rules:
             if (rule.direction == DOWN and rule.msg_type == TWIST_TYPE
@@ -225,6 +270,14 @@ class MqttBridge:
 
     # ----- ROS -----
     def _qos(self, rule):
+        """
+        규칙에 맞는 ROS QoS 를 만든다.
+
+        reliable: 값이 빠지면 안 되는 경우(래치, 명령, 또는 발행자 쪽).
+        best_effort: 센서처럼 최신 값이 중요한 up 의 구독 쪽. 센서 발행자(best_effort)와
+                     호환되게 맞춘다.
+        transient_local: 래치 토픽만. 늦게 붙은 구독자도 마지막 값을 받는다.
+        """
         latched = rule.latched
         # 명령(down)은 놓치면 안 되고, 상태(up)의 수신 쪽(발행자)은 reliable, 구독 쪽은 호환 우선
         reliable = latched or rule.direction == DOWN or not self._is_source(rule)
@@ -237,6 +290,7 @@ class MqttBridge:
 
     def build_ros(self):
         """역할에 맞는 구독(source)과 발행(sink)을 만든다. 실패 사유를 돌려준다."""
+        # 먼저 모든 메시지 타입이 불러와지는지 확인한다. 하나라도 안 되면 아무것도 만들지 않는다.
         classes = {}
         for rule in self._rules:
             try:
@@ -250,6 +304,7 @@ class MqttBridge:
         for rule in self._rules:
             msg_class = classes[rule.mqtt_topic]
             topic = self._ros_topic(rule)
+            # 구독 콜백은 r=rule 로 규칙을 묶어 둔다(반복마다 rule 이 바뀌는 문제를 피한다).
             if self._is_source(rule):
                 self._node.create_subscription(
                     msg_class, topic, lambda msg, r=rule: self._on_ros_message(r, msg),
@@ -272,7 +327,11 @@ class MqttBridge:
         return ''
 
     def _on_ros_message(self, rule, msg):
-        """ROS 메시지를 JSON 으로 바꿔 MQTT 로 보낸다 (source 역할)."""
+        """
+        ROS 메시지를 JSON 으로 바꿔 MQTT 로 보낸다 (source 역할).
+
+        차례: 전송 상한 확인 -> JSON 봉투로 변환 -> (래치면 마지막 값 보관) -> 연결 확인 -> 발행.
+        """
         stats = self._stats[rule.mqtt_topic]
         with self._lock:
             stats.seen += 1
@@ -288,6 +347,7 @@ class MqttBridge:
             self._log.error(f'직렬화 실패 {self._ros_topic(rule)}: {error}')
             return
         if rule.latched:
+            # 연결이 끊긴 동안에도 보관해 둔다. 재접속하면 _on_connect 가 이 값을 다시 올린다.
             self._latched_payloads[rule.mqtt_topic] = payload
         if not self._link_up:
             # 끊긴 사이 명령이 쌓였다가 재접속 뒤 한꺼번에 나가면 위험하므로 보내지 않고 버린다
@@ -301,10 +361,18 @@ class MqttBridge:
             stats.relayed += 1
 
     # ----- MQTT -----
+    # 접속 상태(online/offline)를 retain 으로 남겨, 상대 역할과 GUI 가 "지금 살아 있나"를 본다.
     def _status_payload(self, state):
+        """상태 주제에 올릴 JSON. pid 는 어느 프로세스가 올렸는지(중복 실행 확인) 보려는 값이다."""
         return json.dumps({'state': state, 'sent_at': time.time(), 'pid': os.getpid()})
 
     def _on_connect(self, client, userdata, flags, rc):
+        """
+        브로커 접속이 끝났을 때 paho 가 부른다 (재접속 때도 다시 불린다).
+
+        할 일: 받아야 할 주제를 구독하고, 내 상태를 online 으로 올리고, 재접속이면 래치 값을
+        다시 올린다. clean_session=True 라 재접속 때마다 구독을 처음부터 다시 해야 한다.
+        """
         self._connect_rc = rc
         if rc == 0:
             reconnected = self._ever_connected
@@ -314,7 +382,7 @@ class MqttBridge:
                 f'MQTT {"재접속" if reconnected else "접속"} 성공 '
                 f'{self._param("host")}:{self._param("port")}')
             for mqtt_topic, rule in self._by_mqtt.items():
-                if not self._is_source(rule):
+                if not self._is_source(rule):  # sink 만 MQTT 를 구독한다 (source 는 ROS 를 구독)
                     client.subscribe(mqtt_topic, qos=MQTT_QOS[rule.direction])
             client.subscribe(self._peer_status_topic, qos=1)
             client.publish(self._status_topic, self._status_payload('online'), qos=1, retain=True)
@@ -327,6 +395,12 @@ class MqttBridge:
         self._connected.set()
 
     def _on_disconnect(self, client, userdata, rc):
+        """
+        연결이 끊기면 paho 가 부른다. rc 가 0 이 아니면 예기치 않은 끊김이다.
+
+        _link_up 을 내리면 source 는 값을 쌓지 않고 버리고, 안전 감시는 즉시 정지를 낸다.
+        재접속은 paho 가 알아서 시도한다(connect 의 reconnect_delay_set).
+        """
         self._link_up = False
         if rc != 0:
             self._log.warning(f'MQTT 예기치 않게 끊김 rc={rc}. 재접속을 시도한다')
@@ -346,7 +420,12 @@ class MqttBridge:
                 self._log.warning(f'상대 역할 상태: {state or "알 수 없음"}')
 
     def _on_mqtt_message(self, client, userdata, msg):
-        """MQTT 의 JSON 을 ROS 메시지로 되돌려 발행한다 (sink 역할)."""
+        """
+        MQTT 의 JSON 을 ROS 메시지로 되돌려 발행한다 (sink 역할).
+
+        차례: 상대 상태 주제면 로그만 -> 모르는 주제는 무시 -> 봉투 풀기 -> (cmd_vel 이면 보호
+        적용) -> ROS 메시지로 복원 -> 발행. 변환 중 어긋나면 발행하지 않고 오류로만 센다.
+        """
         if msg.topic == self._peer_status_topic:
             self._on_peer_status(msg.payload)
             return
@@ -360,12 +439,12 @@ class MqttBridge:
             stats.seen += 1
         try:
             data, sent_at = decode_envelope(msg.payload.decode('utf-8'), rule.msg_type)
-            if msg.topic == self._cmd_vel_topic:
+            if msg.topic == self._cmd_vel_topic:  # 다른 토픽은 보호 없이, cmd_vel 만 거친다
                 data = self._guard_cmd_vel(data, sent_at, stats)
                 if data is None:
                     return
             ros_msg = msg_class()
-            set_message_fields(ros_msg, data)
+            set_message_fields(ros_msg, data)  # JSON 딕셔너리 -> ROS 메시지 필드
         except (ValueError, KeyError, TypeError, AttributeError) as error:
             with self._lock:
                 stats.errors += 1
@@ -376,7 +455,11 @@ class MqttBridge:
             stats.relayed += 1
 
     def _guard_cmd_vel(self, data, sent_at, stats):
-        """cmd_vel 에 오래된 메시지 폐기와 속도 상한을 적용한다. 버리면 None."""
+        """
+        cmd_vel 에 오래된 메시지 폐기와 속도 상한을 적용한다. 버리면 None.
+
+        마지막에 워치독에 알린다(feed). 0 이 아닌 명령이면 감시가 시작되고, 0 명령이면 풀린다.
+        """
         if is_stale(sent_at, time.time(), float(self._param('max_age_ms'))):
             with self._lock:
                 stats.dropped += 1
@@ -391,7 +474,12 @@ class MqttBridge:
         return data
 
     def connect(self):
-        """브로커에 접속하고 네트워크 스레드를 시작한다. 성공하면 True."""
+        """
+        브로커에 접속하고 네트워크 스레드를 시작한다. 성공하면 True.
+
+        will_set 은 "이 프로세스가 갑자기 죽으면 브로커가 대신 offline 을 알려 달라"는 유언이다.
+        정상 종료(close)는 cause=exit, 갑자기 죽으면 cause=will 로 구분된다.
+        """
         self._client.reconnect_delay_set(
             min_delay=int(max(1, float(self._param('reconnect_min_sec')))),
             max_delay=int(max(1, float(self._param('reconnect_max_sec')))))
@@ -404,17 +492,20 @@ class MqttBridge:
         except OSError as error:
             self._log.error(f'브로커에 닿지 않음: {error}')
             return False
-        self._client.loop_start()
+        self._client.loop_start()  # MQTT 송수신을 별도 스레드가 맡는다
+        # _on_connect 가 신호를 줄 때까지 기다려, 접속 거부(예: 잘못된 포트)도 여기서 잡는다
         if not self._connected.wait(CONNECT_TIMEOUT_SEC):
             self._log.error('MQTT 접속 확인 시간 초과')
             return False
         return self._connect_rc == 0
 
     # ----- 안전 정지 -----
+    # 로봇이 명령을 받는 중에 통신이 끊기거나 노드가 끝나면 마지막 속도로 달릴 수 있다.
+    # 아래 함수들이 그때 0 속도를 내보낸다. (워치독은 시간 기준, 연결·종료는 즉시)
     def _publish_zero_cmd_vel(self, reason):
         """cmd_vel 로 0 속도를 한 번 발행한다."""
         publisher, msg_class = self._sinks[self._cmd_vel_topic]
-        publisher.publish(msg_class())
+        publisher.publish(msg_class())  # 메시지를 비워 만들면 모든 속도가 0 이다
         self._log.warning(f'cmd_vel 0 속도 발행: {reason}')
 
     def _check_watchdog(self, now):
@@ -432,12 +523,17 @@ class MqttBridge:
             return
         with self._lock:
             moving = self._watchdog.armed
-            self._watchdog.disarm()
+            self._watchdog.disarm()  # 끊긴 동안 매 주기 정지를 반복하지 않게 감시를 푼다
         if moving:
             self._publish_zero_cmd_vel('MQTT 연결 끊김')
 
     def _parent_lost(self):
-        """exit_on_parent_loss 가 켜져 있고 부모 프로세스가 바뀌었으면 True."""
+        """
+        exit_on_parent_loss 가 켜져 있고 부모 프로세스가 바뀌었으면 True.
+
+        launch 나 ssh 가 죽으면 이 프로세스의 부모가 바뀐다(고아가 됨). 그때 스스로 종료해
+        로봇 쪽에 노드가 남아 계속 명령을 받는 일을 막는다.
+        """
         return bool(self._param('exit_on_parent_loss')) and os.getppid() != self._parent_pid
 
     def stop_commands(self):
@@ -452,7 +548,12 @@ class MqttBridge:
         self._stop.set()
 
     def run(self):
-        """duration_sec 동안(0 이면 계속) 실행하며 워치독, 부하 감시, 통계 로그를 처리한다."""
+        """
+        duration_sec 동안(0 이면 계속) 실행하며 워치독, 부하 감시, 통계 로그를 처리한다.
+
+        한 바퀴(약 0.1 초)마다: 종료 조건 확인 -> 안전 감시 -> 부하 확인 -> 통계 로그 -> ROS 콜백.
+        실제 중계는 ROS/MQTT 콜백이 하고, 이 반복문은 감시와 종료 판단을 맡는다.
+        """
         duration = float(self._param('duration_sec'))
         started = time.monotonic()
         next_load = started + float(self._param('load_check_sec'))
@@ -466,6 +567,7 @@ class MqttBridge:
             if self._parent_lost():
                 self._log.warning('부모 프로세스가 사라져 종료한다')
                 break
+            # 부하 보호는 성능이 약한 로봇(pinky)에서만 한다. 관제 PC 는 대상이 아니다.
             if self._side == 'robot' and now >= next_load:
                 next_load = now + float(self._param('load_check_sec'))
                 if os.getloadavg()[0] > float(self._param('load_abort')):
@@ -493,7 +595,11 @@ class MqttBridge:
         return total
 
     def close(self):
-        """상태를 offline 으로 알리고 MQTT 연결을 닫는다."""
+        """
+        상태를 offline 으로 알리고 MQTT 연결을 닫는다.
+
+        여기서 알리면 cause=exit(정상 종료), 이 함수 없이 죽으면 브로커의 유언 cause=will 이다.
+        """
         if self._link_up:
             info = self._client.publish(
                 self._status_topic, json.dumps({'state': 'offline', 'cause': 'exit'}),
@@ -509,7 +615,12 @@ class MqttBridge:
 
 
 def main(args=None):
-    """노드를 실행하고 종료 코드를 돌려준다."""
+    """
+    노드를 실행하고 종료 코드를 돌려준다.
+
+    종료 코드: 설정·접속 실패 2, 한 건이라도 중계하고 정상 종료 0, 한 건도 못 했거나 스스로
+    중단했으면 1. 어떤 경우든 finally 에서 상태를 offline 으로 알리고 정리한다.
+    """
     rclpy.init(args=args)
     node = Node('mqtt_bridge')
     bridge = MqttBridge(node)
@@ -520,6 +631,7 @@ def main(args=None):
             log.error(problem)
             return EXIT_SETUP_FAILED
         log.info(f'시작 ROS_DOMAIN_ID={os.environ.get("ROS_DOMAIN_ID", "(없음)")}')
+        # kill(SIGTERM) 도 Ctrl+C 처럼 정상 종료 경로(0 속도, 요약, offline 알림)를 타게 한다
         signal.signal(signal.SIGTERM, lambda *_: bridge.request_stop())
         if not bridge.connect():
             return EXIT_SETUP_FAILED
@@ -527,7 +639,7 @@ def main(args=None):
             bridge.run()
         except KeyboardInterrupt:
             log.info('중단 요청. 정리한다')
-        bridge.stop_commands()
+        bridge.stop_commands()  # 종료 직전 움직이는 중이었다면 0 속도 한 번
         total = bridge.log_summary('최종')
         return EXIT_OK if total and not bridge.abort_reason else EXIT_NOTHING
     finally:
