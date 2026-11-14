@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  고객 게이트웨이 (sub PC). 고객 핸드폰에 주문 화면을 내보내고 fms_core 에 주문을 넘긴다.
+  먼저 cobot_gui/web 에서 npm run build 를 하고 colcon build 해야 화면이 install 된다.
+  ros2 launch cobot_gui customer_gateway.launch.xml
+-->
+<launch>
+  <arg name="params_file" default="$(find-pkg-share cobot_gui)/config/customer_gateway.yaml"/>
+  <arg name="catalog_file" default="$(find-pkg-share cobot_gui)/config/customer_catalog.yaml"/>
+  <arg name="web_root" default="$(find-pkg-share cobot_gui)/web/dist"/>
+  <node pkg="cobot_gui" exec="customer_gateway_node" name="customer_gateway" output="screen">
+    <param from="$(var params_file)"/>
+    <param name="catalog_file" value="$(var catalog_file)"/>
+    <param name="web_root" value="$(var web_root)"/>
+  </node>
+</launch>
