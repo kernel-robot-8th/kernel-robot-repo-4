@@ -1,6 +1,6 @@
 # homelab-vision MQTT 메시지 명세 (비전 어댑터·관제 연동 개발용)
 
-작성 2026-11-14(16:10 관제 연동 8절 보충). 대상: 이 메시지를 받아 관제 시나리오 단계에 답하는 **비전 어댑터**를 만드는 사람, 그리고 그 결과를 받는 관제(`src/cobot_navigation/cobot_fleet_control`, b554975 기준. 7f2b2e3 부터는 `src/cobot_fleet_control`)·`src/cobot_control_center` 개발자.
+작성 2026-11-14(16:10 관제 연동 8절 보충, 16:30 역할 분담·협의 항목 재구성). 대상: 이 메시지를 받아 관제 시나리오 단계에 답하는 **비전 어댑터**를 만드는 사람, 그리고 그 결과를 받는 관제(`src/cobot_navigation/cobot_fleet_control`, b554975 기준. 7f2b2e3 부터는 `src/cobot_fleet_control`)·`src/cobot_control_center` 개발자.
 관제 노드가 이 MQTT 주제를 직접 구독하는 구조가 아니다. 관제는 설계상 MQTT 를 받지 않고, 장치 결과는 `/fleet/work_result` 로만 받는다(8절).
 기준 코드: 이 폴더 `app/`, `zone/` (브랜치 `merge/submaster-20261112` 머리 b554975, 현장 이미지 `homelab-vision:20261110` 과 같은 앱).
 시험 모드(5절)는 아직 커밋하지 않은 추가분(`~/kr4-vision-test` 작업본) 기준이다.
@@ -352,7 +352,7 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
 - 허지혁 님이 97be6c7(11-05)에서 관제의 MQTT 접수를 일부러 뺐다. 커밋 메시지: "중복 MQTT 접수·브로커를 제거하고 웹 관제와 ROS 요청·결과 경계 분리".
 - 시나리오 상태(단계 완료·보류·재시도)를 바꾸는 장치 쪽 입구는 `/fleet/work_request` → `/fleet/work_result` 하나다(`FC/fleet_control_node.py:40,102,146-152`).
 - 그래서 비전 메시지를 관제 노드가 직접 구독하지 않는다. **비전 어댑터**가 MQTT 를 받아 두고, 관제가 `target: "vision"` 요청을 보내면 그 요청에 `work_result` 로 답한다.
-- 비전 어댑터는 **아직 없다**(팀 원격·우리 원격 모두). 8-6 참고.
+- 비전 어댑터는 **아직 없다**(팀 원격·우리 원격 모두). **우리(중계 쪽)가 만든다** [결정 11-14]. 관제는 이미 있는 `/fleet/work_result` 수신을 그대로 쓴다. 역할 분담과 협의할 것은 8-7.
 
 ```
 비전 앱 ──MQTT relay/evidence/zones·boxes, relay/status/vision──▶ 비전 어댑터(없음)
@@ -416,31 +416,49 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
 
 ### 8-5. 비전 어댑터 규칙 [제안]
 
-1. **measured**: 모델 추론 근거로 판정했을 때만 `true`. 사람이 승인한 결과를 이 경로에 `measured: true` 로 넣지 않는다. 허지혁 님은 수동 상차 경로(c995902)에서 "measured=true 결과를 만들어 넣지 않는다"고 적었다. 사람 판단은 관제의 수동 경로(`confirm_loaded` 등)로 보낸다.
+1. **사람 승인은 보내지 않는다** [결정 11-14]: 관제에 보내는 결과는 카메라·팔 결과로만 만든다. `measured: true` 는 모델 추론 근거로 판정했을 때만 붙인다. 허지혁 님 원칙(c995902 문서 "measured=true 결과를 만들어 넣지 않는다")과 같다.
 2. **요청 뒤 근거만**: 요청을 받은 시각 이후에 찍힌 프레임(`capture_time`)만 쓴다. 7절의 시각 검사(3초)와 `marker_state == "OK"` 를 지키고, 같은 판정이 연속 N 프레임(감시 노드 결합 시험은 3) 나올 때만 답한다.
 3. **로봇 식별**: zones 에는 로봇 ID 가 없다. 요청의 `route.pickup`(VERIFY_LOAD) 또는 `route.dropoff`(VERIFY_UNLOAD) 구역 하나만 본다. 그 구역이 `MULTI`·`NO_ROBOT` 이면 판정하지 않는다.
-4. **비전이 끊겼을 때**(status 3초 없음 또는 `offline`): (가) 답하지 않고 300초 마감에 맡긴다, (나) `success: false` + `retry_safe: true` 로 답한다. 둘 중 하나를 정해야 한다 **[미결]**.
+4. **카메라가 끊겼을 때**(status 3초 없음 또는 `offline`): 8-7 협의 2번 **[미결]**. 주의: `retry_safe: true` 로 답하면 VERIFY_LOAD·VERIFY_UNLOAD 는 팔 단계(LOAD·UNLOAD)부터 다시 돈다. 두 단계가 한 재시도 묶음이기 때문이다(`FC/scenario_tree.py:70-73`, `FC/scenario_runtime.py:94`) [사실, 코드 읽기·미시험]. 그래서 "확인 못 함"에는 `retry_safe` 를 붙이지 않는 안을 권한다.
 5. **발행자**: `work_result` 를 vision 대상으로 내는 노드는 하나만 둔다. 지금 우리 감시 노드의 수동 어댑터와 충돌한다(8-6).
 6. **중복 제거**: 같은 `request_id` 에는 최종 결과를 한 번만 낸다(증거 부족으로 기다리는 경우는 예외, 8-3).
-7. **기록**: 관제 원장에 `data` 가 남지 않으므로 `stream_id`·`stream_epoch`·`frame_seq`·`capture_time`·신뢰도·판정 규칙을 `data.evidence` 와 어댑터 자체 로그에 남긴다.
+7. **기록은 중계 웹에서** [결정 11-14]: 관제 원장에는 단계 완료만 남는다. `stream_id`·`stream_epoch`·`frame_seq`·`capture_time`·신뢰도·판정 규칙은 어댑터가 남기고 중계 웹에서 보여 준다. 주문 번호·`request_id` 로 관제 기록과 잇는다. 같은 값을 `data.evidence` 에도 넣는다(관제는 읽지 않음).
 
 ### 8-6. 지금 있는 것과 없는 것 [사실]
 
 - **비전 어댑터**: 없다.
 - **우리 감시 노드 수동 어댑터**(b554975 `src/cobot_anomaly_monitor/cobot_anomaly_monitor/manual_adapter.py`):
-  - 사람 승인으로 vision·navigation·omx1·omx2 단계에 대신 답한다. 승인 결과에 `measured: True` 를 붙인다(`manual_adapter.py:219`). 8-5 1번과 어긋나 고칠 예정이다.
+  - 사람 승인으로 vision·navigation·omx1·omx2 단계에 대신 답한다. 승인 결과에 `measured: True` 를 붙인다(`manual_adapter.py:219`). 11-14 결정(사람 승인은 관제에 보내지 않음)에 따라 사람 승인 응답을 끈다 [계획].
+  - 사람 승인을 끄면 카메라가 못 보는 단계를 넘길 우회로가 없어진다(8-7 협의 1번).
   - `work_result` 발행자가 2개 이상이면 스스로 꺼진다. 비전 어댑터를 띄우기 전에 이 검사를 대상별로 바꾸거나, 현장 `manual_targets` 에서 vision 을 빼야 한다.
 - **비전 근거 결합 시험**(감시 노드 `verify_load_join`, 기본 꺼짐): VERIFY_LOAD 에 한해 zones `LOADED` 3프레임과 운영자의 팔 퇴피 확인을 묶어 `decision: "camera_and_operator"` 로 답한다(`manual_adapter.py:153-174`). 격리 시뮬 도메인 77·140 에서만 켜진다(`monitor_node.py:99-106`). 현장 경로가 아니다.
 - **가짜 수신처**: 11-14 시험의 시험 브로커(127.0.0.1:18883)와 `relay/test/*` 주제는 우리 시험 도구다. 관제가 아니다. 관제와 잇는 시험은 격리 도메인에서 `work_request` 를 흉내 내야 한다.
 
-### 8-7. 정해야 할 것 (관제·시나리오 담당과)
+### 8-7. 역할 분담과 협의할 것
 
-1. 비전 어댑터를 누가 만들고 어느 PC 에서 돌릴지.
-2. 사람 승인 결과의 표기(`measured` 값, 관제 수동 경로 사용 여부).
-3. VERIFY_LOAD·VERIFY_UNLOAD 의 `arm_safe` 출처.
-4. 비전이 끊겼을 때 답하는 방식(8-5 4번).
-5. `path_exit`·`dock_check`·`marker`/`qr` 에 쓸 비전 근거의 정의. 없으면 당분간 사람 확인으로 둘지.
-6. 결과 `data`(최소한 수동 여부·운영자)를 관제 원장에 남길지.
+**정한 것** [결정 11-14]
+
+| 항목 | 내용 |
+|---|---|
+| 비전 어댑터 | 우리가 만든다. 카메라 컨테이너가 이미 내는 MQTT 결과를 읽어 `target: "vision"` 요청에 답한다. 새 추론은 하지 않는다 |
+| 팔 어댑터 | 우리가 만든다(팀 sh 선택·호출). 같은 요청·결과 계약을 쓴다 |
+| 관제 | 이미 있는 `/fleet/work_result` 수신을 그대로 쓴다. 기본 경로에는 관제 코드 변경이 없다 |
+| 사람 승인 | 관제에 보내지 않는다 |
+| 근거 기록 | 중계 웹에서 관리한다. 관제 원장에 남기지 않아도 된다 |
+| 어댑터 실행 PC | [미정, 우리 쪽에서 정함] 관제 DDS(도메인 100)에 닿는 PC 여야 한다. 11-14 기준 중계 노트북의 감시 노드는 관제에 붙어 있지 않다 |
+
+**협의할 것: 상태 처리만** (관제·시나리오 담당과)
+
+1. **카메라가 아직 못 보는 단계의 상태 처리.** 통로 이탈(PICKUP_EXIT·PATH_EXIT·RETURN_EXIT), 정차 오차(DOCK_PICKUP·DOCK_DROPOFF), 상품 확인(MARKER·QR)이 해당한다. 사람 승인을 빼면 시나리오는 PICKUP_EXIT 에서 멈춘다(11-13 주행이 멈춘 자리). 선택지:
+   - (가) 관제 시나리오에서 당분간 건너뛰는 설정을 둔다. 관제 코드 수정이 필요하다. 지금 `skip_stages` 는 복구 재개용뿐이다(`FC/scenario_tree.py:50`).
+   - (나) 비전 어댑터가 대신 근거를 쓴다. 예: 통로 이탈 = "목표 구역 안에 로봇이 보임". 판정 기준을 합의해야 한다.
+   - (다) 기능이 생길 때까지 그 단계에서 멈추는 것을 받아들인다.
+2. **카메라·어댑터가 끊겼을 때 주문 상태.**
+   - (가) 바로 `success: false`(`retry_safe` 없음)로 답한다. 주문이 즉시 UNKNOWN 이 되고 관리자 확인으로 간다. **[권장]**
+   - (나) 답하지 않는다. 300초 뒤 UNKNOWN.
+   - (다) `success: false` + `retry_safe: true`. 상하차 확인에서는 팔 단계부터 다시 돈다(8-5 4번). **위험**
+3. **상하차 확인의 팔 항목.** VERIFY_LOAD 의 `arm_safe`, VERIFY_UNLOAD 의 `placed`·`arm_safe` 를 비전 어댑터가 같은 주문의 팔 결과(LOAD·UNLOAD 성공)로 채워도 되는지. 결과의 `source` 는 `vision` 하나여야 하므로 비전 어댑터가 묶어서 보내야 한다(`FC/scenario_runtime.py:182-184`).
+4. **(선택) 어댑터 살아 있음을 관제가 받을지.** 지금 관제는 로봇 신호만 본다(`FC/scenario.py:103-108`). 어댑터가 꺼져 있어도 요청을 보낸 뒤 300초를 기다린다. 받기로 하면 이 수신만 관제에 구현하면 된다. 어댑터 쪽 신호 형식은 우리가 맞춘다.
 
 ---
 
@@ -486,3 +504,7 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
   - 대조한 코드: control-center **7f2b2e3** `src/cobot_fleet_control/cobot_fleet_control/{scenario_contracts,scenario_nodes,scenario_runtime,scenario,fleet_control_node}.py`, `src/cobot_fleet_control/config/scenario.yaml`. 97be6c7 커밋 메시지, c995902 의 문서 문구. b554975 `src/cobot_anomaly_monitor/cobot_anomaly_monitor/{manual_adapter,monitor_node}.py`.
   - 바뀐 것: 제목·대상(관제 직접 구독이 아니라 비전 어댑터 경유), 0절 끝 안내, 7절 제목, 8절(관제 연동) 신설, 옛 8·9절을 9·10절로 옮김, 9절 첫 항목에 설계상 MQTT 미수신 추가.
   - 확인하지 못한 것: 관제가 결과를 거절할 때 남기는 로그 문구, 실제 관제와 비전 어댑터를 붙인 시험(어댑터가 없어 불가).
+- 3차 수정 (2026-11-14 16:30 KST). 문서만 고침. 장비 접속 없음.
+  - 11-14 사용자 결정 반영: 비전 어댑터는 우리가 만든다, 사람 승인은 관제에 보내지 않는다, 근거 기록은 중계 웹에서 관리한다.
+  - 8-7 을 "역할 분담(정한 것)"과 "협의할 것: 상태 처리만" 으로 재구성. 8-1·8-5(1·4·7번)·8-6 문구 수정.
+  - 추가 대조: 7f2b2e3 `scenario_tree.py:50,66-73`(공유 재시도·skip_stages 용도), `scenario_runtime.py:92-108`(재시도 소진 시 UNKNOWN·DOCK_PICKUP 만 안전 복귀).
