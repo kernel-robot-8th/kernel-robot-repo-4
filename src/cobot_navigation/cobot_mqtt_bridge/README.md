@@ -151,7 +151,7 @@ cobot_mqtt_bridge/
 │   └── mqtt_bridge_robot.service  # pinky1: 로봇 쪽 중계 (읽기 전용)
 ├── launch/mqtt_bridge.launch.xml  # 관제 쪽 + ssh 로 로봇 쪽까지 한 줄 실행 (mode:=read|cmd)
 ├── test/                        # 단위 시험, 린트
-└── docs/                        # mqtt_bridge_prd.md, architecture.svg
+└── docs/                        # mqtt_bridge_prd.md, code_flow.md, architecture.svg
 ```
 
 ## 아직 확인하지 못한 것 [TODO]
@@ -162,5 +162,5 @@ cobot_mqtt_bridge/
 - 다른 팀의 DDS 브릿지는 도메인 100을 씁니다. 도메인 10에서 `patrol_cmd`를 발행하는 노드가 따로 있어, 명령이 겹치지 않는지 확인이 필요합니다.
 - 로봇끼리 위치·경로를 공유하는 기능은 아직 없습니다. 설계 논의 단계입니다.
 
-상세 설계와 시험 기록은 [`docs/mqtt_bridge_prd.md`](docs/mqtt_bridge_prd.md)를 봅니다.
+상세 설계와 시험 기록은 [`docs/mqtt_bridge_prd.md`](docs/mqtt_bridge_prd.md)를, 코드가 하는 일의 쉬운 설명은 [`docs/code_flow.md`](docs/code_flow.md)를 봅니다.
 
