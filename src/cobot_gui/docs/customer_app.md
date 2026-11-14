@@ -10,7 +10,7 @@
 |---|---|
 | 화면 | `web/customer.html`, `web/src/customer/` (React, 관제 화면과 같은 Vite 빌드의 두 번째 입력) |
 | 가짜 결제 QR | `web/public/customer/pay_qr.svg` (고정 이미지, 스캔되지 않는다) |
-| 신발 이미지 | `web/public/customer/shoes/` (README 참고) |
+| 신발 이미지 | `web/public/customer/shoes/` (폴더를 만들어 넣는다. 장당 100 KB 이하, 가로 600 px 정도. 원본 사진은 커밋하지 않는다) |
 | 게이트웨이 노드 | `cobot_gui/customer_gateway_node.py` (rclpy), HTTP 처리 `cobot_gui/customer_gateway_utils.py` (파이썬 표준 `http.server`) |
 | 설정 | `config/customer_gateway.yaml`, 신발·자리 목록 `config/customer_catalog.yaml` |
 | launch | `launch/customer_gateway.launch.xml` |
