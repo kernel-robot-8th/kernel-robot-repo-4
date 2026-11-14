@@ -57,6 +57,9 @@ jobs:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: |
           /tmp/fleet-control-venv/bin/python -B -m pytest -q -p no:cacheprovider src/cobot_navigation/cobot_fleet_control/test src/cobot_navigation/cobot_pinky_patrol/test/test_central_guard.py
+      - name: Control-center recovery UI contract
+        run: |
+          docker run --rm -v "$PWD":/repo -w /repo node:22.14.0-bookworm node --test src/cobot_control_center/test/test_recovery_ui.cjs
   fleet-docker:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

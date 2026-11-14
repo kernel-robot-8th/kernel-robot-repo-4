@@ -23,6 +23,7 @@ class Gateway:
 
     def __init__(self):
         self.sent, self.work_sent, self.halts, self.stops = [], [], [], []
+        self.releases = []
 
     def send(self, robot, payload):
         self.sent.append((robot, payload))
@@ -37,7 +38,8 @@ class Gateway:
         self.halts.append((robot, order_id))
 
     def release(self, robot, route=None):
-        pass
+        self.releases.append((robot, route))
+        return f'reset-{len(self.releases)}'
 
 
 class Environment:
@@ -59,7 +61,8 @@ class Environment:
 
     def healthy(self):
         for robot in self.fleet.robots:
-            self.scenario.telemetry(robot, dict(state='IDLE', central_controlled=True), 80.0)
+            self.scenario.telemetry(robot, dict(state='IDLE', central_controlled=True,
+                                               busy=False, central_latched=False), 80.0)
 
     def tick(self):
         self.healthy()
@@ -316,10 +319,12 @@ def test_link_loss_stops_and_recovery_does_not_accept_late_device_success(env):
     evidence = dict(base_stopped=True, arms_safe=True, cargo_reconciled=True, resources_clear=True)
     with pytest.raises(ValueError, match='임의 재피킹'):
         env.scenario.recover('order1', 'operator', '현장 확인', 'resume', evidence)
-    # 화면 확인 창 한 번: 운영자·메모·확인 항목 없이도 취소된다 (기본값으로 기록)
+    # 메모는 선택이지만 예약 자원을 해제하려면 현장 정리 확인은 필요하다.
     with pytest.raises(ValueError, match='evidence'):
         env.scenario.recover('order1', None, None, 'fail', 'yes')
-    env.scenario.recover('order1', None, None, 'fail', None, source='10.0.0.5')
+    with pytest.raises(ValueError, match='팔 퇴피'):
+        env.scenario.recover('order1', None, None, 'fail', None)
+    env.scenario.recover('order1', None, None, 'fail', evidence, source='10.0.0.5')
     assert env.current()['state'] == 'FAILED'
     assert not env.scenario.store.resources('order1')
 
@@ -351,7 +356,10 @@ def test_arm_and_raw_manual_web_contract_and_latched_stop_without_order(env):
     assert env.api.handle(dict(type='raw', command='goto:P1'))['status'] == 403
     assert env.api.snapshot()['holds']['pinky1'] == 'ESTOP'
     # 주문 없는 로봇의 복구는 로봇만 지정하면 된다 (확인 창 한 번, 운영자·메모·확인 항목은 선택)
-    assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 200
+    assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 202
+    assert 'pinky1' in env.api.snapshot()['holds']
+    env.scenario.telemetry('pinky1', dict(state='IDLE', busy=False, central_controlled=True,
+                                        central_latched=False, control_reset_id='reset-1'))
     assert 'pinky1' not in env.api.snapshot()['holds']
     # 보류·래치가 없으면 복구할 것이 없다
     assert env.api.handle(dict(type='release_control', robot_id='pinky1'))['status'] == 400
@@ -364,7 +372,7 @@ def test_release_control_optional_fields_are_still_checked(env):
         reply = env.api.handle(dict(type='release_control', robot_id='pinky1', **extra))
         assert reply['status'] == 400, extra
     reply = env.api.handle(dict(type='release_control', robot_id='pinky1', source='10.0.0.5'))
-    assert reply['status'] == 200
+    assert reply['status'] == 202 and reply['body']['reset_pending'] is True
 
 
 def test_raw_command_only_when_allowed_and_sent_in_session_envelope(env):
@@ -474,13 +482,18 @@ def test_operator_recovery_cannot_resume_until_robot_reset_is_echoed(env):
     env.scenario.interrupt('order1', 'PAUSED', 'operator pause')
     env.scenario.armed = True
     env.scenario.telemetry('pinky1', dict(
-        state='IDLE', central_controlled=True, central_latched=True))
+        state='IDLE', busy=False, central_controlled=True, central_latched=True))
     proof = dict(base_stopped=True, arms_safe=True, cargo_reconciled=True, resources_clear=True)
     env.scenario.recover('order1', 'operator', '현장 확인', 'resume', proof)
     env.scenario.tick()
     assert env.current()['request_id'] is None
     env.scenario.telemetry('pinky1', dict(
-        state='IDLE', central_controlled=True, central_latched=False))
+        state='IDLE', busy=False, central_controlled=True, central_latched=False))
+    env.scenario.tick()
+    assert env.current()['request_id'] is None
+    env.scenario.telemetry('pinky1', dict(
+        state='IDLE', busy=False, central_controlled=True, central_latched=False,
+        control_reset_id='reset-1'))
     env.scenario.tick()
     assert env.current()['request_id'] is not None
 

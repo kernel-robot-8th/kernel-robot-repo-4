@@ -52,7 +52,8 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
     exec(definitions(path, set(), ('PinkyPatrolNode', '_heartbeat')), namespace)
     sent = []
     node = SimpleNamespace(
-        _last_status=dict(state='DONE', task_finished=True, command_id='old', boot_id='boot1'),
+        _last_status=dict(state='DONE', task_finished=True, command_id='old', boot_id='boot1',
+                          control_reset_id='reset1'),
         controller=SimpleNamespace(command_id=None, held_zone='A', arrived_zone=None, busy=False),
         config={'central_controlled': True},
         central_guard=SimpleNamespace(expired=lambda busy=False: False, latched=False),
@@ -63,6 +64,7 @@ def test_patrol_heartbeat_cannot_replay_terminal_result():
     assert status['command_id'] is None
     assert status['held_zone'] == 'A' and status['boot_id'] == 'boot1'
     assert status['arrived_zone'] is None
+    assert status['control_reset_id'] == 'reset1'
 
 
 def test_command_path_check_blocks_duplicate_senders_but_not_watchers():

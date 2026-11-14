@@ -73,6 +73,7 @@ def test_timeout_recovery_waits_for_stop_latch_release_echo(env):
     env.fleet.tick()
     assert len(env.gateway.sent) == sent
     status['central_latched'] = False
+    status['control_reset_id'] = 'reset-1'
     env.scenario.telemetry('pinky1', status)
     env.scenario.tick()
     env.fleet.tick()

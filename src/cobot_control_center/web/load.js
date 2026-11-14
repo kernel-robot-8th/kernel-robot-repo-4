@@ -108,14 +108,14 @@ function orderBlockedText(order) {
   return `주문 ${order.order_id} 멈춤 (${why}) · 눌러서 ${order.resumable ? "이어서 가기/취소" : "취소"}`;
 }
 
-async function sendOrderRecover(order, decision) {
+async function sendOrderRecover(order, decision, evidence) {
   const result = await postJson(`/api/orders/${encodeURIComponent(order.order_id)}/recover`,
-    { client_request_id: newRequestId(), decision });
+    { client_request_id: newRequestId(), decision, evidence });
   if (result.ok) {
     view.orders = view.orders.filter((item) => item.order_id !== order.order_id || decision !== "fail");
-    delete view.holds[order.robot_id];
     showMessage(order.robot_id, decision === "resume"
-      ? `주문 ${order.order_id} 이어서 감` : `주문 ${order.order_id} 취소함 · 실은 상자는 꺼내고, 로봇은 제자리 (홈은 따로)`,
+      ? `주문 ${order.order_id} 재개 요청 접수 · 로봇 응답 대기`
+      : `주문 ${order.order_id} 취소함 · 로봇 잠금 해제 응답 대기`,
     false);
   } else {
     showMessage(order.robot_id, `주문 복구 거절 (${result.status}): ${errorText(result)}`, true);
@@ -134,7 +134,16 @@ function recoverOrder(robotId) {
     return;
   }
   if (confirm([`주문 ${order.order_id} (${order.sku}) 을 취소할까요?`, `${robotId} · ${order.stage}`,
-    "실은 상자는 사람이 꺼냅니다. 로봇은 제자리에 둡니다 (홈은 따로 보내기)."].join("\n"))) {
-    sendOrderRecover(order, "fail");
+    "예약을 풀기 전에 현장 정리가 끝나 있어야 합니다. 다음 세 항목을 각각 확인합니다."].join("\n"))) {
+    const evidence = {};
+    for (const [key, question] of [
+      ["arms_safe", "로봇팔이 멈추고 안전한 위치로 퇴피했나요?"],
+      ["cargo_reconciled", "화물을 꺼내거나 인계해 주문의 화물 정리를 마쳤나요?"],
+      ["resources_clear", "예약된 작업장과 통로에서 로봇·화물이 이탈해 다른 작업이 사용해도 안전한가요?"],
+    ]) {
+      if (!confirm(question)) return;
+      evidence[key] = true;
+    }
+    sendOrderRecover(order, "fail", evidence);
   }
 }

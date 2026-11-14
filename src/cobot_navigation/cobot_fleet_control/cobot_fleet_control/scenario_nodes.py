@@ -33,8 +33,13 @@ class SafetyGate(py_trees.decorators.Decorator):
             self.feedback_message = '작업 명령 꺼짐: 실행 위치 유지'
             self.status, permit = Status.RUNNING, False
         else:
-            latched = service.health[order['robot_id']]['status'].get('central_latched')
-            if latched is True:
+            status = service.health[order['robot_id']]['status']
+            latched = status.get('central_latched')
+            reset_unconfirmed = order.get('reset_pending') and (
+                latched is not False or status.get('busy') is not False
+                or (order.get('reset_request_id')
+                    and status.get('control_reset_id') != order['reset_request_id']))
+            if latched is True or reset_unconfirmed:
                 if (order.get('reset_pending')
                         and service.clock() < service.deadlines.get(order['order_id'], -math.inf)):
                     self.feedback_message = '로봇 정지 잠금 해제 응답 대기'

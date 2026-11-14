@@ -153,10 +153,10 @@ def test_dispatch_error_stays_unknown(env):
 
     gateway.send = fail
     service.submit(request())
-    with pytest.raises(RuntimeError):
-        service.tick()
+    assert service.tick() == ['job1']
     assert repo.get('job1')['state'] == 'UNKNOWN'
     assert repo.busy('pinky1')
+    assert repo.confirmation_required('job1')
 
 
 def test_manual_resolution_preserves_history_and_releases_only_unknown(env):

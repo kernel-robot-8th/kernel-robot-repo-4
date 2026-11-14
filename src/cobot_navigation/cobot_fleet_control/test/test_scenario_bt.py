@@ -95,6 +95,10 @@ def test_recovery_uses_approved_checkpoint_without_replaying_pickup(env, stage):
     env.scenario.interrupt('order1', 'PAUSED', '현장 일시정지')
     env.scenario.recover('order1', 'operator', '현장 정지·화물·자원 확인', 'resume', dict(
         base_stopped=True, arms_safe=True, cargo_reconciled=True, resources_clear=True))
+    env.scenario.telemetry(env.current()['robot_id'], dict(
+        state='IDLE', busy=False, central_controlled=True, central_latched=False,
+        control_reset_id='reset-1'))
+    env.scenario.tick()
     for _ in range(40):
         env.step()
         if env.current()['state'] == 'COMPLETED':

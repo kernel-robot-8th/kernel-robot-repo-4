@@ -271,7 +271,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     def recover_order(order_id: str, request: Request, body: dict = Body(default={})):
         # 멈춘 주문 복구: decision 'resume'(이어서 가기) 또는 'fail'(주문 취소).
         # 화면은 확인 창 한 번 뒤 보낸다 (2026-11-09 임시 일반형). 운영자·메모는 선택이고,
-        # 이어서 가기 단계 제한·확인 항목 검사는 fleet_control(scenario_safety.recover)이 한다.
+        # 이어서 가기 단계 제한·정지 상태·취소 전 자원 정리 검사는 fleet_control 이 한다.
         return call_controller({
             'type': 'resolve', 'order_id': order_id, 'decision': body.get('decision'),
             'client_request_id': body.get('client_request_id'),

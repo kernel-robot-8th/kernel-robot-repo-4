@@ -2,6 +2,8 @@
 
 import time
 
+from .control_release import require_stopped
+
 from .scenario_contracts import (BLOCKED, identifier, NAVIGATION, operator_or_default,
                                  optional_text, RESUME_STAGES, TERMINAL)
 
@@ -23,6 +25,7 @@ def interrupt(service, order_id, state, detail):
     if previous_request and order['stage'] in NAVIGATION:
         service.fleet.quarantine(previous_request, detail)
     if order['robot_id']:
+        service.releases.cancel(order['robot_id'])
         service.store.hold(order['robot_id'], state)
     service._alarm(order, state, detail)
     if order['robot_id']:
@@ -81,15 +84,15 @@ def confirm_loaded(service, order_id, operator, note, evidence):
     confirmation = dict(operator=operator, note=note.strip(), evidence=dict(evidence),
                         confirmed_at=time.time(), previous_stage=order['stage'],
                         previous_state=order['state'], previous_request_id=order['request_id'])
-    if latched:
-        service.gateway.release(robot)
+    reset_id = service.gateway.release(robot) if latched else None
     runtime = service.trees.pop(order_id, None)
     if runtime:
         runtime.cancel()
     if restoring:
         order.update(state='RUNNING', stage='MOVE_PICKUP', request_id=None, attempt=0,
                      detail='수동 상차 확인 접수: 재기동 후 상차 구역 재확인',
-                     manual_load_pending=confirmation, reset_pending=latched)
+                     manual_load_pending=confirmation, reset_pending=latched,
+                     reset_request_id=reset_id)
         service._save(order)
         service.store.event(dict(type='operator_load_confirmation_pending', order_id=order_id,
                                  robot_id=robot, confirmation=confirmation))
@@ -100,7 +103,8 @@ def confirm_loaded(service, order_id, operator, note, evidence):
         return service.store.get(order_id)
     order.update(state='RUNNING', stage='LEAVE_PICKUP', request_id=None, attempt=0,
                  detail='운영자 수동 상차 확인: ' + note.strip(), reset_pending=latched,
-                 operator_completed=list(pickup_stages), operator_load_confirmation=confirmation)
+                 operator_completed=list(pickup_stages), operator_load_confirmation=confirmation,
+                 reset_request_id=reset_id)
     order.pop('manual_load_pending', None)
     service._save(order)
     service.store.event(dict(type='operator_load_confirmed', order_id=order_id,
@@ -112,10 +116,7 @@ def confirm_loaded(service, order_id, operator, note, evidence):
     return service.store.get(order_id)
 
 
-# 운영자·메모·확인 항목은 선택 (화면 확인 창 한 번, 2026-11-09 임시 일반형). 확인 항목은 주면
-# 객체인지만 보고 기록한다. 화면이 확인 창 뒤 모두 true 로 지어 보내던 것은 아무것도 막지 못해 뺐다.
-# TODO(시나리오): 신발매장 시나리오가 정해지면 멈춘 단계(stage)별로 필요한 확인 항목을 묻고,
-#   취소 뒤 홈 복귀·하차 완료 표시를 정한다 (draft/safety_locks_review.md 8절).
+# 운영자·메모는 선택. 자원을 예약한 주문의 취소에는 실제 정리 확인이 필요하다.
 def recover(service, order_id, operator, note, decision, evidence, source=''):
     """정지·통신 복구 후에는 자동 재개하지 않고 운영자의 이어서 가기·취소를 받는다."""
     operator = operator_or_default(operator)
@@ -128,27 +129,41 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     if decision not in ('resume', 'fail'):
         raise ValueError('decision: resume 또는 fail')
     robot = order['robot_id']
+    if robot:
+        require_stopped(service, robot)
+    if decision == 'fail' and service.store.resources(order_id):
+        required = ('arms_safe', 'cargo_reconciled', 'resources_clear')
+        if not evidence or any(evidence.get(key) is not True for key in required):
+            raise ValueError('취소 전 팔 퇴피·화물 정리·작업장과 통로 이탈 확인 필요 '
+                             '(arms_safe, cargo_reconciled, resources_clear)')
     if decision == 'resume':
         if order['stage'] not in RESUME_STAGES:
             raise ValueError('물리 작업 중단은 fail로 종결 후 새 주문: 임의 재피킹 금지')
         if not service.armed or (robot and not service._fresh(robot)):
             raise ValueError('가동 허용 및 최신 통신 상태 필요')
     if robot:
-        service.gateway.release(robot, service._route(order))
+        if decision == 'fail':
+            service.releases.request(robot, note, service._route(order))
+        else:
+            order['reset_request_id'] = service.gateway.release(robot, service._route(order))
+            if not isinstance(order['reset_request_id'], str) or not order['reset_request_id']:
+                raise RuntimeError('정지 해제 명령 ID 누락: 주문 보류 유지')
     service.store.event(dict(type='recovery', order_id=order_id, operator=operator,
                              note=note, decision=decision, evidence=evidence, source=source))
     # 현장 확인을 마친 뒤 정지된 하위 명령이 로봇 예약을 계속 잡고 있지 않도록 한다.
-    for command_id in service.fleet.repository.active_commands(robot):
-        service.fleet.forget(command_id)
-        service.fleet.repository.transition(command_id, 'FAILED', '시나리오 운영자 복구: ' + note)
+    if decision == 'resume':
+        for command_id in service.fleet.repository.active_commands(robot):
+            service.fleet.forget(command_id)
+            service.fleet.repository.transition(command_id, 'FAILED', '시나리오 운영자 복구: ' + note)
     service.trees.pop(order_id, None)
     if decision == 'fail':
         order.update(state='FAILED', detail=note, request_id=None, updated_at=time.time())
-        service.store.close_order(order)
+        # 배정 전에는 어떤 장치에도 보낼 수 없으므로 예약분을 확실히 반환할 수 있다.
+        service.store.close_order(order, restock=order['kind'] == 'delivery' and robot is None)
     else:
         service._save(order, state='RUNNING' if robot else 'WAITING', request_id=None,
                       detail=note, reset_pending=bool(robot))
         service.deadlines[order_id] = service.clock() + service.config['stale_sec']
-    if robot:
+    if robot and decision == 'resume':
         service.store.clear_hold(robot)
     return service.store.get(order_id)
