@@ -45,7 +45,6 @@ and the patrol node imports the zone client directly, which the team has not yet
 
 ## 목차
 
-- [English summary](#english-summary)
 - [요약](#요약)
 - [구성도](#구성도)
 - [폴더 구성](#폴더-구성)
