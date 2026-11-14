@@ -16,8 +16,10 @@ class ScenarioService:
     def __init__(self, repository, fleet, gateway, routes, clock=time.monotonic,
                  max_retries=3, step_timeout_sec=300.0, customer_timeout_sec=120.0,
                  stale_sec=3.0, battery_min=20.0, departure_gap_sec=3.0,
-                 dock_xy_m=0.01, dock_yaw_deg=15.0, allow_returns=False, battery_stale_sec=10.0):
+                 dock_xy_m=0.01, dock_yaw_deg=15.0, allow_returns=False, battery_stale_sec=10.0,
+                 shelf=None, destinations=None):
         self.store = ScenarioRepository(repository)
+        self.shelf, self.destinations, routes = self._layout(routes, shelf, destinations)
         self.fleet, self.gateway, self.routes, self.clock = fleet, gateway, routes, clock
         self.config = dict(max_retries=max_retries, step_timeout_sec=step_timeout_sec,
                            customer_timeout_sec=customer_timeout_sec, stale_sec=stale_sec,
@@ -51,13 +53,68 @@ class ScenarioService:
                              request_id=None)
                 self.store.save(order)
 
+    @staticmethod
+    def _layout(routes, shelf, destinations):
+        """선반 열과 고객 자리 설정을 검증하고 (열, 자리) 조합마다 운송 경로를 만든다."""
+        routes = dict(routes)
+        shelf = dict(shelf or {})
+        destinations = {key: dict(value) for key, value in (destinations or {}).items()}
+        if not shelf and not destinations:
+            return {}, {}, routes
+        rows = shelf.get('rows')
+        columns = shelf.get('columns') or {}
+        if (set(shelf) - {'rows', 'columns'} or isinstance(rows, bool)
+                or not isinstance(rows, int) or not 1 <= rows <= 100):
+            raise ValueError('shelf: rows(1~100 정수)와 columns 필요')
+        for column, pickup in columns.items():
+            if (isinstance(column, bool) or not isinstance(column, int)
+                    or not 1 <= column <= 100):
+                raise ValueError('shelf.columns: 열 번호는 1~100 정수')
+            if not isinstance(pickup, dict) or set(pickup) != {'pickup', 'pickup_arm'}:
+                raise ValueError('shelf.columns: 열마다 pickup, pickup_arm 필요')
+        for name, target in destinations.items():
+            identifier(name, 'destination')
+            if (not isinstance(target, dict)
+                    or set(target) - {'name'} != {'dropoff', 'dropoff_arm', 'lane'}
+                    or not isinstance(target.get('name', name), str)):
+                raise ValueError('destinations: 자리마다 dropoff, dropoff_arm, lane 필요')
+            for column, pickup in columns.items():
+                route = f'col{column}__{name}'
+                if route in routes:
+                    raise ValueError('선반·자리 경로 이름이 routes와 겹칩니다: ' + route)
+                routes[route] = dict(pickup, dropoff=target['dropoff'],
+                                     dropoff_arm=target['dropoff_arm'], lane=target['lane'])
+        return dict(rows=rows, columns=columns), destinations, routes
+
+    def _resolve_destination(self, data):
+        """고객 자리와 상품의 선반 칸으로 운송 경로를 정한다. 재고는 건드리지 않는다."""
+        destination = identifier(data.get('destination'), 'destination')
+        if 'route' in data:
+            raise ValueError('route와 destination은 함께 쓸 수 없습니다')
+        if destination not in self.destinations:
+            raise ValueError('등록되지 않은 고객 자리')
+        location = self.store.location(identifier(data.get('sku'), 'sku'))
+        if location is None:
+            raise ValueError('상품의 선반 칸 미등록: 재고에 shelf_row, shelf_col을 등록하세요')
+        row, column = location
+        if column not in self.shelf['columns']:
+            raise ValueError(f'선반 {column}열의 상차 구역 미등록')
+        return dict(data, route=f'col{column}__{destination}', shelf_row=row, shelf_col=column)
+
     def submit(self, payload):
         """조건에 맞는 로봇이 모두 작업 중이어도 재고 예약은 접수한다."""
         if not isinstance(payload, dict) or set(payload) - {
-                'order_id', 'sku', 'quantity', 'route', 'kind'}:
+                'order_id', 'sku', 'quantity', 'route', 'kind', 'destination'}:
             raise ValueError('주문 필드 오류')
         data = {'kind': 'delivery', 'quantity': 1}
         data.update(payload)
+        request = None
+        if 'destination' in data:
+            # 같은 요청의 재전송은 선반 칸이 그 사이 바뀌어도 같은 주문으로 돌려준다.
+            previous = self.store.get(identifier(data.get('order_id'), 'order_id'))
+            if previous and encode(previous.get('request')) == encode(data):
+                return previous
+            request, data = data, self._resolve_destination(data)
         for key in ('order_id', 'sku', 'route'):
             identifier(data.get(key), key)
         if data['route'] not in self.routes:
@@ -78,6 +135,8 @@ class ScenarioService:
                      request_id=None, attempt=0, retries={}, completed=[], detail='',
                      customer_received=False, customer_timed_out=False,
                      failure=None, created_at=time.time(), updated_at=time.time())
+        if request is not None:
+            order.update(request=request, customer_declined=False)
         self.store.create(data, order)
         return self.store.get(data['order_id'])
 
@@ -193,6 +252,32 @@ class ScenarioService:
         runtime.context.customer_received = True
         runtime.settle()
         return self.store.get(order_id)
+
+    def declined(self, order_id):
+        """고객이 구매하지 않기로 한 입력을 대기 중인 BT에 전달한다. 로봇은 그대로 복귀한다."""
+        order = self.store.get(identifier(order_id, 'order_id'))
+        if not order or order['state'] != 'RUNNING' or order['stage'] != 'CUSTOMER':
+            raise ValueError('고객 수령 대기 중인 주문만 구매 취소 가능')
+        runtime = self.trees.get(order_id)
+        if runtime is None:
+            raise ValueError('BT 복구와 로봇 상태 확인이 끝난 뒤 구매 취소를 확인하세요')
+        runtime.context.customer_declined = True
+        runtime.settle()
+        return self.store.get(order_id)
+
+    def collect_declined(self, order):
+        """구매 취소로 자리에 남은 상품은 기존 회수 주문으로만 되가져온다."""
+        if not self.allow_returns:
+            self._alarm(order, 'DECLINED_ITEM_LEFT',
+                        '구매 취소 상품이 고객 자리에 남음: 회수 꺼짐, 운영자 수거·재고 확인 필요')
+            return None
+        try:
+            return self.submit(dict(order_id=order['order_id'] + '-return', sku=order['sku'],
+                                    quantity=order['quantity'], route=order['route'],
+                                    kind='return'))
+        except ValueError as error:
+            self._alarm(order, 'DECLINED_RETURN_REJECTED', '회수 주문 접수 실패: ' + str(error))
+            return None
 
     def interrupt(self, order_id, state, detail):
         """실행 중인 트리를 무효화하고 장치 정지와 예약 보류를 요청한다."""

@@ -238,6 +238,10 @@ class CustomerReceipt(py_trees.behaviour.Behaviour):
         ctx.enter('CUSTOMER')
         if ctx.customer_received:
             ctx.save(customer_received=True)
+        elif ctx.customer_declined:
+            # 새 물리 동작 없이 시간 초과와 같은 복귀 경로를 쓴다.
+            ctx.service._alarm(ctx.order, 'CUSTOMER_DECLINED', '고객 구매 취소: 기록 후 복귀')
+            ctx.save(customer_declined=True)
         elif ctx.service.clock() >= ctx.service.deadlines[ctx.order['order_id']]:
             ctx.service._alarm(ctx.order, 'CUSTOMER_TIMEOUT',
                                f"{ctx.service.config['customer_timeout_sec']:g}초 수령 무응답: 기록 후 복귀")

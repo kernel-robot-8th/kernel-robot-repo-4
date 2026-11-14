@@ -85,12 +85,24 @@ class ControlAPI:
             quantity = request.get('available')
             if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 0:
                 raise ValueError('available은 0 이상 정수: 예약분 제외 가용 재고')
-            scenario.store.set_stock(sku, quantity)
-            return 200, dict(sku=sku, available=quantity)
+            slot = [request.get('shelf_row'), request.get('shelf_col')]
+            if slot != [None, None]:
+                if any(isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= 100
+                       for v in slot):
+                    raise ValueError('shelf_row, shelf_col은 함께 주는 1~100 정수')
+                if scenario.shelf and slot[0] > scenario.shelf['rows']:
+                    raise ValueError(f"shelf_row: 선반은 {scenario.shelf['rows']}행까지")
+            scenario.store.set_stock(sku, quantity, *slot)
+            body = dict(sku=sku, available=quantity)
+            if slot != [None, None]:
+                body.update(shelf_row=slot[0], shelf_col=slot[1])
+            return 200, body
         if kind == 'order':
             return 202, scenario.submit(request.get('order'))
         if kind == 'received':
             return 200, scenario.received(identifier(request.get('order_id'), 'order_id'))
+        if kind == 'declined':
+            return 200, scenario.declined(identifier(request.get('order_id'), 'order_id'))
         if kind == 'confirm_loaded':
             return 200, scenario.confirm_loaded(
                 request.get('order_id'), request.get('operator'),
@@ -259,4 +271,7 @@ class ControlAPI:
         return dict(time=time.time(), armed=self.scenario.armed, allow_raw_cmd=False,
                     robots=list(self.fleet.robots), spec={r: 'v1' for r in self.fleet.robots},
                     tasks=[self._task(dict(row)) for row in active + recent],
-                    orders=self.scenario.store.orders(), holds=self.scenario.store.holds())
+                    orders=self.scenario.store.orders(), holds=self.scenario.store.holds(),
+                    stock=self.scenario.store.stock(),
+                    destinations={name: dict(name=target.get('name', name))
+                                  for name, target in self.scenario.destinations.items()})

@@ -44,6 +44,29 @@
 거절 사유를 구체적으로 표시하는 변경은 진단 개선이며, 이 복구 제한을 해결하지 않습니다.
 실제 로봇 위치와 구역 상태를 확인해야 하며, 점유 값이나 DB를 임의로 지워 우회하지 않습니다.
 
+## 고객 주문 화면용 요청 (선택 기능)
+
+`cobot_gui`의 `customer_gateway`(고객 핸드폰 화면)가 같은 `/control_center/task_request` 토픽으로 주문을 넣습니다.
+주문·재고 원장은 이 패키지 하나만 씁니다. 아래 항목은 모두 선택 사항이며, `route`를 직접 주는 기존 주문은 그대로 동작합니다.
+
+| 요청 | 내용 |
+|---|---|
+| `type=inventory, sku, available[, shelf_row, shelf_col]` | 가용 재고를 정합니다. 선반 칸(행·열)은 함께 주며 한 칸에 SKU 하나입니다. 칸을 생략하면 기존 칸을 유지합니다. |
+| `type=order, order={order_id, sku, quantity, destination}` | `route` 대신 고객 자리 ID를 줍니다. 상품이 놓인 선반 열과 자리로 경로 `col<열>__<자리>`를 고릅니다. |
+| `type=received, order_id` | 고객이 구매(수령)를 확인합니다. (기존 요청) |
+| `type=declined, order_id` | 고객이 구매하지 않습니다. `CUSTOMER` 단계에서만 받습니다. |
+
+- 선반과 자리는 `config/scenario.yaml`의 `shelf`, `destinations`에 적습니다. 열은 상차 구역과 상차 팔을, 자리는 하차 구역·하차 팔·통로를 정합니다.
+- 팔에 보내는 작업 요청(`/fleet/work_request`)에는 `shelf_row`, `shelf_col`이 함께 실립니다. 행은 팔이 집는 높이입니다.
+- 상품에 칸이 없거나 그 열에 상차 구역이 없으면 재고를 예약하기 전에 주문을 거절합니다. 지금 설정은 1열(ZA)·2열(ZB)만 있고 3열은 구역이 없습니다.
+- `/control_center/tasks` 스냅숏에 `stock`(SKU별 가용 수량과 칸)과 `destinations`(자리 ID와 이름)가 추가됩니다.
+
+**구매 취소(`declined`)는 새 로봇 동작을 만들지 않습니다.** `customer_declined`와 경보 `CUSTOMER_DECLINED`를 기록하고,
+로봇은 수령 시간 초과 때와 같은 순서로 HOME에 복귀합니다. 자리에 내려놓은 상품은 다음과 같이 처리합니다.
+
+- `allow_returns: true`: 주문이 끝난 뒤 회수 주문 `<order_id>-return`을 자동으로 접수합니다. 회수가 끝나야 재고가 돌아옵니다.
+- `allow_returns: false`(기본값): 경보 `DECLINED_ITEM_LEFT`만 남깁니다. 운영자가 상품을 수거하고 `type=inventory`로 재고를 맞춰야 합니다.
+
 ## 기동
 
 feature/control-center의 cobot_control_center를 빌드·source한 환경이 필요합니다.
