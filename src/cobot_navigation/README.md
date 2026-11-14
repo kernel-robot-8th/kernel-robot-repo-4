@@ -1,4 +1,63 @@
-# cobot_navigation
+<h1 align="center">cobot_navigation</h1>
+
+<p align="center">
+  <b>Multi-robot patrol &amp; zone-access control for ROS 2 / Nav2</b><br>
+  한 번에 <b>한 대</b>만 위험구역에 들어가도록 Pinky 로봇 3대를 관제하는 시스템
+</p>
+
+<p align="center">
+  <img alt="ROS 2 Jazzy" src="https://img.shields.io/badge/ROS%202-Jazzy-22314E?logo=ros">
+  <img alt="Ubuntu 24.04" src="https://img.shields.io/badge/Ubuntu-24.04-E95420?logo=ubuntu&logoColor=white">
+  <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
+  <img alt="Nav2" src="https://img.shields.io/badge/Nav2-navigation-14A89A">
+  <img alt="MQTT" src="https://img.shields.io/badge/MQTT-bridge-660066?logo=mqtt&logoColor=white">
+</p>
+
+<p align="center">
+  <img src="docs/cobot_navigation_map_view.png" width="860" alt="맵 뷰어: 지도 v9 위의 홈, 일반 지점, 위험구역 좌표">
+  <br><sub>맵 뷰어(<code>map_view_pc</code>) — 지도 v9 위의 홈(I1~I3), 일반 지점(P), 위험구역(ZA·ZB·ZC)과 EXIT 좌표</sub>
+</p>
+
+## English summary
+
+Navigation and zone-traffic control for three Pinky robots, built on ROS 2 Jazzy and Nav2.
+A control PC sends patrol commands, each robot drives itself with Nav2, and a central manager
+makes sure **only one robot is inside a hazard zone (`A`, `B`, `C`) at a time**.
+
+- **Domain separation**: the control PC runs on `ROS_DOMAIN_ID=100` and pinky1/2/3 run on 10/20/30.
+  `cobot_domain_bridge` relays only the topics that are needed and prefixes control-side names with `/pinkyN/`.
+- **Command and status**: the control PC publishes `/pinkyN/patrol_cmd`; the robot answers with a JSON state on `/pinkyN/patrol_status`.
+- **Zone token and FIFO queue**: each zone has one token and a FIFO queue, both owned by the manager on the control PC.
+  A robot may enter only after it receives the token. Other robots wait in queue slots (up to 3 waiting robots per zone).
+- **Safety nets**: the manager force-releases a token held longer than `max_hold_sec` (240 s) and drops waiters whose
+  requests stop for `queue_stale_sec` (5 s). A robot with no new command for `idle_return_sec` (120 s) returns home by itself.
+
+| Package / folder | Role |
+|---|---|
+| `cobot_domain_bridge` | Topic relay between the control PC and the robots |
+| `cobot_zone_traffic_control` | Zone manager (token, queue) and the client used by the patrol node |
+| `cobot_pinky_patrol` | Nav2 patrol node running on each robot |
+| `cobot_pinky_patrol_cmd` | Terminal tool to send patrol commands and watch status |
+| `map_view_pc` | Browser map viewer for checking map coordinates |
+
+Known limits (details in [알려진 제약](#알려진-제약)): waypoint coordinates still need field measurement,
+and the patrol node imports the zone client directly, which the team has not yet decided how to move into a shared package.
+
+## 목차
+
+- [English summary](#english-summary)
+- [요약](#요약)
+- [구성도](#구성도)
+- [폴더 구성](#폴더-구성)
+- [동작 흐름: 구역으로 이동해서 나오기까지](#동작-흐름-구역으로-이동해서-나오기까지)
+- [토픽 맵](#토픽-맵)
+- [빌드](#빌드)
+- [실행 순서](#실행-순서)
+- [순찰 명령](#순찰-명령)
+- [수정 위치 안내](#수정-위치-안내)
+- [보조 도구](#보조-도구)
+- [테스트](#테스트)
+- [알려진 제약](#알려진-제약)
 
 Pinky 로봇 3대의 **주행·순찰**과 **위험구역 교통 관제**를 담당하는 폴더입니다.
 이 폴더 자체는 colcon 패키지가 아니라 아래 하위 패키지·도구를 묶는 자리입니다.
