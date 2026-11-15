@@ -169,6 +169,21 @@ ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake
 launch 인자: `backend`, `registry_file`, `enable_omx1`·`enable_omx2`·`enable_omx3`.
 파라미터: `config/arm_adapter.yaml`.
 
+### 4-1. 시험 스크립트 (`scripts/`)
+
+| 스크립트 | 하는 일 |
+|---|---|
+| `scripts/run_arm_adapter.sh` | omx1 어댑터 하나를 띄운다. 띄우기 전에 단독 실행기·중복 노드·보드·실행기 파일을 확인하고, 도메인 10·12 는 거절한다. `worker_command` 를 명령줄로 넘겨 `arm_adapter.yaml` 을 고치지 않는다 |
+| `scripts/arm_console.py` | 관제 대신 `start`·`pick`·`load`·`hold`·`unhold`·`latch`·`reset` 을 한 줄씩 보내고 ACK·결과·상태를 찍는다 |
+
+```bash
+scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake   # 혼자 시험 (팔 안 씀)
+scripts/run_arm_adapter.sh                                           # 관제와 연결: 도메인 100, worker
+```
+
+실행기 폴더·파이썬이 기본값(저장소 옆 `<저장소>-omx-dashboard/omx_fleet`, `~/venv/il/bin/python`)과 다르면
+`OMX_FLEET_DIR`·`OMX_VENV_PY` 로 준다. 콘솔은 어댑터와 같은 `ROS_DOMAIN_ID`·검색 범위로 띄운다.
+
 ## 5. 관제 켜기·끄기 (`ArmCommand` → `CommandAck`·`ArmStatus`)
 
 관제가 Station PC 에 가지 않고 팔을 켜고 끈다. 메시지는 `cobot_interfaces` 에 이미 있는 것만 쓴다 (인터페이스 변경 없음).

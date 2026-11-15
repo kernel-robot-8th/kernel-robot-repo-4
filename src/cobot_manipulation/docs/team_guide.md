@@ -82,20 +82,22 @@ fleet_control ── 작업 요청·결과 ──▶  팔 어댑터 노드 ─�
 ## 시험해 보기 (팔 없이)
 
 ```bash
+scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake
+# 다른 터미널: 관제 대신 명령을 한 줄씩 (start, pick, s, reset, q)
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
 export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake
-ros2 topic echo /manipulation/omx_1/status    # 다른 터미널
+python3 scripts/arm_console.py
 ```
 
-fake 도 꺼짐으로 시작한다. `CMD_START` 를 보내야 켜지는데, 아직 `ArmCommand` 를 보내는 관제 코드가 없어 지금은 시험 스크립트로 보낸다.
-`backend:=worker` 는 실제 팔을 쓴다. 팔 옆에 사람이 있을 때만.
+fake 도 꺼짐으로 시작한다. `start` 를 보내야 켜진다.
+관제 웹의 로봇팔 패널(`feature/control-center` 브랜치)로도 켜기·끄기·정지를 보낼 수 있다. 작업(pick)은 웹에 버튼이 없어 콘솔로 보낸다.
+`--backend fake` 를 빼면(`worker`) 실제 팔을 쓴다. 팔 옆에 사람이 있을 때만, 사람이 없으면 노드를 끈다.
 
 ## 아직 안 된 것
 
 | 할 일 | 담당 (제안) |
 |---|---|
-| 관제 화면의 켜기·끄기 버튼, HTTP → `ArmCommand` 중계 | 로봇 수행 관제 |
+| 관제 화면의 켜기·끄기 버튼: `feature/control-center` 에 있음 (2026-11-15). submaster 병합·실물 확인 남음 | 로봇 수행 관제 |
 | 실제 팔 시험 (보드가 omx1 이 맞는지, 캘리브레이션) | 로봇팔 + 관제 |
 | 쉬는 자세 실측 (지금은 임시로 shoebox_d 시작 자세) | 로봇팔 |
 | 성공 판단 YOLO 모델 | 로봇팔·비전 |
