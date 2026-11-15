@@ -2,7 +2,9 @@
 # 토픽 이름은 팔 노드 기본값(arm_adapter.yaml 의 비운 command_topic·status_topic·ack_topic)과 같다.
 /**:
   ros__parameters:
-    arm_ids: [omx_1, omx_2, omx_3]     # 명세 이름. omx1 처럼 써도 omx_1 로 바꾼다
+    arm_ids: [omx_1, omx_2, omx_3]     # 명세 이름. omx1 처럼 써도 omx_1 로 바꾼다. site_arms_file 이 있으면 그쪽이 우선
+    # 현장 팔 배치(자리·PC·보드). 비면 arm_ids 만 쓴다. launch(fleet_api.launch.xml)가 설치된 config/site_arms.yaml 을 넘긴다
+    site_arms_file: ''
     command_topic_format: /control_center/{arm}/command      # ArmCommand (관제 → 팔)
     status_topic_format: /manipulation/{arm}/status          # ArmStatus (팔 → 관제, 10 Hz)
     ack_topic_format: /manipulation/{arm}/command_ack        # CommandAck (팔 → 관제)

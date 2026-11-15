@@ -1,0 +1,36 @@
+# 현장 로봇팔 배치: 자리(구역) · 팔 이름 · 보드 시리얼 · Station PC.
+# 팔 이름은 자리 순서와 1:1 로 고정한다 (ZA = omx1, ZB = omx2, ZC = omx3). 보드나 PC 를 바꿔도 팔 이름은 그대로 둔다.
+#
+# 지금은 관제(arm_command_node)만 이 파일을 읽어 화면에 자리·PC 를 보여 준다 (팔 목록도 여기서 정함).
+# 팔 노드 등록표(cobot_manipulation/config/arm_registry.yaml)와 주행 관제 시나리오
+# (cobot_fleet_control/config/scenario.yaml 의 pickup_arm·dropoff_arm)는 아직 따로 적혀 있다.
+# 여기를 바꾸면 그 둘도 맞는지 확인한다 (시나리오는 지혁 님 코드).
+#
+# role: pickup(상차) / dropoff(하차) / warehouse(창고). 빈 칸은 화면에 '미정' 으로 나온다.
+# serial: OpenRB-150 보드 시리얼 (/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00).
+arms:
+  omx1:
+    station: ZA
+    role: pickup
+    host: 8-OMEN
+    serial: 77AABA9150323952582E3120FF06102E   # 2026-11-16 이 PC 에서 확인
+  omx2:
+    station: ZB
+    role: pickup        # 상차인지 창고인지 미정
+    host: ''            # ZB 팔을 돌릴 PC 미정 (몇 주 전까지 OMEN-11 노트북으로 학습했음)
+    serial: ''          # ZB 팔 보드 시리얼 미확인
+  omx3:
+    station: ZC
+    role: dropoff
+    host: OMEN-11
+    serial: 6D96FA0450323952582E3120FF052A1E   # 2026-11-16 OMEN-11 에서 확인
+
+# 배치 변경 기록 (새것이 위). 팔이나 보드·PC 를 옮기면 여기에 한 줄 남긴다.
+# 팔(과 그 보드)은 자리에 붙어 있고, 노트북(PC)이 팔 사이를 옮겨 다닌다. 학습 모델은 그 팔·그 자리 것이다.
+#
+# 2026-11-16  OMEN-11 노트북: ZB 팔 학습에 쓰다가(몇 주 전까지, 날짜 미상) ZC 팔로 옮겨 붙음.
+#             지금 OMEN-11 에 붙은 보드 6D96FA04… 는 ZC 팔(omx3) 것.
+#             OMEN-11 에 남은 학습 데이터·모델은 ZB 팔 것이라 ZC 팔에는 쓰지 않는다. ZB 팔의 PC 는 미정.
+# 2026-11-16  8-OMEN + 보드 77AABA91… 팔: ZA(상차) = omx1 로 확인.
+# 2026-11-16  팔 이름을 구역 순서로 고정 (ZA = omx1, ZB = omx2, ZC = omx3).
+#             팔 노드 등록표가 6D96FA04… 를 omx1 로 잘못 적고 있던 것을 바로잡음 (cobot_manipulation 37bb598).

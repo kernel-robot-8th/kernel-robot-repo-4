@@ -49,6 +49,8 @@ const ARM_STOPS = new Set(["hold", "soft_latch"]);
 const ARM_WORK_TEXT = { pick: "집기 (pick)", load: "싣기 (load)", unload: "내리기 (unload)",
   warehouse_store: "창고 보관 (warehouse_store)" };
 const ARM_WORK_STATE = { RUNNING: "진행 중", SUCCEEDED: "성공", FAILED: "실패", NO_RESULT: "결과 없음" };
+// 현장 팔 배치(config/site_arms.yaml)의 역할 → 화면 글
+const SITE_ROLE_TEXT = { pickup: "상차", dropoff: "하차", warehouse: "창고" };
 const HOLD_REASON_TEXT = { HOLD: "정지 유지", SOFT_LATCH: "소프트 정지" };
 const ARM_RESULT_TEXT = {
   ACCEPTED: "수락", REJECTED_EPOCH: "세션 번호 거절", REJECTED_SEQ: "순번 거절",
@@ -136,14 +138,30 @@ function workBlockedReason(canCommand, allowed, running, waiting, meta) {
   return "실제 팔이 움직입니다. 주문 진행 중에는 쓰지 마세요";
 }
 
+// 카드 이름 옆: "ZA 상차 · 8-OMEN". 배치 파일이 없으면 시나리오 이름(omx1)만.
+function siteText(arm) {
+  const site = arm.site;
+  if (!site) return arm.alias && arm.alias !== arm.arm_id ? `시나리오 ${arm.alias}` : "";
+  const role = SITE_ROLE_TEXT[site.role] || "역할 미정";
+  return `${site.station || "자리 미정"} ${role} · ${site.host || "PC 미정"}`;
+}
+
+function siteTitle(arm) {
+  const site = arm.site;
+  const lines = [`시나리오 이름 ${arm.alias || arm.arm_id}`];
+  if (site) lines.push(`보드 시리얼 ${site.serial || "미확인"}`, "현장 팔 배치: config/site_arms.yaml");
+  return lines.join("\n");
+}
+
 function renderArmCard(arm, canCommand) {
   const card = ensureArmCard(arm.arm_id);
   const meta = ARM_STATE[arm.state] || ARM_STATE.STALE;
   const status = arm.status;
   card.dataset.level = meta.level;
   card.classList.toggle("offline", arm.state === "STALE");
-  card.querySelector(".alias").textContent = arm.alias && arm.alias !== arm.arm_id
-    ? `시나리오 ${arm.alias}` : "";
+  const where = card.querySelector(".alias");
+  where.textContent = siteText(arm);
+  where.title = siteTitle(arm);
   const badge = card.querySelector(".arm-state");
   badge.dataset.level = meta.level;
   badge.textContent = meta.text;
@@ -297,7 +315,7 @@ function renderArmAlarmFilter(arms) {
     if (have.has(arm.arm_id)) continue;
     const option = document.createElement("option");
     option.value = arm.arm_id;
-    option.textContent = arm.arm_id;
+    option.textContent = arm.site && arm.site.station ? `${arm.arm_id} (${arm.site.station})` : arm.arm_id;
     select.appendChild(option);
   }
 }

@@ -562,7 +562,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-card[data-level="active"] { --robot-color: var(--active); }
 .arm-card[data-level="warn"] { --robot-color: var(--warn); }
 .arm-card[data-level="bad"] { --robot-color: var(--bad); }
-.arm-card .alias { font-size: 12px; }
+.arm-card .alias { font-size: 12px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .arm-state[data-level="good"] { background: var(--good); }
 .arm-state[data-level="active"] { background: var(--active); }
 .arm-state[data-level="warn"] { background: var(--warn); }

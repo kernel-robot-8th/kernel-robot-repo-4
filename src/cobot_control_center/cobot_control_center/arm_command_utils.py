@@ -81,6 +81,9 @@ COMMAND_TEXT = {'start': '켜기', 'reset': '끄기', 'hold': '정지', 'release
 QUIET_CHANGES = frozenset({(READY, BUSY), (BUSY, READY)})
 
 ARM_ID_PATTERN = re.compile(r'([a-z]+)_?([0-9]+)')
+# 현장 팔 배치 (config/site_arms.yaml)
+SITE_ROLES = ('pickup', 'dropoff', 'warehouse')
+SERIAL_PATTERN = re.compile(r'[A-Za-z0-9]{1,64}')   # 팔 노드 arm_registry_utils 와 같은 형식
 
 
 class CommandError(Exception):
@@ -135,6 +138,40 @@ def parse_request(text):
     return data
 
 
+def _site_text(entry, key, arm_id):
+    value = entry.get(key)
+    value = '' if value is None else value
+    if not isinstance(value, (str, int)) or isinstance(value, bool):
+        raise ValueError(f'{arm_id}.{key} 는 글자여야 함: {value!r}')
+    return str(value).strip()
+
+
+def parse_site_arms(data):
+    """
+    현장 팔 배치(config/site_arms.yaml 내용) → {팔 이름(omx_1): {station, role, host, serial}}.
+
+    팔 순서는 파일 순서를 지킨다. 빈 칸은 '' (미정). 형식이 틀리면 ValueError.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get('arms'), dict) or not data['arms']:
+        raise ValueError('arms 항목(팔 이름 → 배치)이 필요함')
+    site = {}
+    for name, entry in data['arms'].items():
+        arm_id = interface_arm_id(str(name))
+        if not ARM_ID_PATTERN.fullmatch(arm_id) or arm_id in site:
+            raise ValueError(f'팔 이름 형식 오류 또는 중복: {name!r}')
+        entry = {} if entry is None else entry
+        if not isinstance(entry, dict):
+            raise ValueError(f'{name}: station·role·host·serial 을 가진 객체가 필요함')
+        info = {key: _site_text(entry, key, name) for key in ('station', 'role', 'host', 'serial')}
+        if info['role'] and info['role'] not in SITE_ROLES:
+            raise ValueError(f'{name}.role 은 {", ".join(SITE_ROLES)} 중 하나: {info["role"]!r}')
+        if info['serial'] and not SERIAL_PATTERN.fullmatch(info['serial']):
+            raise ValueError(f'{name}.serial 형식 오류: {info["serial"]!r}')
+        info['serial'] = info['serial'].upper()
+        site[arm_id] = info
+    return site
+
+
 def arm_event(time, arm_id, kind, level, text, data=None):
     """
     기록 한 줄. level 은 'info' / 'warn' / 'bad' (핑키 이벤트 로그와 같다).
@@ -173,8 +210,10 @@ class ArmCommander:
     """
 
     def __init__(self, arm_ids, ttl_ms, ack_timeout_sec, stale_sec, work_timeout_sec=120.0,
-                 work_margin_sec=15.0, work_stage='MANUAL_TEST', session_id=None):
+                 work_margin_sec=15.0, work_stage='MANUAL_TEST', session_id=None, site=None):
         self.arm_ids = [interface_arm_id(a) for a in arm_ids]
+        # 현장 배치 (parse_site_arms 결과). 화면 표시용이고 명령 판정에는 쓰지 않는다.
+        self.site = dict(site or {})
         self.ttl_ms = int(ttl_ms)
         self.ack_timeout_sec = float(ack_timeout_sec)
         self.stale_sec = float(stale_sec)
@@ -486,6 +525,7 @@ class ArmCommander:
                 'allowed': allowed, 'status': arm['status'],
                 'last_ack': arm['last_ack'], 'work': arm['work'],
                 'alarms': self._alarms(arm, state, online),
+                'site': self.site.get(arm_id),
                 'pending': sum(1 for p in self._pending.values() if p['arm_id'] == arm_id),
                 'epoch': arm['accepted_epoch'], 'seq': arm['accepted_seq']})
         return {'time': now_wall, 'ttl_ms': self.ttl_ms, 'work_actions': list(WORK_ACTIONS),

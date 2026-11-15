@@ -34,6 +34,8 @@
   <arg name="node_name" default="fleet_api_node" description="노드 이름 (개발용은 fleet_api_node_dev)"/>
   <arg name="read_only" default="false" description="true 면 명령 경로 503, task_request 를 내지 않음"/>
   <arg name="web_dir" default="" description="화면 파일 폴더. 비면 설치된 share/cobot_control_center/web"/>
+  <arg name="site_arms_file" default="$(find-pkg-share cobot_control_center)/config/site_arms.yaml"
+       description="현장 팔 배치(자리·팔·보드·PC). 로봇팔 명령 노드가 팔 목록과 화면 표시에 씀"/>
   <arg name="arm_command" default="true"
        description="로봇팔 명령 노드(arm_command_node)도 띄울지. 읽기 전용 개발 백엔드는 false"/>
 
@@ -54,5 +56,6 @@
   <node pkg="cobot_control_center" exec="arm_command_node" name="arm_command_node" output="screen"
         if="$(var arm_command)">
     <param from="$(find-pkg-share cobot_control_center)/config/arm_command_node.yaml"/>
+    <param name="site_arms_file" value="$(var site_arms_file)"/>
   </node>
 </launch>

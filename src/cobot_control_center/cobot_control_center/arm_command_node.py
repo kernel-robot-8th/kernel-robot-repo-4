@@ -42,6 +42,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
+import yaml
 
 # 팔 노드(arm_adapter_node)와 같은 QoS: 명령·이벤트 RELIABLE, 텔레메트리 BEST_EFFORT KEEP_LAST 1
 COMMAND_QOS = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
@@ -106,6 +107,7 @@ class ArmCommandNode(Node):
             'ack_timeout_sec': 8.0,
             'status_stale_sec': 1.0,
             'snapshot_period_sec': 0.2,
+            'site_arms_file': '',
             'work_request_topic': '/fleet/work_request',
             'work_result_topic': '/fleet/work_result',
             'work_stage': 'MANUAL_TEST',
@@ -116,10 +118,12 @@ class ArmCommandNode(Node):
             self.declare_parameter(name, default)
         value = {name: self.get_parameter(name).value for name in params}
 
+        site = self._load_site(value['site_arms_file'])
         self.commander = arms.ArmCommander(
-            [a for a in value['arm_ids'] if a], value['ttl_ms'], value['ack_timeout_sec'],
+            list(site) if site else [a for a in value['arm_ids'] if a],
+            value['ttl_ms'], value['ack_timeout_sec'],
             value['status_stale_sec'], value['work_timeout_sec'],
-            value['work_result_margin_sec'], value['work_stage'])
+            value['work_result_margin_sec'], value['work_stage'], site=site)
         self.command_pubs = {}
         for arm_id in self.commander.arm_ids:
             self.command_pubs[arm_id] = self.create_publisher(
@@ -142,6 +146,21 @@ class ArmCommandNode(Node):
             f'명령 {value["command_topic_format"]}, ttl {value["ttl_ms"]} ms, '
             f'응답 기한 {value["ack_timeout_sec"]} s, 작업 시험 {value["work_request_topic"]} '
             f'(stage {value["work_stage"]}, session {self.commander.session_id[:8]})')
+
+    def _load_site(self, path):
+        """현장 팔 배치 파일. 없거나 틀리면 오류를 남기고 arm_ids 로 계속한다 (관제가 멈추지 않게)."""
+        if not path:
+            return {}
+        try:
+            with open(path, encoding='utf-8') as handle:
+                site = arms.parse_site_arms(yaml.safe_load(handle))
+        except (OSError, yaml.YAMLError, ValueError) as error:
+            self.get_logger().error(f'현장 팔 배치 파일을 못 읽음 ({path}): {error}. arm_ids 를 씀')
+            return {}
+        self.get_logger().info('현장 팔 배치: ' + ', '.join(
+            f'{arm_id}={info["station"] or "?"}/{info["host"] or "PC 미정"}'
+            for arm_id, info in site.items()))
+        return site
 
     def _on_status(self, arm_id, msg):
         self.commander.put_status(arm_id, status_to_dict(msg), time.monotonic(), time.time())

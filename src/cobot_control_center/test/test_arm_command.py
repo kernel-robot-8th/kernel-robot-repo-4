@@ -439,3 +439,48 @@ def test_order_work_results_are_logged_once():
     # 모르는 팔의 결과는 버린다
     commander.put_work_result(dict(order, request_id='o-2', source='omx9'), 101.0)
     assert kinds(commander) == []
+
+
+# ---------- 현장 팔 배치 (config/site_arms.yaml) ----------
+
+def test_parse_site_arms_keeps_order_and_blanks():
+    site = arms.parse_site_arms({'arms': {
+        'omx1': {'station': 'ZA', 'role': 'pickup', 'host': '8-OMEN', 'serial': '77aa01'},
+        'omx_2': {'station': 'ZB', 'role': '', 'host': None},
+        'omx3': None}})
+    assert list(site) == ['omx_1', 'omx_2', 'omx_3']
+    assert site['omx_1'] == {'station': 'ZA', 'role': 'pickup', 'host': '8-OMEN',
+                             'serial': '77AA01'}
+    assert site['omx_2'] == {'station': 'ZB', 'role': '', 'host': '', 'serial': ''}
+    assert site['omx_3']['station'] == ''
+
+
+@pytest.mark.parametrize('data', [
+    None, {}, {'arms': {}}, {'arms': []},
+    {'arms': {'omx1': {'role': 'flying'}}},
+    {'arms': {'omx1': {'serial': 'not-a-serial!'}}},
+    {'arms': {'omx1': {'station': ['ZA']}}},
+    {'arms': {'omx1': 'ZA'}},
+    {'arms': {'omx1': {}, 'omx_1': {}}},    # 같은 팔 두 번
+    {'arms': {'??': {}}},
+])
+def test_parse_site_arms_rejects_bad_files(data):
+    with pytest.raises(ValueError):
+        arms.parse_site_arms(data)
+
+
+def test_installed_site_arms_file_parses():
+    import pathlib
+    import yaml
+    path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
+    site = arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
+    assert list(site) == ['omx_1', 'omx_2', 'omx_3']
+    assert [info['station'] for info in site.values()] == ['ZA', 'ZB', 'ZC']
+
+
+def test_snapshot_carries_site():
+    site = {'omx_1': {'station': 'ZA', 'role': 'pickup', 'host': '8-OMEN', 'serial': 'A1'}}
+    commander = arms.ArmCommander(['omx_1', 'omx_2'], 5000, 8.0, 1.0, site=site)
+    snap = commander.snapshot(0.0, 100.0)['arms']
+    assert snap[0]['site']['station'] == 'ZA' and snap[1]['site'] is None
+    json.dumps(snap)

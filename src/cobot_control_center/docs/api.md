@@ -141,6 +141,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `status` | 마지막 `ArmStatus` (NaN 은 null, `stamp` 는 측정 시각 [s]) |
 | `last_ack` | 그 팔의 마지막 응답 `{command, result, accepted, reason, stop_executed, epoch, seq, received_at}`. 다른 곳이 낸 명령이면 `command` 없음 |
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
+| `site` | 현장 팔 배치 `{station, role, host, serial}` 또는 null (`config/site_arms.yaml`, 빈 칸은 미정). 표시용이고 명령 판정에는 안 씀 |
 | `work` | 마지막 작업 시험 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT` |
 
 | `alarms` | 활성 알람 `[{code, level, since, text}]` (아래 [알람](#알람-활성-알람기록)) |
@@ -286,7 +287,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 | 이름 | 기본값 | 뜻 |
 |---|---|---|
-| `arm_ids` | `[omx_1, omx_2, omx_3]` | 팔 이름. `omx1` 로 써도 `omx_1` 로 바꿈 |
+| `arm_ids` | `[omx_1, omx_2, omx_3]` | 팔 이름. `omx1` 로 써도 `omx_1` 로 바꿈. `site_arms_file` 을 읽으면 그 파일의 팔 목록이 우선 |
+| `site_arms_file` | `''` (launch 가 설치된 `config/site_arms.yaml` 을 넘김) | 현장 팔 배치 파일. 못 읽으면 오류 로그를 남기고 `arm_ids` 로 계속 |
 | `command_topic_format`, `status_topic_format`, `ack_topic_format` | `/control_center/{arm}/command`, `/manipulation/{arm}/status`, `/manipulation/{arm}/command_ack` | 팔 노드 기본 토픽과 같음 |
 | `ttl_ms` | `5000` | 명령 유효 기한 [ms] |
 | `ack_timeout_sec` | `8.0` | 팔 응답 기다리는 시간 [s]. 팔 노드의 끄기는 쉬는 자세 확인에 5 s 까지 걸림 |

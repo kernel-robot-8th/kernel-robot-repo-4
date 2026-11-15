@@ -252,6 +252,15 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 
 화면의 `연결` 은 배터리(bringup)나 위치를 받고 있다는 뜻까지입니다. Nav2·순찰 노드가 켜졌는지는 화면에서 알 수 없으니 3·4 단계는 터미널 로그로 확인합니다.
 
+## 현장 팔 배치
+
+어느 자리(ZA·ZB·ZC)를 어느 팔(omx1~3)이 맡고, 그 팔이 어느 보드·어느 Station PC 에 붙는지는
+[`config/site_arms.yaml`](config/site_arms.yaml) 한 곳에 적습니다. 팔 이름은 자리 순서와 1:1 로 고정합니다 (ZA = omx1, ZB = omx2, ZC = omx3).
+
+- 로봇팔 명령 노드가 팔 목록을 여기서 정하고, 화면 카드에 `ZA 상차 · 8-OMEN` 처럼 보여 줍니다 (마우스를 올리면 보드 시리얼).
+- 팔이나 보드·PC 를 옮기면 이 파일을 고치고 관제를 다시 켭니다 (`--symlink-install` 이면 다시 빌드 안 해도 됨, 도커는 이미지 다시 빌드).
+- 아직 팔 노드 등록표(`cobot_manipulation/config/arm_registry.yaml`)와 주행 관제 시나리오(`cobot_fleet_control/config/scenario.yaml` 의 `pickup_arm`·`dropoff_arm`)는 따로 적혀 있습니다. 여기를 바꾸면 그 둘도 맞는지 확인합니다.
+
 ## 로봇 없이 시험하기
 
 실물 도메인(100, 10/20/30)과 섞이지 않게 **다른 도메인·이 PC 안에서만** 돌립니다. 브릿지는 띄우지 않습니다.
