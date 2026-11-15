@@ -38,6 +38,8 @@
        description="현장 팔 배치(자리·팔·보드·PC). 로봇팔 명령 노드가 팔 목록과 화면 표시에 씀"/>
   <arg name="arm_command" default="true"
        description="로봇팔 명령 노드(arm_command_node)도 띄울지. 읽기 전용 개발 백엔드는 false"/>
+  <arg name="net_hosts" default="real"
+       description="네트워크 측정·관제 PC 상태 보고 노드: real 설정 주소(실물), local 모두 127.0.0.1(가짜 핑키·시험), off 둘 다 끔"/>
 
   <node pkg="cobot_control_center" exec="fleet_api_node" name="$(var node_name)" output="screen">
     <param from="$(find-pkg-share cobot_control_center)/config/fleet_api_node.yaml"/>
@@ -57,5 +59,29 @@
         if="$(var arm_command)">
     <param from="$(find-pkg-share cobot_control_center)/config/arm_command_node.yaml"/>
     <param name="site_arms_file" value="$(var site_arms_file)"/>
+  </node>
+
+  <!-- 네트워크 측정 (화면 #/network). 핑·토픽 수신 주기만 재고 아무것도 명령하지 않는다.
+       가짜 핑키·시험에서는 net_hosts:=local 로 모든 핑을 127.0.0.1 로 보낸다 (실물 장치에 핑이 가지 않게). -->
+  <node pkg="cobot_control_center" exec="net_status_node" name="net_status_node" output="screen"
+        if="$(eval '\'$(var net_hosts)\' == \'real\'')">
+    <param from="$(find-pkg-share cobot_control_center)/config/net_status_node.yaml"/>
+  </node>
+  <node pkg="cobot_control_center" exec="net_status_node" name="net_status_node" output="screen"
+        if="$(eval '\'$(var net_hosts)\' == \'local\'')">
+    <param from="$(find-pkg-share cobot_control_center)/config/net_status_node.yaml"/>
+    <param name="robot_hosts" value="[127.0.0.1, 127.0.0.1, 127.0.0.1]"/>
+    <param name="station_host" value="127.0.0.1"/>
+    <param name="router_host" value="127.0.0.1"/>
+  </node>
+
+  <!-- 관제 PC 자기 상태 보고 (CPU·메모리·온도·디스크). Station PC 의 host_status.launch.xml 과 같은 노드.
+       측정 노드처럼 net_hosts:=off (개발 백엔드 8083) 면 띄우지 않는다 (실물 bringup 것을 같이 본다).
+       패킷을 보내지 않고 이 PC 의 /proc·/sys 만 읽는다. -->
+  <node pkg="cobot_control_center" exec="host_status_node" name="host_status_control" output="screen"
+        if="$(eval '\'$(var net_hosts)\' != \'off\'')">
+    <param from="$(find-pkg-share cobot_control_center)/config/host_status_node.yaml"/>
+    <param name="host" value="control"/>
+    <param name="label" value="관제 PC"/>
   </node>
 </launch>

@@ -22,4 +22,7 @@
     # 실물은 cobot_domain_bridge 에 카메라 토픽이 있어야 들어온다 (아직 없음 → 화면에 '영상 없음').
     camera_robots: [pinky1, pinky2, pinky3]   # 구독할 로봇. [''] 이면 끔
     camera_topic_format: /{robot}/camera/image_raw/compressed
+    # 네트워크 화면: Station PC 에서 도는 노드 이름 (팔 노드 arm_station.launch.xml 의 omx1~3_adapter)
+    station_node_patterns: ['omx*_adapter']
+    host_stale_sec: 10.0      # 다른 PC 상태 보고(host_status_node, 3 s 주기)가 이만큼 끊기면 끊김 [s]
     read_only: false          # true 면 명령 경로 503, task_request 를 내지 않음. fleet_api_dev.launch.xml 이 켠다

@@ -41,11 +41,14 @@ function armAlertItems() {
   return items;
 }
 
+// 경고 띠 = 핑키 경고(fleet_status) + 팔 알람(arms.js) + 네트워크·PC 경고(network.js 가 /api/network 에서 받음).
+// 네트워크·PC 경고는 관제 노드와 따로 와서 관제 노드가 끊겨도 남는다.
 function renderAlertStrip() {
   const box = $("alerts");
   const list = [
     ...(view.alerts || []).map((a) => ({ who: a.robot, level: a.level, text: a.text, title: a.code })),
     ...armAlertItems(),
+    ...(view.netAlerts || []).map((a) => ({ who: a.robot, level: a.level, text: a.text, title: a.code })),
   ];
   // 빨강이 위 (같은 수준이면 원래 순서: 핑키 먼저)
   list.sort((a, b) => (a.level === "bad" ? 0 : 1) - (b.level === "bad" ? 0 : 1));

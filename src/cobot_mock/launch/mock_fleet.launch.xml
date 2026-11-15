@@ -78,6 +78,8 @@
     <include file="$(find-pkg-share cobot_control_center)/launch/fleet_status.launch.xml"/>
     <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
       <arg name="port" value="$(var port)"/>
+      <!-- 네트워크 측정 핑은 이 PC(127.0.0.1)로만 보낸다 (실물 장치에 핑이 가지 않게) -->
+      <arg name="net_hosts" value="local"/>
     </include>
     <!-- 명령 기록은 실물과 다른 파일에 둔다 -->
     <include file="$(find-pkg-share cobot_fleet_control)/launch/fleet_control.launch.xml">

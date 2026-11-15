@@ -26,14 +26,18 @@ rclpy 는 백그라운드 스레드에서, uvicorn 은 메인 스레드에서 �
 """
 
 import contextlib
+import json
 import os
 import threading
+import time
 
 from ament_index_python.packages import get_package_share_directory
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
     ArmStore, CameraStore, LayerError, load_map, load_map_layers, MapError, SnapshotStore,
     TaskStore)
+from cobot_control_center.net_status_utils import (
+    collect_network, HostStore, local_info, NetAlertTracker, NetStore, network_alerts)
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
@@ -108,6 +112,7 @@ class FleetApiNode(Node):
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.cameras = self._subscribe_cameras()
+        self._setup_network()
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
             + ('(읽기 전용: 명령 경로 503, task_request 를 내지 않음)' if self.read_only
@@ -131,6 +136,73 @@ class FleetApiNode(Node):
             topics.append(topic)
         self.get_logger().info(f'카메라 구독: {", ".join(topics) or "없음"}')
         return cameras
+
+    def _setup_network(self):
+        # 네트워크 화면(#/network): 측정 노드(net_status_node) 값 + 이 PC 의 DDS·노드 목록.
+        # 노드 목록은 그래프 조회라 웹 요청마다 하지 않고 ROS 스레드에서 2초마다 새로 둔다.
+        self.declare_parameter('net_stale_sec', 3.0)
+        self.declare_parameter('network_robots', ['pinky1', 'pinky2', 'pinky3'])
+        self.declare_parameter('network_arms', ['omx_1', 'omx_2', 'omx_3'])
+        self.declare_parameter('net_status_topic', '/control_center/net_status')
+        self.declare_parameter('net_check_topic', '/control_center/net_check')
+        # Station PC 에서 도는 노드 이름 (팔 노드 arm_station.launch.xml 의 omx1_adapter 등).
+        # ROS 그래프는 노드가 어느 PC 에 있는지 모르므로 이름으로 고른다.
+        self.declare_parameter('station_node_patterns', ['omx*_adapter'])
+        self.station_patterns = [p for p in self.get_parameter('station_node_patterns').value
+                                 if p]
+        # 자세히 확인 요청. 로봇 명령이 아니라 측정 노드가 10초 동안 촘촘히 재게 할 뿐이라 읽기 전용에서도 둔다.
+        self.net_check_pub = self.create_publisher(
+            String, self.get_parameter('net_check_topic').value,
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE))
+        self.net = NetStore(self.get_parameter('net_stale_sec').value)
+        # 다른 PC 의 상태 보고 (host_status_node, Station PC 등). PC 마다 host 로 나눈다.
+        self.declare_parameter('host_status_topic', '/control_center/host_status')
+        self.declare_parameter('host_stale_sec', 10.0)
+        self.hosts = HostStore(self.get_parameter('host_stale_sec').value)
+        self.create_subscription(
+            String, self.get_parameter('host_status_topic').value, self._on_host,
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE))
+        self.network_ids = ([r for r in self.get_parameter('network_robots').value if r],
+                            [a for a in self.get_parameter('network_arms').value if a])
+        self.create_subscription(
+            String, self.get_parameter('net_status_topic').value, self._on_net,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self._local = None
+        self._refresh_local()
+        self.create_timer(2.0, self._refresh_local)
+        # 네트워크·PC 경고가 생기고 풀릴 때 이벤트 로그에 남긴다 (네트워크 화면을 안 열어도 남게).
+        self._alerts = NetAlertTracker()
+        self.create_timer(2.0, self._track_net_alerts)
+
+    def _track_net_alerts(self):
+        view = collect_network(self.store, self.tasks, self.arms, self.net, self.hosts,
+                               self._local, self.context.get_domain_id(), self.network_ids)
+        events = self._alerts.update(network_alerts(view), time.time())
+        if events:
+            self.store.add_events(events)
+
+    def _refresh_local(self):
+        names = [name for name, _ in self.get_node_names_and_namespaces()]
+        self._local = local_info(rclpy.get_rmw_implementation_identifier(),
+                                 self.context.get_domain_id(), os.environ, names,
+                                 self.station_patterns)
+
+    def local_network(self):
+        """웹 서버 스레드에서 부른다. 마지막으로 새로 둔 이 PC 정보 (dict 를 통째로 바꾸므로 잠금 없음)."""
+        return self._local
+
+    def request_net_check(self, source):
+        """웹 서버 스레드에서 부른다. 측정 노드에 자세히 확인을 요청한다."""
+        self.net_check_pub.publish(String(data=json.dumps({'source': source})))
+
+    def _on_host(self, msg):
+        if not self.hosts.put(msg.data):
+            self.get_logger().warning('PC 상태 보고(host_status)를 읽지 못함')
+
+    def _on_net(self, msg):
+        if not self.net.put(msg.data):
+            self.get_logger().warning('네트워크 측정값(net_status)을 읽지 못함')
 
     def _load_map(self, path):
         # 지도가 없어도 카드·구역 화면은 쓸 수 있으므로 경고만 하고 계속한다.
@@ -207,7 +279,10 @@ def main(args=None):
                          node.context.get_domain_id(), node.layers,
                          node.tasks, None if node.read_only else node.publish_request,
                          node.cameras, node.arms,
-                         None if node.read_only else node.publish_arm_request)
+                         None if node.read_only else node.publish_arm_request,
+                         net=node.net, local_network=node.local_network,
+                         network_ids=node.network_ids,
+                         request_net_check=node.request_net_check, hosts=node.hosts)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

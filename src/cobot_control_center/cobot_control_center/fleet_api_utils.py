@@ -266,6 +266,18 @@ class SnapshotStore:
         # 메모리에만 두므로 백엔드를 다시 켜면 지워진다.
         self._events = collections.deque(maxlen=int(events_max))
         self._event_id = 0
+        # 백엔드가 직접 만든 이벤트 (네트워크 경고 생김·풀림). 다음 스냅샷과 함께 WebSocket 으로 나간다.
+        self._pending = []
+
+    def add_events(self, events):
+        """fleet_status 가 아닌 곳의 이벤트를 넣는다. 번호를 바로 붙여 /api/events 에도 바로 보인다."""
+        with self._cond:
+            for event in events:
+                if isinstance(event, dict):
+                    self._event_id += 1
+                    numbered = dict(event, id=self._event_id)
+                    self._events.append(numbered)
+                    self._pending.append(numbered)
 
     def put(self, text):
         """JSON 문자열을 넣는다. dict 가 아니거나 깨진 값이면 False 이고 기존 값을 유지한다."""
@@ -279,12 +291,13 @@ class SnapshotStore:
         if not isinstance(new_events, list):
             new_events = []
         with self._cond:
-            numbered = []
+            # 직접 넣은 이벤트는 이미 번호가 있고 _events 에도 있다. 스냅샷에만 같이 싣는다.
+            numbered, self._pending = self._pending, []
             for event in new_events:
                 if isinstance(event, dict):
                     self._event_id += 1
                     numbered.append(dict(event, id=self._event_id))
-            self._events.extend(numbered)
+                    self._events.append(numbered[-1])
             # 화면은 id 로 중복을 거른다 (처음엔 /api/events, 그 뒤엔 스냅샷의 events).
             data['events'] = numbered
             self._snapshot = data

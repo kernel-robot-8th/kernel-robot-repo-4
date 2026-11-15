@@ -31,6 +31,7 @@
 import asyncio
 
 from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose
+from cobot_control_center.net_status_utils import collect_network, network_alerts
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -56,7 +57,9 @@ class NoCacheStaticFiles(StaticFiles):
 
 def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                tasks=None, publish_request=None, cameras=None,
-               arms=None, publish_arm_request=None):
+               arms=None, publish_arm_request=None,
+               net=None, local_network=None, network_ids=None, request_net_check=None,
+               hosts=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -69,6 +72,10 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     cameras 는 CameraStore 또는 None 이다. None 이면 카메라 경로는 모든 로봇에 404 다.
     arms 는 ArmStore, publish_arm_request 는 요청 JSON 을 arm_request 토픽에 내는 함수다.
     둘 중 하나라도 None 이면 로봇팔 명령은 503 이다 (상태 보기는 arms 만 있으면 된다).
+    net 은 NetStore(네트워크 측정값), local_network 는 이 PC 의 DDS·노드 정보를 돌려주는 함수,
+    network_ids 는 구조도에 그릴 (로봇 목록, 팔 목록) 이다. 없으면 /api/network 는 있는 값만 쓴다.
+    request_net_check(source) 는 측정 노드에 '자세히 확인'을 요청하는 함수다 (없으면 503).
+    hosts 는 HostStore (다른 PC 의 상태 보고) 또는 None 이다.
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -111,6 +118,30 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                 **store.health(), **task_health,
                 'cameras': camera_health,
                 'arm_controller_online': arms is not None and arms.online()}
+
+    @app.get('/api/network')
+    def network(history: bool = False):
+        # 네트워크 화면(#/network): 구조도 상자·선 상태. 측정 노드가 없으면 핑 칸이 비고 나머지는 그린다.
+        # alerts: 상단 경고 띠에 더할 네트워크·PC 경고 (화면은 어느 페이지에서든 2초마다 읽는다).
+        local = local_network() if local_network is not None else None
+        result = collect_network(store, tasks, arms, net, hosts, local, domain_id, network_ids)
+        result['alerts'] = network_alerts(result)
+        if history:
+            result['history'] = net.history() if net is not None else {}
+        return result
+
+    @app.post('/api/network/check')
+    def network_check(request: Request):
+        # 자세히 확인: 측정 노드가 10초 동안 1초마다 핑하고 상태 토픽 주기를 잰다. 로봇에는 아무것도 보내지 않는다.
+        if net is None or request_net_check is None:
+            raise HTTPException(status_code=503, detail='측정 노드가 설정되지 않음')
+        if not net.online():
+            raise HTTPException(status_code=503,
+                                detail='측정 노드(net_status_node) 응답 없음')
+        request_net_check(source(request))
+        data, _ = net.get()
+        duration = ((data or {}).get('detail') or {}).get('duration_sec')
+        return JSONResponse(status_code=202, content={'duration_sec': duration})
 
     @app.get('/api/fleet')
     def fleet():

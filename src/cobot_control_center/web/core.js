@@ -59,6 +59,7 @@ const view = {
   spec: null,       // /api/health 의 spec: 로봇별 명령 규격 v1/v2 (작업 노드가 없으면 null)
   holds: {},        // /api/health 의 holds: fleet_control 이 보류한 로봇 → 사유 (STOP·ESTOP 등)
   orders: [],       // /api/health 의 orders: 끝나지 않은 주문 (load_confirmable 이면 상차 확인 대기)
+  netAlerts: [],    // /api/network 의 alerts: 경고 띠에 더할 네트워크·PC 경고 (network.js)
 };
 
 // 화면의 시각은 모두 24시간 HH:MM:SS 로 쓴다. sec 는 UNIX 시각 [s], 없으면 지금.
