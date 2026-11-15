@@ -852,7 +852,7 @@ def test_health_reports_active_orders():
 
 # ---------- 로봇팔 (ArmStore, /api/arms) ----------
 
-ARMS = {'time': 100.0, 'ttl_ms': 5000, 'arms': [
+ARMS = {'time': 100.0, 'ttl_ms': 5000, 'work_actions': ['pick', 'load'], 'arms': [
     {'arm_id': 'omx_1', 'alias': 'omx1', 'online': True, 'state': 'OFF',
      'allowed': ['start', 'reset', 'hold', 'soft_latch'], 'status': {'torque_enabled': False},
      'last_ack': None, 'pending': 0, 'epoch': 0, 'seq': 0}]}
@@ -885,6 +885,7 @@ def test_arm_store_snapshot_and_stale():
     assert arm_store.put_snapshot(json.dumps(ARMS)) is True
     snap = arm_store.snapshot()
     assert snap['controller_online'] is True and snap['arms'][0]['state'] == 'OFF'
+    assert snap['work_actions'] == ['pick', 'load']
     # 명령 노드가 끊기면 마지막 값이 아니라 STALE 로 보여야 한다 (정지만 허용)
     clock.now = 3.5
     snap = arm_store.snapshot()
@@ -956,3 +957,55 @@ def test_api_arm_command_times_out_without_reply():
     client = TestClient(create_app(store, arms=arm_store, publish_arm_request=lambda text: None))
     res = client.post('/api/arms/omx_1/command', json={'command': 'hold'})
     assert res.status_code == 503 and '제때' in res.json()['detail']
+
+
+def test_api_arm_work_needs_commands_armed_and_passes_through():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': [], 'armed': False}))
+    body = {'arm_id': 'omx_1', 'action': 'pick', 'work_id': 'w1', 'client_request_id': 'c1'}
+    publish, sent = fake_arm_node(arm_store, 202, body)
+    client = TestClient(create_app(store, tasks=tasks, publish_request=lambda text: None,
+                                   arms=arm_store, publish_arm_request=publish))
+    # 작업 명령 꺼짐: 팔 노드에 보내지 않고 409
+    res = client.post('/api/arms/omx_1/work', json={'action': 'pick', 'client_request_id': 'c1'})
+    assert res.status_code == 409 and '작업 명령' in res.json()['detail'] and sent == []
+    tasks.put_snapshot(json.dumps({'tasks': [], 'armed': True}))
+    res = client.post('/api/arms/omx_1/work', json={'action': 'pick', 'client_request_id': 'c1'})
+    assert res.status_code == 202 and res.json()['work_id'] == 'w1'
+    assert sent[0]['type'] == 'work' and sent[0]['arm_id'] == 'omx_1'
+    assert sent[0]['action'] == 'pick' and sent[0]['client_request_id'] == 'c1'
+    assert sent[0]['source'] == 'testclient'
+
+
+def test_api_arm_work_refused_without_controller_or_arm_node():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    publish, sent = fake_arm_node(arm_store, 202, {})
+    # 작업 노드(스위치 주인)가 없으면 잠김으로 본다
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=publish))
+    assert client.post('/api/arms/omx_1/work', json={'action': 'pick'}).status_code == 409
+    # 읽기 전용·명령 노드 꺼짐은 503
+    read_only = TestClient(create_app(store, arms=arm_store, publish_arm_request=None))
+    assert read_only.post('/api/arms/omx_1/work', json={'action': 'pick'}).status_code == 503
+    offline, _ = make_arm_store()
+    client = TestClient(create_app(store, arms=offline, publish_arm_request=publish))
+    assert client.post('/api/arms/omx_1/work', json={'action': 'pick'}).status_code == 503
+    assert sent == []
+
+
+@pytest.mark.parametrize('status', [409, 400, 404])
+def test_api_arm_work_returns_arm_node_status(status):
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps({'tasks': [], 'armed': True}))
+    publish, _ = fake_arm_node(arm_store, status, {'detail': '대기 상태가 아님'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=lambda text: None,
+                                   arms=arm_store, publish_arm_request=publish))
+    res = client.post('/api/arms/omx_1/work', json={'action': 'pick'})
+    assert res.status_code == status and res.json()['detail'] == '대기 상태가 아님'

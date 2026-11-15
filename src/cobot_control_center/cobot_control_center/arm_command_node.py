@@ -23,7 +23,12 @@ fleet_api_node 는 로봇 토픽에 발행하지 않는다. 팔 켜기·끄기·
   /control_center/arm_events  (String JSON) → fleet_api_node  (요청 응답)
   /control_center/arms        (String JSON, transient_local) → fleet_api_node  (팔 상태 모음)
 
-START 는 실제 팔에 연결해 토크를 켠다. 관제는 팔 모션을 시작하지 않는다 (ArmCommand.msg).
+  /fleet/work_request (String JSON) → 팔 노드  (작업 시험 한 건, 실제 팔이 움직인다)
+  /fleet/work_result  (String JSON) ← 팔 노드  (내가 낸 request_id 의 결과만 기록)
+
+START 는 실제 팔에 연결해 토크를 켠다. 팔 모션은 ArmCommand 로 시작하지 않는다 (ArmCommand.msg).
+작업 시험은 개발 대시보드용이다. 주행 관제(fleet_control_node)도 같은 작업 토픽을 쓰므로
+주문 진행 중에는 쓰지 않는다.
 """
 
 import json
@@ -45,6 +50,8 @@ EVENT_QOS = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.VOLATILE)
 TELEMETRY_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT,
                            durability=DurabilityPolicy.VOLATILE)
+# 작업 요청·결과: fleet_control_node 의 work_pub(depth 50, 기본 RELIABLE·VOLATILE)과 같게
+WORK_QOS = 50
 # 웹 백엔드와의 요청·응답 (fleet_api_node 의 task_request 와 같은 QoS)
 BACKEND_QOS = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
 SNAPSHOT_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
@@ -99,6 +106,11 @@ class ArmCommandNode(Node):
             'ack_timeout_sec': 8.0,
             'status_stale_sec': 1.0,
             'snapshot_period_sec': 0.2,
+            'work_request_topic': '/fleet/work_request',
+            'work_result_topic': '/fleet/work_result',
+            'work_stage': 'MANUAL_TEST',
+            'work_timeout_sec': 120.0,
+            'work_result_margin_sec': 15.0,
         }
         for name, default in params.items():
             self.declare_parameter(name, default)
@@ -106,7 +118,8 @@ class ArmCommandNode(Node):
 
         self.commander = arms.ArmCommander(
             [a for a in value['arm_ids'] if a], value['ttl_ms'], value['ack_timeout_sec'],
-            value['status_stale_sec'])
+            value['status_stale_sec'], value['work_timeout_sec'],
+            value['work_result_margin_sec'], value['work_stage'])
         self.command_pubs = {}
         for arm_id in self.commander.arm_ids:
             self.command_pubs[arm_id] = self.create_publisher(
@@ -117,6 +130,9 @@ class ArmCommandNode(Node):
             self.create_subscription(
                 CommandAck, value['ack_topic_format'].format(arm=arm_id), self._on_ack,
                 EVENT_QOS)
+        self.work_pub = self.create_publisher(String, value['work_request_topic'], WORK_QOS)
+        self.create_subscription(String, value['work_result_topic'], self._on_work_result,
+                                 WORK_QOS)
         self.events_pub = self.create_publisher(String, value['events_topic'], BACKEND_QOS)
         self.arms_pub = self.create_publisher(String, value['arms_topic'], SNAPSHOT_QOS)
         self.create_subscription(String, value['request_topic'], self._on_request, BACKEND_QOS)
@@ -124,7 +140,8 @@ class ArmCommandNode(Node):
         self.get_logger().info(
             f'arm_command_node 시작: 로봇팔 {", ".join(self.commander.arm_ids) or "없음"}, '
             f'명령 {value["command_topic_format"]}, ttl {value["ttl_ms"]} ms, '
-            f'응답 기한 {value["ack_timeout_sec"]} s')
+            f'응답 기한 {value["ack_timeout_sec"]} s, 작업 시험 {value["work_request_topic"]} '
+            f'(stage {value["work_stage"]}, session {self.commander.session_id[:8]})')
 
     def _on_status(self, arm_id, msg):
         self.commander.put_status(arm_id, status_to_dict(msg), time.monotonic())
@@ -152,6 +169,9 @@ class ArmCommandNode(Node):
         except ValueError as error:
             self.get_logger().warning(f'로봇팔 요청 무시: {error}')
             return
+        if request.get('type') == 'work':
+            self._on_work_request(request)
+            return
         if request.get('type') != 'command':
             self._send_event(arms.reply(request['request_id'], 400, {
                 'detail': f'모르는 요청 종류: {request.get("type")}'}))
@@ -177,10 +197,45 @@ class ArmCommandNode(Node):
             self.get_logger().info(text)
         self.command_pubs[header['robot_id']].publish(message)
 
+    def _on_work_request(self, request):
+        try:
+            payload = self.commander.make_work(request, time.time(), time.monotonic())
+        except arms.CommandError as error:
+            self._send_event(arms.reply(request['request_id'], error.status,
+                                        {'detail': error.detail}))
+            return
+        arm_id = arms.interface_arm_id(payload['target'])
+        self.get_logger().warning(
+            f'{arm_id} 작업 시험 {payload["action"]} 발행 (request {payload["request_id"]}, '
+            f'seq {payload["seq"]}, 요청자 {request.get("source") or "?"}): 실제 팔이 움직입니다')
+        self.work_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
+        # 작업은 수십 초 걸린다. 웹에는 '보냈다' 까지만 답하고 결과는 스냅샷(arm.work)으로 보인다.
+        self._send_event(arms.reply(request['request_id'], 202, {
+            'arm_id': arm_id, 'action': payload['action'], 'work_id': payload['request_id'],
+            'client_request_id': request.get('client_request_id')}))
+
+    def _on_work_result(self, msg):
+        try:
+            result = json.loads(msg.data)
+        except (TypeError, ValueError):
+            return
+        record = self.commander.put_work_result(result, time.time())
+        if record is None:
+            return   # 주문(fleet_control) 결과이거나 이미 받은 결과
+        text = (f'{record["arm_id"]} 작업 시험 {record["action"]} → {record["state"]} '
+                f'({record["duration"]} s) {record["detail"]}')
+        if record['state'] == arms.WORK_SUCCEEDED:
+            self.get_logger().info(text)
+        else:
+            self.get_logger().warning(text)
+
     def _tick(self):
         for out in self.commander.expire(time.monotonic()):
             self.get_logger().warning(out['body']['detail'])
             self._send_event(out)
+        for record in self.commander.expire_works(time.monotonic(), time.time()):
+            self.get_logger().warning(
+                f'{record["arm_id"]} 작업 시험 {record["action"]}: {record["detail"]}')
         snapshot = self.commander.snapshot(time.monotonic(), time.time())
         self.arms_pub.publish(String(data=json.dumps(snapshot, ensure_ascii=False,
                                                      allow_nan=False)))

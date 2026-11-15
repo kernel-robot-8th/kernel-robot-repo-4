@@ -347,12 +347,18 @@
         </dl>
         <div class="arm-joints muted"></div>
         <div class="arm-ack muted"></div>
+        <div class="arm-work muted"></div>
         <div class="arm-msg cmd-reason"></div>
         <div class="card-cmds">
           <div class="cmd-row">
             <button type="button" data-arm-cmd="start"></button>
             <button type="button" data-arm-cmd="reset"></button>
             <button type="button" data-arm-cmd="release_hold"></button>
+          </div>
+          <div class="cmd-row arm-work-row"
+               title="개발용 작업 시험: 팔 하나에 작업 한 건. 실제 팔이 움직입니다. 주문 진행 중에는 쓰지 마세요">
+            <select class="arm-work-action" aria-label="시험할 작업"></select>
+            <button type="button" class="arm-work-btn">작업 시험</button>
           </div>
           <div class="stop-row">
             <button type="button" class="stop-btn" data-arm-cmd="hold"

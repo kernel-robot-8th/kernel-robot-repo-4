@@ -581,6 +581,15 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-ack:empty { display: none; }
 .arm-ack[data-bad="true"] { color: var(--bad); }
 .arm-msg[data-bad="true"] { color: var(--bad); font-weight: 600; }
+.arm-work { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.arm-work:empty { display: none; }
+.arm-work[data-state="RUNNING"] { color: var(--active); font-weight: 600; }
+.arm-work[data-state="SUCCEEDED"] { color: var(--good); }
+.arm-work[data-state="FAILED"], .arm-work[data-state="NO_RESULT"] { color: var(--bad); }
+.arm-work-row select { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px; padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
+.arm-work-row select:disabled { opacity: 0.45; }
+.card .arm-work-row button { flex: 0 0 auto; white-space: nowrap; }
 
 /* ---------- 개발: 수동 명령 ---------- */
 

@@ -19,9 +19,14 @@
 팔 노드(cobot_manipulation arm_adapter_node)의 CommandAck 를 요청에 짝지어 답한다.
 명령·판정 번호는 cobot_interfaces 의 ArmCommand·CommandAck 가 정본이다.
 
-관제는 팔 모션을 시작하지 않는다 (ArmCommand.msg). 여기서 내는 명령은 연결·토크(START),
-쉬는 자세에서 끄기(RESET), 정지(HOLD·SOFT_LATCH), 정지 해제(RELEASE_HOLD) 뿐이다.
+ArmCommand 로 내는 명령은 연결·토크(START), 쉬는 자세에서 끄기(RESET), 정지(HOLD·SOFT_LATCH),
+정지 해제(RELEASE_HOLD) 뿐이다. 팔 모션은 ArmCommand 로 시작하지 않는다 (ArmCommand.msg).
 상태 판정은 팔 노드가 한다. 여기서는 화면 표시용으로 추정만 한다.
+
+작업 시험(make_work): 개발 대시보드에서 팔 하나에 작업 한 건(pick 등)을 시켜 본다.
+주문 흐름과 같은 /fleet/work_request 계약(팔 노드 work_contract_utils)으로 보내고,
+/fleet/work_result 에서 내가 낸 request_id 의 결과만 받는다. 실제 팔이 움직인다.
+주행 관제(fleet_control_node)도 같은 토픽에 보내므로 주문 진행 중에는 쓰지 않는다.
 """
 
 import json
@@ -33,6 +38,14 @@ import uuid
 COMMANDS = {'hold': 0, 'release_hold': 1, 'reset': 2, 'start': 3, 'soft_latch': 4}
 STOP_COMMANDS = frozenset({'hold', 'soft_latch'})
 START = 'start'
+# 작업 시험 (팔 노드 work_contract_utils.WORK_ACTIONS 와 같다). hold·release_hold 는 위 정지 명령을 쓴다.
+WORK = 'work'
+WORK_ACTIONS = ('pick', 'load', 'unload', 'warehouse_store')
+# 작업 기록 상태
+WORK_RUNNING = 'RUNNING'
+WORK_SUCCEEDED = 'SUCCEEDED'
+WORK_FAILED = 'FAILED'
+WORK_NO_RESULT = 'NO_RESULT'
 
 # CommandAck.result
 ACK_RESULTS = {0: 'ACCEPTED', 1: 'REJECTED_EPOCH', 2: 'REJECTED_SEQ', 3: 'REJECTED_TTL',
@@ -52,7 +65,7 @@ SOFT_LATCH = 'SOFT_LATCH'
 ALLOWED = {
     STALE: ('hold', 'soft_latch'),
     OFF: ('start', 'reset', 'hold', 'soft_latch'),   # reset: 고장(FAULT) 풀기
-    READY: ('reset', 'hold', 'soft_latch'),
+    READY: (WORK, 'reset', 'hold', 'soft_latch'),   # work: 작업 시험 (진행 중이면 뺀다)
     BUSY: ('hold', 'soft_latch'),
     HOLD: ('release_hold', 'reset', 'soft_latch'),
     SOFT_LATCH: ('reset', 'hold'),
@@ -126,17 +139,26 @@ class ArmCommander:
     돌아가는데, 그래도 새 START 는 더 큰 값이라 받아들여진다. 그 밖의 명령은 팔이 받아들인 epoch 를 쓴다.
     seq: (내가 쓴 값, 팔이 받아들인 값) 중 큰 값 + 1. 같은 epoch 안에서 늘기만 한다.
     시각은 인자로 받는다: wall 은 issued_at(두 PC 시계 비교), mono 는 끊김·응답 기한.
+
+    작업 시험은 노드 실행마다 새 session_id 를 쓰고 seq 는 팔마다 1부터 센다 (fleet_control 과 같은 방식).
     """
 
-    def __init__(self, arm_ids, ttl_ms, ack_timeout_sec, stale_sec):
+    def __init__(self, arm_ids, ttl_ms, ack_timeout_sec, stale_sec, work_timeout_sec=120.0,
+                 work_margin_sec=15.0, work_stage='MANUAL_TEST', session_id=None):
         self.arm_ids = [interface_arm_id(a) for a in arm_ids]
         self.ttl_ms = int(ttl_ms)
         self.ack_timeout_sec = float(ack_timeout_sec)
         self.stale_sec = float(stale_sec)
+        self.work_timeout_sec = float(work_timeout_sec)
+        self.work_margin_sec = float(work_margin_sec)
+        self.work_stage = str(work_stage)
+        self.session_id = session_id or uuid.uuid4().hex
         self._arms = {a: {'epoch': 0, 'seq': 0, 'accepted_epoch': 0, 'accepted_seq': 0,
-                          'status': None, 'status_at': None, 'last_ack': None}
+                          'status': None, 'status_at': None, 'last_ack': None,
+                          'work_seq': 0, 'work': None}
                       for a in self.arm_ids}
         self._pending = {}   # command_id → {request_id, arm_id, command, deadline, ...}
+        self._works = {}     # 작업 request_id → {arm_id, deadline}
 
     def put_status(self, arm_id, status, now_mono):
         """팔 상태(ArmStatus dict)를 넣는다. 등록 안 된 팔이면 False."""
@@ -147,6 +169,87 @@ class ArmCommander:
         arm['accepted_epoch'] = int(status.get('epoch_accepted', 0))
         arm['accepted_seq'] = int(status.get('last_seq_accepted', 0))
         return True
+
+    def _state(self, arm, now_mono):
+        online = arm['status_at'] is not None and now_mono - arm['status_at'] <= self.stale_sec
+        return derive_state(arm['status'], online)
+
+    def _running_work(self, arm_id):
+        return any(w['arm_id'] == arm_id for w in self._works.values())
+
+    def make_work(self, request, now_wall, now_mono):
+        """
+        작업 시험 요청 dict → /fleet/work_request 로 낼 dict. 틀리면 CommandError.
+
+        404 모르는 팔, 400 모르는 작업, 409 팔이 대기(READY)가 아니거나 앞 작업이 아직 진행 중.
+        최종 판정은 팔 노드가 하고 결과(/fleet/work_result)로 알려 준다.
+        """
+        arm_id = interface_arm_id(str(request.get('arm_id') or ''))
+        arm = self._arms.get(arm_id)
+        if arm is None:
+            raise CommandError(404, f'등록되지 않은 로봇팔: {request.get("arm_id")}')
+        action = str(request.get('action') or '').lower()
+        if action not in WORK_ACTIONS:
+            raise CommandError(400, f'모르는 로봇팔 작업: {request.get("action")} '
+                                    f'({", ".join(WORK_ACTIONS)} 중 하나)')
+        if self._running_work(arm_id):
+            raise CommandError(409, f'{arm_id} 앞 작업이 아직 진행 중')
+        state = self._state(arm, now_mono)
+        if state != READY:
+            raise CommandError(409, f'{arm_id} 가 대기(READY) 상태가 아님 (지금 {state})')
+        arm['work_seq'] += 1
+        work_id = uuid.uuid4().hex
+        payload = {
+            'request_id': work_id, 'order_id': '', 'robot_id': '', 'stage': self.work_stage,
+            'target': scenario_arm_id(arm_id), 'action': action, 'session_id': self.session_id,
+            'seq': arm['work_seq'], 'issued_at': now_wall, 'ttl_sec': self.ttl_ms / 1000.0,
+            'timeout_sec': self.work_timeout_sec, 'attempt': 1}
+        self._works[work_id] = {
+            'arm_id': arm_id, 'deadline': now_mono + self.work_timeout_sec + self.work_margin_sec}
+        arm['work'] = {
+            'request_id': work_id, 'action': action, 'state': WORK_RUNNING, 'seq': arm['work_seq'],
+            'sent_at': now_wall, 'finished_at': None, 'duration': None, 'detail': '',
+            'retry_safe': None, 'data': {}, 'source': request.get('source') or '',
+            'client_request_id': request.get('client_request_id')}
+        return payload
+
+    def put_work_result(self, result, now_wall):
+        """
+        /fleet/work_result dict 를 넣는다. 내가 낸 작업의 결과면 그 기록 dict, 아니면 None.
+
+        주문(fleet_control) 결과나 같은 결과가 두 번 온 것은 버린다.
+        """
+        if not isinstance(result, dict):
+            return None
+        work = self._works.pop(result.get('request_id'), None)
+        if work is None:
+            return None
+        record = self._arms[work['arm_id']]['work']
+        data = result.get('data') if isinstance(result.get('data'), dict) else {}
+        try:
+            json.dumps(data, allow_nan=False)   # 스냅샷 JSON 에 실을 수 있어야 한다
+        except (TypeError, ValueError):
+            data = {}
+        record.update(
+            state=WORK_SUCCEEDED if result.get('success') is True else WORK_FAILED,
+            finished_at=now_wall, duration=round(now_wall - record['sent_at'], 1),
+            detail=str(result.get('detail') or ''), retry_safe=bool(data.get('retry_safe')),
+            data=data)
+        return dict(record, arm_id=work['arm_id'])
+
+    def expire_works(self, now_mono, now_wall):
+        """기한까지 결과가 없는 작업 → 기록 dict 목록 (상태 NO_RESULT)."""
+        late = [wid for wid, w in self._works.items() if now_mono > w['deadline']]
+        out = []
+        for work_id in late:
+            work = self._works.pop(work_id)
+            record = self._arms[work['arm_id']]['work']
+            record.update(
+                state=WORK_NO_RESULT, finished_at=now_wall,
+                detail=f'{self.work_timeout_sec + self.work_margin_sec:.0f}s 안에 결과가 없음. '
+                       '팔 노드 로그·연결 확인 (팔 자세를 모르니 직접 확인)')
+            out.append(dict(record, arm_id=work['arm_id']))
+        return out
 
     def make_command(self, request, now_wall, now_mono):
         """
@@ -236,11 +339,14 @@ class ArmCommander:
             age = None if arm['status_at'] is None else now_mono - arm['status_at']
             online = age is not None and age <= self.stale_sec
             state = derive_state(arm['status'], online)
+            running = self._running_work(arm_id)
+            allowed = [c for c in ALLOWED[state] if not (c == WORK and running)]
             arms.append({
                 'arm_id': arm_id, 'alias': scenario_arm_id(arm_id), 'online': online,
                 'age': None if age is None else round(age, 3), 'state': state,
-                'allowed': list(ALLOWED[state]), 'status': arm['status'],
-                'last_ack': arm['last_ack'],
+                'allowed': allowed, 'status': arm['status'],
+                'last_ack': arm['last_ack'], 'work': arm['work'],
                 'pending': sum(1 for p in self._pending.values() if p['arm_id'] == arm_id),
                 'epoch': arm['accepted_epoch'], 'seq': arm['accepted_seq']})
-        return {'time': now_wall, 'ttl_ms': self.ttl_ms, 'arms': arms}
+        return {'time': now_wall, 'ttl_ms': self.ttl_ms, 'work_actions': list(WORK_ACTIONS),
+                'arms': arms}

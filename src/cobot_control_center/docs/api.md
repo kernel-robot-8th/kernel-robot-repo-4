@@ -35,6 +35,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
 | `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
+| `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
 | `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
 
@@ -104,8 +105,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 웹은 팔 토픽을 모릅니다. `fleet_api_node` 가 요청을 `/control_center/arm_request` 로 넘기고, `arm_command_node` 가
 `ArmCommand` 로 바꿔 Station PC 의 팔 노드(`cobot_manipulation` 의 `arm_adapter_node`, 브랜치 `feature/manipulation-station-adapter`)에 냅니다.
-관제는 팔 모션을 시작하지 않습니다 (`ArmCommand.msg`). 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기, 나머지는 정지·해제입니다.
-작업(pick·load)은 지금처럼 `fleet_control_node` 가 `/fleet/work_request` 로 보냅니다.
+`ArmCommand` 로는 팔 모션을 시작하지 않습니다 (`ArmCommand.msg`). 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기, 나머지는 정지·해제입니다.
+주문의 작업(pick·load)은 `fleet_control_node` 가 `/fleet/work_request` 로 보냅니다. 개발용 [작업 시험](#작업-시험-개발용)은 이 노드가 같은 토픽으로 한 건씩 보냅니다.
 
 ```text
 브라우저 ─HTTP→ fleet_api_node ─/control_center/arm_request→ arm_command_node ─/control_center/omx_N/command (ArmCommand)→ 팔 노드
@@ -120,6 +121,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `/control_center/omx_N/command` | `ArmCommand`, RELIABLE depth 10 (팔 노드와 같음) |
 | `/manipulation/omx_N/command_ack` | `CommandAck`, RELIABLE depth 50 |
 | `/manipulation/omx_N/status` | `ArmStatus`, BEST_EFFORT KEEP_LAST 1 |
+| `/fleet/work_request`, `/fleet/work_result` | `std_msgs/String` JSON, RELIABLE depth 50 (`fleet_control_node` 와 같음). 작업 시험만 |
 
 헤더 (`CommandHeader`): `command_id` 새 UUID, `tx_id` = `client_request_id`, `robot_id` = `omx_N`, `ttl_ms` 5000, `issued_by` `control_center`, `issued_at` 관제 PC 시계.
 팔 노드가 `issued_at + ttl` 을 자기 시계로 보므로 **두 PC 시계가 맞아야** 합니다 (안 맞으면 모두 `REJECTED_TTL`). 서명(`sig`)은 아직 채우지 않습니다 (팔 노드도 안 봄).
@@ -138,6 +140,9 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `status` | 마지막 `ArmStatus` (NaN 은 null, `stamp` 는 측정 시각 [s]) |
 | `last_ack` | 그 팔의 마지막 응답 `{command, result, accepted, reason, stop_executed, epoch, seq, received_at}`. 다른 곳이 낸 명령이면 `command` 없음 |
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
+| `work` | 마지막 작업 시험 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT` |
+
+스냅샷 맨 위의 `work_actions` 는 작업 시험에 쓸 수 있는 작업 목록입니다.
 
 `ArmStatus` 에 전원 상태 칸이 없어 `state` 는 추정입니다 (`arm_command_utils.derive_state`).
 
@@ -147,8 +152,46 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `SOFT_LATCH` | `hold_reason == SOFT_LATCH` | reset, hold |
 | `HOLD` | `hold_active` | release_hold, reset, soft_latch |
 | `OFF` | 토크 꺼짐 (고장 FAULT 도 이렇게 보임 → `last_ack.reason`) | start, reset, hold, soft_latch |
-| `READY` | 토크 켜짐, `work_step == IDLE` | reset, hold, soft_latch |
+| `READY` | 토크 켜짐, `work_step == IDLE` | work (작업 시험 진행 중이면 뺌), reset, hold, soft_latch |
 | `BUSY` | 토크 켜짐, 그 밖 (연결·작업·끄는 중) | hold, soft_latch |
+
+### 작업 시험 (개발용)
+
+이 화면은 기능별 시험용 개발 대시보드라, 팔 하나에 작업 한 건을 바로 시켜 볼 수 있습니다. 주문 흐름은 나중에 서비스용 화면에서 다룹니다.
+**실제 팔이 움직입니다.** 그래서 주행 명령처럼 상단 **작업 명령 켜기**(`commands_armed`)가 켜져 있어야 하고, 팔이 `READY` 여야 합니다. 서버(`fleet_api_app`)와 `arm_command_node` 가 둘 다 검사합니다.
+
+`arm_command_node` 가 `/fleet/work_request` 로 내는 JSON (팔 노드 `work_contract_utils.RequestFilter` 계약, 정본은 `fleet_control_node.work()`):
+
+| 필드 | 값 |
+|---|---|
+| `request_id` | 새 UUID (응답의 `work_id`) |
+| `order_id`, `robot_id` | `""` (주문 아님) |
+| `stage` | `work_stage` (`MANUAL_TEST`) |
+| `target` | 시나리오 팔 이름 `omx1` |
+| `action` | `pick`·`load`·`unload`·`warehouse_store` |
+| `session_id`, `seq` | 노드 실행마다 새 session, seq 는 팔마다 1부터 |
+| `issued_at`, `ttl_sec` | 관제 PC 시각 [s], `ttl_ms`/1000 (5 s) |
+| `timeout_sec`, `attempt` | `work_timeout_sec` (120 s, 팔 노드는 자기 `worker_timeout_sec` 와 작은 값), 1 |
+
+- `/fleet/work_result` 에서 **내가 낸 `request_id` 의 결과만** 기록합니다. 주문 결과나 두 번 온 결과는 버립니다.
+- `timeout_sec + work_result_margin_sec` 안에 결과가 없으면 `NO_RESULT` 입니다. 팔 자세를 모르니 현장에서 확인합니다.
+- 실패의 `retry_safe` 가 참이면 팔이 움직이기 전에 거절된 것입니다 (만료·정지 유지 중 등). 거짓이면 작업 도중 멈춘 것이라 팔 자세를 확인합니다.
+- 작업 중 멈추려면 **정지**(ArmCommand HOLD)를 누릅니다. 팔 노드가 작업을 끝내고 실패 결과를 보냅니다.
+- **주문과 같이 쓰지 않습니다.** `fleet_control_node` 도 같은 토픽에 자기 `session_id` 로 보냅니다. 팔 노드는 session 이 바뀔 때마다 순번 기록을 비우고, 작업 중인 팔은 다른 요청을 거절합니다. 이 노드의 결과는 `fleet_control` 이 모르는 `request_id` 라 버립니다.
+- 두 PC 시계가 5 s 넘게 어긋나면 팔 노드가 만료로 거절합니다 (`detail` 에 사유).
+
+2026-11-15 도메인 101 시험: 가짜 핑키 + `fleet_control_node` + 팔 노드(4934bac) `backend:=fake`(작업 6 s) 3대, 웹 API·헤드리스 크롬으로 보냄. 실물 팔은 쓰지 않았습니다.
+
+| 보낸 것 | 결과 |
+|---|---|
+| 작업 명령 꺼짐에서 pick | 409 `작업 명령이 꺼져 있음` (팔 노드에 안 보냄) |
+| 꺼진 팔(OFF) pick / `dance` / `omx_9` | 409 / 400 / 404 |
+| 켜기 뒤 pick | 202 → `BUSY`, `work.state RUNNING` → 6 s 뒤 `SUCCEEDED` |
+| 진행 중 두 번째 작업 | 409 `앞 작업이 아직 진행 중` |
+| unload 중 정지 | 정지 200 → `FAILED` `hold 로 작업 중단`, `retry_safe` 거짓 → 정지 해제 뒤 `READY` |
+| 화면에서 load (확인 창) | 진행 중 경과 표시 → 성공 6초. 스위치를 끄면 버튼이 잠기고 이유가 나옴 |
+
+`NO_RESULT`(결과 없음)는 단위 시험으로만 확인했습니다 (실제 시험은 135 s 를 기다려야 함).
 
 ### 팔 노드와 함께 시험 (2026-11-15, 도메인 101)
 
@@ -217,6 +260,10 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `ack_timeout_sec` | `8.0` | 팔 응답 기다리는 시간 [s]. 팔 노드의 끄기는 쉬는 자세 확인에 5 s 까지 걸림 |
 | `status_stale_sec` | `1.0` | `ArmStatus` 가 이만큼 끊기면 `STALE` [s] |
 | `snapshot_period_sec` | `0.2` | `/control_center/arms` 발행 주기 [s] |
+| `work_request_topic`, `work_result_topic` | `/fleet/work_request`, `/fleet/work_result` | 작업 시험 토픽 (`fleet_control_node` 와 같음) |
+| `work_stage` | `MANUAL_TEST` | 작업 시험 요청의 `stage` (팔 노드가 결과에 그대로 돌려줌) |
+| `work_timeout_sec` | `120.0` | 요청 `timeout_sec` [s] |
+| `work_result_margin_sec` | `15.0` | `timeout_sec` 뒤 이만큼 더 결과가 없으면 `NO_RESULT` [s] |
 
 ### 지도·구역 기본 경로
 
@@ -239,5 +286,5 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `raw.js` | 개발용 수동 명령 |
 | `detail.js` | 로봇 상세 화면 (`#/robot/<id>`): 상태줄·카메라·확대 지도·요약·타임라인·진단 |
 | `pose.js` | 초기위치 [홈]·[좌표 지정] (상세 위치 칸, 확대 지도 누르고 끌기) |
-| `arms.js` | 로봇팔 패널 (`/api/arms` 1 s 마다, 켜기·끄기·정지) |
+| `arms.js` | 로봇팔 패널 (`/api/arms` 1 s 마다, 켜기·끄기·정지, 작업 시험) |
 | `main.js` | 시작, `/api/health` 확인 |

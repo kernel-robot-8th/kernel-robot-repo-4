@@ -644,7 +644,8 @@ class ArmStore:
                 for a in data.get('arms', []) if isinstance(a, dict)]
         return {'controller_online': online,
                 'controller_age': None if age is None else round(age, 3),
-                'ttl_ms': data.get('ttl_ms'), 'arms': arms}
+                'ttl_ms': data.get('ttl_ms'), 'work_actions': data.get('work_actions') or [],
+                'arms': arms}
 
     def request(self, payload, publish):
         """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None (TaskStore.request 와 같다)."""

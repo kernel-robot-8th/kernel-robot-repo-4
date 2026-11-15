@@ -16,3 +16,10 @@
     ack_timeout_sec: 8.0
     status_stale_sec: 1.0       # [s] ArmStatus 가 이만큼 끊기면 그 팔은 STALE
     snapshot_period_sec: 0.2    # [s] /control_center/arms 발행 주기. 명령 직후 상태가 늦게 보이지 않게 짧게
+    # 작업 시험 (개발 대시보드: 팔 하나에 pick 등 한 건). 실제 팔이 움직인다.
+    # 주행 관제 fleet_control 의 work_request_topic·work_result_topic 과 같은 토픽이다 → 주문 진행 중엔 쓰지 않는다.
+    work_request_topic: /fleet/work_request
+    work_result_topic: /fleet/work_result
+    work_stage: MANUAL_TEST       # 요청 stage. 팔 노드는 결과에 그대로 돌려준다 (주문 stage 와 겹치지 않게)
+    work_timeout_sec: 120.0       # [s] 요청 timeout_sec. 팔 노드는 자기 worker_timeout_sec(300) 와 작은 값을 쓴다
+    work_result_margin_sec: 15.0  # [s] timeout_sec 보다 이만큼 더 결과가 없으면 '결과 없음'

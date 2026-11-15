@@ -67,7 +67,9 @@ def test_derive_state(status, online, expected):
 def test_every_state_allows_a_stop():
     for state, allowed in arms.ALLOWED.items():
         assert set(allowed) & arms.STOP_COMMANDS, state
-        assert set(allowed) <= set(arms.COMMANDS), state
+        assert set(allowed) <= set(arms.COMMANDS) | {arms.WORK}, state
+    # 작업 시험은 대기(READY)에서만
+    assert [s for s, allowed in arms.ALLOWED.items() if arms.WORK in allowed] == [arms.READY]
 
 
 def test_clean_float():
@@ -188,6 +190,7 @@ def test_snapshot_stale_and_pending():
     first = snap['arms'][0]
     assert first['state'] == arms.STALE and first['online'] is False and first['age'] is None
     assert first['alias'] == 'omx1' and first['allowed'] == ['hold', 'soft_latch']
+    assert first['work'] is None and snap['work_actions'] == list(arms.WORK_ACTIONS)
 
     assert commander.put_status('omx_9', STATUS, 0.0) is False
     commander.put_status('omx_1', dict(STATUS, epoch_accepted=2, last_seq_accepted=5), 10.0)
@@ -197,3 +200,115 @@ def test_snapshot_stale_and_pending():
     assert first['pending'] == 1 and (first['epoch'], first['seq']) == (2, 5)
     assert commander.snapshot(11.1, 101.1)['arms'][0]['state'] == arms.STALE
     json.dumps(commander.snapshot(11.1, 101.1))   # JSON 으로 낼 수 있어야 한다
+
+
+# ---------- 작업 시험 (make_work, /fleet/work_request) ----------
+
+def work_request(action='pick', arm_id='omx_1', request_id='w1'):
+    return {'request_id': request_id, 'arm_id': arm_id, 'action': action,
+            'client_request_id': 'c9', 'source': '10.0.0.5'}
+
+
+def ready_commander(**kwargs):
+    commander = arms.ArmCommander(['omx_1', 'omx_2'], 5000, 8.0, 1.0, session_id='s1', **kwargs)
+    commander.put_status('omx_1', STATUS, 10.0)
+    return commander
+
+
+def result_for(payload, success=True, detail='', data=None):
+    """팔 노드 work_contract_utils.make_result 와 같은 모양."""
+    return {'request_id': payload['request_id'], 'order_id': payload['order_id'],
+            'robot_id': payload['robot_id'], 'stage': payload['stage'],
+            'source': payload['target'],
+            'measured': True, 'finished': True, 'success': success, 'detail': detail,
+            'data': data or {}}
+
+
+def test_work_payload_matches_arm_node_contract():
+    commander = ready_commander(work_timeout_sec=90.0)
+    payload = commander.make_work(work_request('PICK', arm_id='omx1'), 100.0, 10.5)
+    # 팔 노드 RequestFilter: target 은 시나리오 이름, 글자 필드는 비지 않음, seq 는 int
+    assert payload['target'] == 'omx1' and payload['action'] == 'pick'
+    for key in ('request_id', 'stage', 'action', 'session_id'):
+        assert isinstance(payload[key], str) and payload[key], key
+    assert payload['stage'] == 'MANUAL_TEST' and payload['session_id'] == 's1'
+    assert payload['seq'] == 1 and type(payload['seq']) is int
+    assert payload['issued_at'] == 100.0 and payload['ttl_sec'] == 5.0
+    assert payload['timeout_sec'] == 90.0
+    assert payload['order_id'] == '' and payload['robot_id'] == ''
+    json.dumps(payload, allow_nan=False)
+
+
+def test_work_rejects_unknown_arm_action_and_not_ready():
+    commander = ready_commander()
+    for request, status in [(work_request(arm_id='omx_9'), 404),
+                            (work_request('dance'), 400), (work_request('hold'), 400),
+                            (work_request(arm_id='omx_2'), 409)]:   # omx_2 상태 없음 → STALE
+        with pytest.raises(arms.CommandError) as error:
+            commander.make_work(request, 100.0, 10.5)
+        assert error.value.status == status, request
+    for status in [dict(STATUS, torque_enabled=False), dict(STATUS, work_step=''),
+                   dict(STATUS, hold_active=True, hold_reason='HOLD')]:
+        commander.put_status('omx_1', status, 10.0)
+        with pytest.raises(arms.CommandError) as error:
+            commander.make_work(work_request(), 100.0, 10.5)
+        assert error.value.status == 409
+    # 상태가 끊겨도(STALE) 안 된다
+    commander.put_status('omx_1', STATUS, 10.0)
+    with pytest.raises(arms.CommandError):
+        commander.make_work(work_request(), 100.0, 11.5)
+
+
+def test_work_one_at_a_time_and_seq_grows():
+    commander = ready_commander()
+    first = commander.make_work(work_request(), 100.0, 10.5)
+    snap = commander.snapshot(10.5, 100.0)['arms'][0]
+    assert snap['work']['state'] == arms.WORK_RUNNING and arms.WORK not in snap['allowed']
+    with pytest.raises(arms.CommandError) as error:
+        commander.make_work(work_request('load', request_id='w2'), 100.0, 10.6)
+    assert error.value.status == 409 and '진행 중' in error.value.detail
+    record = commander.put_work_result(result_for(first), 130.0)
+    assert record['state'] == arms.WORK_SUCCEEDED and record['duration'] == 30.0
+    assert record['arm_id'] == 'omx_1' and record['client_request_id'] == 'c9'
+    second = commander.make_work(work_request('load', request_id='w2'), 131.0, 10.7)
+    assert second['seq'] == 2 and second['request_id'] != first['request_id']
+
+
+def test_work_failure_keeps_retry_safe_and_detail():
+    commander = ready_commander()
+    payload = commander.make_work(work_request(), 100.0, 10.5)
+    record = commander.put_work_result(
+        result_for(payload, False, '정지 유지 중 (release_hold 필요)', {'retry_safe': True}), 100.2)
+    assert record['state'] == arms.WORK_FAILED and record['retry_safe'] is True
+    assert record['detail'] == '정지 유지 중 (release_hold 필요)'
+    payload = commander.make_work(work_request(request_id='w2'), 101.0, 10.6)
+    record = commander.put_work_result(result_for(payload, False, '작업 중 정지'), 140.0)
+    assert record['retry_safe'] is False
+    # NaN 이 든 data 는 스냅샷 JSON 을 깨지 않게 버린다
+    payload = commander.make_work(work_request(request_id='w3'), 141.0, 10.7)
+    record = commander.put_work_result(result_for(payload, data={'x': math.nan}), 142.0)
+    assert record['data'] == {}
+    json.dumps(commander.snapshot(10.8, 142.0), allow_nan=False)
+
+
+def test_work_ignores_foreign_and_duplicate_results():
+    commander = ready_commander()
+    payload = commander.make_work(work_request(), 100.0, 10.5)
+    assert commander.put_work_result({'request_id': 'order-work', 'success': True}, 101.0) is None
+    assert commander.put_work_result('nope', 101.0) is None
+    assert commander.snapshot(10.6, 101.0)['arms'][0]['work']['state'] == arms.WORK_RUNNING
+    assert commander.put_work_result(result_for(payload), 102.0) is not None
+    assert commander.put_work_result(result_for(payload, False), 102.5) is None
+    assert commander.snapshot(10.6, 103.0)['arms'][0]['work']['state'] == arms.WORK_SUCCEEDED
+
+
+def test_work_without_result_expires_once():
+    commander = ready_commander(work_timeout_sec=60.0, work_margin_sec=10.0)
+    payload = commander.make_work(work_request(), 100.0, 10.0)
+    assert commander.expire_works(79.9, 170.0) == []
+    late = commander.expire_works(80.1, 170.1)
+    assert len(late) == 1 and late[0]['state'] == arms.WORK_NO_RESULT
+    assert late[0]['arm_id'] == 'omx_1'
+    assert commander.expire_works(90.0, 180.0) == []
+    # 늦게 온 결과는 기록을 바꾸지 않는다
+    assert commander.put_work_result(result_for(payload), 200.0) is None

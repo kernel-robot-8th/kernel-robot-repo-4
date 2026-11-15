@@ -24,6 +24,7 @@
 비상정지는 estop 으로 넘기고, 정지 잠금 복구(release_control)와
 수동 상차 확인(confirm_loaded)도 같은 요청 토픽으로 넘긴다.
 로봇팔 켜기·끄기·정지(/api/arms)는 로봇팔 명령 노드(arm_command_node)에 따로 넘긴다.
+작업 시험(/api/arms/<arm>/work)도 같은 노드가 /fleet/work_request 로 낸다 (작업 명령 켜기 필요).
 (/api/commands/arm 은 로봇팔이 아니라 '작업 명령 켜기/끄기' 다.)
 """
 
@@ -338,6 +339,28 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                                 detail='로봇팔 명령 노드 응답 없음 (arm_command_node 를 켜 주세요)')
         result = arms.request({
             'type': 'command', 'arm_id': arm_id, 'command': body.get('command'),
+            'client_request_id': body.get('client_request_id'),
+            'source': source(request)}, publish_arm_request)
+        if result is None:
+            raise HTTPException(status_code=503, detail='로봇팔 명령 노드가 제때 답하지 않음')
+        status, reply = result
+        return JSONResponse(status_code=status, content=reply if isinstance(reply, dict) else {})
+
+    @app.post('/api/arms/{arm_id}/work')
+    def arm_work(arm_id: str, request: Request, body: dict = Body(default={})):
+        # 작업 시험 한 건 (pick·load·unload·warehouse_store). 실제 팔이 움직인다.
+        # 주행 명령처럼 상단 '작업 명령 켜기'(commands_armed)가 켜져 있어야 한다.
+        # 202 보냄 (결과는 /api/arms 의 arm.work), 409 스위치 꺼짐·팔이 대기 아님·앞 작업 진행 중.
+        if arms is None or publish_arm_request is None:
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
+        if not arms.online():
+            raise HTTPException(status_code=503,
+                                detail='로봇팔 명령 노드 응답 없음 (arm_command_node 를 켜 주세요)')
+        if tasks is None or not tasks.health()['commands_armed']:
+            raise HTTPException(status_code=409,
+                                detail="작업 명령이 꺼져 있음 (화면 위 '작업 명령 켜기' 먼저)")
+        result = arms.request({
+            'type': 'work', 'arm_id': arm_id, 'action': body.get('action'),
             'client_request_id': body.get('client_request_id'),
             'source': source(request)}, publish_arm_request)
         if result is None:

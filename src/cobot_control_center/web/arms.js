@@ -3,8 +3,9 @@
 //
 // 로봇팔 패널: 팔 상태(/api/arms)를 보여 주고 켜기·끄기·정지를 보낸다 (/api/arms/{arm_id}/command).
 // 명령은 로봇팔 명령 노드(arm_command_node)가 ArmCommand 로 바꿔 Station PC 팔 노드에 낸다.
-// 관제는 팔 모션을 시작하지 않는다: 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기뿐이다.
-// 상단 '작업 명령 켜기'(commands.js renderArmToggle)는 로봇팔과 상관없는 작업 명령 스위치다.
+// 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기뿐이다 (팔을 움직이지 않음).
+// 작업 시험(/api/arms/{arm_id}/work)은 개발용으로 팔 하나에 작업 한 건을 시킨다. 실제 팔이 움직이므로
+// 상단 '작업 명령 켜기'(commands.js renderArmToggle)가 켜져 있어야 한다. 켜기·끄기·정지는 스위치와 상관없다.
 // 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
 
 "use strict";
@@ -43,6 +44,10 @@ const ARM_COMMAND = {
   soft_latch: { text: "소프트 정지" },
 };
 const ARM_STOPS = new Set(["hold", "soft_latch"]);
+// 작업 시험 (arm_command_utils.WORK_ACTIONS). 화면 글만 여기서 정한다.
+const ARM_WORK_TEXT = { pick: "집기 (pick)", load: "싣기 (load)", unload: "내리기 (unload)",
+  warehouse_store: "창고 보관 (warehouse_store)" };
+const ARM_WORK_STATE = { RUNNING: "진행 중", SUCCEEDED: "성공", FAILED: "실패", NO_RESULT: "결과 없음" };
 const HOLD_REASON_TEXT = { HOLD: "정지 유지", SOFT_LATCH: "소프트 정지" };
 const ARM_RESULT_TEXT = {
   ACCEPTED: "수락", REJECTED_EPOCH: "세션 번호 거절", REJECTED_SEQ: "순번 거절",
@@ -55,6 +60,7 @@ const armsView = {
   ok: false,          // 마지막 /api/arms 를 받았는지
   cards: new Map(),   // arm_id → card element
   busy: new Set(),    // 응답을 기다리는 arm_id (정지 말고는 버튼을 잠근다)
+  workActions: [],    // 스냅샷의 work_actions (선택 칸 채우기)
   msg: new Map(),     // arm_id → {text, bad, until}
 };
 
@@ -66,6 +72,8 @@ function ensureArmCard(armId) {
     button.textContent = ARM_COMMAND[button.dataset.armCmd].text;
     button.addEventListener("click", () => sendArmCommand(armId, button.dataset.armCmd));
   });
+  card.querySelector(".arm-work-btn").addEventListener("click",
+    () => sendArmWork(armId, card.querySelector(".arm-work-action").value));
   $("arms").appendChild(card);
   armsView.cards.set(armId, card);
   return card;
@@ -89,6 +97,40 @@ function ackText(ack) {
   const stop = ack.stop_executed && !ack.accepted ? " (정지는 실행됨)" : "";
   const reason = ack.reason ? ` · ${ack.reason}` : "";
   return `마지막 응답 ${formatTime(ack.received_at)} ${what}${result}${stop}${reason}`;
+}
+
+function fillWorkActions(select) {
+  if (select.options.length === armsView.workActions.length) return;
+  const keep = select.value;
+  select.replaceChildren(...armsView.workActions.map((action) => {
+    const option = document.createElement("option");
+    option.value = action;
+    option.textContent = ARM_WORK_TEXT[action] || action;
+    return option;
+  }));
+  if (armsView.workActions.includes(keep)) select.value = keep;
+}
+
+function workText(work) {
+  if (!work) return "";
+  const what = ARM_WORK_TEXT[work.action] || work.action;
+  const state = ARM_WORK_STATE[work.state] || work.state;
+  if (work.state === "RUNNING") {
+    return `작업 시험 ${what} ${state} · ${formatDuration(Date.now() / 1000 - work.sent_at)} 경과`;
+  }
+  const took = work.duration !== null && work.duration !== undefined ? ` · ${formatDuration(work.duration)}` : "";
+  const retry = work.state === "FAILED" ? (work.retry_safe ? " · 팔 안 움직임" : " · 팔 자세 확인 필요") : "";
+  const detail = work.detail ? ` · ${work.detail}` : "";
+  return `작업 시험 ${formatTime(work.finished_at)} ${what} → ${state}${took}${retry}${detail}`;
+}
+
+function workBlockedReason(canCommand, allowed, running, waiting, meta) {
+  if (!canCommand) return armsBlockedReason();
+  if (!view.commandsArmed) return "작업 명령이 꺼져 있음 (화면 위 '작업 명령 켜기' 먼저)";
+  if (running) return "앞 작업 시험이 진행 중";
+  if (waiting) return "앞 명령의 응답을 기다리는 중";
+  if (!allowed) return `대기 상태에서만 (지금 ${meta.text})`;
+  return "실제 팔이 움직입니다. 주문 진행 중에는 쓰지 마세요";
 }
 
 function renderArmCard(arm, canCommand) {
@@ -131,6 +173,10 @@ function renderArmCard(arm, canCommand) {
   }
   card.querySelector(".arm-ack").textContent = ackText(arm.last_ack);
   card.querySelector(".arm-ack").dataset.bad = String(Boolean(arm.last_ack && !arm.last_ack.accepted));
+  const workEl = card.querySelector(".arm-work");
+  workEl.textContent = workText(arm.work);
+  workEl.dataset.state = arm.work ? arm.work.state : "";
+  workEl.title = arm.work ? `request ${arm.work.request_id} · seq ${arm.work.seq}` : "";
 
   const msg = armsView.msg.get(arm.arm_id);
   const msgEl = card.querySelector(".arm-msg");
@@ -148,6 +194,16 @@ function renderArmCard(arm, canCommand) {
       : !allowed.has(cmd) ? `지금 상태(${meta.text})에서는 쓰지 않음`
       : waiting && !ARM_STOPS.has(cmd) ? "앞 명령의 응답을 기다리는 중" : "";
   });
+
+  // 작업 시험: 스위치 켜짐 + 대기(서버가 allowed 에 work 를 넣음) + 앞 작업·명령 없음
+  const select = card.querySelector(".arm-work-action");
+  fillWorkActions(select);
+  const running = Boolean(arm.work && arm.work.state === "RUNNING");
+  const workOk = canCommand && view.commandsArmed && allowed.has("work") && !running && !waiting;
+  const workBtn = card.querySelector(".arm-work-btn");
+  workBtn.disabled = !workOk || !select.value;
+  select.disabled = !workOk;
+  workBtn.title = workBlockedReason(canCommand, allowed.has("work"), running, waiting, meta);
 }
 
 function armsBlockedReason() {
@@ -164,6 +220,7 @@ function renderArms() {
   head.textContent = online ? "" : armsView.ok ? "명령 노드 꺼짐" : "백엔드 연결 안 됨";
   head.title = online ? "" : armsBlockedReason();
   const arms = (data && data.arms) || [];
+  armsView.workActions = (data && data.work_actions) || [];
   const empty = $("arms-empty");
   empty.hidden = arms.length > 0;
   empty.textContent = armsView.ok ? "로봇팔 명령 노드(arm_command_node) 상태 수신 대기" : "백엔드 연결 안 됨";
@@ -172,7 +229,7 @@ function renderArms() {
   if (!armsView.ok) {
     armsView.cards.forEach((card) => {
       card.classList.add("offline");
-      card.querySelectorAll("button[data-arm-cmd]").forEach((b) => { b.disabled = true; });
+      card.querySelectorAll("button, select").forEach((b) => { b.disabled = true; });
     });
   }
 }
@@ -199,6 +256,25 @@ async function sendArmCommand(armId, cmd) {
     const why = data.reason || errorText(result);
     const kind = data.result ? ARM_RESULT_TEXT[data.result] || data.result : "";
     showArmMessage(armId, `${spec.text} 거절 (${result.status}${kind ? ` ${kind}` : ""}): ${why}`, true);
+  }
+  pollArms();
+}
+
+async function sendArmWork(armId, action) {
+  const what = ARM_WORK_TEXT[action] || action;
+  const question = `${armId} 에 작업 시험 '${what}' 을 시킬까요? (도메인 ${view.healthDomain ?? "?"})\n\n`
+    + "실제 팔이 움직입니다. 팔 옆에 사람이 있고 작업 자리에 물건이 놓여 있을 때만 하세요.\n"
+    + "주문이 진행 중이면 쓰지 마세요 (주문 작업과 같은 팔에서 부딪힙니다).";
+  if (!action || !confirm(question)) return;
+  armsView.busy.add(armId);
+  showArmMessage(armId, `작업 시험 ${what} 보내는 중…`, false);
+  const result = await postJson(`/api/arms/${encodeURIComponent(armId)}/work`,
+    { client_request_id: newRequestId(), action });
+  armsView.busy.delete(armId);
+  if (result.ok) {
+    showArmMessage(armId, `작업 시험 ${what} 보냄. 결과는 카드의 작업 시험 줄에 나옵니다`, false);
+  } else {
+    showArmMessage(armId, `작업 시험 ${what} 못 보냄 (${result.status}): ${errorText(result)}`, true);
   }
   pollArms();
 }
