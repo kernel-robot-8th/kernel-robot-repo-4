@@ -11,6 +11,7 @@
 "use strict";
 
 const ARMS_POLL_MS = 1000;
+const ARM_LOG_MAX = 300;   // 화면에 들고 있을 알람 기록 수 (백엔드 arm_events_max 와 같게)
 
 // arm_command_utils.py 의 화면 상태 → 배지 글·색 묶음
 const ARM_STATE = {
@@ -61,6 +62,8 @@ const armsView = {
   cards: new Map(),   // arm_id → card element
   busy: new Set(),    // 응답을 기다리는 arm_id (정지 말고는 버튼을 잠근다)
   workActions: [],    // 스냅샷의 work_actions (선택 칸 채우기)
+  log: [],            // 알람 기록 (/api/arms/events, 오래된 것부터)
+  lastLogId: 0,       // 받은 마지막 기록 번호 (after 로 이어 받기)
   msg: new Map(),     // arm_id → {text, bad, until}
 };
 
@@ -225,6 +228,8 @@ function renderArms() {
   empty.hidden = arms.length > 0;
   empty.textContent = armsView.ok ? "로봇팔 명령 노드(arm_command_node) 상태 수신 대기" : "백엔드 연결 안 됨";
   arms.forEach((arm) => renderArmCard(arm, canCommand));
+  renderArmAlarmFilter(arms);
+  renderActiveAlarms(armsView.ok ? arms : []);
   // 백엔드가 끊기면 마지막 카드는 남기되 버튼은 모두 잠근다.
   if (!armsView.ok) {
     armsView.cards.forEach((card) => {
@@ -279,6 +284,116 @@ async function sendArmWork(armId, action) {
   pollArms();
 }
 
+// ---------- 로봇팔 알람: 활성 알람(스냅샷 arm.alarms) + 기록(/api/arms/events) ----------
+
+function alarmFilter() {
+  return $("arm-alarm-filter").value;
+}
+
+function renderArmAlarmFilter(arms) {
+  const select = $("arm-alarm-filter");
+  const have = new Set([...select.options].map((o) => o.value));
+  for (const arm of arms) {
+    if (have.has(arm.arm_id)) continue;
+    const option = document.createElement("option");
+    option.value = arm.arm_id;
+    option.textContent = arm.arm_id;
+    select.appendChild(option);
+  }
+}
+
+function renderActiveAlarms(arms) {
+  const box = $("arm-active");
+  const filter = alarmFilter();
+  const items = [];
+  for (const arm of arms) {
+    if (filter && arm.arm_id !== filter) continue;
+    for (const alarm of arm.alarms || []) items.push({ arm: arm.arm_id, ...alarm });
+  }
+  // bad 먼저, 같은 수준이면 오래된 것 먼저 (오래 이어진 문제가 위에)
+  items.sort((a, b) => (a.level === "bad" ? 0 : 1) - (b.level === "bad" ? 0 : 1) || a.since - b.since);
+  box.replaceChildren();
+  if (items.length === 0) {
+    const none = document.createElement("li");
+    none.className = "none";
+    none.textContent = armsView.ok ? "활성 알람 없음" : "백엔드 연결 안 됨";
+    box.appendChild(none);
+    return;
+  }
+  for (const alarm of items) {
+    const item = document.createElement("li");
+    item.dataset.level = alarm.level;
+    item.title = alarm.code;
+    const who = document.createElement("strong");
+    who.textContent = alarm.arm;
+    const text = document.createElement("span");
+    text.textContent = alarm.text;
+    const since = document.createElement("time");
+    since.textContent = alarm.since ? `${formatTime(alarm.since)}~` : "";
+    since.title = "이때부터 이어지는 중";
+    item.append(who, text, since);
+    box.appendChild(item);
+  }
+}
+
+function renderArmLog() {
+  const box = $("arm-log");
+  const filter = alarmFilter();
+  const shown = armsView.log.filter((e) => !filter || e.arm === filter).slice(-100).reverse();
+  box.replaceChildren();
+  if (shown.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "muted";
+    empty.textContent = "기록 없음";
+    box.appendChild(empty);
+    return;
+  }
+  for (const event of shown) {
+    const item = document.createElement("li");
+    item.dataset.level = event.level;
+    item.title = event.kind;
+    const time = document.createElement("time");
+    time.textContent = formatTime(event.time);
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = event.arm;
+    const text = document.createElement("span");
+    text.className = "text";
+    text.textContent = event.text;
+    item.append(time, who, text);
+    box.appendChild(item);
+  }
+}
+
+async function pollArmLog() {
+  try {
+    const res = await fetch(`/api/arms/events?after=${armsView.lastLogId}&limit=${ARM_LOG_MAX}`);
+    if (!res.ok) return;
+    const events = await res.json();
+    // 백엔드를 다시 켜면 번호가 1부터 다시 시작한다 → 처음부터 다시 받는다.
+    if (events.length === 0 && armsView.lastLogId > 0) {
+      const head = await fetch("/api/arms/events?limit=1");
+      const last = head.ok ? await head.json() : [];
+      if (last.length && last[0].id < armsView.lastLogId) {
+        armsView.log = [];
+        armsView.lastLogId = 0;
+      }
+      return;
+    }
+    let added = false;
+    for (const event of events) {
+      if (typeof event.id !== "number" || event.id <= armsView.lastLogId) continue;
+      armsView.log.push(event);
+      armsView.lastLogId = event.id;
+      added = true;
+    }
+    if (armsView.log.length > ARM_LOG_MAX) armsView.log.splice(0, armsView.log.length - ARM_LOG_MAX);
+    if (added) renderArmLog();
+  } catch (err) {
+    // 다음 주기에 다시 받는다.
+  }
+}
+
 async function pollArms() {
   try {
     const res = await fetch("/api/arms");
@@ -289,9 +404,12 @@ async function pollArms() {
     armsView.ok = false;
   }
   renderArms();
+  pollArmLog();
 }
 
 function setupArms() {
+  $("arm-alarm-filter").addEventListener("change", () => { renderArms(); renderArmLog(); });
+  renderArmLog();
   pollArms();
   setInterval(pollArms, ARMS_POLL_MS);
 }

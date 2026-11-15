@@ -587,7 +587,7 @@ class ArmStore:
     수 초 걸리므로 reply_timeout_sec 는 작업 노드보다 길다.
     """
 
-    def __init__(self, stale_sec, reply_timeout_sec, clock=time.monotonic):
+    def __init__(self, stale_sec, reply_timeout_sec, clock=time.monotonic, events_max=300):
         self.stale_sec = float(stale_sec)
         self.reply_timeout_sec = float(reply_timeout_sec)
         self.clock = clock
@@ -596,6 +596,9 @@ class ArmStore:
         self._received = None
         self._replies = {}
         self._waiting = set()
+        # 알람 기록: 번호를 붙여 메모리에만 둔다 (SnapshotStore 이벤트와 같은 방식, 번호 체계는 따로)
+        self._events = collections.deque(maxlen=int(events_max))
+        self._event_id = 0
 
     def put_snapshot(self, text):
         """/control_center/arms JSON. 깨진 값이면 False."""
@@ -622,7 +625,17 @@ class ArmStore:
             if data.get('type') == 'reply' and data.get('request_id') in self._waiting:
                 self._replies[data['request_id']] = data
                 self._cond.notify_all()
+            elif data.get('type') == 'event' and isinstance(data.get('event'), dict):
+                self._event_id += 1
+                self._events.append(dict(data['event'], id=self._event_id))
         return True
+
+    def events(self, after=0, arm=None, limit=100):
+        """번호가 after 보다 큰 알람 기록을 오래된 것부터 최대 limit 개. arm 을 주면 그 팔만."""
+        with self._cond:
+            items = [e for e in self._events
+                     if e['id'] > after and (arm is None or e.get('arm') == arm)]
+        return items[-limit:] if limit > 0 else []
 
     def _age(self):
         return None if self._received is None else self.clock() - self._received

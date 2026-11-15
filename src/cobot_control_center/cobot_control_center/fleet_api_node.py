@@ -62,6 +62,7 @@ class FleetApiNode(Node):
         self.declare_parameter('reply_timeout_sec', 2.0)
         self.declare_parameter('arm_stale_sec', 3.0)
         self.declare_parameter('arm_reply_timeout_sec', 10.0)
+        self.declare_parameter('arm_events_max', 300)
         self.declare_parameter('camera_robots', ['pinky1', 'pinky2', 'pinky3'])
         self.declare_parameter('camera_topic_format', '/{robot}/camera/image_raw/compressed')
         # 개발용(fleet_api_dev.launch.xml): 실물을 보면서 화면을 고칠 때 명령이 나가지 않게 한다.
@@ -96,7 +97,8 @@ class FleetApiNode(Node):
 
         # 로봇팔 명령 노드(arm_command_node). 상태 모음은 transient_local 이라 늦게 켜져도 마지막 값을 받는다.
         self.arms = ArmStore(self.get_parameter('arm_stale_sec').value,
-                             self.get_parameter('arm_reply_timeout_sec').value)
+                             self.get_parameter('arm_reply_timeout_sec').value,
+                             events_max=self.get_parameter('arm_events_max').value)
         self.arm_request_pub = None if self.read_only else self.create_publisher(
             String, '/control_center/arm_request', command_qos)
         self.create_subscription(String, '/control_center/arm_events', self._on_arm_event,

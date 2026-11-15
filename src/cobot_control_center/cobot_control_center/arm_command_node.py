@@ -20,7 +20,7 @@ fleet_api_node 는 로봇 토픽에 발행하지 않는다. 팔 켜기·끄기·
 (cobot_manipulation arm_adapter_node) 이고, 판정 결과는 CommandAck, 상태는 ArmStatus 로 온다.
 
   /control_center/arm_request (String JSON) ← fleet_api_node
-  /control_center/arm_events  (String JSON) → fleet_api_node  (요청 응답)
+  /control_center/arm_events  (String JSON) → fleet_api_node  (요청 응답, 알람 기록 {type: event})
   /control_center/arms        (String JSON, transient_local) → fleet_api_node  (팔 상태 모음)
 
   /fleet/work_request (String JSON) → 팔 노드  (작업 시험 한 건, 실제 팔이 움직인다)
@@ -144,7 +144,7 @@ class ArmCommandNode(Node):
             f'(stage {value["work_stage"]}, session {self.commander.session_id[:8]})')
 
     def _on_status(self, arm_id, msg):
-        self.commander.put_status(arm_id, status_to_dict(msg), time.monotonic())
+        self.commander.put_status(arm_id, status_to_dict(msg), time.monotonic(), time.time())
 
     def _on_ack(self, msg):
         ack = ack_to_dict(msg)
@@ -230,12 +230,16 @@ class ArmCommandNode(Node):
             self.get_logger().warning(text)
 
     def _tick(self):
-        for out in self.commander.expire(time.monotonic()):
+        self.commander.check_links(time.monotonic(), time.time())
+        for out in self.commander.expire(time.monotonic(), time.time()):
             self.get_logger().warning(out['body']['detail'])
             self._send_event(out)
         for record in self.commander.expire_works(time.monotonic(), time.time()):
             self.get_logger().warning(
                 f'{record["arm_id"]} 작업 시험 {record["action"]}: {record["detail"]}')
+        # 알람 기록은 스냅샷(depth 1)이 아니라 응답 토픽(RELIABLE depth 50)으로 보내 빠지지 않게 한다.
+        for event in self.commander.take_events():
+            self._send_event({'type': 'event', 'event': event})
         snapshot = self.commander.snapshot(time.monotonic(), time.time())
         self.arms_pub.publish(String(data=json.dumps(snapshot, ensure_ascii=False,
                                                      allow_nan=False)))

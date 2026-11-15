@@ -312,3 +312,130 @@ def test_work_without_result_expires_once():
     assert commander.expire_works(90.0, 180.0) == []
     # 늦게 온 결과는 기록을 바꾸지 않는다
     assert commander.put_work_result(result_for(payload), 200.0) is None
+
+
+# ---------- 알람: 기록(take_events)·활성 알람(snapshot arms[].alarms) ----------
+
+def kinds(commander):
+    return [(e['arm'], e['kind'], e['level'], e['text']) for e in commander.take_events()]
+
+
+def alarms(commander, now_mono, now_wall=200.0, index=0):
+    return [a['code'] for a in commander.snapshot(now_mono, now_wall)['arms'][index]['alarms']]
+
+
+def test_link_state_and_boot_events():
+    commander = make()
+    commander.put_status('omx_1', dict(STATUS, robot_boot_id='b1'), 0.0, 100.0)
+    assert kinds(commander) == [('omx_1', 'link', 'info', '연결됨 (대기)')]
+    # 대기 ↔ 작업 중은 기록하지 않는다 (작업 결과로 대신)
+    commander.put_status('omx_1', dict(STATUS, robot_boot_id='b1', work_step=''), 0.1, 100.1)
+    commander.put_status('omx_1', dict(STATUS, robot_boot_id='b1'), 0.2, 100.2)
+    assert kinds(commander) == []
+    commander.put_status('omx_1', dict(STATUS, robot_boot_id='b1', hold_active=True,
+                                       hold_reason='HOLD'), 0.3, 100.3)
+    commander.put_status('omx_1', dict(STATUS, robot_boot_id='b1', hold_active=True,
+                                       hold_reason='SOFT_LATCH'), 0.4, 100.4)
+    assert kinds(commander) == [('omx_1', 'state', 'warn', '대기 → 정지'),
+                                ('omx_1', 'state', 'bad', '정지 → 소프트 정지')]
+    commander.put_status('omx_1', dict(STATUS, robot_boot_id='b2', torque_enabled=False),
+                         0.5, 100.5)
+    out = kinds(commander)
+    assert out[0][1:3] == ('boot', 'warn') and out[1] == ('omx_1', 'state', 'info',
+                                                          '소프트 정지 → 꺼짐')
+
+
+def test_link_lost_once_and_offline_alarm():
+    commander = make()
+    commander.check_links(5.0, 105.0)
+    assert kinds(commander) == [] and alarms(commander, 5.0) == []   # 받은 적 없으면 알람 없음
+    commander.put_status('omx_1', STATUS, 0.0, 100.0)
+    commander.take_events()
+    commander.check_links(0.9, 100.9)
+    assert kinds(commander) == []
+    commander.check_links(1.5, 101.5)
+    commander.check_links(2.5, 102.5)
+    assert [k[1:3] for k in kinds(commander)] == [('link', 'bad')]
+    snap = commander.snapshot(2.5, 102.5)['arms'][0]
+    assert snap['alarms'][0]['code'] == 'offline' and snap['alarms'][0]['since'] == 101.5
+    # 다시 들어오면 연결됨 기록, 알람 풀림
+    commander.put_status('omx_1', STATUS, 3.0, 103.0)
+    assert kinds(commander) == [('omx_1', 'link', 'info', '연결됨 (대기)')]
+    assert alarms(commander, 3.0) == []
+
+
+def test_hold_and_soft_latch_alarms():
+    commander = make()
+    commander.put_status('omx_1', dict(STATUS, hold_active=True, hold_reason='HOLD'), 0.0, 100.0)
+    snap = commander.snapshot(0.1, 100.1)['arms'][0]
+    assert [a['code'] for a in snap['alarms']] == ['hold'] and snap['alarms'][0]['since'] == 100.0
+    commander.put_status('omx_1', dict(STATUS, hold_active=True, hold_reason='SOFT_LATCH'),
+                         0.2, 100.2)
+    assert alarms(commander, 0.3) == ['soft_latch']
+    commander.put_status('omx_1', STATUS, 0.4, 100.4)
+    assert alarms(commander, 0.5) == []
+
+
+def test_ack_and_timeout_events():
+    commander = make()
+    header, _ = commander.make_command(request('start'), 100.0, 0.0)
+    commander.put_ack(ack(header), 100.1)
+    header, _ = commander.make_command(request('reset', request_id='r2'), 100.0, 0.0)
+    commander.put_ack(ack(header, result=5, reason='쉬는 자세 아님'), 100.2)
+    header, _ = commander.make_command(request('hold', request_id='r3'), 100.0, 0.0)
+    commander.put_ack(ack(header, result=3, stop_executed=True), 100.3)
+    commander.put_ack(ack(header, result=3, stop_executed=True), 100.35)   # 두 번째: 기록 없음
+    commander.put_ack(ack({'command_id': 'x', 'robot_id': 'omx_1', 'epoch': 1, 'seq': 9},
+                          result=1), 100.4)
+    assert kinds(commander) == [
+        ('omx_1', 'ack', 'info', '켜기 → 수락'),
+        ('omx_1', 'ack', 'warn', '끄기 → REJECTED_STATE: 쉬는 자세 아님'),
+        ('omx_1', 'ack', 'info', '정지 → REJECTED_TTL (정지는 실행됨)'),
+        ('omx_1', 'ack', 'warn', '다른 곳이 낸 명령 → REJECTED_EPOCH')]
+    commander.make_command(request('start', request_id='r4'), 100.0, 0.0)
+    commander.expire(9.0, 109.0)
+    assert kinds(commander) == [('omx_1', 'timeout', 'bad', '켜기 → 응답 없음 (8s)')]
+
+
+def test_posture_alarm_from_work_and_cleared():
+    commander = ready_commander()
+    commander.take_events()
+    payload = commander.make_work(work_request('unload'), 100.0, 10.5)
+    commander.put_work_result(result_for(payload, False, 'hold 로 작업 중단'), 102.0)
+    out = kinds(commander)
+    assert out == [('omx_1', 'work', 'bad', '작업 시험 unload → 실패 (2.0 s): hold 로 작업 중단')]
+    assert alarms(commander, 10.6) == ['posture_unknown']
+    # 끄기 수락으로 풀림 (쉬는 자세를 확인하고 꺼짐)
+    header, _ = commander.make_command(request('reset'), 103.0, 10.6)
+    commander.put_ack(ack(header), 103.1)
+    assert alarms(commander, 10.7) == []
+    # 팔을 안 움직인 거절(retry_safe)은 알람 없이 warn 기록
+    commander.put_status('omx_1', STATUS, 10.7, 104.0)
+    payload = commander.make_work(work_request(request_id='w2'), 104.0, 10.7)
+    commander.put_work_result(result_for(payload, False, '만료', {'retry_safe': True}), 104.1)
+    assert kinds(commander)[-1][2] == 'warn' and alarms(commander, 10.8) == []
+    # 결과 없음 → 알람, 다음 성공으로 풀림
+    commander.make_work(work_request(request_id='w3'), 105.0, 10.8)
+    commander.expire_works(500.0, 600.0)
+    assert kinds(commander)[-1][1:3] == ('work', 'bad')
+    assert alarms(commander, 10.9) == ['posture_unknown']
+    commander.put_status('omx_1', STATUS, 501.0, 601.0)
+    payload = commander.make_work(work_request(request_id='w4'), 602.0, 501.0)
+    commander.put_work_result(result_for(payload), 610.0)
+    assert alarms(commander, 501.1) == []
+
+
+def test_order_work_results_are_logged_once():
+    commander = ready_commander()
+    commander.take_events()
+    order = {'request_id': 'o-1', 'order_id': 'order-001', 'robot_id': 'pinky1',
+             'stage': 'PICK', 'source': 'omx1', 'measured': True, 'finished': True,
+             'success': False, 'detail': '보드 연결 끊김', 'data': {}}
+    assert commander.put_work_result(order, 100.0) is None   # 내 작업이 아니라 답은 없음
+    assert commander.put_work_result(order, 100.5) is None   # 두 번 와도 기록은 한 번
+    assert kinds(commander) == [('omx_1', 'work', 'bad',
+                                 '주문 작업 PICK → 실패 (order-001, pinky1): 보드 연결 끊김')]
+    assert alarms(commander, 10.5) == ['posture_unknown']
+    # 모르는 팔의 결과는 버린다
+    commander.put_work_result(dict(order, request_id='o-2', source='omx9'), 101.0)
+    assert kinds(commander) == []

@@ -346,6 +346,14 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         status, reply = result
         return JSONResponse(status_code=status, content=reply if isinstance(reply, dict) else {})
 
+    @app.get('/api/arms/events')
+    def arm_events(after: int = Query(0, ge=0), arm: str | None = None,
+                   limit: int = Query(100, ge=1, le=1000)):
+        # 로봇팔 알람 기록 (연결·상태·명령 응답·작업 결과). 오래된 것부터, id 로 이어 받기.
+        if arms is None:
+            return []
+        return arms.events(after, arm, limit)
+
     @app.post('/api/arms/{arm_id}/work')
     def arm_work(arm_id: str, request: Request, body: dict = Body(default={})):
         # 작업 시험 한 건 (pick·load·unload·warehouse_store). 실제 팔이 움직인다.

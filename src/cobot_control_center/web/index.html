@@ -93,6 +93,16 @@
         </div>
         <p class="muted arms-empty" id="arms-empty">로봇팔 상태 수신 대기</p>
         <div class="cards" id="arms"></div>
+        <div class="arm-alarms">
+          <div class="panel-head arm-alarms-head">
+            <h3>로봇팔 알람</h3>
+            <label class="muted">팔
+              <select id="arm-alarm-filter"><option value="">전체</option></select>
+            </label>
+          </div>
+          <ul class="arm-active" id="arm-active" aria-label="활성 알람"></ul>
+          <ol class="events arm-log" id="arm-log" aria-label="알람 기록"><li class="muted">기록 없음</li></ol>
+        </div>
       </section>
 
       <section class="panel" aria-label="작업">

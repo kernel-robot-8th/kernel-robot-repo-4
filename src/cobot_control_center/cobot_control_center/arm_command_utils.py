@@ -29,6 +29,7 @@ ArmCommand 로 내는 명령은 연결·토크(START), 쉬는 자세에서 끄�
 주행 관제(fleet_control_node)도 같은 토픽에 보내므로 주문 진행 중에는 쓰지 않는다.
 """
 
+from collections import deque
 import json
 import math
 import re
@@ -70,6 +71,14 @@ ALLOWED = {
     HOLD: ('release_hold', 'reset', 'soft_latch'),
     SOFT_LATCH: ('reset', 'hold'),
 }
+
+# 알람·기록 문구용 화면 상태 이름 (web/arms.js ARM_STATE 와 같은 말)
+STATE_TEXT = {STALE: '미연결', OFF: '꺼짐', READY: '대기', BUSY: '작업·연결 중',
+              HOLD: '정지', SOFT_LATCH: '소프트 정지'}
+COMMAND_TEXT = {'start': '켜기', 'reset': '끄기', 'hold': '정지', 'release_hold': '정지 해제',
+                'soft_latch': '소프트 정지'}
+# 대기 ↔ 작업 중은 작업마다 바뀌어 기록이 넘친다. 작업 결과 기록으로 대신한다.
+QUIET_CHANGES = frozenset({(READY, BUSY), (BUSY, READY)})
 
 ARM_ID_PATTERN = re.compile(r'([a-z]+)_?([0-9]+)')
 
@@ -126,6 +135,26 @@ def parse_request(text):
     return data
 
 
+def arm_event(time, arm_id, kind, level, text, data=None):
+    """
+    기록 한 줄. level 은 'info' / 'warn' / 'bad' (핑키 이벤트 로그와 같다).
+
+    kind: link(연결·끊김), state(상태 바뀜), boot(팔 노드 다시 켜짐), ack(명령 응답),
+    timeout(응답 없음), work(작업 결과).
+    """
+    event = {'time': time, 'arm': arm_id, 'kind': kind, 'level': level, 'text': text}
+    if data:
+        event['data'] = data
+    return event
+
+
+def work_level(success, retry_safe):
+    """작업 결과 → 기록 수준. 도중 실패는 팔 자세를 모르니 bad."""
+    if success:
+        return 'info'
+    return 'warn' if retry_safe else 'bad'
+
+
 def reply(request_id, status, body):
     """/control_center/arm_events 응답 (fleet_api 의 ArmStore 가 기다린다)."""
     return {'type': 'reply', 'request_id': request_id, 'status': status, 'body': body}
@@ -155,20 +184,67 @@ class ArmCommander:
         self.session_id = session_id or uuid.uuid4().hex
         self._arms = {a: {'epoch': 0, 'seq': 0, 'accepted_epoch': 0, 'accepted_seq': 0,
                           'status': None, 'status_at': None, 'last_ack': None,
-                          'work_seq': 0, 'work': None}
+                          'work_seq': 0, 'work': None,
+                          # 알람·기록용: 연결 여부, 마지막 화면 상태와 그 시각, 끊긴 시각,
+                          # 팔 노드 boot id, 팔 자세 모름 {since, text}
+                          'linked': False, 'state': None, 'state_since': None,
+                          'lost_at': None, 'boot_id': None, 'posture': None}
                       for a in self.arm_ids}
         self._pending = {}   # command_id → {request_id, arm_id, command, deadline, ...}
         self._works = {}     # 작업 request_id → {arm_id, deadline}
+        self._events = []    # take_events() 가 가져갈 기록
+        self._seen_results = deque(maxlen=256)   # 주문 작업 결과 중복 거르기
 
-    def put_status(self, arm_id, status, now_mono):
-        """팔 상태(ArmStatus dict)를 넣는다. 등록 안 된 팔이면 False."""
+    def _add(self, now_wall, arm_id, kind, level, text, data=None):
+        self._events.append(arm_event(now_wall, arm_id, kind, level, text, data))
+
+    def take_events(self):
+        """쌓인 기록을 꺼낸다 (오래된 것부터). 꺼낸 것은 지운다."""
+        events, self._events = self._events, []
+        return events
+
+    def _set_posture(self, arm_id, now_wall, text):
+        self._arms[arm_id]['posture'] = {'since': now_wall, 'text': text}
+
+    def put_status(self, arm_id, status, now_mono, now_wall=None):
+        """
+        팔 상태(ArmStatus dict)를 넣는다. 등록 안 된 팔이면 False.
+
+        연결됨·상태 바뀜·팔 노드 다시 켜짐을 기록한다. now_wall 이 없으면 now_mono 를 시각으로 쓴다.
+        """
         arm = self._arms.get(arm_id)
         if arm is None:
             return False
+        when = now_mono if now_wall is None else now_wall
         arm['status'], arm['status_at'] = status, now_mono
         arm['accepted_epoch'] = int(status.get('epoch_accepted', 0))
         arm['accepted_seq'] = int(status.get('last_seq_accepted', 0))
+        boot = status.get('robot_boot_id') or None
+        if boot and arm['boot_id'] and boot != arm['boot_id']:
+            self._add(when, arm_id, 'boot', 'warn', '팔 노드 다시 켜짐')
+        if boot:
+            arm['boot_id'] = boot
+        state = derive_state(status, True)
+        if not arm['linked']:
+            arm['linked'], arm['lost_at'] = True, None
+            self._add(when, arm_id, 'link', 'info', f'연결됨 ({STATE_TEXT[state]})')
+        elif state != arm['state'] and (arm['state'], state) not in QUIET_CHANGES:
+            level = {HOLD: 'warn', SOFT_LATCH: 'bad'}.get(state, 'info')
+            self._add(when, arm_id, 'state', level,
+                      f'{STATE_TEXT.get(arm["state"], "?")} → {STATE_TEXT[state]}')
+        if state != arm['state']:
+            arm['state'], arm['state_since'] = state, when
         return True
+
+    def check_links(self, now_mono, now_wall):
+        """상태가 stale_sec 넘게 끊긴 팔을 끊김으로 기록한다 (한 번만)."""
+        for arm_id in self.arm_ids:
+            arm = self._arms[arm_id]
+            if arm['linked'] and now_mono - arm['status_at'] > self.stale_sec:
+                arm['linked'], arm['lost_at'] = False, now_wall
+                arm['state'], arm['state_since'] = STALE, now_wall
+                self._add(now_wall, arm_id, 'link', 'bad',
+                          '연결 끊김 (팔 노드·네트워크 확인)')
 
     def _state(self, arm, now_mono):
         online = arm['status_at'] is not None and now_mono - arm['status_at'] <= self.stale_sec
@@ -223,6 +299,7 @@ class ArmCommander:
             return None
         work = self._works.pop(result.get('request_id'), None)
         if work is None:
+            self._put_other_result(result, now_wall)
             return None
         record = self._arms[work['arm_id']]['work']
         data = result.get('data') if isinstance(result.get('data'), dict) else {}
@@ -235,7 +312,36 @@ class ArmCommander:
             finished_at=now_wall, duration=round(now_wall - record['sent_at'], 1),
             detail=str(result.get('detail') or ''), retry_safe=bool(data.get('retry_safe')),
             data=data)
+        self._note_work(work['arm_id'], now_wall, result.get('success') is True,
+                        record['retry_safe'],
+                        f'작업 시험 {record["action"]} → '
+                        f'{"성공" if record["state"] == WORK_SUCCEEDED else "실패"} '
+                        f'({record["duration"]} s)', record['detail'])
         return dict(record, arm_id=work['arm_id'])
+
+    def _note_work(self, arm_id, now_wall, success, retry_safe, text, detail):
+        """작업 결과 기록 + 팔 자세 모름 알람 켜기·풀기."""
+        self._add(now_wall, arm_id, 'work', work_level(success, retry_safe),
+                  text + (f': {detail}' if detail else ''))
+        if success:
+            self._arms[arm_id]['posture'] = None
+        elif not retry_safe:
+            self._set_posture(arm_id, now_wall, f'팔 자세 확인: {text}')
+
+    def _put_other_result(self, result, now_wall):
+        """내가 낸 작업이 아닌 결과 (주문 작업). source 가 내 팔이면 기록만 한다."""
+        request_id = result.get('request_id')
+        arm_id = interface_arm_id(str(result.get('source') or ''))
+        if arm_id not in self._arms or not request_id or request_id in self._seen_results:
+            return
+        self._seen_results.append(request_id)
+        data = result.get('data') if isinstance(result.get('data'), dict) else {}
+        success = result.get('success') is True
+        order = result.get('order_id') or '-'
+        self._note_work(arm_id, now_wall, success, bool(data.get('retry_safe')),
+                        f'주문 작업 {result.get("stage") or "?"} → {"성공" if success else "실패"} '
+                        f'({order}, {result.get("robot_id") or "-"})',
+                        str(result.get('detail') or ''))
 
     def expire_works(self, now_mono, now_wall):
         """기한까지 결과가 없는 작업 → 기록 dict 목록 (상태 NO_RESULT)."""
@@ -248,6 +354,10 @@ class ArmCommander:
                 state=WORK_NO_RESULT, finished_at=now_wall,
                 detail=f'{self.work_timeout_sec + self.work_margin_sec:.0f}s 안에 결과가 없음. '
                        '팔 노드 로그·연결 확인 (팔 자세를 모르니 직접 확인)')
+            self._add(now_wall, work['arm_id'], 'work', 'bad',
+                      f'작업 시험 {record["action"]} → 결과 없음: {record["detail"]}')
+            self._set_posture(work['arm_id'], now_wall,
+                              f'팔 자세 확인: 작업 시험 {record["action"]} 결과 없음')
             out.append(dict(record, arm_id=work['arm_id']))
         return out
 
@@ -307,6 +417,14 @@ class ArmCommander:
             record['command'] = pending['command']
         if arm is not None:
             arm['last_ack'] = record
+            what = COMMAND_TEXT.get(record.get('command'), '다른 곳이 낸 명령')
+            reason = f': {record["reason"]}' if record['reason'] else ''
+            stop = ' (정지는 실행됨)' if record['stop_executed'] and not record['accepted'] else ''
+            self._add(now_wall, ack.get('robot_id'), 'ack',
+                      'info' if record['accepted'] or record['stop_executed'] else 'warn',
+                      f'{what} → {"수락" if record["accepted"] else record["result"]}{stop}{reason}')
+            if record['accepted'] and record.get('command') == 'reset':
+                arm['posture'] = None   # 쉬는 자세를 확인하고 꺼졌다
             if record['accepted'] and record.get('command') == START:
                 # 상태 토픽보다 응답이 먼저 오면, 바로 다음 명령이 새 epoch 를 쓰게 한다.
                 arm['accepted_epoch'] = max(arm['accepted_epoch'], int(ack.get('epoch', 0)))
@@ -318,18 +436,39 @@ class ArmCommander:
                      dict(record, arm_id=pending['arm_id'],
                           client_request_id=pending['client_request_id']))
 
-    def expire(self, now_mono):
-        """기한까지 응답이 없는 명령 → reply dict 목록 (504)."""
+    def expire(self, now_mono, now_wall=None):
+        """기한까지 응답이 없는 명령 → reply dict 목록 (504). 응답 없음도 기록한다."""
         late = [cid for cid, p in self._pending.items() if now_mono > p['deadline']]
         replies = []
         for command_id in late:
             pending = self._pending.pop(command_id)
+            self._add(now_mono if now_wall is None else now_wall, pending['arm_id'], 'timeout',
+                      'bad', f'{COMMAND_TEXT.get(pending["command"], pending["command"])} → '
+                             f'응답 없음 ({self.ack_timeout_sec:.0f}s)')
             replies.append(reply(pending['request_id'], 504, {
                 'detail': f'로봇팔 {pending["arm_id"]} 이 {pending["command"]} 에 답하지 않음 '
                           f'({self.ack_timeout_sec:.0f}s). 팔 노드·도메인·시계 동기화 확인',
                 'arm_id': pending['arm_id'], 'command': pending['command'],
                 'command_id': command_id, 'client_request_id': pending['client_request_id']}))
         return replies
+
+    @staticmethod
+    def _alarms(arm, state, online):
+        """활성 알람 목록 (지금 이어지는 상태). 풀리면 사라진다."""
+        alarms = []
+        if not online and arm['lost_at'] is not None:
+            alarms.append({'code': 'offline', 'level': 'bad', 'since': arm['lost_at'],
+                           'text': '연결 끊김 (팔 노드·네트워크 확인)'})
+        if online and state == SOFT_LATCH:
+            alarms.append({'code': 'soft_latch', 'level': 'bad', 'since': arm['state_since'],
+                           'text': '소프트 정지 래치: 끄기(RESET)로만 풀림'})
+        if online and state == HOLD:
+            alarms.append({'code': 'hold', 'level': 'warn', 'since': arm['state_since'],
+                           'text': '정지 유지 중: 정지 해제 또는 끄기'})
+        if arm['posture']:
+            alarms.append({'code': 'posture_unknown', 'level': 'bad',
+                           'since': arm['posture']['since'], 'text': arm['posture']['text']})
+        return alarms
 
     def snapshot(self, now_mono, now_wall):
         """/control_center/arms JSON 의 내용."""
@@ -346,6 +485,7 @@ class ArmCommander:
                 'age': None if age is None else round(age, 3), 'state': state,
                 'allowed': allowed, 'status': arm['status'],
                 'last_ack': arm['last_ack'], 'work': arm['work'],
+                'alarms': self._alarms(arm, state, online),
                 'pending': sum(1 for p in self._pending.values() if p['arm_id'] == arm_id),
                 'epoch': arm['accepted_epoch'], 'seq': arm['accepted_seq']})
         return {'time': now_wall, 'ttl_ms': self.ttl_ms, 'work_actions': list(WORK_ACTIONS),

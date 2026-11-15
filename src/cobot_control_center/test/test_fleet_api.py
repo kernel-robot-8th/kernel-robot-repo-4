@@ -1009,3 +1009,30 @@ def test_api_arm_work_returns_arm_node_status(status):
                                    arms=arm_store, publish_arm_request=publish))
     res = client.post('/api/arms/omx_1/work', json={'action': 'pick'})
     assert res.status_code == status and res.json()['detail'] == '대기 상태가 아님'
+
+
+def test_arm_store_numbers_events_and_filters():
+    arm_store = ArmStore(3.0, 0.5, clock=FakeClock(), events_max=3)
+    for i, arm in enumerate(['omx_1', 'omx_2', 'omx_1', 'omx_2']):
+        assert arm_store.put_event(json.dumps(
+            {'type': 'event', 'event': {'time': 100.0 + i, 'arm': arm, 'kind': 'link',
+                                        'level': 'info', 'text': f'e{i}'}}))
+    assert arm_store.put_event(json.dumps({'type': 'event', 'event': 'nope'}))  # 무시
+    items = arm_store.events()
+    assert [e['id'] for e in items] == [2, 3, 4]   # 최대 3개, 번호는 계속 늘어남
+    assert [e['text'] for e in arm_store.events(after=3)] == ['e3']
+    assert [e['id'] for e in arm_store.events(arm='omx_1')] == [3]
+    assert [e['id'] for e in arm_store.events(limit=1)] == [4]
+
+
+def test_api_arm_events():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_event(json.dumps({'type': 'event', 'event': {
+        'time': 100.0, 'arm': 'omx_1', 'kind': 'ack', 'level': 'warn', 'text': '끄기 → 거절'}}))
+    client = TestClient(create_app(store, arms=arm_store))
+    res = client.get('/api/arms/events', params={'after': 0})
+    assert res.status_code == 200 and res.json()[0]['text'] == '끄기 → 거절'
+    assert client.get('/api/arms/events', params={'after': 1}).json() == []
+    assert client.get('/api/arms/events', params={'arm': 'omx_2'}).json() == []
+    assert TestClient(create_app(store)).get('/api/arms/events').json() == []

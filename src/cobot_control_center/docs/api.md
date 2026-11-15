@@ -35,6 +35,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
 | `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
+| `GET /api/arms/events?after=0&arm=&limit=100` | 로봇팔 알람 기록, 오래된 것부터 `[{"id", "time", "arm", "kind", "level", "text", "data"?}]`. `after` 로 이어 받기. 아래 [알람](#알람-활성-알람기록) |
 | `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
 | `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
@@ -116,7 +117,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 | 토픽 | 타입·QoS |
 |---|---|
-| `/control_center/arm_request`, `/control_center/arm_events` | `std_msgs/String` JSON, RELIABLE depth 50 |
+| `/control_center/arm_request`, `/control_center/arm_events` | `std_msgs/String` JSON, RELIABLE depth 50. `arm_events` 는 요청 응답(`type: reply`)과 알람 기록(`type: event`)을 함께 나른다 |
 | `/control_center/arms` | `std_msgs/String` JSON, RELIABLE TRANSIENT_LOCAL depth 1, 0.2 s 주기 |
 | `/control_center/omx_N/command` | `ArmCommand`, RELIABLE depth 10 (팔 노드와 같음) |
 | `/manipulation/omx_N/command_ack` | `CommandAck`, RELIABLE depth 50 |
@@ -142,6 +143,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
 | `work` | 마지막 작업 시험 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT` |
 
+| `alarms` | 활성 알람 `[{code, level, since, text}]` (아래 [알람](#알람-활성-알람기록)) |
+
 스냅샷 맨 위의 `work_actions` 는 작업 시험에 쓸 수 있는 작업 목록입니다.
 
 `ArmStatus` 에 전원 상태 칸이 없어 `state` 는 추정입니다 (`arm_command_utils.derive_state`).
@@ -155,7 +158,35 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `READY` | 토크 켜짐, `work_step == IDLE` | work (작업 시험 진행 중이면 뺌), reset, hold, soft_latch |
 | `BUSY` | 토크 켜짐, 그 밖 (연결·작업·끄는 중) | hold, soft_latch |
 
+### 알람 (활성 알람·기록)
+
+화면 로봇팔 칸 아래 **로봇팔 알람**에 나옵니다. 핑키 이벤트 로그와 섞지 않습니다. 둘 다 `arm_command_node` 가 만듭니다 (`arm_command_utils.ArmCommander`).
+
+**활성 알람** (`arms[].alarms`): 지금 이어지는 상태라 풀리면 사라집니다.
+
+| `code` | `level` | 조건 | 풀림 |
+|---|---|---|---|
+| `offline` | bad | 한 번 받은 팔 상태가 `status_stale_sec` 넘게 끊김 | 상태가 다시 들어옴 |
+| `soft_latch` | bad | 소프트 정지 래치 | 끄기(RESET) |
+| `hold` | warn | 정지 유지 | 정지 해제·끄기 |
+| `posture_unknown` | bad | 작업(작업 시험·주문)이 도중에 실패(`retry_safe` 아님)했거나 작업 시험 결과 없음 | 다음 작업 성공 또는 끄기 수락 |
+
+**기록** (`GET /api/arms/events`): `arm_command_node` 가 `/control_center/arm_events` 로 `{"type": "event", "event": {...}}` 를 보내고, `fleet_api_node`(`ArmStore`) 가 번호를 붙여 `arm_events_max` 개까지 메모리에 둡니다 (백엔드를 다시 켜면 지워짐). 스냅샷(depth 1)에 싣지 않아 빠지지 않습니다.
+
+| `kind` | 언제 | `level` |
+|---|---|---|
+| `link` | 연결됨 / 연결 끊김 | info / bad |
+| `state` | 화면 상태가 바뀜 (대기 ↔ 작업 중은 작업마다 바뀌어 빼고, 작업 결과로 대신) | 정지 warn, 소프트 정지 bad, 그 밖 info |
+| `boot` | 팔 노드가 다시 켜짐 (`ArmStatus.robot_boot_id` 바뀜) | warn |
+| `ack` | 명령 응답. 다른 곳이 낸 명령이면 `다른 곳이 낸 명령` | 수락·정지 실행 info, 거절 warn |
+| `timeout` | 명령 응답 없음 (`ack_timeout_sec`) | bad |
+| `work` | 작업 결과: 작업 시험과 **주문 작업** (`/fleet/work_result` 의 `source` 가 그 팔) | 성공 info, 팔 안 움직인 실패 warn, 도중 실패·결과 없음 bad |
+
+2026-11-16 도메인 101 시험 (가짜 핑키 + `fleet_control_node` + 팔 노드 4934bac `backend:=fake` 3대): 켜기 → 작업 시험 성공 → 작업 중 정지(활성 `hold`·`posture_unknown`) → 정지 해제 → 끄기(둘 다 풀림) → 또 끄기(거절 warn 기록) → 다른 곳이 낸 주문 작업 실패 결과(omx_2 `posture_unknown`) → omx3 팔 노드 끔(활성 `offline`, 끊김 기록) → 다시 켬(`boot`·연결됨 기록, `offline` 풀림). 헤드리스 크롬으로 알람 칸 확인.
+
 ### 작업 시험 (개발용)
+
+가짜 팔로 시험하려면 도메인 101 에서 `ros2 launch cobot_mock mock_fleet.launch.xml` 을 띄웁니다 (가짜 핑키·관제·가짜 팔 3대, 화면 8081). [cobot_mock README](../../cobot_mock/README.md#가짜-팔).
 
 이 화면은 기능별 시험용 개발 대시보드라, 팔 하나에 작업 한 건을 바로 시켜 볼 수 있습니다. 주문 흐름은 나중에 서비스용 화면에서 다룹니다.
 **실제 팔이 움직입니다.** 그래서 주행 명령처럼 상단 **작업 명령 켜기**(`commands_armed`)가 켜져 있어야 하고, 팔이 `READY` 여야 합니다. 서버(`fleet_api_app`)와 `arm_command_node` 가 둘 다 검사합니다.
@@ -246,6 +277,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `reply_timeout_sec` | `2.0` | 명령 요청에 작업 노드가 답하기를 기다리는 시간 [s] |
 | `read_only` | `false` | `true` 면 명령 경로가 모두 503 이고 `task_request` 발행자를 만들지 않음. `fleet_api_dev.launch.xml` 이 켬 (노드 이름 `fleet_api_node_dev`, 포트 8083) |
 | `arm_stale_sec` | `3.0` | 로봇팔 명령 노드의 상태 모음이 이만큼 끊기면 로봇팔 명령을 받지 않음 (503) [s] |
+| `arm_events_max` | `300` | 로봇팔 알람 기록 보관 개수 (메모리) |
 | `arm_reply_timeout_sec` | `10.0` | 로봇팔 명령 응답을 기다리는 시간 [s]. `arm_command_node` 의 `ack_timeout_sec` 보다 길어야 504 가 화면까지 감 |
 | `camera_robots` | `[pinky1, pinky2, pinky3]` | 카메라를 구독할 로봇. `['']` 이면 끔 |
 | `camera_topic_format` | `/{robot}/camera/image_raw/compressed` | 카메라 토픽 (`sensor_msgs/CompressedImage`, JPEG). QoS `BEST_EFFORT / VOLATILE / KEEP_LAST(1)`. 이름은 가정값(비전 브랜치 592ebd4 규격 + 로봇 접두사)이라 확정되면 바꿈. 실물은 브릿지에 카메라 토픽이 있어야 들어옴 (아직 없음) |
@@ -286,5 +318,5 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `raw.js` | 개발용 수동 명령 |
 | `detail.js` | 로봇 상세 화면 (`#/robot/<id>`): 상태줄·카메라·확대 지도·요약·타임라인·진단 |
 | `pose.js` | 초기위치 [홈]·[좌표 지정] (상세 위치 칸, 확대 지도 누르고 끌기) |
-| `arms.js` | 로봇팔 패널 (`/api/arms` 1 s 마다, 켜기·끄기·정지, 작업 시험) |
+| `arms.js` | 로봇팔 패널 (`/api/arms`·`/api/arms/events` 1 s 마다, 켜기·끄기·정지, 작업 시험, 알람) |
 | `main.js` | 시작, `/api/health` 확인 |
