@@ -28,7 +28,6 @@ function renderAlerts(alerts, fresh) {
 
 // 팔 활성 알람 → 경고 띠 줄. 명령 노드가 끊기면(STALE) 숨긴다 (카드가 미연결로 보임).
 function armAlertItems() {
-  if (typeof armsView === "undefined") return [];
   const data = armsView.data;
   if (!armsView.ok || !data || !data.controller_online) return [];
   const items = [];
@@ -95,10 +94,12 @@ function addEvents(events) {
 // 이벤트 칸 '보기' 고르기 값: "" 전체, "@robots" 로봇 전체, "@arms" 팔 전체, "@zones" 구역,
 // "robot:pinky1" 로봇 하나, "arm:omx_1" 팔 하나.
 function addOption(parent, value, text) {
-  const option = document.createElement("option");
-  option.value = value;
-  option.textContent = text;
-  parent.appendChild(option);
+  parent.appendChild(makeOption(value, text));
+}
+
+// 로봇팔 명령 노드가 알려 준 팔 목록 (arms.js 가 1 s 마다 받음)
+function armList() {
+  return armsView.data ? armsView.data.arms || [] : [];
 }
 
 function optionGroup(select, label) {
@@ -114,7 +115,7 @@ function optionGroup(select, label) {
 // 이벤트 칸(로봇·팔)과 작업 목록(로봇만)의 고르기에 새로 보인 로봇·팔을 넣는다.
 function renderEventFilter() {
   const robots = view.snapshot ? Object.keys(view.snapshot.robots || {}) : [];
-  const arms = typeof armsView !== "undefined" && armsView.data ? armsView.data.arms || [] : [];
+  const arms = armList();
   const events = $("event-robot");
   const have = new Set([...events.querySelectorAll("option")].map((o) => o.value));
   const robotGroup = optionGroup(events, "로봇");
@@ -146,17 +147,15 @@ function eventMatches(event, filter) {
 }
 
 function armStation(armId) {
-  const arms = typeof armsView !== "undefined" && armsView.data ? armsView.data.arms || [] : [];
-  const arm = arms.find((a) => a.arm_id === armId);
+  const arm = armList().find((a) => a.arm_id === armId);
   return arm && arm.site ? arm.site.station : "";
 }
 
 function renderEvents() {
   const box = $("events");
   const filter = $("event-robot").value;
-  const armLog = typeof armsView !== "undefined" ? armsView.log : [];
   // 핑키·팔 기록을 시각 순으로 섞는다 (새것이 위). 같은 시각이면 들어온 순서를 지킨다.
-  const shown = [...view.events, ...armLog]
+  const shown = [...view.events, ...armsView.log]
     .filter((e) => eventMatches(e, filter))
     .map((e, i) => ({ e, i }))
     .sort((a, b) => (b.e.time - a.e.time) || (b.i - a.i))

@@ -113,12 +113,7 @@ function fillWorkActions(select, actions) {
   const keep = select.value;
   const options = actions.length ? actions.map((action) => [action, ARM_WORK_TEXT[action] || action])
     : [["", "작업 없음"]];
-  select.replaceChildren(...options.map(([value, text]) => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = text;
-    return option;
-  }));
+  select.replaceChildren(...options.map(([value, text]) => makeOption(value, text)));
   if (actions.includes(keep)) select.value = keep;
 }
 

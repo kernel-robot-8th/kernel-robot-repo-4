@@ -1036,3 +1036,39 @@ def test_api_arm_events():
     assert client.get('/api/arms/events', params={'after': 1}).json() == []
     assert client.get('/api/arms/events', params={'arm': 'omx_2'}).json() == []
     assert TestClient(create_app(store)).get('/api/arms/events').json() == []
+
+
+# ---------- 공용 조각: EventLog, ReplyWaiter, json_object ----------
+
+def test_event_log_numbers_and_filters():
+    from cobot_control_center.fleet_api_utils import EventLog
+    log = EventLog(3, 'arm')
+    numbered = [log.add({'arm': a, 'text': str(i)}) for i, a in enumerate(['a', 'b', 'a', 'b'])]
+    assert [e['id'] for e in numbered] == [1, 2, 3, 4]
+    assert [e['id'] for e in log.since()] == [2, 3, 4]          # 최대 3개
+    assert [e['id'] for e in log.since(after=3)] == [4]
+    assert [e['id'] for e in log.since(who='a')] == [3]
+    assert [e['id'] for e in log.since(limit=1)] == [4] and log.since(limit=0) == []
+
+
+def test_reply_waiter_returns_reply_and_ignores_others():
+    from cobot_control_center.fleet_api_utils import ReplyWaiter
+    waiter = ReplyWaiter(0.5)
+    assert waiter.offer({'type': 'reply', 'request_id': 'nobody'}) is False
+    assert waiter.offer({'type': 'task'}) is False
+
+    def publish(text):
+        request = json.loads(text)
+        assert request['x'] == 1
+        threading.Thread(target=waiter.offer, args=(
+            {'type': 'reply', 'request_id': request['request_id'], 'status': 202,
+             'body': {'ok': True}},)).start()
+    assert waiter.request({'x': 1}, publish) == (202, {'ok': True})
+    assert waiter.request({'x': 1}, lambda text: None) is None   # 응답 없음 → 시간 초과
+
+
+def test_json_object():
+    from cobot_control_center.fleet_api_utils import json_object
+    assert json_object('{"a": 1}') == {'a': 1}
+    for bad in ['', 'nope', '[1]', None, '3']:
+        assert json_object(bad) is None

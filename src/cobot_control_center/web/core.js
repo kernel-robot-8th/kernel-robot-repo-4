@@ -16,6 +16,14 @@ const HEALTH_POLL_MS = 2000;
 
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const $ = (id) => document.getElementById(id);
+
+// <option> 하나 (고르기 칸 채우기용, 글은 textContent 로만 넣는다)
+function makeOption(value, text) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = text;
+  return option;
+}
 // 방향 표시: 지도·로봇은 라디안, 화면 글·입력칸은 정수 도
 const toDeg = (rad) => Math.round(rad * 180 / Math.PI);
 const toRad = (deg) => deg * Math.PI / 180;

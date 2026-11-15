@@ -23,11 +23,7 @@ function renderRawPanel() {
   const robots = view.snapshot ? Object.keys(view.snapshot.robots || {}) : [];
   const have = new Set([...select.options].map((o) => o.value));
   for (const robotId of robots) {
-    if (have.has(robotId)) continue;
-    const option = document.createElement("option");
-    option.value = robotId;
-    option.textContent = robotId;
-    select.appendChild(option);
+    if (!have.has(robotId)) select.appendChild(makeOption(robotId, robotId));
   }
 }
 

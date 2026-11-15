@@ -359,23 +359,33 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                     'arms': []}
         return arms.snapshot()
 
-    @app.post('/api/arms/{arm_id}/command')
-    def arm_command(arm_id: str, request: Request, body: dict = Body(default={})):
-        # 켜기(start)·끄기(reset)·정지(hold, soft_latch)·정지 해제(release_hold).
-        # 판정은 팔 노드가 한다: 200 수락(정지는 멈췄으면 200), 409 팔이 거절, 504 팔 응답 없음.
+    def call_arm_node(payload, needs_armed=False):
+        """
+        로봇팔 명령 노드(arm_command_node)에 요청을 넘기고 그 응답 상태·본문을 그대로 돌려준다.
+
+        503 읽기 전용·명령 노드 꺼짐·응답 없음. needs_armed 면 '작업 명령 켜기'가 꺼져 있을 때 409.
+        """
         if arms is None or publish_arm_request is None:
             raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         if not arms.online():
             raise HTTPException(status_code=503,
                                 detail='로봇팔 명령 노드 응답 없음 (arm_command_node 를 켜 주세요)')
-        result = arms.request({
-            'type': 'command', 'arm_id': arm_id, 'command': body.get('command'),
-            'client_request_id': body.get('client_request_id'),
-            'source': source(request)}, publish_arm_request)
+        if needs_armed and (tasks is None or not tasks.health()['commands_armed']):
+            raise HTTPException(status_code=409,
+                                detail="작업 명령이 꺼져 있음 (화면 위 '작업 명령 켜기' 먼저)")
+        result = arms.request(payload, publish_arm_request)
         if result is None:
             raise HTTPException(status_code=503, detail='로봇팔 명령 노드가 제때 답하지 않음')
         status, reply = result
         return JSONResponse(status_code=status, content=reply if isinstance(reply, dict) else {})
+
+    @app.post('/api/arms/{arm_id}/command')
+    def arm_command(arm_id: str, request: Request, body: dict = Body(default={})):
+        # 켜기(start)·끄기(reset)·정지(hold, soft_latch)·정지 해제(release_hold).
+        # 판정은 팔 노드가 한다: 200 수락(정지는 멈췄으면 200), 409 팔이 거절, 504 팔 응답 없음.
+        return call_arm_node({
+            'type': 'command', 'arm_id': arm_id, 'command': body.get('command'),
+            'client_request_id': body.get('client_request_id'), 'source': source(request)})
 
     @app.get('/api/arms/events')
     def arm_events(after: int = Query(0, ge=0), arm: str | None = None,
@@ -390,22 +400,10 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         # 작업 시험 한 건 (pick·load·unload·warehouse_store). 실제 팔이 움직인다.
         # 주행 명령처럼 상단 '작업 명령 켜기'(commands_armed)가 켜져 있어야 한다.
         # 202 보냄 (결과는 /api/arms 의 arm.work), 409 스위치 꺼짐·팔이 대기 아님·앞 작업 진행 중.
-        if arms is None or publish_arm_request is None:
-            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
-        if not arms.online():
-            raise HTTPException(status_code=503,
-                                detail='로봇팔 명령 노드 응답 없음 (arm_command_node 를 켜 주세요)')
-        if tasks is None or not tasks.health()['commands_armed']:
-            raise HTTPException(status_code=409,
-                                detail="작업 명령이 꺼져 있음 (화면 위 '작업 명령 켜기' 먼저)")
-        result = arms.request({
+        return call_arm_node({
             'type': 'work', 'arm_id': arm_id, 'action': body.get('action'),
-            'client_request_id': body.get('client_request_id'),
-            'source': source(request)}, publish_arm_request)
-        if result is None:
-            raise HTTPException(status_code=503, detail='로봇팔 명령 노드가 제때 답하지 않음')
-        status, reply = result
-        return JSONResponse(status_code=status, content=reply if isinstance(reply, dict) else {})
+            'client_request_id': body.get('client_request_id'), 'source': source(request)},
+            needs_armed=True)
 
     def task_store():
         if tasks is None:
