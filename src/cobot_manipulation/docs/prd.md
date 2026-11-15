@@ -106,7 +106,7 @@ lerobot·torch·가중치를 이 패키지에 넣지 않으려고 팔 실행기�
   | `{"cmd":"run","id":<request_id>,"action":"pick"}` | 작업 1건 |
   | `{"cmd":"hold"}` | 지금 단계를 멈추고 토크 유지 |
   | `{"cmd":"state"}` | 대기 중 관절 값 보고 (`state_poll_sec` 마다) |
-  | `{"cmd":"release"}` | 쉬는 자세(`rest_pose`)면 연결을 끊고 끝냄, 아니면 거절. **팔을 옮기지 않는다** |
+  | `{"cmd":"release"}` | 쉬는 자세(`rest_pose`)면 연결을 끊고 끝냄, 아니면 거절. **팔을 옮기지 않는다** (`release_move: true` 인 팔만 옮긴 뒤 끔, 5절) |
   | `{"cmd":"quit"}` | 무조건 연결을 끊고 끝냄 (노드 종료·고장 정리 때만) |
 - stdout (실행기 → 어댑터): `@fleet ` 로 시작하는 줄만 기계용 JSON. 나머지 줄은 노드 로그로 그대로 옮긴다.
 
@@ -118,6 +118,7 @@ lerobot·torch·가중치를 이 패키지에 넣지 않으려고 팔 실행기�
 | `rejected` | 움직이기 전 거절 (예: 그 action 모델 없음) | retry_safe 실패 |
 | `fatal` | 실행기 오류로 끝남 | 전원 FAULT. 이후 모든 작업 거절 |
 | `state` | 대기 중 관절 값 | `ArmStatus` 관절 값 갱신 |
+| `release_moving` | `release_move: true` 인 팔이 쉬는 자세로 이동 시작 (`seconds`) | RESET 에 바로 ACCEPTED "쉬는 자세로 이동 중", 기한을 이동 시간 + `release_timeout_sec` 로 |
 | `released` | 쉬는 자세 확인, 연결 끊음 | 실행기가 끝나면 전원 DISARMED, RESET 에 ACCEPTED |
 | `release_refused` | 쉬는 자세가 아님 | 전원 그대로, RESET 에 REJECTED_STATE (이유 포함) |
 
@@ -174,7 +175,7 @@ launch 인자: `backend`, `registry_file`, `enable_omx1`·`enable_omx2`·`enable
 | 스크립트 | 하는 일 |
 |---|---|
 | `scripts/run_arm_adapter.sh` | omx1 어댑터 하나를 띄운다. 띄우기 전에 단독 실행기·중복 노드·보드·실행기 파일을 확인하고, 도메인 10·12 는 거절한다. `worker_command` 를 명령줄로 넘겨 `arm_adapter.yaml` 을 고치지 않는다 |
-| `scripts/arm_console.py` | 관제 대신 `start`·`pick`·`load`·`hold`·`unhold`·`latch`·`reset` 을 한 줄씩 보내고 ACK·결과·상태를 찍는다 |
+| `scripts/arm_console.py` | 관제 대신 `start`·`pick`·`load`·`hold`·`unhold`·`latch`·`reset` 을 한 줄씩 보내고 ACK·결과·상태를 찍는다. `saverest [경로]` 는 지금 관절을 쉬는 자세 파일(`init_pose.json` 형식, 기본 `<omx_fleet>/rest_pose_omx1.json`)로 저장한다 |
 
 ```bash
 scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake   # 혼자 시험 (팔 안 씀)
@@ -212,7 +213,7 @@ DISARMED ───────────────────▶ CONNECTING
 | 명령 | 되는 상태 | 하는 일 | ACK |
 |---|---|---|---|
 | `CMD_START` | DISARMED, 팔 탐지 READY, backend ≠ none | 실행기를 띄워 팔에 연결 (토크 켜짐) | 바로 |
-| `CMD_RESET` | ARMED·LATCHED (작업 중 아님) | 실행기에 `release`. 쉬는 자세면 끄고, 아니면 거절 | 실행기 답을 받은 뒤 (`release_timeout_sec`) |
+| `CMD_RESET` | ARMED·LATCHED (작업 중 아님) | 실행기에 `release`. 쉬는 자세면 끄고, 아니면 거절 (`release_move` 면 쉬는 자세로 옮긴 뒤 끔) | 실행기 답을 받은 뒤 (`release_timeout_sec`). 옮길 때는 이동 시작에 `ACCEPTED` |
 | `CMD_RESET` | FAULT, 또는 실행기 없는 LATCHED | 정리하고 DISARMED | 바로 |
 | `CMD_SOFT_LATCH` | 아무 때나 | 작업을 멈추고 LATCHED (토크 유지) | 바로, `stop_executed=true` |
 | `CMD_HOLD` / `CMD_RELEASE_HOLD` | 아무 때나 | `/fleet/work_request` 의 hold/release_hold 와 같다 | 바로 |
@@ -221,6 +222,15 @@ DISARMED ───────────────────▶ CONNECTING
 - **끄기는 팔을 옮기지 않는다.** `ArmCommand.msg` 의 "팔 모션은 FMS 가 시작하지 않는다" 에 따라, 지금 자세가 `rest_pose` 에서
   그리퍼를 뺀 모든 관절 3 단위(약 5°) 안일 때만 토크를 끈다. 아니면 `REJECTED_STATE` "현장에서 팔을 내려 주세요".
   작업이 끝나면 안전 자세로 물러나므로, 안전 자세를 쉬는 자세와 같게 두면 작업 뒤 바로 끌 수 있다.
+- **예외 (현장 설정)**: 실행기 `fleet_arms.yaml` 의 팔 칸에 `release_move: true` 를 적으면 녹화기 Servo OFF 처럼
+  쉬는 자세가 아닐 때 그리퍼를 뺀 관절을 쉬는 자세로 옮긴 뒤 다시 재서 끈다. 기본은 false (위 규칙).
+  - 실행기는 이동 전에 `release_moving` (예상 시간) 을 알린다. 이동이 관제 ACK 대기(8 s)보다 길 수 있어 어댑터는 그때
+    RESET 에 `ACCEPTED` "쉬는 자세로 이동 중" 을 보내고, 기한을 이동 시간 + `release_timeout_sec` 로 늘린다.
+  - 옮긴 뒤에도 도착하지 못하면 토크를 유지하고 이전 상태로 돌아간다. ACK 는 이미 나갔으므로 로그와
+    `ArmStatus.torque_enabled` 로만 보인다.
+  - 충돌 검사 없이 관절 보간으로 움직이고, 이동 중에는 hold 로 멈추지 않는다 (비상은 12 V 차단).
+    `rest_pose` 를 실제 팔로 잰 값으로 바꾼 뒤에만 켠다.
+  - 이것을 팀 기본으로 할지 (= `ArmCommand.msg` 규칙을 바꿀지) 는 팀이 정한다.
 - `auto_start: true` 면 관제 없이 팔이 탐지되자마자 켠다 (예전 동작). 기본은 false.
 
 ### 헤더 판정 (`CommandHeader`, SR-20)
@@ -266,6 +276,6 @@ DISARMED ───────────────────▶ CONNECTING
 - 관제 PC cyclonedds Peers 에 Station PC IP 추가.
 - 관제 쪽 켜기·끄기 버튼·HTTP 중계 (`cobot_control_center`·`cobot_gui`). 지금은 `ArmCommand` 를 내는 관제 코드가 없다.
 - `ArmCommand` 서명 검사 (D13), 시계 오프셋 검사.
-- 쉬는 자세(`rest_pose`)를 실제 팔로 재기. 지금은 shoebox_d 시작 자세.
+- 쉬는 자세(`rest_pose`)를 실제 팔로 재기. 지금은 shoebox_d 시작 자세. 팔을 쉬는 자세에 두고 `arm_console.py` 의 `saverest` 로 저장한다.
 - 팔 이름 통일: 명세 `omx_1`, 관제 시나리오 `omx1`. 지금은 `interface_arm_id` 로 이어 붙인다.
 - Station PC 부팅 때 노드 자동 시작 (D18 뒤).

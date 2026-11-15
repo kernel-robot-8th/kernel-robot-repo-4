@@ -32,13 +32,18 @@
   latch          CMD_SOFT_LATCH              → 소프트 정지 (RESET 으로만 풀림)
   reset          CMD_RESET                   → 쉬는 자세면 토크 끔, 아니면 거절
   status | s     최근 ArmStatus 한 번 출력
+  saverest [경로] 지금 관절을 쉬는 자세 파일로 저장 (init_pose.json 형식, 녹화기 'Rest 저장' 과 같음)
+                 기본 경로: $OMX_FLEET_DIR/rest_pose_<target>.json (없으면 저장소 옆 omx_fleet)
+                 그 뒤 fleet_arms.yaml 의 rest_pose 를 이 경로로 바꾸고 어댑터를 다시 켜면 적용된다
   wait N         N 초 기다림 (파이프로 넣을 때)
   quit | q       끝
 ACK·작업 결과는 오는 대로 찍힌다.
 """
 
 import json
+import math
 import os
+from pathlib import Path
 import sys
 import threading
 import time
@@ -58,6 +63,11 @@ WORK_TIMEOUT_SEC = 150.0    # [s] pick 90 s + 시작·안전 자세 이동
 BLOCKED_DOMAINS = {'10', '12'}
 RESULT_NAMES = {v: k for k, v in vars(CommandAck).items()
                 if k.startswith(('ACCEPTED', 'REJECTED')) and isinstance(v, int)}
+STALE_SEC = 3.0             # [s] 이보다 오래된 관절 값이면 저장할 때 경고
+REPO = Path(__file__).resolve().parent.parent
+# run_arm_adapter.sh 와 같은 기본 실행기 폴더
+FLEET_DIR = Path(os.environ.get('OMX_FLEET_DIR')
+                 or REPO.parent / f'{REPO.name}-omx-dashboard' / 'omx_fleet')
 COMMANDS = {'start': ArmCommand.CMD_START, 'reset': ArmCommand.CMD_RESET,
             'hold': ArmCommand.CMD_HOLD, 'unhold': ArmCommand.CMD_RELEASE_HOLD,
             'latch': ArmCommand.CMD_SOFT_LATCH}
@@ -130,6 +140,33 @@ class Console:
         self.work_pub.publish(String(data=json.dumps(req)))
         say(f'▶ 작업 {action} (최대 {WORK_TIMEOUT_SEC:.0f}s)')
 
+    def save_rest(self, path):
+        m = self.status
+        if m is None or not m.joint_names:
+            say('  관절 값이 없음: start 로 켠 뒤 다시 (상태에 관절이 실려야 한다)')
+            return
+        age = time.time() - (m.header.stamp.sec + m.header.stamp.nanosec * 1e-9)
+        if not m.torque_enabled:
+            say('  ⚠ 토크가 꺼진 상태의 값이다 (켠 뒤 저장하는 게 정확하다)')
+        if age > STALE_SEC:
+            say(f'  ⚠ 관절 값이 {age:.0f}s 전 것이다 (작업 중이면 끝난 뒤 다시)')
+        pose = {n: round(float(p), 2) for n, p in zip(m.joint_names, m.joint_positions)}
+        if not math.isnan(m.gripper_position):
+            pose['gripper'] = round(float(m.gripper_position), 2)
+        target = Path(path).expanduser() if path else FLEET_DIR / f'rest_pose_{TARGET}.json'
+        data = {'source': 'arm_console saverest', 'arm': TARGET,
+                'saved_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'units': 'lerobot omx_follower (body -100..100, gripper 0..100)', 'pose': pose}
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+        except OSError as error:
+            say(f'  저장 실패: {error}')
+            return
+        say(f'  쉬는 자세 저장: {target}')
+        say(f'       {json.dumps(pose, ensure_ascii=False)}')
+        say(f'  → fleet_arms.yaml 의 arms.{TARGET}.rest_pose 를 이 경로로 바꾸고 어댑터를 다시 켠다')
+
     def show(self):
         m = self.status
         if m is None:
@@ -165,7 +202,7 @@ def main():
     spinner.start()
     time.sleep(1.5)     # 노드와 서로 찾을 틈. 바로 보내면 첫 메시지가 사라진다
     say(f'팔 {ARM} (작업 target {TARGET}), 도메인 {domain} {scope}')
-    say('명령: start pick load hold unhold latch reset s wait q')
+    say('명령: start pick load hold unhold latch reset s saverest wait q')
     if scope != 'LOCALHOST':
         say('⚠ 같은 망 공개: 이 도메인의 다른 관제·노드도 이 명령을 본다')
     try:
@@ -182,6 +219,8 @@ def main():
                 console.work(word)
             elif word in ('status', 's'):
                 console.show()
+            elif word == 'saverest':
+                console.save_rest(words[1] if len(words) > 1 else None)
             elif word == 'wait':
                 time.sleep(float(words[1]) if len(words) > 1 else 1.0)
             else:

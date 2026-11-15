@@ -136,6 +136,7 @@ class ArmAdapterNode(Node):
         self.retract = (False, False)   # (retract_safe, retract_safe_measured)
         self.pending_reset = None       # 끄기 결과를 기다리는 RESET: (ack 재료, 기한, 이전 상태)
         self.release_ok = False
+        self.release_acked = False      # 쉬는 자세로 옮기기 시작해 RESET ACK 를 먼저 보냄
         self.state_poll_sec = value['state_poll_sec']
         self.release_timeout_sec = value['release_timeout_sec']
         self.last_state_poll = 0.0
@@ -271,6 +272,7 @@ class ArmAdapterNode(Node):
             self.backend.release(now)
             self.pending_reset = (ack, time.monotonic() + self.release_timeout_sec, self.power)
             self.release_ok = False
+            self.release_acked = False
             self.power = power.RELEASING
             self.get_logger().info(f'{self.arm_id} 끄기 요청 (관제 RESET): 쉬는 자세 확인 중')
             return
@@ -314,11 +316,21 @@ class ArmAdapterNode(Node):
 
     def _tick_release(self):
         ack, deadline, before = self.pending_reset
+        moving = self.backend.take_release_moving()
+        if moving is not None and not self.release_acked:
+            # 실행기가 쉬는 자세로 옮기기 시작했다 (fleet_arms.yaml release_move). 이동이 관제의
+            # ACK 대기(8 s)보다 길 수 있어 RESET 은 지금 받아들였다고 답하고, 끝은 ArmStatus 로 보인다.
+            deadline = time.monotonic() + moving + self.release_timeout_sec
+            self.pending_reset = (ack, deadline, before)
+            self.release_acked = True
+            why = f'쉬는 자세로 이동 중 (약 {moving:.0f}s), 도착하면 토크 끔'
+            self.get_logger().warning(f'{self.arm_id} {why}')
+            self._ack(ack, power.ACCEPTED, why, False)
         result = self.backend.take_release()
         if result is not None and not result[0]:
             self.power, self.pending_reset = before, None
             self.get_logger().warning(f'{self.arm_id} 끄기 거절: {result[1]}')
-            self._ack(ack, power.REJECTED_STATE, result[1], False)
+            self._ack_release(ack, power.REJECTED_STATE, result[1])
             return
         if result is not None:
             self.release_ok = True
@@ -326,13 +338,21 @@ class ArmAdapterNode(Node):
             self.backend.reset()
             self.power, self.pending_reset = power.DISARMED, None
             self.get_logger().info(f'{self.arm_id} 꺼짐 (DISARMED): 쉬는 자세에서 토크를 껐습니다')
-            self._ack(ack, power.ACCEPTED, '', False)
+            self._ack_release(ack, power.ACCEPTED, '')
         elif self.backend.dead:
             self.power, self.pending_reset = power.FAULT, None
-            self._ack(ack, power.REJECTED_STATE, f'끄는 중 고장: {self.backend.dead}', False)
+            self._ack_release(ack, power.REJECTED_STATE, f'끄는 중 고장: {self.backend.dead}')
         elif time.monotonic() > deadline:
             self.power, self.pending_reset = before, None
-            self._ack(ack, power.REJECTED_STATE, '실행기가 끄기에 답하지 않음', False)
+            self._ack_release(ack, power.REJECTED_STATE, '실행기가 끄기에 답하지 않음')
+
+    def _ack_release(self, ack, result, reason):
+        """RESET 의 최종 ACK. 이동을 시작할 때 이미 답했으면 다시 보내지 않고 로그만 남긴다."""
+        if not self.release_acked:
+            self._ack(ack, result, reason, False)
+        elif result != power.ACCEPTED:
+            self.get_logger().error(f'{self.arm_id} 이동 뒤 끄지 못함 (토크 상태는 ArmStatus): {reason}')
+        self.release_acked = False
 
     def _publish_status(self):
         joints = self.backend.joints or {}

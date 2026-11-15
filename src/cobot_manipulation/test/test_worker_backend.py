@@ -46,6 +46,13 @@ for line in sys.stdin:
         emit(event='state', joints=joints)
         continue
     if msg['cmd'] == 'release':
+        if mode in ('move_rest', 'move_blocked'):
+            emit(event='release_moving', seconds=3.2, pose_error={}, joints=joints)
+            if mode == 'move_blocked':
+                emit(event='release_refused', detail='도착 못 함', pose_error={}, joints=joints)
+                continue
+            emit(event='released', pose_error={})
+            break
         if mode == 'not_rest':
             emit(event='release_refused', detail='쉬는 자세가 아님', pose_error={}, joints=joints)
             continue
@@ -232,6 +239,38 @@ def test_release_refused_keeps_worker():
     assert backend.take_release() == (False, '쉬는 자세가 아님')
     assert backend.running() and backend.ready and not backend.releasing
     backend.shutdown()
+
+
+def test_release_moves_to_rest_then_ends():
+    backend, logs = worker('move_rest')
+    ready(backend)
+    backend.release(NOW)
+    wait(backend, until=lambda b, _: b.release_result is not None)
+    assert backend.take_release_moving() == 3.2 and backend.take_release_moving() is None
+    assert backend.take_release() == (True, '')
+    assert any('쉬는 자세로 이동' in line for line in logs)
+    wait(backend, until=lambda b, _: not b.running() and b.events.empty())
+    backend.poll(NOW)
+    assert backend.dead == ''
+    backend.reset()
+    assert backend.release_moving is None
+
+
+def test_release_move_blocked_keeps_worker():
+    backend, _ = worker('move_blocked')
+    ready(backend)
+    backend.release(NOW)
+    wait(backend, until=lambda b, _: b.release_result is not None)
+    assert backend.take_release_moving() == 3.2
+    assert backend.take_release() == (False, '도착 못 함')
+    assert backend.running() and backend.ready and not backend.releasing
+    backend.shutdown()
+
+
+def test_release_moving_ignored_when_not_releasing():
+    backend, _ = worker()
+    backend._on_event({'event': 'release_moving', 'seconds': 5})
+    assert backend.take_release_moving() is None
 
 
 def test_reset_after_crash_allows_new_worker():

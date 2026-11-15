@@ -29,9 +29,11 @@ fleet_control ── 작업 요청·결과 ──▶  팔 어댑터 노드 ─�
 | 1 | Station PC | 노드를 켜 둔다 | 꺼짐. 연결·토크 없음 |
 | 2 | 관제 | `CMD_START` | 팔에 연결, 모델 불러옴 (약 10초). 토크가 잠깐 꺼졌다 켜진다 → **쉬는 자세에서 켤 것** |
 | 3 | 관제 | 작업 요청 `pick`·`load` | 시작 자세 → 정책 실행 → 안전 자세 → 결과 보고 |
-| 4 | 관제 | `CMD_RESET` | 쉬는 자세면 토크를 끔. 아니면 **거절** ("현장에서 팔을 내려 주세요") |
+| 4 | 관제 | `CMD_RESET` | 쉬는 자세면 토크를 끔. 아니면 **거절** ("현장에서 팔을 내려 주세요"). 현장 설정 `release_move: true` 면 쉬는 자세로 옮긴 뒤 끔 |
 
-- 끄기는 팔을 옮기지 않는다. 관제는 팔 모션을 시작하지 않는다는 팀 규칙(`ArmCommand.msg`) 때문이다.
+- 끄기는 기본적으로 팔을 옮기지 않는다. 관제는 팔 모션을 시작하지 않는다는 팀 규칙(`ArmCommand.msg`) 때문이다.
+- 예외: 실행기 `fleet_arms.yaml` 에 `release_move: true` 를 적은 팔은 녹화기 Servo OFF 처럼 쉬는 자세로 옮긴 뒤 끈다. 충돌 검사가 없고 이동 중 정지가 안 되므로 팔 옆에 사람이 있을 때만 켠다.
+- 쉬는 자세 재기: 팔을 쉬는 자세에 두고 켠 뒤 콘솔 `saverest` → `fleet_arms.yaml` 의 `rest_pose` 를 그 파일로 → 노드 다시 켬.
 - 급할 때는 **팔 12 V 전원 차단**이 가장 빠르다. 팔이 떨어지니 받칠 것.
 
 ## 주고받는 것
@@ -83,7 +85,7 @@ fleet_control ── 작업 요청·결과 ──▶  팔 어댑터 노드 ─�
 
 ```bash
 scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake
-# 다른 터미널: 관제 대신 명령을 한 줄씩 (start, pick, s, reset, q)
+# 다른 터미널: 관제 대신 명령을 한 줄씩 (start, pick, s, saverest, reset, q)
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
 export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 python3 scripts/arm_console.py
@@ -99,7 +101,7 @@ fake 도 꺼짐으로 시작한다. `start` 를 보내야 켜진다.
 |---|---|
 | 관제 화면의 켜기·끄기 버튼: `feature/control-center` 에 있음 (2026-11-15). submaster 병합·실물 확인 남음 | 로봇 수행 관제 |
 | 실제 팔 시험 (보드가 omx1 이 맞는지, 캘리브레이션) | 로봇팔 + 관제 |
-| 쉬는 자세 실측 (지금은 임시로 shoebox_d 시작 자세) | 로봇팔 |
+| 쉬는 자세 실측 (지금은 임시로 shoebox_d 시작 자세, 콘솔 `saverest` 로 저장) | 로봇팔 |
 | 성공 판단 YOLO 모델 | 로봇팔·비전 |
 | omx2·omx3 등록 | 로봇팔 |
 
@@ -109,3 +111,4 @@ fake 도 꺼짐으로 시작한다. `start` 를 보내야 켜진다.
 2. **`retract_safe` 기준**: 명세는 "Z ≥ 280 mm", 여기서는 관절 오차 5° 이내.
 3. **`ArmStatus` 에 전원 상태 칸**을 넣을지 (켜짐·꺼짐·고장).
 4. **서명 키** (D13).
+5. **끄기 때 팔 이동 허용**: 지금은 기본 꺼짐, 현장 설정(`release_move`)으로만 켬. 기본으로 하려면 `ArmCommand.msg` 규칙을 바꾼다.
