@@ -40,7 +40,7 @@ case "$operation" in
     repo_root="$(cd -- "${nav_root}/../.." && pwd)"
     # sudo 기동도 사용자가 지정한 이 저장소 하나만 신뢰한다.
     git_repo=(git -c "safe.directory=${repo_root}" -C "$repo_root")
-    web_packages=(src/cobot_control_center src/cobot_patrol_interfaces)
+    web_packages=(src/cobot_control_center src/cobot_patrol_interfaces src/cobot_interfaces)
     context_root="${nav_root}/.docker-context"
     mkdir -p "$context_root"
     control_center_stage="$(mktemp -d "${context_root}/control-center.XXXXXX")"
