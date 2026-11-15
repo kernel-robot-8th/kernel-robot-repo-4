@@ -204,7 +204,8 @@ class PinkyPatrolNode(Node):
                 elif raw == 'control_reset':
                     if self.controller.busy or not self.central_guard.accept(envelope or {}, True):
                         raise ValueError('정지 완료·현재 세션의 유효한 복구 명령 필요')
-                    self._emit({'state': 'IDLE', 'detail': 'control reset', 'time': time.time()})
+                    self._emit({'state': 'IDLE', 'detail': 'control reset', 'time': time.time(),
+                                'control_reset_id': command_id})
                     return
                 elif not self.central_guard.accept(envelope or {}):
                     raise ValueError('중앙 하트비트·세션·seq·정지 래치 확인 필요')

@@ -1,0 +1,36 @@
+{
+  "frame_id": "map",
+  "status": "SIMULATED_CANDIDATES_NOT_FIELD_ACCEPTED",
+  "poses": {
+    "WH1_DOCK": {
+      "x_m": 1.73,
+      "y_m": 1.99,
+      "yaw_rad": 4.71238898038469
+    },
+    "WH2_DOCK": {
+      "x_m": 1.73,
+      "y_m": 1.42,
+      "yaw_rad": 4.71238898038469
+    },
+    "GATE_WAREHOUSE": {
+      "x_m": 1.5,
+      "y_m": 0.335,
+      "yaw_rad": 3.141592653589793
+    },
+    "WP_GATE_TRANSIT": {
+      "x_m": 1.25,
+      "y_m": 0.335,
+      "yaw_rad": 3.141592653589793
+    },
+    "GATE_STORE": {
+      "x_m": 1.0,
+      "y_m": 0.335,
+      "yaw_rad": 3.141592653589793
+    },
+    "STORE_DOCK": {
+      "x_m": 0.565,
+      "y_m": 1.72,
+      "yaw_rad": 3.141592653589793
+    }
+  }
+}

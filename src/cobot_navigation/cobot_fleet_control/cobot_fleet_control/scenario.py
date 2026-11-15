@@ -4,6 +4,7 @@ import math
 import time
 
 from .repository import encode
+from .control_release import ControlRelease
 from .scenario_repository import ScenarioRepository
 from .scenario_contracts import BLOCKED, TERMINAL, finite, identifier
 from .scenario_runtime import ScenarioRuntime
@@ -45,6 +46,7 @@ class ScenarioService:
         self.next_departure = 0.0
         self.deadlines = {}
         self.trees = {}
+        self.releases = ControlRelease(self)
         for order in self.store.orders():
             if order['state'] not in TERMINAL:
                 order.update(state='UNKNOWN', detail='관제 재시작: 자동 재전송 금지',
@@ -99,6 +101,8 @@ class ScenarioService:
             if not finite(battery) or not 0 <= battery <= 100:
                 raise ValueError('battery: 0~100 실측 퍼센트')
             health.update(battery=battery, battery_at=self.clock())
+        if status is not None:
+            self.releases.observe(robot_id)
 
     def _fresh(self, robot):
         health = self.health.get(robot, {})
@@ -146,6 +150,7 @@ class ScenarioService:
 
     def tick(self):
         """접수 순서로 로봇을 배정하고 주문마다 독립적인 전체 시나리오 BT를 실행한다."""
+        self.releases.tick()
         for order in self.store.orders():
             if order['state'] in TERMINAL | BLOCKED:
                 self.trees.pop(order['order_id'], None)

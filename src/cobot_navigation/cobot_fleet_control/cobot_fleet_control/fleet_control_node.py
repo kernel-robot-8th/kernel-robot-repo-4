@@ -137,11 +137,13 @@ class FleetControlNode(Node):
 
     def release(self, robot_id, route=None):
         """현장 상태를 명시적으로 확인한 뒤 로봇의 정지 잠금을 해제한다."""
-        self.send(robot_id, {'command_id': uuid.uuid4().hex, 'command': 'control_reset'})
+        command_id = uuid.uuid4().hex
+        self.send(robot_id, {'command_id': command_id, 'command': 'control_reset'})
         if route:
             for target in {route['pickup_arm'], route['dropoff_arm']}:
                 self.work(dict(request_id=uuid.uuid4().hex, order_id='', robot_id=robot_id,
                                target=target, stage='SAFETY', action='release_hold'))
+        return command_id
 
     def work(self, payload):
         """장치 어댑터는 request_id로 중복을 제거하고 실측한 최종 결과를 반환한다."""
@@ -247,11 +249,24 @@ class FleetControlNode(Node):
                 for row in list(self.repository.db.execute(
                         "SELECT command_id FROM commands WHERE robot_id=? "
                         "AND state IN ('ACCEPTED','RUNNING')", (robot_id,))):
+                    self.scenario.releases.cancel(robot_id)
                     self.service.quarantine(row[0], '통신·배터리 상태 수신 만료')
                     self.scenario.store.hold(robot_id, 'LINK_LOST')
                     self.halt(robot_id, {}, '')
         self.scenario.tick()
-        self.service.tick(allow_dispatch=self.scenario.armed)
+        for command_id in self.service.tick(allow_dispatch=self.scenario.armed):
+            robot = self.repository.get(command_id)['robot_id']
+            self.scenario.releases.cancel(robot)
+            self.scenario.store.hold(robot, 'DISPATCH_FAILED')
+            orders = [o for o in self.scenario.store.orders()
+                      if o['robot_id'] == robot and o['state'] not in {'COMPLETED', 'FAILED'}]
+            for order in orders:
+                self.scenario.interrupt(order['order_id'], 'UNKNOWN', '주행 명령 전달 실패')
+            if not orders:
+                try:
+                    self.halt(robot, {}, '')
+                except Exception as error:
+                    self.get_logger().error(f'{robot} 정지 전달 실패: {error}')
         for event in self.repository.pending():
             payload = json.loads(event['payload'])
             if payload['type'] == 'command_state':

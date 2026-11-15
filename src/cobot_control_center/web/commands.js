@@ -35,6 +35,7 @@ const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈
 // fleet_control 보류 사유: 운영자 정지(STOP·ESTOP·PAUSE·MANUAL), 시나리오 중단(PAUSED·ESTOP·MANUAL),
 // 상태·배터리 수신 만료(LINK_LOST). 모르는 사유는 그대로 보인다.
 const HOLD_TEXT = {
+  RESET_PENDING: "잠금 해제 응답 대기", RESET_UNCONFIRMED: "잠금 해제 미확인", DISPATCH_FAILED: "명령 전달 실패",
   STOP: "정지", ESTOP: "비상정지", PAUSE: "일시정지", PAUSED: "일시정지", MANUAL: "수동",
   LINK_LOST: "통신 끊김",
 };

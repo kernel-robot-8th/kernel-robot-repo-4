@@ -1,0 +1,4 @@
+# PACKET_SHA256SUMS 가 바이트 단위로 대조하는 파일들이다. 줄바꿈(CRLF 포함)을 바꾸지 않고 그대로 저장한다.
+zone/** -text
+weights/** binary
+PACKET_SHA256SUMS -text

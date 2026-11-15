@@ -121,6 +121,9 @@ class ScenarioRepository:
     def close_order(self, snapshot, restock=False):
         """실제 작업 영역에서 벗어났음을 확인한 뒤에만 자원을 반납한다."""
         with self.db:
+            previous = self.get(snapshot['order_id'])
+            if previous and previous['state'] in {'COMPLETED', 'FAILED'}:
+                return
             if restock:
                 self.db.execute('INSERT INTO scenario_stock VALUES (?,?) '
                                 'ON CONFLICT(sku) DO UPDATE '

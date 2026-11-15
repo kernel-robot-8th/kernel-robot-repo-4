@@ -5,7 +5,7 @@
 ## 웹 API
 
 `/api/tasks`·정지·해제·작업 명령 켜기/끄기·개발용 수동 명령 외에는 읽기 전용입니다. 명령 경로는 작업 노드 `fleet_control_node`(`cobot_fleet_control`)에 넘기기만 하고, 작업 노드가 없거나 읽기 전용 백엔드(`read_only`)면 503 입니다.
-작업 노드는 **작업 명령 꺼짐**으로 시작합니다. 꺼져 있는 동안 `POST /api/tasks`·`raw_cmd` 는 `423` 이고, 정지·해제는 항상 됩니다.
+작업 노드는 **작업 명령 꺼짐**으로 시작합니다. 꺼져 있는 동안 `POST /api/tasks`·`raw_cmd`는 `423`입니다. 정지는 항상 요청할 수 있고, 해제에는 최신 정지 상태 확인이 필요합니다.
 GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 메모리에 둔 최신값입니다 (DB 를 읽지 않음, [README 데이터 흐름](../README.md#데이터-흐름)).
 
 | 경로 | 응답 |
@@ -27,14 +27,19 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
 | `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지 (로봇·팔 모두) |
 | `POST /api/robots/{robot_id}/initial_pose` | AMCL 위치를 다시 잡음 (로봇은 움직이지 않음). body `{"client_request_id", "pose"?}`. `pose` 가 없으면 fleet 이 순찰 설정의 홈을 씀. `pose: {x, y, yaw}` ([m], [m], [rad], map 프레임)면 그 좌표 (화면 상세 지도의 좌표 지정). 숫자가 아니거나 지도 밖이면 이 백엔드가 400. 누가는 접속 IP(`source`). 202 면 `{robot_id, mode: home\|manual, point, x, y, yaw, topic}` (좌표면 `point` 는 `좌표`), 거절이면 fleet 사유를 `detail` 로 |
-| `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구 (주문 없는 로봇). `{"client_request_id"}` 만 있어도 됨. `operator`·`note`·`evidence` 는 선택이고, 누가는 접속 IP(`source`)로 fleet 에 넘김 (2026-11-09 임시 일반형). 검사 실패면 fleet 사유를 `detail` 로 |
+| `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구 (주문 없는 로봇). `operator`·`note`는 선택. 최신 정지 상태를 확인한 뒤 `202 {robot_id, released: false, reset_pending: true}`. 로봇 해제 응답 후 `/api/health`의 보류가 사라짐. 상태 미확인은 409 |
 | `POST /api/robots/{robot_id}/raw_cmd` | 개발용. `{"client_request_id", "command": "goto:P3,P7"}` → `202 {"robot_id", "command", "raw_id", "spec": "v1", "topic": "/pinky1/patrol_cmd", "msg_type": "std_msgs/msg/String", "warning"}` / `423` 작업 명령 꺼짐 / `403` allow_raw_cmd 꺼짐 / `400` 빈 명령·여러 줄·200자 넘음 / `409` 진행 중·결과 모름 작업. 검사 없이 `patrol_cmd` 에 그대로 |
-| `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"}`. `UNKNOWN` 만 해제 (그 밖은 409) |
-| `POST /api/orders/{order_id}/recover` | 멈춘 주문 복구 (화면: 카드의 "주문 멈춤" 줄 → 확인 창). `{"client_request_id", "decision": "resume" \| "fail", "evidence"?, "operator"?, "note"?}`. 이어서 가기(`resume`)는 이동 단계(`MOVE_PICKUP`·`MOVE_DROPOFF`·`RETURN_HOME`·`CUSTOMER`)에서만 fleet 이 받음. 확인 항목은 선택 (2026-11-09 임시 일반형, 단계별 확인은 시나리오 정해진 뒤). 누가는 접속 IP(`source`) |
+| `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"?}`. UNKNOWN만 접수. 202의 작업은 UNKNOWN·`reset_pending=true`이며 로봇 해제 응답 후 FAILED로 변경. 정지 미확인은 409 |
+| `POST /api/orders/{order_id}/recover` | `{"client_request_id", "decision": "resume" \| "fail", "evidence"?, "operator"?, "note"?}`. 재개는 `MOVE_PICKUP`·`MOVE_DROPOFF`·`RETURN_HOME`·`CUSTOMER`만 가능. 로봇은 최신 정지 상태여야 함. 자원을 예약한 주문 취소는 `evidence`의 `arms_safe`·`cargo_reconciled`·`resources_clear` 모두 true 필요. 화면에서 각각 현장 확인. 취소 후에도 로봇 해제 응답 전에는 보류 유지 |
 | `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
+
+해제 응답은 같은 부팅의 `control_reset_id`와 요청 ID가 일치해야 합니다. 일반 하트비트만으로
+복구를 완료하지 않습니다. `RESET_PENDING`은 응답 대기, `RESET_UNCONFIRMED`는 만료·재시작 등으로
+확인하지 못한 보류입니다. 최신 상태를 확인하고 다시 요청할 수 있습니다.
+관제·웹과 로봇의 `cobot_pinky_patrol`을 함께 배포해야 합니다.
 
 ## `/control_center/fleet_status` (= `/api/fleet`) 형식
 

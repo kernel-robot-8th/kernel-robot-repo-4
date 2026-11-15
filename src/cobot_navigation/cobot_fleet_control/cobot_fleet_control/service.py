@@ -41,20 +41,21 @@ class FleetService:
 
     def tick(self, allow_dispatch=True):
         """통신 발행의 성공을 로봇 도착 성공으로 처리하지 않는다."""
+        failed = []
         for command_id, (tree, _) in list(self.active.items()):
             if not allow_dispatch and self.repository.get(command_id)['state'] == 'ACCEPTED':
                 continue
             try:
                 tree.tick()
-            except Exception:
-                self.repository.transition(command_id, 'UNKNOWN', '명령 전달 중 예외: 현장 확인 필요')
-                self.traces.pop(command_id).capture('tick_error')
-                del self.active[command_id]
-                raise
+            except Exception as error:
+                self.quarantine(command_id, '명령 전달 중 예외: ' + str(error))
+                failed.append(command_id)
+                continue
             self.traces[command_id].capture()
             if tree.root.status != py_trees.common.Status.RUNNING:
                 del self.active[command_id]
                 del self.traces[command_id]
+        return failed
 
     def quarantine(self, command_id, detail):
         """장치에 정지를 요청하기 전에 로컬에서 전달 대기 중인 명령을 제거한다."""

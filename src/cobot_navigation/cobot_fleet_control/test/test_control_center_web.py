@@ -77,11 +77,18 @@ def test_existing_web_resolve_payload_requires_real_idle_status(env):
     assert env.repo.get('click1')['state'] == 'UNKNOWN'
     request = dict(type='resolve', task_id='click1', result='FAILED',
                    client_request_id='resolve1', note='현장에서 정지 확인')
+    env.scenario.telemetry('pinky1', dict(state='STOPPING', busy=True,
+                                        central_controlled=True, central_latched=True))
     assert env.api.handle(request)['status'] == 409
     env.scenario.telemetry('pinky1', dict(
         state='STOPPED', busy=False, held_zone=None, central_controlled=True, central_latched=True))
     reply = env.api.handle(request)
-    assert reply['status'] == 200 and reply['body']['state'] == 'FAILED'
+    assert reply['status'] == 202 and reply['body']['state'] == 'UNKNOWN'
+    assert env.scenario.store.holds()
+    env.scenario.telemetry('pinky1', dict(
+        state='STOPPED', busy=False, central_controlled=True, central_latched=False,
+        control_reset_id='reset-1'))
+    assert env.repo.get('click1')['state'] == 'FAILED'
     assert not env.scenario.store.holds()
     assert env.api.handle(request)['status'] == 409
     assert env.api.handle(dict(request, task_id='unknown'))['status'] == 404

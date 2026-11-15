@@ -26,6 +26,8 @@
 │   ├── cobot_mock/             # [관제] 개발·시험용 가짜 핑키 (격리 도메인 전용, 폴더째 빼도 됨)
 │   ├── cobot_gazebo/           # [관제] 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드, 시뮬 도메인 140~143, worlds/ 예외)
 │   ├── pinky_interfaces_stub/  # [관제] 시뮬 PC 전용 대체 pinky_interfaces (SetLed). 실물 로봇에서는 빌드 안 함
+│   ├── cobot_anomaly_monitor/  # [관제] 시나리오 기록, CCTV 이상 판정, 수동 어댑터 (중계 장비)
+│   ├── cobot_simulation/       # [시뮬레이션] 경량 다중 로봇 & 아레나 통합 시뮬레이션
 │   └── cobot_gui/              # [GUI] 사용자/관제 화면 (웹 화면 자원은 web/ → 3-7 참고)
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
 │   ├── dev_docker_guide.md     # 도커로 빌드·시험하는 방법 (도커를 처음 쓰는 사람용 설명 포함)
@@ -52,7 +54,8 @@
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
 | 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_mock`, `cobot_gazebo`, `pinky_interfaces_stub`, `cobot_patrol_interfaces`(합칠 때 공통으로) | 김지혜 |
-| 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
+| 이상 감지 관제 | `cobot_gui`, `cobot_control_center`, `cobot_anomaly_monitor` | 강건한 |
+| 시뮬레이션 | `cobot_simulation` | 강건한 (공통 테스트베드) |
 | 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
 
 담당 기준은 [2026-10-24 사용자 지정](docs/team_roles.md)이다. 두 관제는 공통 GUI·관제 코어를 재사용하며 로봇 기능 개발과 구분한다.

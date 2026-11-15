@@ -14,7 +14,8 @@
 | `POST /api/tasks` | `type=create` | 최초 202, 동일 요청 200, 충돌 409 |
 | `POST /api/commands/arm` | `type=arm` | 켜기·끄기 200, 꺼진 상태의 작업 요청 423 |
 | `POST /api/robots/{id}/stop` | `type=stop` | 202, 실제 사용한 소프트 정지 동작·작업 ID 반환 |
-| `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | UNKNOWN만 해제, 최신 정지·취소 상태 확인 (구역 보유는 막지 않음) |
+| `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | 202: UNKNOWN 유지, 로봇 해제 응답 후 FAILED. 최신 정지·취소 상태 필요 |
+| `POST /api/robots/{id}/release_control` | `type=release_control, robot_id` | 202: `released=false, reset_pending=true`. 일치하는 로봇 해제 응답 후 보류 해제 |
 | `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사 |
 | `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source, pose?` | 202. `pose {x, y, yaw}` 가 있으면 그 좌표(잘못되면 400), 없으면 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503 |
 | `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
@@ -43,11 +44,25 @@
   실제 하드웨어 비상정지와 다릅니다.
 
 웹 해제 버튼은 현장 확인 기록을 남기되, 로봇의 `busy=false`와 최신 상태를 확인합니다.
-로봇 정지 래치(`central_latched`)는 보지 않습니다 (재부팅한 로봇은 래치가 풀린 채 올라와 해제가 막히므로).
+중앙 제어 상태와 불리언 래치(`central_latched`)도 확인합니다. 래치가 이미 false인 재부팅 로봇도 복구 요청은 받습니다.
 구역 보유(`held_zone`)도 막지 않습니다: 비상정지·통신 끊김으로 구역 안에서 잠긴 로봇은 해제(또는 제어권 복구)한 뒤
 `leave`(또는 아무 명령, 로봇이 먼저 구역을 나감)로 빠져나옵니다. 토큰은 그때까지 유지되어 다른 로봇이 들어오지 못합니다.
-결과 모름 해제(`type=resolve, task_id`)와 주문 복구(`type=resolve, order_id, decision`)도 운영자·메모·확인 항목(`evidence`)은 선택입니다 (주문 복구의 이어서 가기 단계 제한 `RESUME_STAGES` 는 그대로). 명령을 보내기 전 중복 검사는 보내는 쪽(명령 발행자·요청 구독자)만 보고, `ros2 topic echo` 로 들여다보는 구독자는 막지 않습니다 (2026-11-09).
-제어권 복구(`type=release_control`)는 주문 없는 로봇이면 로봇만 지정하면 됩니다. 운영자·메모·확인 항목(`evidence`)은 선택이고, 없으면 기본값과 접속 IP(`source`)로 기록합니다 (화면 확인 창 한 번, 2026-11-09 임시 일반형. 시나리오별 단계 확인은 나중).
+운영자·메모는 선택이고 없으면 기본값과 접속 IP(`source`)를 기록합니다. 자원을 예약한 주문을 취소하려면
+`evidence`의 `arms_safe`, `cargo_reconciled`, `resources_clear`가 모두 true여야 합니다.
+화면은 팔 퇴피, 화물 정리, 작업장·통로 이탈을 각각 묻습니다. 실제 정리 전에는 승인하지 않습니다.
+주문 취소로 자원을 해제하더라도 로봇 보류는 해제 응답 전까지 유지합니다.
+배정 전 취소된 배송 주문만 예약 재고를 한 번 반환합니다. 배정 이후 화물·재고는 현장 대조 대상입니다.
+주문 재개의 단계 제한 `RESUME_STAGES`는 유지합니다.
+
+제어권 복구와 단일 작업 해제의 202는 요청 접수입니다. 같은 로봇 부팅에서 `control_reset_id`가 요청 ID와
+일치하고, 최신 `busy=false`, `central_controlled=true`, `central_latched=false` 상태를 받아야 완료합니다.
+`stale_sec` 안에 확인되지 않거나 새 정지·재시작이 발생하면 보류와 UNKNOWN을 유지합니다.
+관제 재시작 뒤에는 과거 응답으로 자동 해제하지 않고 운영자가 다시 요청해야 합니다.
+**배포 시 관제·웹과 `cobot_pinky_patrol`을 함께 업데이트하세요.** 이전 로봇 노드는 해제 ID를 보내지 않아
+복구가 완료되지 않습니다. 수동 상차 후 잠금 해제와 주문 재개도 해당 ID를 확인합니다.
+
+개별 명령 발행 예외는 해당 작업을 UNKNOWN으로 격리하고 로봇 정지를 요청합니다. 다른 로봇의
+BT와 중앙 하트비트는 계속 실행합니다. 명령 중복 검사는 발행자·요청 구독자를 보고 관측 구독자는 막지 않습니다.
 시나리오의 화물·자원 예약은 기존 단일 작업 해제 버튼으로 풀 수 없습니다.
 그 경우 주문별 안전·화물·자원 확인을 담은 시나리오 복구가 필요합니다.
 

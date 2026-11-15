@@ -83,12 +83,18 @@ def test_upstream_http_stop_and_legacy_resolve_request(web):
     health = client.get('/api/health').json()
     assert health['commands_armed'] is True and 'pinky1' in health['holds']
     request = dict(result='FAILED', note='현장에서 정지 확인', client_request_id='resolve1')
+    run(lambda e: e.scenario.telemetry('pinky1', dict(
+        state='STOPPING', busy=True, central_controlled=True, central_latched=True)))
     assert client.post('/api/tasks/http2/resolve', json=request).status_code == 409
     run(lambda e: e.scenario.telemetry('pinky1', dict(
         state='STOPPED', busy=False, held_zone=None,
         central_latched=True, central_controlled=True)))
     resolved = client.post('/api/tasks/http2/resolve', json=request)
-    assert resolved.status_code == 200 and resolved.json()['state'] == 'FAILED'
+    assert resolved.status_code == 202 and resolved.json()['state'] == 'UNKNOWN'
+    run(lambda e: e.scenario.telemetry('pinky1', dict(
+        state='IDLE', busy=False, central_latched=False, central_controlled=True,
+        control_reset_id='reset-1')))
+    tasks.put_snapshot(json.dumps(run(lambda e: e.api.snapshot())))
     assert client.get('/api/tasks').json()[0]['state'] == 'FAILED'
     assert client.post('/api/robots/pinky1/raw_cmd', json={'command': 'home'}).status_code == 403
 

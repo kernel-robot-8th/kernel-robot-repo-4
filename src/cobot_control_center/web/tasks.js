@@ -102,7 +102,7 @@ function renderTasks() {
 
 // ---------- 결과 모름 해제 ----------
 // 작업 목록의 해제 버튼이나 카드의 빨간 '결과 모름' 줄을 누르면 확인 창이 한 번 뜬다
-// (보통 방식, 2026-11-09 임시 일반형. 메모 입력 없음). 해제하면 실패로 기록된다 (기록은 지우지 않는다).
+// 메모 입력은 선택이다. 로봇 해제 응답을 확인한 뒤 실패로 기록된다 (기록은 지우지 않는다).
 
 async function openResolve(task) {
   if (!task) return;
@@ -116,7 +116,7 @@ async function openResolve(task) {
   if (result.ok) {
     upsertTask(result.data);
     renderTasks();
-    showMessage(task.robot_id, `해제함: ${task.command} (실패로 기록)`, false);
+    showMessage(task.robot_id, `해제 요청 접수: ${task.command} · 로봇 응답 확인 후 실패로 기록`, false);
   } else {
     showMessage(task.robot_id, `해제 실패 (${result.status}): ${errorText(result)}`, true);
   }
