@@ -31,8 +31,8 @@ import uuid
 
 from cobot_mock.mock_pinky_sim import (ack_for, central_command, CentralGuard, check_domain,
                                        choose_auto_command, load_robot_configs,
-                                       load_zone_params, MockConfigError, RobotSim, v2_to_v1,
-                                       ZoneBook)
+                                       load_zone_params, MockConfigError, reset_event, RobotSim,
+                                       v2_to_v1, ZoneBook)
 from cobot_patrol_interfaces.msg import PatrolCommand, PatrolCommandAck, PatrolState
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import rclpy
@@ -157,10 +157,11 @@ class MockPinkyNode(Node):
         self.manual_until[robot] = now + self.cfg['auto_pause_after_cmd_sec']
         raw = msg.data
         if self.central:
-            raw, result = central_command(self.central_guards[robot], msg.data)
+            raw, result = central_command(self.central_guards[robot], msg.data,
+                                          self.sims[robot].running)
             if result == 'reset':
                 self.get_logger().info(f'{robot}: 정지 잠금 해제 (control_reset)')
-                self._emit(robot, [{'state': 'IDLE', 'waypoint': -1, 'detail': 'control reset'}])
+                self._emit(robot, [reset_event(msg.data)])
                 return
             if raw is None:
                 self.get_logger().warning(

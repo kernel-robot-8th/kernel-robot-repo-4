@@ -230,12 +230,13 @@ class CentralGuard:
         return True
 
 
-def central_command(guard, raw):
+def central_command(guard, raw, busy=False):
     """
     중앙 모드에서 patrol_cmd 를 거른다. (로봇에 넘길 명령 또는 None, 처리 결과) 를 돌려준다.
 
     결과: 'stop' (정지는 늘 받음, 잠금은 비상정지만), 'reset' (잠금 해제, 로봇에 넘기지 않음),
     'accepted', 'rejected'. 실제 순찰 노드 _cmd_cb 와 같은 순서다.
+    busy 는 지금 움직이는 중인지. 움직이는 중에는 잠금 해제를 받지 않는다 (순번도 쓰지 않음).
     """
     envelope = None
     text = raw.strip() if isinstance(raw, str) else ''
@@ -255,10 +256,29 @@ def central_command(guard, raw):
         guard.stop(emergency=kind == 'emergency_stop')
         return raw, 'stop'
     if command == 'control_reset':
-        return None, 'reset' if guard.accept(envelope or {}, True) else 'rejected'
+        if busy or not guard.accept(envelope or {}, True):
+            return None, 'rejected'
+        return None, 'reset'
     if not guard.accept(envelope or {}):
         return None, 'rejected'
     return raw, 'accepted'
+
+
+def reset_event(raw):
+    """
+    잠금 해제를 받은 뒤 낼 상태 이벤트.
+
+    관제(fleet)는 이 상태의 control_reset_id 가 자기가 보낸 해제 명령 ID 와 같아야
+    해제를 확정한다 (실제 순찰 노드와 같음). 봉투가 아니면 ID 를 싣지 않는다.
+    """
+    event = {'state': 'IDLE', 'waypoint': -1, 'detail': 'control reset'}
+    try:
+        command_id = json.loads(raw).get('command_id')
+    except (ValueError, TypeError, AttributeError):
+        command_id = None
+    if isinstance(command_id, str) and command_id:
+        event['control_reset_id'] = command_id
+    return event
 
 
 V2_OPERATIONS = ('goto', 'zone', 'leave', 'home', 'stop', 'emergency_stop')

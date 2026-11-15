@@ -24,8 +24,8 @@ import random
 
 from cobot_mock.mock_pinky_sim import (ack_for, central_command, CentralGuard, check_domain,
                                        choose_auto_command, load_robot_configs,
-                                       load_zone_params, parse_command, RobotSim, v2_to_v1,
-                                       ZoneBook)
+                                       load_zone_params, parse_command, reset_event, RobotSim,
+                                       v2_to_v1, ZoneBook)
 import pytest
 
 NAV = os.path.join(os.path.dirname(__file__), '..', '..', 'cobot_navigation')
@@ -362,6 +362,29 @@ def test_central_guard_stop_latches_until_reset(guard):
     assert central_command(g, envelope(clock, 2, command='control_reset')) == (None, 'reset')
     assert not g.latched
     assert central_command(g, envelope(clock, 3))[1] == 'accepted'
+
+
+def test_central_guard_refuses_reset_while_moving(guard):
+    g, clock = guard
+    g.heartbeat(beat(clock, 1))
+    central_command(g, '{"command_id": "x", "command": "emergency_stop"}')
+    # 실제 순찰 노드처럼 움직이는 중에는 해제를 거절하고 잠금을 유지한다
+    reset = envelope(clock, 1, command='control_reset')
+    assert central_command(g, reset, busy=True) == (None, 'rejected')
+    assert g.latched
+    # 거절한 해제는 순번을 쓰지 않으므로 같은 명령을 멈춘 뒤 다시 받을 수 있다
+    assert central_command(g, reset) == (None, 'reset')
+    assert not g.latched
+
+
+def test_reset_event_echoes_the_reset_command_id(guard):
+    _, clock = guard
+    event = reset_event(envelope(clock, 7, command='control_reset'))
+    # 관제는 이 ID 가 보낸 해제 명령과 같아야 해제를 확정한다
+    assert event == {'state': 'IDLE', 'waypoint': -1, 'detail': 'control reset',
+                     'control_reset_id': 'c7'}
+    assert 'control_reset_id' not in reset_event('control_reset')
+    assert 'control_reset_id' not in reset_event('{"command": "control_reset"}')
 
 
 def test_central_guard_session_change_and_heartbeat_loss_latch(guard):
