@@ -2,6 +2,7 @@
 
 - 상태: 뼈대 (2026-11-14). 팔 실행기 백엔드 `worker`, 관제 켜기·끄기(`ArmCommand`·`ArmStatus`·`CommandAck`) 추가 (2026-11-15). 팔 1대(omx1) 실기 시험 전.
 - 담당: 로봇팔 팀 (CODEOWNERS). 관제 계약 부분은 로봇 수행 관제 담당이 함께 본다.
+- 팀원용 한 장 요약: [`team_guide.md`](team_guide.md)
 - 공통 명세와 다르면 공통 명세(`docs/fms_interfaces.md`)를 따른다. 단, 지금 관제가 실제로 쓰는 계약은
   아래 1번이다. 작업 요청까지 정식 메시지(`HandoverTask` 등)로 옮기는 일은 팀이 따로 정한다.
   켜기·끄기와 상태는 이미 정식 메시지(`ArmCommand`·`ArmStatus`·`CommandAck`)를 쓴다 (5절).
