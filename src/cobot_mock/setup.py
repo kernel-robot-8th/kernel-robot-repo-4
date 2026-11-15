@@ -28,6 +28,9 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
         ('share/' + package_name + '/config', glob('config/*.yaml')),
+        # 가짜 팔용 가짜 by-id 폴더 (빈 파일, 이름만 읽힘)
+        ('share/' + package_name + '/config/mock_serial_by_id',
+            glob('config/mock_serial_by_id/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

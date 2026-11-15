@@ -1,6 +1,6 @@
 # cobot_mock
 
-로봇 없이 관제를 개발·시연하기 위한 **가짜 핑키** 패키지입니다.
+로봇 없이 관제를 개발·시연하기 위한 **가짜 핑키**(와 가짜 팔) 패키지입니다.
 실제 순찰 노드(`cobot_pinky_patrol`)와 zone_manager 의 규격대로 이벤트를 내고 명령을 받습니다.
 
 - 관제 PC 쪽(브릿지를 지난 뒤) 토픽 이름을 그대로 쓰므로, 관제 코드는 진짜인지 가짜인지 구분하지 못합니다.
@@ -12,6 +12,7 @@
 
 - **격리 도메인에서만 돕니다.** `ROS_DOMAIN_ID` 가 비었거나 `0`·`10`·`12`·`20`·`30`·`100`(실물)이면 시작을 거부합니다.
   가짜 `/pinkyN/*` 가 진짜 관제에 섞이면 관제가 가짜 로봇을 진짜로 믿기 때문입니다.
+- 가짜 팔(아래)은 팔 노드에 도메인 검사가 없어서, `mock_fleet.launch.xml` 이 실물 도메인이면 **팔 노드를 띄우지 않습니다**.
 - `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` 로 이 PC 안에서만 보이게 씁니다 (아니면 경고).
 - 장치·Nav2·`/cmd_vel` 을 쓰지 않습니다. 위치는 직선으로 옮기는 흉내입니다.
 
@@ -42,6 +43,23 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 | `points_dir` | `cobot_pinky_patrol/config` (install) | 순찰 설정 폴더 (`common.yaml`·`sites/`·`robots/`, 또는 합친 `pinkyN.yaml`) |
 | `site` | `lab` | `sites/` 의 현장 이름 |
 | `zone_params` | `cobot_zone_traffic_control/config/zone_params.yaml` (install) | 구역 대기 슬롯 설정 |
+| `arms` | `true` | 가짜 팔 3대(omx1~3)를 띄울지 (실물 도메인이면 켜도 안 뜸) |
+| `arm_fake_duration_sec` | `6.0` | 가짜 팔 작업 하나가 성공하기까지 [s] |
+
+### 가짜 팔
+
+가짜 핑키와 달리 따로 만든 흉내 노드가 아니라, **실제 팔 노드**(`cobot_manipulation` 의 `arm_adapter_node`)를 `backend:=fake` 로 띄운 것입니다.
+
+```text
+arm_adapter_node
+ ├─ 판단: 켜기·끄기 판정, 정지, epoch·seq, 작업 요청 검사, ArmStatus·CommandAck·작업 결과 발행  ← 진짜 그대로
+ └─ 백엔드: fake = 팔을 열지 않고 arm_fake_duration_sec 기다렸다가 성공이라고 답함            ← 여기만 가짜
+```
+
+- 보드 탐지는 `config/mock_serial_by_id/` 의 **빈 파일 이름**과 `config/mock_arm_registry.yaml` 의 가짜 시리얼로 통과합니다. 팔 노드는 이름만 읽고 장치를 열지 않습니다.
+- 처음에는 꺼짐입니다. 관제 화면 로봇팔 칸에서 **켜기** 뒤 작업 시험을 보낼 수 있습니다.
+- 흉내 내지 않는 것: 작업 실패(작업 중 **정지**로만 실패가 남), 관절 값(없음), 퇴피 측정(늘 미측정), 모터 오류.
+- 끊김을 보려면 그 팔 노드 프로세스(`omx1_adapter` 등)를 끕니다.
 
 ## 흉내 내는 것
 

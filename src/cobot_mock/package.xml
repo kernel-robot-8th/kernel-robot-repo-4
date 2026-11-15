@@ -20,6 +20,8 @@
   <!-- mock_fleet.launch.xml 이 관제 노드를 함께 띄운다 -->
   <exec_depend>cobot_control_center</exec_depend>
   <exec_depend>cobot_fleet_control</exec_depend>
+  <!-- 가짜 팔: 실제 팔 노드(arm_adapter_node)를 backend:=fake 로 띄운다 (launch 에서만 씀) -->
+  <exec_depend>cobot_manipulation</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
