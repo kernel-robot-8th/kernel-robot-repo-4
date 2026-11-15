@@ -41,8 +41,12 @@
 
 - `release`: 지금 자세가 `rest_pose` 에서 그리퍼를 뺀 관절 `--safe-tol` 안이면 `released` 를 알리고 연결을 끊는다 (토크 꺼짐).
   아니면 `release_refused` 로 거절한다. **팔을 옮기지 않는다** (관제는 팔 모션을 시작하지 않는다).
+  - 예외: 팔 설정 `release_move: true` (기본 false) 면 녹화기 Servo OFF 처럼 `release_moving` (예상 시간 `seconds`) 을 알리고
+    그리퍼를 뺀 관절을 쉬는 자세로 옮긴 뒤 다시 잰다. 도착했으면 `released`, 아니면 `release_refused` (토크 유지).
+    충돌 검사가 없고, 이동 중 온 hold 는 이동이 끝난 뒤 처리된다. `rest_pose` 를 실측한 뒤에만 켠다.
 - `state`: 대기 중 관절 값을 `state` 로 알린다. 어댑터가 1초마다 물어 `ArmStatus` 에 싣는다.
 - `rest_pose` 가 없으면 `release` 는 늘 거절된다. 처음 값은 shoebox_d 시작 자세이므로 실제 팔로 재서 바꾼다.
+  팔을 쉬는 자세에 두고 켠 뒤 관제 저장소 `scripts/arm_console.py` 의 `saverest` 로 `rest_pose_omx1.json` 을 만든다.
 
 ## 실행
 

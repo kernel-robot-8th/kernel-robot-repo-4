@@ -12,11 +12,13 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
   stdin  {"cmd": "run", "id": "<request_id>", "action": "pick"}
          {"cmd": "hold"}   지금 단계를 멈추고 토크 유지 (안전 자세 이동도 하지 않음)
          {"cmd": "state"}  대기 중 관절 값 보고 (작업 중이면 작업이 끝난 뒤 답함)
-         {"cmd": "release"} 쉬는 자세(rest_pose)에 있을 때만 연결을 끊고 끝냄. 아니면 거절 (팔을 옮기지 않음)
+         {"cmd": "release"} 쉬는 자세(rest_pose)에 있을 때만 연결을 끊고 끝냄. 아니면 거절 (팔을 옮기지 않음).
+                            팔 설정 release_move: true 면 거절 대신 쉬는 자세로 옮긴 뒤 다시 재서 끈다
          {"cmd": "quit"}   무조건 연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
   stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
          @fleet {"event": "ready", "actions": [...], "joints": {...}}
          @fleet {"event": "state", "joints": {...}}
+         @fleet {"event": "release_moving", "seconds": N, ...}       release_move: 쉬는 자세로 이동 시작 (약 N 초)
          @fleet {"event": "released", "pose_error": {...}}             이어서 연결을 끊고 끝냄
          @fleet {"event": "release_refused", "detail": "...", "pose_error": {...}, "joints": {...}}
          @fleet {"event": "started", "id": ...}
@@ -80,6 +82,12 @@ def load_arm_config(path, arm_id):
     arm["actions"] = actions
     # 쉬는 자세: 토크를 꺼도(release) 팔이 다치지 않는 자세. 없으면 release 는 늘 거절된다.
     arm["rest_pose"] = str(Path(arm["rest_pose"]).expanduser()) if arm.get("rest_pose") else None
+    # 끄기 때 쉬는 자세로 옮긴 뒤 끌지 (녹화기 Servo OFF 방식). 기본 꺼짐: 관제는 팔 모션을
+    # 시작하지 않는다는 팀 규칙(ArmCommand.msg)을 기본값에서는 지킨다. 현장 설정으로만 켠다.
+    move = arm.get("release_move", False)
+    if not isinstance(move, bool):
+        raise ValueError(f"arms.{arm_id}.release_move 는 true/false ({move!r})")
+    arm["release_move"] = move
     return arm
 
 
@@ -206,8 +214,22 @@ def main(argv=None):
                     emit(event="released", pose_error=error)
                     break
                 worst = max(abs(e) for e in error.values())
+                if not arm["release_move"]:
+                    emit(event="release_refused", pose_error=error, joints=joints,
+                         detail=f"쉬는 자세가 아님 (최대 오차 {worst:.1f} > {mine.safe_tol}): 현장에서 팔을 내려 주세요")
+                    continue
+                # release_move: 쉬는 자세로 옮긴 뒤 다시 잰다. 그리퍼는 그대로 (잡은 물건을 놓지 않게).
+                # move_to_pose 는 멈춤 신호를 받지 않는다: 이동 중 hold 는 이동이 끝난 뒤에 처리된다.
+                seconds = max(args.init_min_s, worst / args.init_speed) + 0.5  # +0.5: 도착 뒤 대기
+                emit(event="release_moving", seconds=round(seconds, 1), pose_error=error, joints=joints)
+                at_rest, error, joints = retreat(robot, rest_pose, args, "끄기 전 쉬는", mine.safe_tol)
+                if at_rest:
+                    emit(event="released", pose_error=error)
+                    break
+                worst = max(abs(e) for e in error.values())
                 emit(event="release_refused", pose_error=error, joints=joints,
-                     detail=f"쉬는 자세가 아님 (최대 오차 {worst:.1f} > {mine.safe_tol}): 현장에서 팔을 내려 주세요")
+                     detail=f"쉬는 자세로 옮겼지만 도착 못 함 (최대 오차 {worst:.1f} > {mine.safe_tol}): "
+                            "막힌 곳을 확인하세요. 토크 유지")
                 continue
             if cmd != "run":
                 continue
