@@ -1,0 +1,18 @@
+# 로봇팔 명령 노드 파라미터 (관제 PC). 팔 노드는 Station PC 의 cobot_manipulation arm_adapter_node.
+# 토픽 이름은 팔 노드 기본값(arm_adapter.yaml 의 비운 command_topic·status_topic·ack_topic)과 같다.
+/**:
+  ros__parameters:
+    arm_ids: [omx_1, omx_2, omx_3]     # 명세 이름. omx1 처럼 써도 omx_1 로 바꾼다
+    command_topic_format: /control_center/{arm}/command      # ArmCommand (관제 → 팔)
+    status_topic_format: /manipulation/{arm}/status          # ArmStatus (팔 → 관제, 10 Hz)
+    ack_topic_format: /manipulation/{arm}/command_ack        # CommandAck (팔 → 관제)
+    request_topic: /control_center/arm_request   # fleet_api_node → 이 노드 (String JSON)
+    events_topic: /control_center/arm_events     # 이 노드 → fleet_api_node (요청 응답)
+    arms_topic: /control_center/arms             # 이 노드 → fleet_api_node (팔 상태 모음, transient_local)
+    # [ms] 명령 유효 기한. 팔 노드가 issued_at + ttl 을 자기 시계로 본다 → 두 PC 시계가 맞아야 한다 (chrony).
+    ttl_ms: 5000
+    # [s] 팔 응답(CommandAck) 기다리는 시간. 팔 노드의 끄기(RESET) 는 쉬는 자세 확인에
+    # release_timeout_sec(5 s) 까지 걸리므로 그보다 길게 둔다. fleet_api 의 arm_reply_timeout_sec 보다는 짧게.
+    ack_timeout_sec: 8.0
+    status_stale_sec: 1.0       # [s] ArmStatus 가 이만큼 끊기면 그 팔은 STALE
+    snapshot_period_sec: 0.2    # [s] /control_center/arms 발행 주기. 명령 직후 상태가 늦게 보이지 않게 짧게

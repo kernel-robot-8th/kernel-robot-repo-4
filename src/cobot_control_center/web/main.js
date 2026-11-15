@@ -105,6 +105,7 @@ setupPick();
 setupRaw();
 setupLoad();
 setupDetail();
+setupArms();
 loadMap();
 loadLayers();
 connect();

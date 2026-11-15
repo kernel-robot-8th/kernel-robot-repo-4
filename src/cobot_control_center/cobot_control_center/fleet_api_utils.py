@@ -576,3 +576,90 @@ class TaskStore:
     def wait_newer(self, seq, timeout):
         with self._cond:
             return self._cond.wait_for(lambda: self._seq > seq, timeout)
+
+
+class ArmStore:
+    """
+    로봇팔 명령 노드(arm_command_node)와 주고받는 값 보관: 팔 상태 모음, 요청 응답 기다리기.
+
+    ROS 콜백 스레드가 put_*() 로 넣고, 웹 서버 스레드가 snapshot()·request() 로 읽는다.
+    응답 기다리기는 TaskStore 와 같다. 팔 끄기(RESET) 응답은 팔이 쉬는 자세를 확인한 뒤에 와서
+    수 초 걸리므로 reply_timeout_sec 는 작업 노드보다 길다.
+    """
+
+    def __init__(self, stale_sec, reply_timeout_sec, clock=time.monotonic):
+        self.stale_sec = float(stale_sec)
+        self.reply_timeout_sec = float(reply_timeout_sec)
+        self.clock = clock
+        self._cond = threading.Condition()
+        self._snapshot = None
+        self._received = None
+        self._replies = {}
+        self._waiting = set()
+
+    def put_snapshot(self, text):
+        """/control_center/arms JSON. 깨진 값이면 False."""
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(data, dict) or not isinstance(data.get('arms'), list):
+            return False
+        with self._cond:
+            self._snapshot = data
+            self._received = self.clock()
+        return True
+
+    def put_event(self, text):
+        """/control_center/arm_events JSON. 기다리는 요청의 응답이면 넘긴다."""
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(data, dict):
+            return False
+        with self._cond:
+            if data.get('type') == 'reply' and data.get('request_id') in self._waiting:
+                self._replies[data['request_id']] = data
+                self._cond.notify_all()
+        return True
+
+    def _age(self):
+        return None if self._received is None else self.clock() - self._received
+
+    def online(self):
+        """로봇팔 명령 노드가 살아 있는지 (상태 모음을 stale_sec 안에 받았는지)."""
+        with self._cond:
+            age = self._age()
+        return age is not None and age <= self.stale_sec
+
+    def snapshot(self):
+        """화면용: 명령 노드가 꺼져 있으면 팔마다 online 을 false 로 바꿔 STALE 로 보인다."""
+        with self._cond:
+            age = self._age()
+            data = self._snapshot or {}
+        online = age is not None and age <= self.stale_sec
+        arms = [a if online else dict(a, online=False, state='STALE',
+                                      allowed=['hold', 'soft_latch'])
+                for a in data.get('arms', []) if isinstance(a, dict)]
+        return {'controller_online': online,
+                'controller_age': None if age is None else round(age, 3),
+                'ttl_ms': data.get('ttl_ms'), 'arms': arms}
+
+    def request(self, payload, publish):
+        """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None (TaskStore.request 와 같다)."""
+        request_id = uuid.uuid4().hex
+        with self._cond:
+            self._waiting.add(request_id)
+        try:
+            publish(json.dumps(dict(payload, request_id=request_id), ensure_ascii=False))
+            with self._cond:
+                if not self._cond.wait_for(lambda: request_id in self._replies,
+                                           self.reply_timeout_sec):
+                    return None
+                reply = self._replies.pop(request_id)
+        finally:
+            with self._cond:
+                self._waiting.discard(request_id)
+                self._replies.pop(request_id, None)
+        return reply.get('status'), reply.get('body')

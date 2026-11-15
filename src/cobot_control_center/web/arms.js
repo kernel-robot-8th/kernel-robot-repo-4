@@ -1,0 +1,221 @@
+// Copyright 2026 Pinky_Team4
+// Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+//
+// 로봇팔 패널: 팔 상태(/api/arms)를 보여 주고 켜기·끄기·정지를 보낸다 (/api/arms/{arm_id}/command).
+// 명령은 로봇팔 명령 노드(arm_command_node)가 ArmCommand 로 바꿔 Station PC 팔 노드에 낸다.
+// 관제는 팔 모션을 시작하지 않는다: 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기뿐이다.
+// 상단 '작업 명령 켜기'(commands.js renderArmToggle)는 로봇팔과 상관없는 작업 명령 스위치다.
+// 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
+
+"use strict";
+
+const ARMS_POLL_MS = 1000;
+
+// arm_command_utils.py 의 화면 상태 → 배지 글·색 묶음
+const ARM_STATE = {
+  STALE: { text: "미연결", level: "na", hint: "팔 노드 상태가 안 들어옴 (Station PC 노드·도메인 확인)" },
+  OFF: { text: "꺼짐", level: "idle", hint: "토크 꺼짐. 고장이면 마지막 응답 사유를 보고 끄기(RESET)로 풀기" },
+  READY: { text: "대기", level: "good", hint: "켜짐, 작업을 받을 수 있음" },
+  BUSY: { text: "작업·연결 중", level: "active", hint: "연결 중이거나 작업 중이거나 끄는 중" },
+  HOLD: { text: "정지", level: "warn", hint: "정지 유지 중. 정지 해제 또는 끄기" },
+  SOFT_LATCH: { text: "소프트 정지", level: "bad", hint: "소프트 정지 래치. 끄기(RESET)로만 풀림" },
+};
+
+// 웹 명령 이름 → 버튼 글·확인 창 (정지 계열은 확인 창 없이 바로 보낸다)
+const ARM_COMMAND = {
+  start: {
+    text: "켜기",
+    confirm: (armId, domain) => `${armId} 를 켤까요? (도메인 ${domain})\n\n`
+      + "실제 팔이면 연결하면서 토크가 잠깐 꺼졌다 켜집니다.\n"
+      + "팔이 쉬는 자세에 있고, 팔 옆에 사람이 있을 때만 켜세요.",
+  },
+  reset: {
+    text: "끄기",
+    confirm: (armId, domain) => `${armId} 를 끌까요? (도메인 ${domain})\n\n`
+      + "쉬는 자세일 때만 토크를 끕니다. 아니면 팔 노드가 거절합니다 (팔을 옮기지 않음).\n"
+      + "고장(FAULT) 상태라면 이 명령으로 꺼짐으로 돌아갑니다.",
+  },
+  release_hold: {
+    text: "정지 해제",
+    confirm: (armId) => `${armId} 정지를 풀까요?\n\n팔이 바로 움직이지는 않습니다. 다음 작업 요청부터 받습니다.`,
+  },
+  hold: { text: "정지" },
+  soft_latch: { text: "소프트 정지" },
+};
+const ARM_STOPS = new Set(["hold", "soft_latch"]);
+const HOLD_REASON_TEXT = { HOLD: "정지 유지", SOFT_LATCH: "소프트 정지" };
+const ARM_RESULT_TEXT = {
+  ACCEPTED: "수락", REJECTED_EPOCH: "세션 번호 거절", REJECTED_SEQ: "순번 거절",
+  REJECTED_TTL: "기한 지남 (두 PC 시계 확인)", REJECTED_STATE: "지금 상태에서 안 됨",
+  REJECTED_ROBOT_ID: "대상 아님", REJECTED_SIGNATURE: "서명 거절",
+};
+
+const armsView = {
+  data: null,         // /api/arms 응답
+  ok: false,          // 마지막 /api/arms 를 받았는지
+  cards: new Map(),   // arm_id → card element
+  busy: new Set(),    // 응답을 기다리는 arm_id (정지 말고는 버튼을 잠근다)
+  msg: new Map(),     // arm_id → {text, bad, until}
+};
+
+function ensureArmCard(armId) {
+  if (armsView.cards.has(armId)) return armsView.cards.get(armId);
+  const card = $("arm-template").content.firstElementChild.cloneNode(true);
+  card.querySelector(".name").textContent = armId;
+  card.querySelectorAll("button[data-arm-cmd]").forEach((button) => {
+    button.textContent = ARM_COMMAND[button.dataset.armCmd].text;
+    button.addEventListener("click", () => sendArmCommand(armId, button.dataset.armCmd));
+  });
+  $("arms").appendChild(card);
+  armsView.cards.set(armId, card);
+  return card;
+}
+
+function formatJoint(value) {
+  return value === null || value === undefined ? "?" : value.toFixed(1);
+}
+
+// 퇴피 안전은 '쟀고 안전' 일 때만 녹색. 안 잰 것은 안전이 아니다 (ArmStatus.retract_safe_measured).
+function retractText(status) {
+  if (!status) return { text: "—", level: "na" };
+  if (!status.retract_safe_measured) return { text: "미측정", level: "warn" };
+  return status.retract_safe ? { text: "안전", level: "good" } : { text: "안전 아님", level: "bad" };
+}
+
+function ackText(ack) {
+  if (!ack) return "";
+  const what = ack.command ? `${ARM_COMMAND[ack.command] ? ARM_COMMAND[ack.command].text : ack.command} → ` : "";
+  const result = ARM_RESULT_TEXT[ack.result] || ack.result;
+  const stop = ack.stop_executed && !ack.accepted ? " (정지는 실행됨)" : "";
+  const reason = ack.reason ? ` · ${ack.reason}` : "";
+  return `마지막 응답 ${formatTime(ack.received_at)} ${what}${result}${stop}${reason}`;
+}
+
+function renderArmCard(arm, canCommand) {
+  const card = ensureArmCard(arm.arm_id);
+  const meta = ARM_STATE[arm.state] || ARM_STATE.STALE;
+  const status = arm.status;
+  card.dataset.level = meta.level;
+  card.classList.toggle("offline", arm.state === "STALE");
+  card.querySelector(".alias").textContent = arm.alias && arm.alias !== arm.arm_id
+    ? `시나리오 ${arm.alias}` : "";
+  const badge = card.querySelector(".arm-state");
+  badge.dataset.level = meta.level;
+  badge.textContent = meta.text;
+  badge.title = meta.hint;
+
+  const torque = card.querySelector(".arm-torque");
+  torque.textContent = !status ? "—" : status.torque_enabled ? "켜짐" : "꺼짐";
+  torque.dataset.level = !status ? "na" : status.torque_enabled ? "active" : "idle";
+  const retract = retractText(status);
+  const retractEl = card.querySelector(".arm-retract");
+  retractEl.textContent = retract.text;
+  retractEl.dataset.level = retract.level;
+  const hold = card.querySelector(".arm-hold");
+  hold.textContent = status && status.hold_active
+    ? (HOLD_REASON_TEXT[status.hold_reason] || status.hold_reason || "정지") : "없음";
+  hold.dataset.level = status && status.hold_active ? "warn" : "na";
+  card.querySelector(".arm-session").textContent = `${arm.epoch} · ${arm.seq}`;
+
+  // 관절 값: lerobot 단위(-100..100)는 명세 열거에 없어 joint_unit 이 비어 온다 → '단위 모름'
+  const joints = card.querySelector(".arm-joints");
+  if (status && status.joint_names && status.joint_names.length) {
+    const values = status.joint_names.map((name, i) => `${name} ${formatJoint(status.joint_positions[i])}`);
+    if (status.gripper_position !== null) values.push(`gripper ${formatJoint(status.gripper_position)}`);
+    joints.textContent = values.join(" · ");
+    joints.title = `단위 ${status.joint_unit || "모름 (lerobot -100..100)"} · 측정 ${formatTime(status.stamp)}`
+      + " (작업 중에는 관절 값이 갱신되지 않음)";
+  } else {
+    joints.textContent = "관절 값 없음";
+    joints.title = "";
+  }
+  card.querySelector(".arm-ack").textContent = ackText(arm.last_ack);
+  card.querySelector(".arm-ack").dataset.bad = String(Boolean(arm.last_ack && !arm.last_ack.accepted));
+
+  const msg = armsView.msg.get(arm.arm_id);
+  const msgEl = card.querySelector(".arm-msg");
+  const showMsg = msg && msg.until > Date.now();
+  msgEl.textContent = showMsg ? msg.text : "";
+  msgEl.dataset.bad = String(Boolean(showMsg && msg.bad));
+
+  const allowed = new Set(arm.allowed || []);
+  const waiting = armsView.busy.has(arm.arm_id) || arm.pending > 0;
+  card.querySelectorAll("button[data-arm-cmd]").forEach((button) => {
+    const cmd = button.dataset.armCmd;
+    // 정지는 응답을 기다리는 중에도 누를 수 있어야 한다.
+    button.disabled = !canCommand || !allowed.has(cmd) || (waiting && !ARM_STOPS.has(cmd));
+    button.title = !canCommand ? armsBlockedReason()
+      : !allowed.has(cmd) ? `지금 상태(${meta.text})에서는 쓰지 않음`
+      : waiting && !ARM_STOPS.has(cmd) ? "앞 명령의 응답을 기다리는 중" : "";
+  });
+}
+
+function armsBlockedReason() {
+  if (view.readOnly) return "개발 화면 (읽기 전용): 실물 관제 화면(8080)에서";
+  if (!armsView.ok) return "백엔드에 연결하지 못함";
+  return "로봇팔 명령 노드(arm_command_node) 응답 없음";
+}
+
+function renderArms() {
+  const data = armsView.data;
+  const online = armsView.ok && Boolean(data && data.controller_online);
+  const canCommand = online && !view.readOnly;
+  const head = $("arms-meta");
+  head.textContent = online ? "" : armsView.ok ? "명령 노드 꺼짐" : "백엔드 연결 안 됨";
+  head.title = online ? "" : armsBlockedReason();
+  const arms = (data && data.arms) || [];
+  const empty = $("arms-empty");
+  empty.hidden = arms.length > 0;
+  empty.textContent = armsView.ok ? "로봇팔 명령 노드(arm_command_node) 상태 수신 대기" : "백엔드 연결 안 됨";
+  arms.forEach((arm) => renderArmCard(arm, canCommand));
+  // 백엔드가 끊기면 마지막 카드는 남기되 버튼은 모두 잠근다.
+  if (!armsView.ok) {
+    armsView.cards.forEach((card) => {
+      card.classList.add("offline");
+      card.querySelectorAll("button[data-arm-cmd]").forEach((b) => { b.disabled = true; });
+    });
+  }
+}
+
+function showArmMessage(armId, text, bad) {
+  armsView.msg.set(armId, { text, bad, until: Date.now() + MSG_MS });
+  renderArms();
+  setTimeout(renderArms, MSG_MS + 50);
+}
+
+async function sendArmCommand(armId, cmd) {
+  const spec = ARM_COMMAND[cmd];
+  if (spec.confirm && !confirm(spec.confirm(armId, view.healthDomain ?? "?"))) return;
+  armsView.busy.add(armId);
+  showArmMessage(armId, `${spec.text} 보냄, 팔 응답 기다리는 중…`, false);
+  const result = await postJson(`/api/arms/${encodeURIComponent(armId)}/command`,
+    { client_request_id: newRequestId(), command: cmd });
+  armsView.busy.delete(armId);
+  if (result.ok) {
+    const late = result.data.accepted ? "" : " (정지는 실행됨)";
+    showArmMessage(armId, `${spec.text} 수락${late}`, false);
+  } else {
+    const data = result.data || {};
+    const why = data.reason || errorText(result);
+    const kind = data.result ? ARM_RESULT_TEXT[data.result] || data.result : "";
+    showArmMessage(armId, `${spec.text} 거절 (${result.status}${kind ? ` ${kind}` : ""}): ${why}`, true);
+  }
+  pollArms();
+}
+
+async function pollArms() {
+  try {
+    const res = await fetch("/api/arms");
+    if (!res.ok) throw new Error(String(res.status));
+    armsView.data = await res.json();
+    armsView.ok = true;
+  } catch (err) {
+    armsView.ok = false;
+  }
+  renderArms();
+}
+
+function setupArms() {
+  pollArms();
+  setInterval(pollArms, ARMS_POLL_MS);
+}

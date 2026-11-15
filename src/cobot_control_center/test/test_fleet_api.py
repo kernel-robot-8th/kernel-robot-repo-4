@@ -24,7 +24,7 @@ import threading
 
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    active_orders, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
+    active_orders, ArmStore, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
     load_robot_params, MapError, mjpeg_part, SnapshotStore,
     TaskStore)
 from fastapi.testclient import TestClient
@@ -107,7 +107,8 @@ def test_api_before_first_snapshot():
     client = TestClient(create_app(store))
     assert client.get('/api/health').json() == {
         'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
-        'source_age': None, 'controller_online': False, 'cameras': {}}
+        'source_age': None, 'controller_online': False, 'cameras': {},
+        'arm_controller_online': False}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 
@@ -256,7 +257,7 @@ def test_installed_web_files_exist():
     web = os.path.join(os.path.dirname(__file__), '..', 'web')
     for name in ('index.html', 'style.css', 'core.js', 'cards.js', 'events.js',
                  'commands.js', 'tasks.js', 'release.js', 'map.js', 'raw.js', 'detail.js',
-                 'pose.js', 'main.js'):
+                 'pose.js', 'arms.js', 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
 
 
@@ -847,3 +848,111 @@ def test_health_reports_active_orders():
     orders = client.get('/api/health').json()['orders']
     assert [o['order_id'] for o in orders] == ['o1']
     assert orders[0]['load_confirmable'] is True and 'input' not in orders[0]
+
+
+# ---------- 로봇팔 (ArmStore, /api/arms) ----------
+
+ARMS = {'time': 100.0, 'ttl_ms': 5000, 'arms': [
+    {'arm_id': 'omx_1', 'alias': 'omx1', 'online': True, 'state': 'OFF',
+     'allowed': ['start', 'reset', 'hold', 'soft_latch'], 'status': {'torque_enabled': False},
+     'last_ack': None, 'pending': 0, 'epoch': 0, 'seq': 0}]}
+
+
+def make_arm_store():
+    clock = FakeClock()
+    return ArmStore(3.0, 0.5, clock=clock), clock
+
+
+def fake_arm_node(arm_store, status, body):
+    """요청을 받으면 곧바로 정해진 응답을 돌려주는 로봇팔 명령 노드(arm_command_node) 대역."""
+    sent = []
+
+    def publish(text):
+        request = json.loads(text)
+        sent.append(request)
+        reply = {'type': 'reply', 'request_id': request['request_id'],
+                 'status': status, 'body': body}
+        threading.Thread(target=arm_store.put_event, args=(json.dumps(reply),)).start()
+    return publish, sent
+
+
+def test_arm_store_snapshot_and_stale():
+    arm_store, clock = make_arm_store()
+    assert arm_store.online() is False
+    assert arm_store.snapshot()['arms'] == []
+    for bad in ['', 'nope', '[]', '{"arms": 1}']:
+        assert arm_store.put_snapshot(bad) is False
+    assert arm_store.put_snapshot(json.dumps(ARMS)) is True
+    snap = arm_store.snapshot()
+    assert snap['controller_online'] is True and snap['arms'][0]['state'] == 'OFF'
+    # 명령 노드가 끊기면 마지막 값이 아니라 STALE 로 보여야 한다 (정지만 허용)
+    clock.now = 3.5
+    snap = arm_store.snapshot()
+    assert snap['controller_online'] is False
+    assert snap['arms'][0]['state'] == 'STALE' and snap['arms'][0]['online'] is False
+    assert snap['arms'][0]['allowed'] == ['hold', 'soft_latch']
+
+
+def test_arm_store_ignores_unrequested_reply():
+    arm_store, _ = make_arm_store()
+    assert arm_store.put_event(json.dumps({'type': 'reply', 'request_id': 'x', 'status': 200}))
+    assert arm_store.put_event('nope') is False
+    assert arm_store.request({'type': 'command'}, lambda text: None) is None
+
+
+def test_api_arm_command_passes_through_with_source():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    body = {'arm_id': 'omx_1', 'command': 'start', 'result': 'ACCEPTED', 'accepted': True}
+    publish, sent = fake_arm_node(arm_store, 200, body)
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=publish))
+    res = client.post('/api/arms/omx_1/command',
+                      json={'command': 'start', 'client_request_id': 'c1'})
+    assert res.status_code == 200 and res.json()['result'] == 'ACCEPTED'
+    assert sent[0]['type'] == 'command' and sent[0]['arm_id'] == 'omx_1'
+    assert sent[0]['command'] == 'start' and sent[0]['client_request_id'] == 'c1'
+    assert sent[0]['source'] == 'testclient'
+    assert client.get('/api/arms').json()['arms'][0]['arm_id'] == 'omx_1'
+    assert client.get('/api/health').json()['arm_controller_online'] is True
+
+
+@pytest.mark.parametrize('status', [409, 504, 404, 400])
+def test_api_arm_command_returns_arm_status(status):
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    publish, _ = fake_arm_node(arm_store, status, {'detail': '팔이 거절', 'reason': '쉬는 자세 아님'})
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=publish))
+    res = client.post('/api/arms/omx_1/command', json={'command': 'reset'})
+    assert res.status_code == status and res.json()['detail'] == '팔이 거절'
+
+
+def test_api_arm_command_refused_when_read_only_or_offline():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    # 읽기 전용: 상태는 보이지만 명령은 503
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=None))
+    assert client.get('/api/arms').json()['arms'][0]['state'] == 'OFF'
+    res = client.post('/api/arms/omx_1/command', json={'command': 'hold'})
+    assert res.status_code == 503 and '읽기 전용' in res.json()['detail']
+    # 명령 노드가 꺼져 있으면 보내지 않는다
+    offline, _ = make_arm_store()
+    publish, sent = fake_arm_node(offline, 200, {})
+    client = TestClient(create_app(store, arms=offline, publish_arm_request=publish))
+    assert client.post('/api/arms/omx_1/command', json={'command': 'hold'}).status_code == 503
+    assert sent == []
+    # 팔 저장소가 없으면 목록은 빈 값, health 는 꺼짐
+    bare = TestClient(create_app(store))
+    assert bare.get('/api/arms').json()['arms'] == []
+    assert bare.get('/api/health').json()['arm_controller_online'] is False
+
+
+def test_api_arm_command_times_out_without_reply():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(ARMS))
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=lambda text: None))
+    res = client.post('/api/arms/omx_1/command', json={'command': 'hold'})
+    assert res.status_code == 503 and '제때' in res.json()['detail']

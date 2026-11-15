@@ -553,6 +553,35 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .zone-queue { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .zone-queue[data-waiting="1"] { color: var(--text); font-weight: 600; }
 
+/* ---------- 로봇팔 ---------- */
+
+.arms-empty { margin: 0; }
+.arms-empty[hidden] { display: none; }
+.arm-card { --robot-color: var(--idle); }
+.arm-card[data-level="good"] { --robot-color: var(--good); }
+.arm-card[data-level="active"] { --robot-color: var(--active); }
+.arm-card[data-level="warn"] { --robot-color: var(--warn); }
+.arm-card[data-level="bad"] { --robot-color: var(--bad); }
+.arm-card .alias { font-size: 12px; }
+.arm-state[data-level="good"] { background: var(--good); }
+.arm-state[data-level="active"] { background: var(--active); }
+.arm-state[data-level="warn"] { background: var(--warn); }
+.arm-state[data-level="bad"] { background: var(--bad); }
+.arm-state[data-level="idle"] { background: var(--idle); }
+.arm-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 8px; margin: 0; }
+.arm-facts dt { font-size: 11px; color: var(--muted); }
+.arm-facts dd { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arm-facts dd[data-level="good"] { color: var(--good); }
+.arm-facts dd[data-level="active"] { color: var(--active); }
+.arm-facts dd[data-level="warn"] { color: var(--warn); }
+.arm-facts dd[data-level="bad"] { color: var(--bad); }
+.arm-facts dd[data-level="idle"], .arm-facts dd[data-level="na"] { color: var(--muted); font-weight: 400; }
+.arm-facts .arm-session { font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+.arm-joints, .arm-ack { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.arm-ack:empty { display: none; }
+.arm-ack[data-bad="true"] { color: var(--bad); }
+.arm-msg[data-bad="true"] { color: var(--bad); font-weight: 600; }
+
 /* ---------- 개발: 수동 명령 ---------- */
 
 .raw-panel summary { cursor: pointer; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
@@ -779,4 +808,5 @@ body.detail-mode .layout { display: none; }
   .detail-cmds { margin-left: 0; width: 100%; grid-template-columns: minmax(0, 1fr); }
   .detail-cmds .cmd-row button, .detail-cmds .stop-row button { min-width: 0; }
   .dt-map-wrap { flex: none; aspect-ratio: 4 / 3; }
+  .arm-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

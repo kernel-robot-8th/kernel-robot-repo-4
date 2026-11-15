@@ -4,14 +4,14 @@
 
 ## 웹 API
 
-`/api/tasks`·정지·해제·작업 명령 켜기/끄기·개발용 수동 명령 외에는 읽기 전용입니다. 명령 경로는 작업 노드 `fleet_control_node`(`cobot_fleet_control`)에 넘기기만 하고, 작업 노드가 없거나 읽기 전용 백엔드(`read_only`)면 503 입니다.
+`/api/tasks`·정지·해제·작업 명령 켜기/끄기·개발용 수동 명령·로봇팔 명령 외에는 읽기 전용입니다. 명령 경로는 작업 노드 `fleet_control_node`(`cobot_fleet_control`)에 넘기기만 하고, 작업 노드가 없거나 읽기 전용 백엔드(`read_only`)면 503 입니다.
 작업 노드는 **작업 명령 꺼짐**으로 시작합니다. 꺼져 있는 동안 `POST /api/tasks`·`raw_cmd`는 `423`입니다. 정지는 항상 요청할 수 있고, 해제에는 최신 정지 상태 확인이 필요합니다.
 GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 메모리에 둔 최신값입니다 (DB 를 읽지 않음, [README 데이터 흐름](../README.md#데이터-흐름)).
 
 | 경로 | 응답 |
 |---|---|
 | `GET /` | 관제 화면 |
-| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}}` |
+| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}, "arm_controller_online": 로봇팔 명령 노드(arm_command_node)가 켜져 있는지}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
@@ -34,6 +34,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
+| `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
+| `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
 
 해제 응답은 같은 부팅의 `control_reset_id`와 요청 ID가 일치해야 합니다. 일반 하트비트만으로
@@ -98,6 +100,73 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `load_confirmed` | 운영자 수동 상차 확인을 이미 받았는지 |
 | `load_confirmable` | 화면에 **상차 확인** 을 보일지. `state` 가 `RUNNING`/`UNKNOWN`, `stage` 가 `PICKUP_EXIT`~`VERIFY_LOAD` 또는 `CORRECT_PICKUP`, `completed` 에 `MOVE_PICKUP`, 로봇 배정됨, 실패 없음, 아직 확인 안 함 (`fleet_api_utils.load_confirmable`). fleet 의 검사(`scenario_safety.confirm_loaded`)와 같은 조건이지만 표시용이고, 최종 검사(정지·통신·구역·예약)는 fleet 이 합니다 |
 
+## 로봇팔 (arm_command_node)
+
+웹은 팔 토픽을 모릅니다. `fleet_api_node` 가 요청을 `/control_center/arm_request` 로 넘기고, `arm_command_node` 가
+`ArmCommand` 로 바꿔 Station PC 의 팔 노드(`cobot_manipulation` 의 `arm_adapter_node`, 브랜치 `feature/manipulation-station-adapter`)에 냅니다.
+관제는 팔 모션을 시작하지 않습니다 (`ArmCommand.msg`). 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기, 나머지는 정지·해제입니다.
+작업(pick·load)은 지금처럼 `fleet_control_node` 가 `/fleet/work_request` 로 보냅니다.
+
+```text
+브라우저 ─HTTP→ fleet_api_node ─/control_center/arm_request→ arm_command_node ─/control_center/omx_N/command (ArmCommand)→ 팔 노드
+        ←──────              ←─/control_center/arm_events (응답)─┤  ←─/manipulation/omx_N/command_ack (CommandAck)─┤
+                             ←─/control_center/arms (상태 모음)──┘  ←─/manipulation/omx_N/status (ArmStatus, 10 Hz)─┘
+```
+
+| 토픽 | 타입·QoS |
+|---|---|
+| `/control_center/arm_request`, `/control_center/arm_events` | `std_msgs/String` JSON, RELIABLE depth 50 |
+| `/control_center/arms` | `std_msgs/String` JSON, RELIABLE TRANSIENT_LOCAL depth 1, 0.2 s 주기 |
+| `/control_center/omx_N/command` | `ArmCommand`, RELIABLE depth 10 (팔 노드와 같음) |
+| `/manipulation/omx_N/command_ack` | `CommandAck`, RELIABLE depth 50 |
+| `/manipulation/omx_N/status` | `ArmStatus`, BEST_EFFORT KEEP_LAST 1 |
+
+헤더 (`CommandHeader`): `command_id` 새 UUID, `tx_id` = `client_request_id`, `robot_id` = `omx_N`, `ttl_ms` 5000, `issued_by` `control_center`, `issued_at` 관제 PC 시계.
+팔 노드가 `issued_at + ttl` 을 자기 시계로 보므로 **두 PC 시계가 맞아야** 합니다 (안 맞으면 모두 `REJECTED_TTL`). 서명(`sig`)은 아직 채우지 않습니다 (팔 노드도 안 봄).
+
+- **epoch**: START 는 (내가 쓴 값, 팔이 받아들인 값) 중 큰 값 + 1. 팔 노드를 다시 켜면 팔 쪽이 0 으로 돌아가도 새 START 가 받아들여집니다. 그 밖의 명령은 팔이 받아들인 epoch (`ArmStatus.epoch_accepted`).
+- **seq**: (내가 쓴 값, 팔이 받아들인 값) 중 큰 값 + 1.
+- 같은 `CommandAck` 가 두 번 와도 한 번만 답하고 첫 기록을 남깁니다.
+
+`arms[]` 한 칸:
+
+| 필드 | 뜻 |
+|---|---|
+| `arm_id`, `alias` | 명세 이름 `omx_1`, 관제 시나리오 이름 `omx1` |
+| `online`, `age` | `ArmStatus` 를 `status_stale_sec`(1 s) 안에 받았는지, 지난 초 |
+| `state` | 화면 상태 (아래), `allowed` 는 그 상태에서 켤 버튼 힌트 (최종 판정은 팔 노드) |
+| `status` | 마지막 `ArmStatus` (NaN 은 null, `stamp` 는 측정 시각 [s]) |
+| `last_ack` | 그 팔의 마지막 응답 `{command, result, accepted, reason, stop_executed, epoch, seq, received_at}`. 다른 곳이 낸 명령이면 `command` 없음 |
+| `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
+
+`ArmStatus` 에 전원 상태 칸이 없어 `state` 는 추정입니다 (`arm_command_utils.derive_state`).
+
+| `state` | 조건 | `allowed` |
+|---|---|---|
+| `STALE` | 상태가 안 들어옴 | hold, soft_latch |
+| `SOFT_LATCH` | `hold_reason == SOFT_LATCH` | reset, hold |
+| `HOLD` | `hold_active` | release_hold, reset, soft_latch |
+| `OFF` | 토크 꺼짐 (고장 FAULT 도 이렇게 보임 → `last_ack.reason`) | start, reset, hold, soft_latch |
+| `READY` | 토크 켜짐, `work_step == IDLE` | reset, hold, soft_latch |
+| `BUSY` | 토크 켜짐, 그 밖 (연결·작업·끄는 중) | hold, soft_latch |
+
+### 팔 노드와 함께 시험 (2026-11-15, 도메인 101)
+
+`feature/manipulation-station-adapter`(52cd5d1)의 `arm_adapter_node` 3대를 `backend:=fake` 로, 가짜 by-id 폴더(장치는 열지 않음)와 함께 띄우고 웹 API 로 보냈습니다. 실물 팔은 쓰지 않았습니다.
+
+| 보낸 것 | 결과 |
+|---|---|
+| omx_1 켜기 | 200 → `READY` (epoch 1) |
+| omx_3 켜기 (등록 안 된 보드) | 409 `팔 탐지 안 됨` |
+| omx_2 끄기 (이미 꺼짐) / omx_1 다시 켜기 | 409 `REJECTED_STATE` |
+| 작업 중 omx_1 끄기 | 409 `작업 중에는 끌 수 없음 (먼저 HOLD)` |
+| 작업 중 omx_1 정지 → 정지 해제 | 200 (`stop_executed`) → `HOLD` → 200 → `READY` |
+| omx_2 소프트 정지 (꺼짐) → 끄기 | 200 → `SOFT_LATCH` → 200 → `OFF` |
+| 대기 중 omx_1 끄기 | 200 → `OFF` |
+| 팔 노드 재시작 뒤 켜기 | 200 (새 epoch 가 팔의 0 보다 큼) |
+
+팔 노드 쪽 확인할 것: RESET 으로 꺼진 뒤에도 그 전 HOLD 표시가 남아 `hold_active=true` 로 옵니다 (`held` 를 RESET 에서 지우지 않음). 화면은 `HOLD` 로 보여 주고 정지 해제를 먼저 하게 합니다.
+
 ## 파라미터
 
 `fleet_status_node` (`config/fleet_status_node.yaml`)
@@ -133,8 +202,21 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `task_stale_sec` | `3.0` | 작업 노드 목록이 이만큼 끊기면 명령을 받지 않음 (503) [s] |
 | `reply_timeout_sec` | `2.0` | 명령 요청에 작업 노드가 답하기를 기다리는 시간 [s] |
 | `read_only` | `false` | `true` 면 명령 경로가 모두 503 이고 `task_request` 발행자를 만들지 않음. `fleet_api_dev.launch.xml` 이 켬 (노드 이름 `fleet_api_node_dev`, 포트 8083) |
+| `arm_stale_sec` | `3.0` | 로봇팔 명령 노드의 상태 모음이 이만큼 끊기면 로봇팔 명령을 받지 않음 (503) [s] |
+| `arm_reply_timeout_sec` | `10.0` | 로봇팔 명령 응답을 기다리는 시간 [s]. `arm_command_node` 의 `ack_timeout_sec` 보다 길어야 504 가 화면까지 감 |
 | `camera_robots` | `[pinky1, pinky2, pinky3]` | 카메라를 구독할 로봇. `['']` 이면 끔 |
 | `camera_topic_format` | `/{robot}/camera/image_raw/compressed` | 카메라 토픽 (`sensor_msgs/CompressedImage`, JPEG). QoS `BEST_EFFORT / VOLATILE / KEEP_LAST(1)`. 이름은 가정값(비전 브랜치 592ebd4 규격 + 로봇 접두사)이라 확정되면 바꿈. 실물은 브릿지에 카메라 토픽이 있어야 들어옴 (아직 없음) |
+
+`arm_command_node` (`config/arm_command_node.yaml`). `fleet_api.launch.xml` 이 함께 띄웁니다 (`arm_command:=false` 로 끔, 개발용 읽기 전용 launch 는 끔).
+
+| 이름 | 기본값 | 뜻 |
+|---|---|---|
+| `arm_ids` | `[omx_1, omx_2, omx_3]` | 팔 이름. `omx1` 로 써도 `omx_1` 로 바꿈 |
+| `command_topic_format`, `status_topic_format`, `ack_topic_format` | `/control_center/{arm}/command`, `/manipulation/{arm}/status`, `/manipulation/{arm}/command_ack` | 팔 노드 기본 토픽과 같음 |
+| `ttl_ms` | `5000` | 명령 유효 기한 [ms] |
+| `ack_timeout_sec` | `8.0` | 팔 응답 기다리는 시간 [s]. 팔 노드의 끄기는 쉬는 자세 확인에 5 s 까지 걸림 |
+| `status_stale_sec` | `1.0` | `ArmStatus` 가 이만큼 끊기면 `STALE` [s] |
+| `snapshot_period_sec` | `0.2` | `/control_center/arms` 발행 주기 [s] |
 
 ### 지도·구역 기본 경로
 
@@ -157,4 +239,5 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `raw.js` | 개발용 수동 명령 |
 | `detail.js` | 로봇 상세 화면 (`#/robot/<id>`): 상태줄·카메라·확대 지도·요약·타임라인·진단 |
 | `pose.js` | 초기위치 [홈]·[좌표 지정] (상세 위치 칸, 확대 지도 누르고 끌기) |
+| `arms.js` | 로봇팔 패널 (`/api/arms` 1 s 마다, 켜기·끄기·정지) |
 | `main.js` | 시작, `/api/health` 확인 |

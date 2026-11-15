@@ -19,7 +19,8 @@
 영상은 커서 fleet_status JSON 에 싣지 않고, 받은 JPEG 를 풀지 않은 채 웹으로 바로 넘긴다.
 그 밖에 받는 것은 fleet_status_node 가 낸 스냅샷과 작업 노드(cobot_fleet_control 의 fleet_control_node)의
 작업 목록·응답이다. 명령은 /control_center/task_request 로 작업 노드에 넘길 뿐이고,
-로봇 명령 토픽에 내는 것은 작업 노드다.
+로봇 명령 토픽에 내는 것은 작업 노드다. 로봇팔 켜기·끄기·정지도 같은 방식으로
+/control_center/arm_request 를 로봇팔 명령 노드(arm_command_node)에 넘기고, ArmCommand 는 그 노드가 낸다.
 rclpy 는 백그라운드 스레드에서, uvicorn 은 메인 스레드에서 돈다. uvicorn 이 Ctrl+C 를 받아
 웹 서버를 먼저 닫고, 그 뒤 ROS 를 정리한다.
 """
@@ -31,7 +32,8 @@ import threading
 from ament_index_python.packages import get_package_share_directory
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    CameraStore, LayerError, load_map, load_map_layers, MapError, SnapshotStore, TaskStore)
+    ArmStore, CameraStore, LayerError, load_map, load_map_layers, MapError, SnapshotStore,
+    TaskStore)
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
@@ -58,6 +60,8 @@ class FleetApiNode(Node):
         self.declare_parameter('events_max', 500)
         self.declare_parameter('task_stale_sec', 3.0)
         self.declare_parameter('reply_timeout_sec', 2.0)
+        self.declare_parameter('arm_stale_sec', 3.0)
+        self.declare_parameter('arm_reply_timeout_sec', 10.0)
         self.declare_parameter('camera_robots', ['pinky1', 'pinky2', 'pinky3'])
         self.declare_parameter('camera_topic_format', '/{robot}/camera/image_raw/compressed')
         # 개발용(fleet_api_dev.launch.xml): 실물을 보면서 화면을 고칠 때 명령이 나가지 않게 한다.
@@ -87,6 +91,18 @@ class FleetApiNode(Node):
                                  command_qos)
         self.create_subscription(
             String, '/control_center/tasks', self._on_tasks,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL))
+
+        # 로봇팔 명령 노드(arm_command_node). 상태 모음은 transient_local 이라 늦게 켜져도 마지막 값을 받는다.
+        self.arms = ArmStore(self.get_parameter('arm_stale_sec').value,
+                             self.get_parameter('arm_reply_timeout_sec').value)
+        self.arm_request_pub = None if self.read_only else self.create_publisher(
+            String, '/control_center/arm_request', command_qos)
+        self.create_subscription(String, '/control_center/arm_events', self._on_arm_event,
+                                 command_qos)
+        self.create_subscription(
+            String, '/control_center/arms', self._on_arms,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.cameras = self._subscribe_cameras()
@@ -157,9 +173,21 @@ class FleetApiNode(Node):
         if not self.tasks.put_event(msg.data):
             self.get_logger().warning('작업 이벤트(/control_center/task_events)를 읽지 못함')
 
+    def _on_arms(self, msg):
+        if not self.arms.put_snapshot(msg.data):
+            self.get_logger().warning('로봇팔 상태(/control_center/arms)를 읽지 못함')
+
+    def _on_arm_event(self, msg):
+        if not self.arms.put_event(msg.data):
+            self.get_logger().warning('로봇팔 응답(/control_center/arm_events)을 읽지 못함')
+
     def publish_request(self, text):
         """웹 서버 스레드에서 부른다. 요청 JSON 을 작업 노드에 넘긴다."""
         self.request_pub.publish(String(data=text))
+
+    def publish_arm_request(self, text):
+        """웹 서버 스레드에서 부른다. 요청 JSON 을 로봇팔 명령 노드에 넘긴다."""
+        self.arm_request_pub.publish(String(data=text))
 
 
 def main(args=None):
@@ -176,7 +204,8 @@ def main(args=None):
         app = create_app(node.store, node.map_data, node.web_dir,
                          node.context.get_domain_id(), node.layers,
                          node.tasks, None if node.read_only else node.publish_request,
-                         node.cameras)
+                         node.cameras, node.arms,
+                         None if node.read_only else node.publish_arm_request)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

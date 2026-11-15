@@ -15,6 +15,8 @@
   <!-- 읽기 전용 관제 노드(fleet_status_node) -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>cobot_interfaces</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>ros2launch</exec_depend>

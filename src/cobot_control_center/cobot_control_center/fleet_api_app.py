@@ -23,6 +23,8 @@
 작업 노드는 cobot_fleet_control 의 fleet_control_node 하나다 (하트비트로 로봇 명령 허용).
 비상정지는 estop 으로 넘기고, 정지 잠금 복구(release_control)와
 수동 상차 확인(confirm_loaded)도 같은 요청 토픽으로 넘긴다.
+로봇팔 켜기·끄기·정지(/api/arms)는 로봇팔 명령 노드(arm_command_node)에 따로 넘긴다.
+(/api/commands/arm 은 로봇팔이 아니라 '작업 명령 켜기/끄기' 다.)
 """
 
 import asyncio
@@ -52,7 +54,8 @@ class NoCacheStaticFiles(StaticFiles):
 
 
 def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
-               tasks=None, publish_request=None, cameras=None):
+               tasks=None, publish_request=None, cameras=None,
+               arms=None, publish_arm_request=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -63,6 +66,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     tasks 는 TaskStore, publish_request 는 요청 JSON 문자열을 task_request 토픽에 내는 함수다.
     둘 중 하나라도 None 이면 명령 경로는 503 이다 (읽기 전용).
     cameras 는 CameraStore 또는 None 이다. None 이면 카메라 경로는 모든 로봇에 404 다.
+    arms 는 ArmStore, publish_arm_request 는 요청 JSON 을 arm_request 토픽에 내는 함수다.
+    둘 중 하나라도 None 이면 로봇팔 명령은 503 이다 (상태 보기는 arms 만 있으면 된다).
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -103,7 +108,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         # read_only: 명령을 넘길 곳이 없는 백엔드 (개발용 fleet_api_dev). 화면은 명령 버튼을 모두 끈다.
         return {'ok': True, 'domain_id': domain_id, 'read_only': publish_request is None,
                 **store.health(), **task_health,
-                'cameras': camera_health}
+                'cameras': camera_health,
+                'arm_controller_online': arms is not None and arms.online()}
 
     @app.get('/api/fleet')
     def fleet():
@@ -311,6 +317,33 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'type': 'resolve', 'task_id': task_id,
             'client_request_id': body.get('client_request_id'),
             'result': body.get('result', 'FAILED'), 'note': body.get('note', '')})
+
+    # ---------- 로봇팔 (로봇팔 명령 노드 arm_command_node 경유) ----------
+
+    @app.get('/api/arms')
+    def list_arms():
+        if arms is None:
+            return {'controller_online': False, 'controller_age': None, 'ttl_ms': None,
+                    'arms': []}
+        return arms.snapshot()
+
+    @app.post('/api/arms/{arm_id}/command')
+    def arm_command(arm_id: str, request: Request, body: dict = Body(default={})):
+        # 켜기(start)·끄기(reset)·정지(hold, soft_latch)·정지 해제(release_hold).
+        # 판정은 팔 노드가 한다: 200 수락(정지는 멈췄으면 200), 409 팔이 거절, 504 팔 응답 없음.
+        if arms is None or publish_arm_request is None:
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
+        if not arms.online():
+            raise HTTPException(status_code=503,
+                                detail='로봇팔 명령 노드 응답 없음 (arm_command_node 를 켜 주세요)')
+        result = arms.request({
+            'type': 'command', 'arm_id': arm_id, 'command': body.get('command'),
+            'client_request_id': body.get('client_request_id'),
+            'source': source(request)}, publish_arm_request)
+        if result is None:
+            raise HTTPException(status_code=503, detail='로봇팔 명령 노드가 제때 답하지 않음')
+        status, reply = result
+        return JSONResponse(status_code=status, content=reply if isinstance(reply, dict) else {})
 
     def task_store():
         if tasks is None:

@@ -85,6 +85,16 @@
         <div class="cards" id="cards"></div>
       </section>
 
+      <!-- 로봇팔 (Station PC 팔 노드). 상단 '작업 명령 켜기'와는 다른 것이다 (arms.js) -->
+      <section class="panel" aria-label="로봇팔">
+        <div class="panel-head">
+          <h2>로봇팔</h2>
+          <span class="muted" id="arms-meta"></span>
+        </div>
+        <p class="muted arms-empty" id="arms-empty">로봇팔 상태 수신 대기</p>
+        <div class="cards" id="arms"></div>
+      </section>
+
       <section class="panel" aria-label="작업">
         <div class="panel-head">
           <h2>작업 <span class="muted" id="tasks-meta"></span></h2>
@@ -318,6 +328,43 @@
     </li>
   </template>
 
+  <!-- 로봇팔 카드: 이름·상태 / 토크·퇴피·정지·세션 / 관절 값 / 마지막 응답 / 명령 결과 / 명령 줄 / 정지 줄.
+       켜기·끄기·정지 해제는 확인 창 뒤, 정지·소프트 정지는 바로 보낸다 (arms.js) -->
+  <template id="arm-template">
+    <article class="card arm-card">
+      <div class="card-body">
+        <div class="card-top">
+          <span class="swatch"></span>
+          <strong class="name"></strong>
+          <span class="muted alias"></span>
+          <span class="badge arm-state"></span>
+        </div>
+        <dl class="arm-facts">
+          <div><dt>토크</dt><dd class="arm-torque"></dd></div>
+          <div><dt>퇴피</dt><dd class="arm-retract" title="실행기가 안전 자세로 옮겨 잰 결과. 안 잰 것은 안전이 아님"></dd></div>
+          <div><dt>정지</dt><dd class="arm-hold"></dd></div>
+          <div><dt>epoch · seq</dt><dd class="arm-session muted" title="팔 노드가 받아들인 세션 번호(epoch)·명령 순번(seq)"></dd></div>
+        </dl>
+        <div class="arm-joints muted"></div>
+        <div class="arm-ack muted"></div>
+        <div class="arm-msg cmd-reason"></div>
+        <div class="card-cmds">
+          <div class="cmd-row">
+            <button type="button" data-arm-cmd="start"></button>
+            <button type="button" data-arm-cmd="reset"></button>
+            <button type="button" data-arm-cmd="release_hold"></button>
+          </div>
+          <div class="stop-row">
+            <button type="button" class="stop-btn" data-arm-cmd="hold"
+                    title="작업을 멈추고 정지 유지 (토크 유지, 확인 창 없음)"></button>
+            <button type="button" class="estop-btn" data-arm-cmd="soft_latch"
+                    title="소프트 정지 래치: 끄기(RESET)로만 풀림 (전원 차단 아님, 확인 창 없음)"></button>
+          </div>
+        </div>
+      </div>
+    </article>
+  </template>
+
   <!-- 순서가 중요하다: core.js 가 공통 이름을 만들고, main.js 가 마지막에 시작한다 -->
   <script src="core.js"></script>
   <script src="cards.js"></script>
@@ -330,6 +377,7 @@
   <script src="raw.js"></script>
   <script src="detail.js"></script>
   <script src="pose.js"></script>
+  <script src="arms.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

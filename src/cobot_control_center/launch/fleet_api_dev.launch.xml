@@ -26,6 +26,7 @@
     <arg name="host" value="$(var host)"/>
     <arg name="port" value="$(var port)"/>
     <arg name="read_only" value="true"/>
+    <arg name="arm_command" value="false"/>
     <arg name="web_dir" value="$(var web_dir)"/>
   </include>
 </launch>
