@@ -527,3 +527,38 @@ def test_installed_site_actions():
     path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
     site = arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
     assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'], []]
+
+
+# ---------- 꺼짐 / 고장(FAULT) 구분 ----------
+
+FAULT_ACK = {'accepted': False, 'result': 'REJECTED_STATE',
+             'reason': '꺼짐(DISARMED)에서만 켤 수 있음 (지금 FAULT)', 'received_at': 100.0}
+
+
+def test_off_allows_start_but_not_reset():
+    assert 'start' in arms.ALLOWED[arms.OFF] and 'reset' not in arms.ALLOWED[arms.OFF]
+    assert 'reset' in arms.ALLOWED[arms.FAULT] and 'start' not in arms.ALLOWED[arms.FAULT]
+
+
+def test_fault_from_start_rejection():
+    off = dict(STATUS, torque_enabled=False)
+    assert arms.derive_state(off, True, FAULT_ACK) == arms.FAULT
+    # 다른 거절이나 수락은 그냥 꺼짐
+    assert arms.derive_state(off, True, dict(FAULT_ACK, reason='seq 역행')) == arms.OFF
+    assert arms.derive_state(off, True, dict(FAULT_ACK, accepted=True)) == arms.OFF
+    # 토크가 켜져 있으면(다시 켜짐) 고장이 아님
+    assert arms.derive_state(STATUS, True, FAULT_ACK) == arms.READY
+
+
+def test_fault_snapshot_alarm_and_clear_by_reset():
+    commander = make()
+    commander.put_status('omx_1', dict(STATUS, torque_enabled=False), 10.0)
+    header, _ = commander.make_command(request('start'), 100.0, 10.0)
+    commander.put_ack(ack(header, result=5, reason=FAULT_ACK['reason']), 100.1)
+    arm = commander.snapshot(10.1, 100.2)['arms'][0]
+    assert arm['state'] == arms.FAULT and arm['allowed'] == ['reset', 'hold', 'soft_latch']
+    assert [a['code'] for a in arm['alarms']] == ['fault']
+    header, _ = commander.make_command(request('reset', request_id='r2'), 100.3, 10.2)
+    commander.put_ack(ack(header), 100.4)
+    arm = commander.snapshot(10.3, 100.5)['arms'][0]
+    assert arm['state'] == arms.OFF and arm['alarms'] == []

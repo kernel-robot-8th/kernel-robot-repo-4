@@ -854,7 +854,7 @@ def test_health_reports_active_orders():
 
 ARMS = {'time': 100.0, 'ttl_ms': 5000, 'work_actions': ['pick', 'load'], 'arms': [
     {'arm_id': 'omx_1', 'alias': 'omx1', 'online': True, 'state': 'OFF',
-     'allowed': ['start', 'reset', 'hold', 'soft_latch'], 'status': {'torque_enabled': False},
+     'allowed': ['start', 'hold', 'soft_latch'], 'status': {'torque_enabled': False},
      'last_ack': None, 'pending': 0, 'epoch': 0, 'seq': 0}]}
 
 

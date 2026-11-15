@@ -158,7 +158,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `STALE` | 상태가 안 들어옴 | hold, soft_latch |
 | `SOFT_LATCH` | `hold_reason == SOFT_LATCH` | reset, hold |
 | `HOLD` | `hold_active` | release_hold, reset, soft_latch |
-| `OFF` | 토크 꺼짐 (고장 FAULT 도 이렇게 보임 → `last_ack.reason`) | start, reset, hold, soft_latch |
+| `OFF` | 토크 꺼짐 | start, hold, soft_latch |
+| `FAULT` | 토크 꺼짐이고 마지막 응답이 켜기 거절 `(지금 FAULT)` (팔 실행기가 멈춤). `ArmStatus` 에 전원 상태 칸이 없어 거절 사유로 판단하는 임시 방법. 끄기 수락 등 다음 응답이 오면 풀림 | reset, hold, soft_latch |
 | `READY` | 토크 켜짐, `work_step == IDLE` | work (작업 시험 진행 중이면 뺌), reset, hold, soft_latch |
 | `BUSY` | 토크 켜짐, 그 밖 (연결·작업·끄는 중) | hold, soft_latch |
 

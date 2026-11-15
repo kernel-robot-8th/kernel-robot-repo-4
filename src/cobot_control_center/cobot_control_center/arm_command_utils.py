@@ -61,11 +61,18 @@ READY = 'READY'            # 켜짐, 일 없음 (work_step IDLE)
 BUSY = 'BUSY'              # 켜짐, 연결 중·작업 중·끄는 중
 HOLD = 'HOLD'
 SOFT_LATCH = 'SOFT_LATCH'
+# 고장: 팔 실행기가 멈춤 (팔 노드 전원 상태 FAULT). ArmStatus 에 전원 상태 칸이 없어 토크만 보면 OFF 와 같다.
+# 팔 노드는 FAULT 에서 START 를 '꺼짐(DISARMED)에서만 켤 수 있음 (지금 FAULT)' 으로 거절하므로,
+# OFF 인데 마지막 응답이 그 거절이면 FAULT 로 본다. 끄기(RESET) 수락 등 다음 응답이 오면 풀린다.
+# (근본 해결은 ArmStatus 에 전원 상태 칸을 넣는 것 — 팀 합의 필요)
+FAULT = 'FAULT'
+FAULT_HINT = '(지금 FAULT)'
 
 # 화면 버튼을 켤지 정하는 힌트. 최종 판정은 팔 노드가 한다. 정지는 언제나 낼 수 있다.
 ALLOWED = {
     STALE: ('hold', 'soft_latch'),
-    OFF: ('start', 'reset', 'hold', 'soft_latch'),   # reset: 고장(FAULT) 풀기
+    OFF: ('start', 'hold', 'soft_latch'),
+    FAULT: ('reset', 'hold', 'soft_latch'),          # 고장은 끄기(RESET)로만 풀림
     READY: (WORK, 'reset', 'hold', 'soft_latch'),   # work: 작업 시험 (진행 중이면 뺀다)
     BUSY: ('hold', 'soft_latch'),
     HOLD: ('release_hold', 'reset', 'soft_latch'),
@@ -73,7 +80,7 @@ ALLOWED = {
 }
 
 # 알람·기록 문구용 화면 상태 이름 (web/arms.js ARM_STATE 와 같은 말)
-STATE_TEXT = {STALE: '미연결', OFF: '꺼짐', READY: '대기', BUSY: '작업·연결 중',
+STATE_TEXT = {STALE: '미연결', OFF: '꺼짐', FAULT: '고장', READY: '대기', BUSY: '작업·연결 중',
               HOLD: '정지', SOFT_LATCH: '소프트 정지'}
 COMMAND_TEXT = {'start': '켜기', 'reset': '끄기', 'hold': '정지', 'release_hold': '정지 해제',
                 'soft_latch': '소프트 정지'}
@@ -112,8 +119,14 @@ def clean_float(value):
     return value if math.isfinite(value) else None
 
 
-def derive_state(status, online):
-    """팔 상태(ArmStatus dict) → 화면 상태 (위 STALE·OFF·READY·BUSY·HOLD·SOFT_LATCH)."""
+def is_fault_ack(last_ack):
+    """마지막 응답이 '고장이라 켤 수 없음' 거절인지 (위 FAULT 설명)."""
+    return bool(last_ack and not last_ack.get('accepted')
+                and FAULT_HINT in (last_ack.get('reason') or ''))
+
+
+def derive_state(status, online, last_ack=None):
+    """팔 상태(ArmStatus dict) → 화면 상태 (위 STALE·OFF·FAULT·READY·BUSY·HOLD·SOFT_LATCH)."""
     if not online or not status:
         return STALE
     if status.get('hold_reason') == 'SOFT_LATCH':
@@ -121,7 +134,7 @@ def derive_state(status, online):
     if status.get('hold_active'):
         return HOLD
     if not status.get('torque_enabled'):
-        return OFF
+        return FAULT if is_fault_ack(last_ack) else OFF
     if status.get('work_step') == 'IDLE':
         return READY
     return BUSY
@@ -302,7 +315,7 @@ class ArmCommander:
 
     def _state(self, arm, now_mono):
         online = arm['status_at'] is not None and now_mono - arm['status_at'] <= self.stale_sec
-        return derive_state(arm['status'], online)
+        return derive_state(arm['status'], online, arm['last_ack'])
 
     def work_actions(self, arm_id):
         """그 팔이 할 수 있는 작업 (현장 배치 actions, 없으면 WORK_ACTIONS 전부)."""
@@ -527,6 +540,10 @@ class ArmCommander:
         if online and state == SOFT_LATCH:
             alarms.append({'code': 'soft_latch', 'level': 'bad', 'since': arm['state_since'],
                            'text': '소프트 정지 래치: 끄기(RESET)로만 풀림'})
+        if online and state == FAULT:
+            alarms.append({'code': 'fault', 'level': 'bad',
+                           'since': (arm['last_ack'] or {}).get('received_at'),
+                           'text': '고장: 팔 실행기가 멈춤. 끄기로 꺼짐에 되돌린 뒤 다시 켜기'})
         if online and state == HOLD:
             alarms.append({'code': 'hold', 'level': 'warn', 'since': arm['state_since'],
                            'text': '정지 유지 중: 정지 해제 또는 끄기'})
@@ -542,7 +559,7 @@ class ArmCommander:
             arm = self._arms[arm_id]
             age = None if arm['status_at'] is None else now_mono - arm['status_at']
             online = age is not None and age <= self.stale_sec
-            state = derive_state(arm['status'], online)
+            state = derive_state(arm['status'], online, arm['last_ack'])
             running = self._running_work(arm_id)
             work_actions = self.work_actions(arm_id)
             allowed = [c for c in ALLOWED[state]
