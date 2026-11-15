@@ -53,9 +53,10 @@ fleet_control ── 작업 요청·결과 ──▶  팔 어댑터 노드 ─�
 | `CMD_START` (3) | 꺼짐일 때, 새 epoch 로 | 켜짐 |
 | `CMD_RESET` (2) | 켜짐·소프트 정지, 작업 중 아님 | 쉬는 자세면 꺼짐, 아니면 거절 |
 | `CMD_SOFT_LATCH` (4) | 언제나 | 작업을 멈추고 토크 유지. RESET 으로만 풀림 |
-| `CMD_HOLD` (0) / `CMD_RELEASE_HOLD` (1) | 언제나 | 정지 / 정지 해제 |
+| `CMD_HOLD` (0) / `CMD_RELEASE_HOLD` (1) | 언제나 | 정지 / 정지 해제. 꺼지면(RESET) 정지도 풀림 |
 
 - 정지 명령은 검사에 걸려도 **무조건 멈춘다**.
+- HOLD 는 꺼질 때(DISARMED) 지워진다. 꺼진 팔은 `hold_active=false` 이고, 다시 켠 뒤에도 멈춰야 하면 관제가 HOLD 를 다시 보낸다.
 - 헤더 검사: 대상 `omx_1`, 유효 시간 5 s, START 는 새 epoch, 그 밖은 같은 epoch + seq 증가. **서명(sig)은 아직 안 본다** (D13).
 
 ## 결과를 읽는 법

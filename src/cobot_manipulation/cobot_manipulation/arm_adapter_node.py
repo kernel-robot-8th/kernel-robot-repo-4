@@ -263,9 +263,7 @@ class ArmAdapterNode(Node):
             self.backend.release_hold(now)
             self.get_logger().info(f'{self.arm_id} 정지 해제 (관제 RELEASE_HOLD)')
         elif todo == 'clear' or (todo == 'release' and not self.backend.running()):
-            self.backend.reset()
-            self.power = power.DISARMED
-            self.get_logger().info(f'{self.arm_id} 꺼짐 (관제 RESET)')
+            self._disarm('관제 RESET')
         elif todo == 'release':
             # 결과는 실행기가 쉬는 자세를 본 뒤에 안다. ACK 는 그때 보낸다.
             self.backend.release(now)
@@ -275,6 +273,15 @@ class ArmAdapterNode(Node):
             self.get_logger().info(f'{self.arm_id} 끄기 요청 (관제 RESET): 쉬는 자세 확인 중')
             return
         self._ack(ack, power.ACCEPTED, '', False)
+
+    def _disarm(self, why):
+        """실행기를 정리하고 꺼짐(DISARMED). 지난 HOLD 도 함께 지운다 (power.keep_hold)."""
+        self.backend.reset()
+        self.power = power.DISARMED
+        held = power.keep_hold(self.power, self.held)
+        cleared, self.held = self.held and not held, held
+        note = ', 정지(HOLD) 해제' if cleared else ''
+        self.get_logger().info(f'{self.arm_id} 꺼짐 (DISARMED): {why}{note}')
 
     def _stop(self, latch, why):
         self.held = self.held or not latch
@@ -323,9 +330,8 @@ class ArmAdapterNode(Node):
         if result is not None:
             self.release_ok = True
         if self.release_ok and not self.backend.running():
-            self.backend.reset()
-            self.power, self.pending_reset = power.DISARMED, None
-            self.get_logger().info(f'{self.arm_id} 꺼짐 (DISARMED): 쉬는 자세에서 토크를 껐습니다')
+            self.pending_reset = None
+            self._disarm('쉬는 자세에서 토크를 껐습니다')
             self._ack(ack, power.ACCEPTED, '', False)
         elif self.backend.dead:
             self.power, self.pending_reset = power.FAULT, None
@@ -340,6 +346,7 @@ class ArmAdapterNode(Node):
         idle = self.power == power.ARMED and not self.backend.busy()
         # header.stamp 은 측정 시각이다. 작업 중에는 관절을 읽지 못해 마지막 값과 그 시각을 낸다.
         stamp = self.backend.joints_at if joints else time.time()
+        hold_active, hold_reason = power.hold_status(self.power, self.held)
         status = ArmStatus(
             arm_id=self.iid, robot_boot_id=self.boot_id,
             joint_unit='',  # lerobot -100..100 단위는 명세 열거(RAD, 0..4095)에 없다: '모름'
@@ -348,9 +355,7 @@ class ArmAdapterNode(Node):
             gripper_position=float(joints.get(GRIPPER_KEY, math.nan)),
             torque_enabled=self.backend.running() and self.power in power.WORKER_STATES,
             retract_safe=self.retract[0], retract_safe_measured=self.retract[1],
-            hold_active=self.held or self.power == power.LATCHED,
-            hold_reason=('SOFT_LATCH' if self.power == power.LATCHED else 'HOLD' if self.held
-                         else ''),
+            hold_active=hold_active, hold_reason=hold_reason,
             power_present=False,  # 측정 수단 없음 (D6)
             epoch_accepted=self.gate.epoch_accepted, last_seq_accepted=self.gate.last_seq,
             work_step=ArmStatus.WORK_STEP_IDLE if idle else '')
