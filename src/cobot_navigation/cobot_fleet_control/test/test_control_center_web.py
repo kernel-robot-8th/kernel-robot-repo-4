@@ -8,9 +8,7 @@ import pytest
 from test_scenario import Environment
 
 
-# 주행 패키지(순찰 설정 등)는 src/cobot_navigation 에 있고, 이 패키지는 src/ 바로 아래에 있다.
-PACKAGE = Path(__file__).resolve().parents[1]
-NAV = PACKAGE.parent / 'cobot_navigation'
+NAV = Path(__file__).resolve().parents[2]
 CONFIG = NAV / 'cobot_pinky_patrol/config'
 
 
@@ -269,7 +267,7 @@ def test_web_launcher_is_a_plain_process_and_package_installs_it(monkeypatch):
     import runpy
     import xml.etree.ElementTree as ET
     import setuptools
-    package = PACKAGE
+    package = NAV / 'cobot_fleet_control'
     launch = ET.parse(package / 'launch/control_center_web.launch.xml').getroot()
     assert launch.findall('node') == []  # argparse를 쓰는 프로세스 감독기에 ROS 노드 이름 재매핑 인자를 전달하지 않는다.
     assert 'ros2 run cobot_fleet_control control_center_web' in launch.find('executable').get('cmd')
