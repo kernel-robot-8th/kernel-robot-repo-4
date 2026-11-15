@@ -51,6 +51,8 @@ class ArmAdapterNode(Node):
             'result_topic': '/fleet/work_result',
             'backend': 'none',
             'fake_duration_sec': 2.0,
+            'worker_command': '',
+            'worker_timeout_sec': 300.0,
             'dedupe_size': 256,
             'detect_period_sec': 1.0,
             'tick_sec': 0.1,
@@ -67,7 +69,13 @@ class ArmAdapterNode(Node):
         except registry_utils.RegistryError as error:
             raise AdapterConfigError(str(error)) from error
         try:
-            self.backend = backends.make_backend(value['backend'], value['fake_duration_sec'])
+            self.backend = backends.make_backend(
+                value['backend'], value['fake_duration_sec'], {
+                    'arm_id': self.arm_id,
+                    'command': value['worker_command'],
+                    'timeout_sec': value['worker_timeout_sec'],
+                    'log': self.get_logger().info,
+                })
         except ValueError as error:
             raise AdapterConfigError(str(error)) from error
         if self.backend.name == 'fake':
@@ -75,6 +83,12 @@ class ArmAdapterNode(Node):
             if not ok:
                 raise AdapterConfigError(message)
             self.get_logger().warning(f'fake 백엔드: 실제 팔은 움직이지 않습니다 ({message})')
+        if self.backend.name == 'worker':
+            if not self.backend.argv:
+                raise AdapterConfigError('backend=worker 에는 worker_command 가 필요합니다')
+            self.get_logger().warning(
+                'worker 백엔드: 팔이 탐지되면 실행기가 팔에 연결해 토크를 켭니다 (실제 팔). '
+                f'명령={self.backend.argv[0]}')
 
         self.by_id_dir = value['serial_by_id_dir']
         self.filter = contract.RequestFilter(self.arm_id, value['dedupe_size'])
@@ -101,6 +115,8 @@ class ArmAdapterNode(Node):
         log(f'{self.arm_id} 탐지 {state}: {reason}')
         lost = self.state == registry_utils.READY and state != registry_utils.READY
         self.state, self.port, self.reason = state, port, reason
+        if state == registry_utils.READY:
+            self.backend.attach(port, time.time())
         if lost and self.backend.busy():
             # 작업 중 보드가 사라지면 팔 자세를 모른다. 멈추고 재시도 금지 실패로 끝낸다.
             self._publish_finished(self.backend.hold(time.time()), '작업 중 팔 연결 끊김')
@@ -177,6 +193,10 @@ def main(args=None):
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # Ctrl+C 면 rclpy 가 먼저 꺼져 노드 로거로는 rosout 에 못 쓴다. 실행기 마지막 로그는 노드 밖 로거로.
+        if hasattr(node.backend, 'log'):
+            node.backend.log = get_logger('arm_adapter_shutdown').info
+        node.backend.shutdown()
         node.destroy_node()
         rclpy.try_shutdown()
 

@@ -10,7 +10,7 @@
     ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake
 -->
 <launch>
-  <arg name="backend" default="none" description="none (모든 작업 거절) 또는 fake (격리 도메인 시험)"/>
+  <arg name="backend" default="none" description="none (모든 작업 거절), fake (격리 도메인 시험), worker (팔 실행기, 실제 팔 구동)"/>
   <arg name="registry_file" default="$(find-pkg-share cobot_manipulation)/config/arm_registry.yaml"
        description="팔 자리 이름 ↔ 보드 시리얼 등록표"/>
   <arg name="enable_omx1" default="true" description="omx1 노드를 띄울지"/>
