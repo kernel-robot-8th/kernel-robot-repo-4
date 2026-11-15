@@ -36,7 +36,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
 | `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
 | `GET /api/arms/events?after=0&arm=&limit=100` | 로봇팔 알람 기록, 오래된 것부터 `[{"id", "time", "arm", "kind", "level", "text", "data"?}]`. `after` 로 이어 받기. 아래 [알람](#알람-활성-알람기록) |
-| `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
+| `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·그 자리 팔이 하지 않는 작업(`site_arms.yaml` `actions`)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
 | `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
 
@@ -141,7 +141,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `status` | 마지막 `ArmStatus` (NaN 은 null, `stamp` 는 측정 시각 [s]) |
 | `last_ack` | 그 팔의 마지막 응답 `{command, result, accepted, reason, stop_executed, epoch, seq, received_at}`. 다른 곳이 낸 명령이면 `command` 없음 |
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
-| `site` | 현장 팔 배치 `{station, role, host, serial}` 또는 null (`config/site_arms.yaml`, 빈 칸은 미정). 표시용이고 명령 판정에는 안 씀 |
+| `site` | 현장 팔 배치 `{station, role, host, serial, actions}` 또는 null (`config/site_arms.yaml`, 빈 칸은 미정). `actions` 말고는 표시용 |
+| `work_actions` | 그 팔에 작업 시험으로 보낼 수 있는 작업 (`site.actions`, 칸이 없으면 전체). 비면 `allowed` 에 `work` 가 없음 |
 | `work` | 마지막 작업 시험 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT` |
 
 | `alarms` | 활성 알람 `[{code, level, since, text}]` (아래 [알람](#알람-활성-알람기록)) |

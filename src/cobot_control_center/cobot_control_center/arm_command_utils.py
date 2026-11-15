@@ -146,11 +146,25 @@ def _site_text(entry, key, arm_id):
     return str(value).strip()
 
 
+def _site_actions(value, arm_id):
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(a, str) for a in value):
+        raise ValueError(f'{arm_id}.actions 는 작업 이름 목록이어야 함: {value!r}')
+    actions = [a.strip().lower() for a in value]
+    unknown = [a for a in actions if a not in WORK_ACTIONS]
+    if unknown:
+        raise ValueError(f'{arm_id}.actions 에 모르는 작업 {unknown} '
+                         f'({", ".join(WORK_ACTIONS)} 중에서)')
+    return list(dict.fromkeys(actions))
+
+
 def parse_site_arms(data):
     """
-    현장 팔 배치(config/site_arms.yaml 내용) → {팔 이름(omx_1): {station, role, host, serial}}.
+    현장 팔 배치(config/site_arms.yaml 내용) → {팔 이름(omx_1): {station, role, host, serial, actions}}.
 
-    팔 순서는 파일 순서를 지킨다. 빈 칸은 '' (미정). 형식이 틀리면 ValueError.
+    팔 순서는 파일 순서를 지킨다. 빈 칸은 '' (미정). actions 는 그 팔이 하는 작업 목록이고,
+    칸이 없으면 None (제한 없음), [] 이면 작업 없음. 형식이 틀리면 ValueError.
     """
     if not isinstance(data, dict) or not isinstance(data.get('arms'), dict) or not data['arms']:
         raise ValueError('arms 항목(팔 이름 → 배치)이 필요함')
@@ -168,6 +182,7 @@ def parse_site_arms(data):
         if info['serial'] and not SERIAL_PATTERN.fullmatch(info['serial']):
             raise ValueError(f'{name}.serial 형식 오류: {info["serial"]!r}')
         info['serial'] = info['serial'].upper()
+        info['actions'] = _site_actions(entry.get('actions', None), name)
         site[arm_id] = info
     return site
 
@@ -289,6 +304,11 @@ class ArmCommander:
         online = arm['status_at'] is not None and now_mono - arm['status_at'] <= self.stale_sec
         return derive_state(arm['status'], online)
 
+    def work_actions(self, arm_id):
+        """그 팔이 할 수 있는 작업 (현장 배치 actions, 없으면 WORK_ACTIONS 전부)."""
+        actions = (self.site.get(arm_id) or {}).get('actions')
+        return list(WORK_ACTIONS) if actions is None else list(actions)
+
     def _running_work(self, arm_id):
         return any(w['arm_id'] == arm_id for w in self._works.values())
 
@@ -307,6 +327,12 @@ class ArmCommander:
         if action not in WORK_ACTIONS:
             raise CommandError(400, f'모르는 로봇팔 작업: {request.get("action")} '
                                     f'({", ".join(WORK_ACTIONS)} 중 하나)')
+        allowed = self.work_actions(arm_id)
+        if action not in allowed:
+            station = (self.site.get(arm_id) or {}).get('station')
+            where = f' ({station})' if station else ''
+            raise CommandError(409, f'{arm_id}{where} 는 이 작업({action})을 하지 않음 '
+                                    f'(가능: {", ".join(allowed) or "없음"}, site_arms.yaml)')
         if self._running_work(arm_id):
             raise CommandError(409, f'{arm_id} 앞 작업이 아직 진행 중')
         state = self._state(arm, now_mono)
@@ -518,14 +544,16 @@ class ArmCommander:
             online = age is not None and age <= self.stale_sec
             state = derive_state(arm['status'], online)
             running = self._running_work(arm_id)
-            allowed = [c for c in ALLOWED[state] if not (c == WORK and running)]
+            work_actions = self.work_actions(arm_id)
+            allowed = [c for c in ALLOWED[state]
+                       if not (c == WORK and (running or not work_actions))]
             arms.append({
                 'arm_id': arm_id, 'alias': scenario_arm_id(arm_id), 'online': online,
                 'age': None if age is None else round(age, 3), 'state': state,
                 'allowed': allowed, 'status': arm['status'],
                 'last_ack': arm['last_ack'], 'work': arm['work'],
                 'alarms': self._alarms(arm, state, online),
-                'site': self.site.get(arm_id),
+                'site': self.site.get(arm_id), 'work_actions': work_actions,
                 'pending': sum(1 for p in self._pending.values() if p['arm_id'] == arm_id),
                 'epoch': arm['accepted_epoch'], 'seq': arm['accepted_seq']})
         return {'time': now_wall, 'ttl_ms': self.ttl_ms, 'work_actions': list(WORK_ACTIONS),

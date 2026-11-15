@@ -450,8 +450,9 @@ def test_parse_site_arms_keeps_order_and_blanks():
         'omx3': None}})
     assert list(site) == ['omx_1', 'omx_2', 'omx_3']
     assert site['omx_1'] == {'station': 'ZA', 'role': 'pickup', 'host': '8-OMEN',
-                             'serial': '77AA01'}
-    assert site['omx_2'] == {'station': 'ZB', 'role': '', 'host': '', 'serial': ''}
+                             'serial': '77AA01', 'actions': None}
+    assert site['omx_2'] == {'station': 'ZB', 'role': '', 'host': '', 'serial': '',
+                             'actions': None}
     assert site['omx_3']['station'] == ''
 
 
@@ -484,3 +485,45 @@ def test_snapshot_carries_site():
     snap = commander.snapshot(0.0, 100.0)['arms']
     assert snap[0]['site']['station'] == 'ZA' and snap[1]['site'] is None
     json.dumps(snap)
+
+
+# ---------- 자리별 작업 (site_arms.yaml actions) ----------
+
+def test_parse_site_actions():
+    site = arms.parse_site_arms({'arms': {
+        'omx1': {'actions': ['pick', 'LOAD', 'pick']}, 'omx2': {'actions': []}, 'omx3': {}}})
+    assert site['omx_1']['actions'] == ['pick', 'load']
+    assert site['omx_2']['actions'] == [] and site['omx_3']['actions'] is None
+    for bad in [['dance'], 'pick', [1], ['hold']]:
+        with pytest.raises(ValueError):
+            arms.parse_site_arms({'arms': {'omx1': {'actions': bad}}})
+
+
+def test_work_only_for_site_actions():
+    site = arms.parse_site_arms({'arms': {
+        'omx1': {'station': 'ZA', 'actions': ['pick', 'load']},
+        'omx2': {'station': 'ZC', 'actions': []}}})
+    commander = arms.ArmCommander(list(site), 5000, 8.0, 1.0, site=site)
+    commander.put_status('omx_1', STATUS, 10.0)
+    commander.put_status('omx_2', STATUS, 10.0)
+    with pytest.raises(arms.CommandError) as error:
+        commander.make_work(work_request('unload'), 100.0, 10.5)
+    assert error.value.status == 409 and '(ZA)' in error.value.detail
+    with pytest.raises(arms.CommandError) as error:
+        commander.make_work(work_request('pick', arm_id='omx_2'), 100.0, 10.5)
+    assert error.value.status == 409 and '없음' in error.value.detail
+    assert commander.make_work(work_request('load'), 100.0, 10.5)['action'] == 'load'
+    snap = commander.snapshot(10.6, 100.6)['arms']
+    assert snap[0]['work_actions'] == ['pick', 'load']
+    assert snap[1]['work_actions'] == [] and arms.WORK not in snap[1]['allowed']
+    # 배치 칸이 없는 팔은 제한 없음
+    assert arms.ArmCommander(['omx_1'], 5000, 8.0, 1.0).snapshot(0.0, 0.0)['arms'][0][
+        'work_actions'] == list(arms.WORK_ACTIONS)
+
+
+def test_installed_site_actions():
+    import pathlib
+    import yaml
+    path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
+    site = arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
+    assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'], []]

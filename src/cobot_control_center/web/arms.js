@@ -104,16 +104,21 @@ function ackText(ack) {
   return `마지막 응답 ${formatTime(ack.received_at)} ${what}${result}${stop}${reason}`;
 }
 
-function fillWorkActions(select) {
-  if (select.options.length === armsView.workActions.length) return;
+// 팔마다 그 자리에서 하는 작업만 (스냅샷 arm.work_actions, 없으면 전체). 비면 '작업 없음'.
+function fillWorkActions(select, actions) {
+  const key = actions.join(",") || "-";
+  if (select.dataset.actions === key) return;
+  select.dataset.actions = key;
   const keep = select.value;
-  select.replaceChildren(...armsView.workActions.map((action) => {
+  const options = actions.length ? actions.map((action) => [action, ARM_WORK_TEXT[action] || action])
+    : [["", "작업 없음"]];
+  select.replaceChildren(...options.map(([value, text]) => {
     const option = document.createElement("option");
-    option.value = action;
-    option.textContent = ARM_WORK_TEXT[action] || action;
+    option.value = value;
+    option.textContent = text;
     return option;
   }));
-  if (armsView.workActions.includes(keep)) select.value = keep;
+  if (actions.includes(keep)) select.value = keep;
 }
 
 function workText(work) {
@@ -129,7 +134,8 @@ function workText(work) {
   return `작업 시험 ${formatTime(work.finished_at)} ${what} → ${state}${took}${retry}${detail}`;
 }
 
-function workBlockedReason(canCommand, allowed, running, waiting, meta) {
+function workBlockedReason(canCommand, allowed, running, waiting, meta, actions) {
+  if (!actions.length) return "이 자리 팔은 정해진 작업이 없음 (config/site_arms.yaml 의 actions)";
   if (!canCommand) return armsBlockedReason();
   if (!view.commandsArmed) return "작업 명령이 꺼져 있음 (화면 위 '작업 명령 켜기' 먼저)";
   if (running) return "앞 작업 시험이 진행 중";
@@ -153,6 +159,14 @@ function siteTitle(arm) {
   return lines.join("\n");
 }
 
+function jointsText(status) {
+  if (!status || !status.joint_names || !status.joint_names.length) return "관절 값 없음";
+  const values = status.joint_names.map((name, i) => `${name} ${formatJoint(status.joint_positions[i])}`);
+  if (status.gripper_position !== null) values.push(`gripper ${formatJoint(status.gripper_position)}`);
+  return `관절 ${values.join(" · ")}\n단위 ${status.joint_unit || "모름 (lerobot -100..100)"}`
+    + ` · 측정 ${formatTime(status.stamp)} (작업 중에는 갱신되지 않음)`;
+}
+
 function renderArmCard(arm, canCommand) {
   const card = ensureArmCard(arm.arm_id);
   const meta = ARM_STATE[arm.state] || ARM_STATE.STALE;
@@ -165,7 +179,8 @@ function renderArmCard(arm, canCommand) {
   const badge = card.querySelector(".arm-state");
   badge.dataset.level = meta.level;
   badge.textContent = meta.text;
-  badge.title = meta.hint;
+  // epoch·seq 는 거의 안 보는 엔지니어 정보라 배지에 마우스를 올리면 보인다
+  badge.title = `${meta.hint}\n팔 노드가 받아들인 세션 번호(epoch) ${arm.epoch} · 명령 순번(seq) ${arm.seq}`;
 
   const torque = card.querySelector(".arm-torque");
   torque.textContent = !status ? "—" : status.torque_enabled ? "켜짐" : "꺼짐";
@@ -174,44 +189,29 @@ function renderArmCard(arm, canCommand) {
   const retractEl = card.querySelector(".arm-retract");
   retractEl.textContent = retract.text;
   retractEl.dataset.level = retract.level;
-  const hold = card.querySelector(".arm-hold");
-  hold.textContent = status && status.hold_active
-    ? (HOLD_REASON_TEXT[status.hold_reason] || status.hold_reason || "정지") : "없음";
-  hold.dataset.level = status && status.hold_active ? "warn" : "na";
-  card.querySelector(".arm-session").textContent = `${arm.epoch} · ${arm.seq}`;
+  // 관절 값은 토크 칸에 마우스를 올리면 보인다. lerobot 단위(-100..100)는 명세 열거에 없어
+  // joint_unit 이 비어 온다 → '단위 모름'
+  torque.title = jointsText(status);
 
-  // 관절 값: lerobot 단위(-100..100)는 명세 열거에 없어 joint_unit 이 비어 온다 → '단위 모름'
-  const joints = card.querySelector(".arm-joints");
-  if (status && status.joint_names && status.joint_names.length) {
-    const values = status.joint_names.map((name, i) => `${name} ${formatJoint(status.joint_positions[i])}`);
-    if (status.gripper_position !== null) values.push(`gripper ${formatJoint(status.gripper_position)}`);
-    joints.textContent = values.join(" · ");
-    joints.title = `단위 ${status.joint_unit || "모름 (lerobot -100..100)"} · 측정 ${formatTime(status.stamp)}`
-      + " (작업 중에는 관절 값이 갱신되지 않음)";
-  } else {
-    joints.textContent = "관절 값 없음";
-    joints.title = "";
-  }
-  card.querySelector(".arm-ack").textContent = ackText(arm.last_ack);
-  card.querySelector(".arm-ack").dataset.bad = String(Boolean(arm.last_ack && !arm.last_ack.accepted));
+  // 응답 줄: 버튼을 누른 직후(MSG_MS)는 그 결과 메시지, 그 밖에는 팔 노드의 마지막 응답
+  const msg = armsView.msg.get(arm.arm_id);
+  const showMsg = msg && msg.until > Date.now();
+  const ackEl = card.querySelector(".arm-ack");
+  ackEl.textContent = showMsg ? msg.text : ackText(arm.last_ack);
+  ackEl.title = ackEl.textContent;  // 한 줄 말줄임이라 전체는 마우스로
+  ackEl.dataset.bad = String(showMsg ? Boolean(msg.bad) : Boolean(arm.last_ack && !arm.last_ack.accepted));
+  ackEl.classList.toggle("msg", Boolean(showMsg));
   // 그 팔의 활성 알람 요약 (전체 목록은 상단 경고 띠)
   const alarms = arm.state === "STALE" && !arm.online ? (arm.alarms || []).filter((a) => a.code === "offline")
     : arm.alarms || [];
   const alarmEl = card.querySelector(".arm-alarm");
-  alarmEl.hidden = alarms.length === 0;
   alarmEl.textContent = alarms.length ? `알람 ${alarms.length} · ${alarms.map((a) => a.text.split(":")[0].split(" (")[0]).join(" · ")}` : "";
   alarmEl.title = alarms.map((a) => a.text).join("\n");
   alarmEl.dataset.level = alarms.some((a) => a.level === "bad") ? "bad" : "warn";
   const workEl = card.querySelector(".arm-work");
   workEl.textContent = workText(arm.work);
   workEl.dataset.state = arm.work ? arm.work.state : "";
-  workEl.title = arm.work ? `request ${arm.work.request_id} · seq ${arm.work.seq}` : "";
-
-  const msg = armsView.msg.get(arm.arm_id);
-  const msgEl = card.querySelector(".arm-msg");
-  const showMsg = msg && msg.until > Date.now();
-  msgEl.textContent = showMsg ? msg.text : "";
-  msgEl.dataset.bad = String(Boolean(showMsg && msg.bad));
+  workEl.title = arm.work ? `${workEl.textContent}\nrequest ${arm.work.request_id} · seq ${arm.work.seq}` : "";
 
   const allowed = new Set(arm.allowed || []);
   const waiting = armsView.busy.has(arm.arm_id) || arm.pending > 0;
@@ -226,13 +226,15 @@ function renderArmCard(arm, canCommand) {
 
   // 작업 시험: 스위치 켜짐 + 대기(서버가 allowed 에 work 를 넣음) + 앞 작업·명령 없음
   const select = card.querySelector(".arm-work-action");
-  fillWorkActions(select);
+  const actions = Array.isArray(arm.work_actions) ? arm.work_actions : armsView.workActions;
+  fillWorkActions(select, actions);
   const running = Boolean(arm.work && arm.work.state === "RUNNING");
-  const workOk = canCommand && view.commandsArmed && allowed.has("work") && !running && !waiting;
+  const workOk = canCommand && view.commandsArmed && allowed.has("work") && !running && !waiting
+    && actions.length > 0;
   const workBtn = card.querySelector(".arm-work-btn");
   workBtn.disabled = !workOk || !select.value;
   select.disabled = !workOk;
-  workBtn.title = workBlockedReason(canCommand, allowed.has("work"), running, waiting, meta);
+  workBtn.title = workBlockedReason(canCommand, allowed.has("work"), running, waiting, meta, actions);
 }
 
 function armsBlockedReason() {
