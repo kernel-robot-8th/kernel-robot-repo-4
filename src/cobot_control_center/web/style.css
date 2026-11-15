@@ -75,6 +75,9 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 }
 
 .title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* 엔지니어링 콘솔 표시: 나중 서비스용(운영자) 화면과 한눈에 구분되게 */
+.console-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  color: #fff; background: var(--active); letter-spacing: 0.02em; white-space: nowrap; }
 /* 실물이 아닌 도메인을 볼 때 눈에 띄게 한다 (가짜 로봇을 진짜로 착각하지 않게). */
 .mode {
   padding: 2px 9px;
@@ -237,7 +240,9 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .events li { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--border); }
 .events li:last-child { border-bottom: 0; }
 .events time { color: var(--muted); min-width: 64px; }
-.events .who { min-width: 52px; font-weight: 600; color: var(--robot-color, var(--muted)); }
+.events .who { min-width: 52px; font-weight: 600; color: var(--robot-color, var(--muted)); white-space: nowrap; }
+.events .who .where { margin-left: 3px; font-weight: 400; color: var(--muted); }
+.events li[data-source="arm"] .who { color: var(--text); }
 .events li[data-level="warn"] .text { color: var(--warn); }
 .events li[data-level="bad"] .text { color: var(--bad); font-weight: 600; }
 
@@ -590,17 +595,9 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
 .arm-work-row select:disabled { opacity: 0.45; }
 .card .arm-work-row button { flex: 0 0 auto; white-space: nowrap; }
-.arm-alarms { margin-top: 12px; }
-.arm-alarms-head h3 { margin: 0; font-size: 14px; }
-.arm-active { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
-.arm-active li { display: flex; gap: 8px; align-items: baseline; padding: 4px 8px; border-radius: 6px;
-  border-left: 4px solid var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--panel)); }
-.arm-active li[data-level="bad"] { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--panel)); }
-.arm-active li.none { border-left-color: var(--good); background: transparent; color: var(--muted); }
-.arm-active strong { min-width: 52px; }
-.arm-active time { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.arm-log { height: 160px; }
-.arm-log .who { min-width: 52px; }
+.arm-alarm { font-size: 12px; font-weight: 600; color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arm-alarm[data-level="bad"] { color: var(--bad); }
+.arm-alarm[hidden] { display: none; }
 
 /* ---------- 개발: 수동 명령 ---------- */
 

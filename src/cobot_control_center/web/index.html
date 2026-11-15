@@ -11,13 +11,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>로봇 관제</title>
+  <title>관제 엔지니어링 콘솔</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
     <div class="title">
-      <h1>로봇 관제</h1>
+      <h1>관제 엔지니어링 콘솔</h1>
+      <span class="console-tag" title="개발·시험·진단용 엔지니어 화면. 운영자용 서비스 화면은 따로 만든다">엔지니어 전용</span>
       <span class="mode" id="mode" data-mode="unknown">도메인 ?</span>
     </div>
     <div class="links">
@@ -70,9 +71,14 @@
 
     <section class="panel events-panel" id="events-panel" aria-label="이벤트">
       <div class="panel-head">
-        <h2>이벤트</h2>
-        <label class="muted">로봇
-          <select id="event-robot"><option value="">전체</option></select>
+        <h2>이벤트 <span class="muted">로봇·팔</span></h2>
+        <label class="muted">보기
+          <select id="event-robot">
+            <option value="">전체</option>
+            <option value="@robots">로봇 전체</option>
+            <option value="@arms">로봇팔 전체</option>
+            <option value="@zones">구역</option>
+          </select>
         </label>
       </div>
       <ol class="events" id="events"><li class="muted">이벤트 없음</li></ol>
@@ -93,16 +99,6 @@
         </div>
         <p class="muted arms-empty" id="arms-empty">로봇팔 상태 수신 대기</p>
         <div class="cards" id="arms"></div>
-        <div class="arm-alarms">
-          <div class="panel-head arm-alarms-head">
-            <h3>로봇팔 알람</h3>
-            <label class="muted">팔
-              <select id="arm-alarm-filter"><option value="">전체</option></select>
-            </label>
-          </div>
-          <ul class="arm-active" id="arm-active" aria-label="활성 알람"></ul>
-          <ol class="events arm-log" id="arm-log" aria-label="알람 기록"><li class="muted">기록 없음</li></ol>
-        </div>
       </section>
 
       <section class="panel" aria-label="작업">
@@ -356,6 +352,7 @@
           <div><dt>epoch · seq</dt><dd class="arm-session muted" title="팔 노드가 받아들인 세션 번호(epoch)·명령 순번(seq)"></dd></div>
         </dl>
         <div class="arm-joints muted"></div>
+        <div class="arm-alarm" hidden></div>
         <div class="arm-ack muted"></div>
         <div class="arm-work muted"></div>
         <div class="arm-msg cmd-reason"></div>

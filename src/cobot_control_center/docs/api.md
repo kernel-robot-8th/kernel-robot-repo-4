@@ -161,7 +161,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 ### 알람 (활성 알람·기록)
 
-화면 로봇팔 칸 아래 **로봇팔 알람**에 나옵니다. 핑키 이벤트 로그와 섞지 않습니다. 둘 다 `arm_command_node` 가 만듭니다 (`arm_command_utils.ArmCommander`).
+화면에서는 핑키와 합쳐 보여 줍니다: 활성 알람은 상단 경고 띠(와 팔 카드 요약), 기록은 이벤트 로그에 핑키 기록과 시각 순으로 섞음 (`web/events.js`). API 는 핑키와 따로입니다 (번호 체계가 달라 화면이 섞음). 둘 다 `arm_command_node` 가 만듭니다 (`arm_command_utils.ArmCommander`).
 
 **활성 알람** (`arms[].alarms`): 지금 이어지는 상태라 풀리면 사라집니다.
 
