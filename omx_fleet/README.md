@@ -19,7 +19,7 @@
 |---|---|
 | `omx_fleet_worker.py` | 실행기. 대화 방식은 파일 맨 위 설명 |
 | `omx_chain.py`, `success_judge.py` | `tool/omx-dashboard-v2` (a54637d) `omx_dashboard_v2/` 에서 **고치지 않고 복사**. 바꿀 일이 있으면 원본과 함께 바꾼다 |
-| `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·action → 모델) |
+| `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
 
 ## 한 작업의 순서
@@ -33,6 +33,16 @@
 |---|---|
 | `success` | 번들 `success.json` 의 YOLO 판단이 성공을 낸 경우만 true. 판단 모델이 없으면 항상 false (`success_basis=none`) |
 | `arm_safe` | 그리퍼를 뺀 모든 관절 오차가 `--safe-tol`(기본 3, 약 5°) 이하. `hold` 로 끝나면 false |
+
+## 켜기·끄기 (관제)
+
+관제는 어댑터에 `ArmCommand` `CMD_START`·`CMD_RESET` 을 보낸다 (`cobot_manipulation/docs/prd.md` 5절).
+어댑터는 START 에 이 실행기를 띄우고, RESET 에 `{"cmd":"release"}` 를 보낸다.
+
+- `release`: 지금 자세가 `rest_pose` 에서 그리퍼를 뺀 관절 `--safe-tol` 안이면 `released` 를 알리고 연결을 끊는다 (토크 꺼짐).
+  아니면 `release_refused` 로 거절한다. **팔을 옮기지 않는다** (관제는 팔 모션을 시작하지 않는다).
+- `state`: 대기 중 관절 값을 `state` 로 알린다. 어댑터가 1초마다 물어 `ArmStatus` 에 싣는다.
+- `rest_pose` 가 없으면 `release` 는 늘 거절된다. 처음 값은 shoebox_d 시작 자세이므로 실제 팔로 재서 바꾼다.
 
 ## 실행
 
@@ -49,7 +59,8 @@ source ~/venv/il/bin/activate
 cp fleet_arms.example.yaml fleet_arms.yaml   # 처음 한 번, 값 고치기
 ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00 \
   python omx_fleet_worker.py --arms-file fleet_arms.yaml
-# stdin 에 한 줄씩: {"cmd":"run","id":"t1","action":"pick"}  /  {"cmd":"hold"}  /  {"cmd":"quit"}
+# stdin 에 한 줄씩: {"cmd":"run","id":"t1","action":"pick"} / {"cmd":"hold"} / {"cmd":"state"}
+#                  {"cmd":"release"} / {"cmd":"quit"}
 ```
 
 `omx_chain.py` 의 다른 옵션(`--device`, `--n-action-steps`, `--max-relative-target` 등)은 뒤에 붙이면 그대로 넘어간다.

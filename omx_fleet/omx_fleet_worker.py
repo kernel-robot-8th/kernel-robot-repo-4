@@ -11,9 +11,14 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
 대화 방식 (한 줄 = JSON 하나)
   stdin  {"cmd": "run", "id": "<request_id>", "action": "pick"}
          {"cmd": "hold"}   지금 단계를 멈추고 토크 유지 (안전 자세 이동도 하지 않음)
-         {"cmd": "quit"}   연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
+         {"cmd": "state"}  대기 중 관절 값 보고 (작업 중이면 작업이 끝난 뒤 답함)
+         {"cmd": "release"} 쉬는 자세(rest_pose)에 있을 때만 연결을 끊고 끝냄. 아니면 거절 (팔을 옮기지 않음)
+         {"cmd": "quit"}   무조건 연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
   stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
-         @fleet {"event": "ready", "actions": [...]}
+         @fleet {"event": "ready", "actions": [...], "joints": {...}}
+         @fleet {"event": "state", "joints": {...}}
+         @fleet {"event": "released", "pose_error": {...}}             이어서 연결을 끊고 끝냄
+         @fleet {"event": "release_refused", "detail": "...", "pose_error": {...}, "joints": {...}}
          @fleet {"event": "started", "id": ...}
          @fleet {"event": "done", "id": ..., "success": bool, "success_basis": "judge"|"none",
                  "arm_safe": bool, "end_reason": "success"|"timeout"|"hold", "pose_error": {...}, "joints": {...}}
@@ -73,6 +78,8 @@ def load_arm_config(path, arm_id):
             "safe_pose": spec.get("safe_pose"),
         }
     arm["actions"] = actions
+    # 쉬는 자세: 토크를 꺼도(release) 팔이 다치지 않는 자세. 없으면 release 는 늘 거절된다.
+    arm["rest_pose"] = str(Path(arm["rest_pose"]).expanduser()) if arm.get("rest_pose") else None
     return arm
 
 
@@ -105,8 +112,13 @@ def retreat(robot, pose, args, label, tol):
     target[GRIPPER] = read_joints(robot)[GRIPPER]  # 그리퍼는 지금 값 유지 (omx_chain.move_to_pose 는 모든 관절을 받음)
     omx_chain.move_to_pose(robot, target, args, f"{label} 안전 자세")
     joints = read_joints(robot)
-    error = {k: round(joints[k] - v, 2) for k, v in body.items()}
+    error = body_error(joints, body)
     return all(abs(e) <= tol for e in error.values()), error, joints
+
+
+def body_error(joints, pose):
+    """그리퍼를 뺀 관절의 (지금 - 목표) 오차."""
+    return {k: round(joints[k] - v, 2) for k, v in pose.items() if k != GRIPPER}
 
 
 def main(argv=None):
@@ -143,6 +155,7 @@ def main(argv=None):
             safe_poses[name] = safe_pose_for(spec)
             if not safe_poses[name]:
                 raise ValueError(f"{name}: safe_pose 도 init_pose.json 도 없음")
+        rest_pose = omx_chain.read_pose(arm["rest_pose"]) if arm["rest_pose"] else None
     except (Exception, SystemExit) as error:  # noqa: BLE001 — omx_chain 은 SystemExit 로 알린다
         emit(event="fatal", detail=f"준비 실패: {error}")
         return 2
@@ -168,7 +181,7 @@ def main(argv=None):
 
     robot.connect()
     try:
-        emit(event="ready", actions=sorted(stages))
+        emit(event="ready", actions=sorted(stages), joints=read_joints(robot))
         print(f"[{arm_id}] 준비 완료 — 토크 유지, 일을 기다림", flush=True)
         while True:
             msg = commands.get()
@@ -177,6 +190,24 @@ def main(argv=None):
                 break
             if cmd == "hold":
                 stop_evt.clear()  # 이 hold 앞의 run 은 모두 멈춘 채 끝났다
+                continue
+            if cmd == "state":
+                emit(event="state", joints=read_joints(robot))
+                continue
+            if cmd == "release":
+                # 관제는 팔 모션을 시작하지 않는다. 그래서 옮기지 않고 지금 자세만 보고 판정한다.
+                joints = read_joints(robot)
+                if rest_pose is None:
+                    emit(event="release_refused", detail=f"rest_pose 가 설정되지 않음 (arms.{arm_id}.rest_pose)",
+                         pose_error={}, joints=joints)
+                    continue
+                error = body_error(joints, rest_pose)
+                if all(abs(e) <= mine.safe_tol for e in error.values()):
+                    emit(event="released", pose_error=error)
+                    break
+                worst = max(abs(e) for e in error.values())
+                emit(event="release_refused", pose_error=error, joints=joints,
+                     detail=f"쉬는 자세가 아님 (최대 오차 {worst:.1f} > {mine.safe_tol}): 현장에서 팔을 내려 주세요")
                 continue
             if cmd != "run":
                 continue

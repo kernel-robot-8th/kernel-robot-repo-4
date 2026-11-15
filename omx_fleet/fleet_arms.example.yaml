@@ -8,6 +8,10 @@ arms:
     wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
     mjpg: true            # 두 카메라가 같은 USB 허브면 MJPG 라야 대역폭이 버틴다
     robot_id: omx_follower  # 캘리브레이션 파일 이름. 이 팔의 보드로 캘리브레이션한 파일이어야 한다
+    # 쉬는 자세 (init_pose.json 과 같은 형식). 관제가 끄기(release)를 할 때 지금 자세가 여기서
+    # 그리퍼 빼고 3 단위 안이어야 끈다. 끄면 토크가 꺼지므로 이 자세에서 팔이 떨어지지 않아야 한다.
+    # 처음엔 shoebox_d 시작 자세. 실제 팔로 쉬는 자세를 재서 바꿀 것.
+    rest_pose: ~/il_ws/omx_shoebox_d/init_pose.json
     actions:
       # 관제 action → 모델 폴더(pretrained_model)·최대 시간[s]·안전 자세.
       # safe_pose 를 비우면 그 모델 번들의 init_pose.json (<번들>/models/<모델> → <번들>/init_pose.json).
