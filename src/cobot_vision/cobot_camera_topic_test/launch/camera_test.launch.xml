@@ -1,0 +1,28 @@
+<launch>
+  <arg name="namespace" default=""/>
+  <arg name="source" default="pinky"/>
+  <arg name="publisher" default="false"/>
+  <arg name="subscriber" default="true"/>
+  <arg name="display" default="false"/>
+  <arg name="topic" default="/camera/image_raw"/>
+  <arg name="fps" default="10.0"/>
+  <arg name="encoding" default="bgr8"/>
+  <node pkg="cobot_camera_topic_test" exec="camera_publisher" name="camera_publisher"
+        namespace="$(var namespace)" output="screen" if="$(var publisher)">
+    <param from="$(find-pkg-share cobot_camera_topic_test)/config/camera.yaml"/>
+    <param name="source" value="$(var source)" type="str"/>
+    <param name="topic" value="$(var topic)" type="str"/>
+    <param name="fps" value="$(var fps)" type="float"/>
+    <param name="encoding" value="$(var encoding)" type="str"/>
+  </node>
+  <node pkg="cobot_camera_topic_test" exec="camera_subscriber" name="camera_subscriber"
+        namespace="$(var namespace)" output="screen" if="$(var subscriber)">
+    <param from="$(find-pkg-share cobot_camera_topic_test)/config/camera.yaml"/>
+    <param name="topic" value="$(var topic)" type="str"/>
+  </node>
+  <node pkg="rviz2" exec="rviz2" name="camera_view" namespace="$(var namespace)"
+        args="-d $(find-pkg-share cobot_camera_topic_test)/rviz/camera.rviz"
+        output="screen" if="$(var display)">
+    <remap from="/camera/image_raw" to="$(var topic)"/>
+  </node>
+</launch>

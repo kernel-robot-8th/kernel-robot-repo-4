@@ -26,6 +26,10 @@
   RELEASING  CMD_RESET 을 받아 실행기가 쉬는 자세인지 보고 연결을 끊는 중.
   FAULT      실행기가 죽음. 팔 상태 모름. CMD_RESET 으로 DISARMED 로 돌아간다.
 
+정지(HOLD)는 전원 상태와 따로 든다. CMD_HOLD·hold 요청으로 걸고 CMD_RELEASE_HOLD·release_hold 로 푼다.
+다만 꺼지면(DISARMED) 지운다 (keep_hold). 토크 없는 팔에는 멈출 동작이 없고, 남겨 두면 꺼진 팔이
+'정지' 로 보이고 다시 켠 뒤에도 일을 거절한다. 다시 켠 뒤에도 멈춰야 하면 관제가 HOLD 를 다시 보낸다.
+
 관제는 팔 모션을 시작하지 않는다 (ArmCommand.msg). 그래서 끄기(RESET)는 팔을 옮기지 않고,
 지금 자세가 쉬는 자세일 때만 실행기가 연결을 끊는다. 아니면 거절한다.
 """
@@ -122,3 +126,17 @@ def decide(power, command, busy, backend_name):
             return False, '작업 중에는 끌 수 없음 (먼저 HOLD)', ''
         return True, '', 'release'
     return False, f'모르는 명령 {command}', ''
+
+
+def keep_hold(new_power, held):
+    """전원이 new_power 로 바뀐 뒤에도 HOLD 를 남기는지. 꺼지면(DISARMED) 지운다 (모듈 설명)."""
+    return held and new_power != DISARMED
+
+
+def hold_status(power, held):
+    """(hold_active, hold_reason) 을 ArmStatus 에 낸다. 소프트 정지(LATCHED)가 HOLD 보다 먼저다."""
+    if power == LATCHED:
+        return True, 'SOFT_LATCH'
+    if held:
+        return True, 'HOLD'
+    return False, ''

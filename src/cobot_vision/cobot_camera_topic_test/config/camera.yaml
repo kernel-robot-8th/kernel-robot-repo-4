@@ -1,0 +1,18 @@
+/**:
+  ros__parameters:
+    topic: /camera/image_raw
+
+/**/camera_publisher:
+  ros__parameters:
+    source: pinky
+    fps: 10.0
+    encoding: bgr8
+    frame_id: front_camera_link
+    max_read_failures: 30
+    # Only synthetic mode uses these dimensions; real frames keep the vendor size.
+    width: 640
+    height: 480
+
+/**/camera_subscriber:
+  ros__parameters:
+    report_interval: 2.0

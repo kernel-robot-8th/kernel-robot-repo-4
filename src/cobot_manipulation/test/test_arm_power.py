@@ -87,3 +87,34 @@ def test_decide(state, command, busy, backend, ok, todo):
     got_ok, reason, got_todo = power.decide(state, command, busy, backend)
     assert (got_ok, got_todo) == (ok, todo)
     assert bool(reason) is not ok
+
+
+@pytest.mark.parametrize('state', [power.DISARMED, power.CONNECTING, power.ARMED,
+                                   power.LATCHED, power.RELEASING, power.FAULT])
+def test_keep_hold(state):
+    """HOLD 는 꺼질 때(DISARMED)만 지워진다. 그 밖의 전원 변화에는 남는다."""
+    assert power.keep_hold(state, True) is (state != power.DISARMED)
+    assert power.keep_hold(state, False) is False
+
+
+@pytest.mark.parametrize('state, held, expected', [
+    (power.ARMED, False, (False, '')),
+    (power.ARMED, True, (True, 'HOLD')),
+    (power.LATCHED, False, (True, 'SOFT_LATCH')),
+    (power.LATCHED, True, (True, 'SOFT_LATCH')),
+    (power.FAULT, True, (True, 'HOLD')),
+])
+def test_hold_status(state, held, expected):
+    assert power.hold_status(state, held) == expected
+
+
+def test_hold_then_reset_then_start_is_not_held():
+    """START → HOLD → RESET(꺼짐) → START 면 정지가 남지 않는다 (2026-11-15 관제 시험에서 발견)."""
+    held = True                                                 # CMD_HOLD
+    ok, _, todo = power.decide(power.ARMED, power.CMD_RESET, False, 'fake')
+    assert (ok, todo) == (True, 'release')
+    held = power.keep_hold(power.DISARMED, held)                # 쉬는 자세 확인 뒤 꺼짐
+    assert power.hold_status(power.DISARMED, held) == (False, '')
+    ok, _, todo = power.decide(power.DISARMED, power.CMD_START, False, 'fake')
+    assert (ok, todo) == (True, 'connect')
+    assert power.hold_status(power.ARMED, power.keep_hold(power.ARMED, held)) == (False, '')

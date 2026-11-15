@@ -2,6 +2,7 @@
 /build/
 /install/
 /log/
+.docker-context/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -223,3 +224,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# colcon build artifacts
+install/
+log/
+
+# Claude personal settings
+*.local.md

@@ -1,0 +1,9 @@
+# 시뮬용 LED 서비스 (실물 pinky_interfaces/SetLed 를 대신함)
+# 순찰 노드(cobot_pinky_patrol)가 채우는 필드만 둔다.
+string command   # 'fill' | 'clear'
+uint8 r          # [0-255]
+uint8 g          # [0-255]
+uint8 b          # [0-255]
+---
+bool success
+string message

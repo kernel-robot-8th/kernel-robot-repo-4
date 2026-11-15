@@ -57,12 +57,13 @@ def node(backend):
     logger = Logger()
     fake = SimpleNamespace(
         arm_id='omx1', backend=backend, power=power.RELEASING, release_ok=False,
-        release_acked=False, release_timeout_sec=5.0, acks=[],
+        release_acked=False, release_timeout_sec=5.0, acks=[], held=False,
         pending_reset=('ack', time.monotonic() + 5.0, power.ARMED),
         get_logger=lambda: logger)
     fake._ack = lambda ack, result, reason, stop: fake.acks.append((result, reason))
     fake._ack_release = lambda ack, result, reason: ArmAdapterNode._ack_release(
         fake, ack, result, reason)
+    fake._disarm = lambda why: ArmAdapterNode._disarm(fake, why)
     return fake
 
 

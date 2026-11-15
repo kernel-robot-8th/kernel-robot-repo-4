@@ -1,0 +1,37 @@
+<launch>
+  <arg name="rate_hz" default="50.0" description="Simulation loop frequency (Hz)"/>
+  <arg name="publish_tf" default="true" description="Publish map->odom->base TF tree"/>
+  <arg name="enable_lidar" default="true" description="Enable 2D planar LiDAR simulation"/>
+  <arg name="num_pinky" default="3" description="Number of Pinky robots (1-3)"/>
+  <arg name="map" default="$(find-pkg-share cobot_bringup)/config/maps/map_shoe_store_1021_gate67.yaml" description="Path to official project map YAML"/>
+  <arg name="use_map_server" default="true" description="Launch nav2_map_server for project official map"/>
+  <arg name="rviz" default="false" description="Launch RViz2 visualizer"/>
+
+  <!-- Official Project Map Server (OccupancyGrid /map) -->
+  <group if="$(var use_map_server)">
+    <node pkg="nav2_map_server" exec="map_server" name="map_server" output="screen">
+      <param name="yaml_filename" value="$(var map)"/>
+      <param name="topic_name" value="map"/>
+      <param name="frame_id" value="map"/>
+    </node>
+    <node pkg="nav2_lifecycle_manager" exec="lifecycle_manager" name="lifecycle_manager_map" output="screen">
+      <param name="use_sim_time" value="false"/>
+      <param name="autostart" value="true"/>
+      <param name="node_names" value="['map_server']"/>
+    </node>
+  </group>
+
+  <!-- Simulation Fleet Node -->
+  <node pkg="cobot_simulation" exec="arena_sim_node" name="arena_sim_node" output="screen">
+    <param name="rate_hz" value="$(var rate_hz)"/>
+    <param name="publish_tf" value="$(var publish_tf)"/>
+    <param name="enable_lidar" value="$(var enable_lidar)"/>
+    <param name="num_pinky" value="$(var num_pinky)"/>
+  </node>
+
+  <!-- Optional RViz2 -->
+  <group if="$(var rviz)">
+    <node pkg="rviz2" exec="rviz2" name="rviz2" output="screen"
+          args="-d $(find-pkg-share cobot_simulation)/rviz/cobot_fleet.rviz"/>
+  </group>
+</launch>
