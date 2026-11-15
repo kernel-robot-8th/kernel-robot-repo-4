@@ -28,6 +28,8 @@
               title="작업 명령(이동·구역·나가기·홈)을 켜고 끈다. 정지·비상정지는 꺼져 있어도 된다">작업 명령 켜기</button>
       <span class="link" id="link-zone" data-state="na"><i></i><span class="label">zone_manager</span></span>
       <span class="link bridges" id="link-bridges"><span class="label">브릿지</span></span>
+      <!-- 네트워크 상태 화면(#/network, network.js). 점 = 전체 요약 (가장 나쁜 상자 색) -->
+      <a class="link net-btn" id="net-btn" href="#/network" data-state="na"><i></i>네트워크 상태보기</a>
       <span class="updated" id="updated">수신 대기</span>
       <button type="button" class="estop-all" id="stop-all" disabled
               title="모든 로봇을 그 자리에 세운다 (비상정지, 확인 창 없음)">전체 비상정지</button>
@@ -198,6 +200,54 @@
         </details>
       </section>
     </div>
+  </main>
+
+  <!-- 네트워크 상태 화면 (#/network). network.js 가 켜고 끄며, 켜져 있으면 전체 화면(.layout)을 숨긴다.
+       헬스체크 카드 → 구조도 → 자세히 → 핑 지연 그래프. 데이터는 /api/network 하나. -->
+  <main class="network-page" id="network-page" hidden>
+    <section class="net-head" aria-label="네트워크 상태">
+      <a href="#" class="detail-back">← 전체</a>
+      <strong class="dt-name">네트워크 상태</strong>
+      <span class="net-summary" id="net-summary" data-state="na"></span>
+      <span class="updated" id="net-updated"></span>
+      <!-- 평소엔 5초마다 핑만. 누르면 10초 동안 1초마다 핑 + 상태 토픽 수신 주기 (로봇에는 아무것도 안 보냄) -->
+      <button type="button" class="net-check" id="net-check">자세히 확인</button>
+      <span class="muted net-check-note" id="net-check-note"></span>
+    </section>
+    <section class="panel" aria-label="헬스체크">
+      <div class="panel-head">
+        <h2>헬스체크</h2>
+        <span class="muted" id="health-counts"></span>
+      </div>
+      <ul class="health-issues" id="health-issues"></ul>
+      <!-- 장비 줄(로봇·로봇팔)과 PC 줄(Station PC·관제 PC)을 나눈다 -->
+      <div class="health-cards" id="health-cards"></div>
+      <div class="health-cards health-pcs" id="health-pcs"></div>
+    </section>
+    <section class="panel" aria-label="구조도">
+      <div class="panel-head">
+        <h2>구조도</h2>
+        <span class="net-legend-dots">
+          <span class="dot" data-state="good"><i></i>정상</span>
+          <span class="dot" data-state="warn"><i></i>주의</span>
+          <span class="dot" data-state="bad"><i></i>끊김·이상</span>
+          <span class="dot" data-state="na"><i></i>모름</span>
+          <span class="muted">상자를 누르면 아래에 자세히</span>
+        </span>
+      </div>
+      <div class="net-diagram" id="net-diagram"></div>
+    </section>
+    <section class="panel" aria-label="자세히">
+      <div class="panel-head"><h2 id="net-info-title">자세히</h2><span class="muted">구조도·헬스체크 카드를 누르면 바뀜</span></div>
+      <dl class="diag" id="net-info"></dl>
+    </section>
+    <section class="panel" aria-label="핑 지연 그래프">
+      <div class="panel-head"><h2>핑 지연</h2><span class="muted">최근 5분 · 관제 PC 에서</span></div>
+      <canvas class="net-chart" id="net-chart"></canvas>
+      <div class="net-legend" id="net-legend"></div>
+    </section>
+    <p class="muted net-foot">대역폭·WiFi·패킷 캡처 같은 자세한 진단은 <code>cobot_navigation/ros2_network_test</code> (따로 실행).
+      로봇·Station PC 의 DDS 종류는 ROS 로 물어볼 수 없어 데이터가 오는지로만 적습니다.</p>
   </main>
 
   <!-- 명령 지점 고르기. 열 때 누른 로봇 카드 위에 덮어 띄운다 (정지 줄은 가리지 않음).
@@ -384,6 +434,7 @@
   <script src="detail.js"></script>
   <script src="pose.js"></script>
   <script src="arms.js"></script>
+  <script src="network.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

@@ -34,6 +34,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
+| `GET /api/network?history=` | 네트워크 화면 구조도 (아래 [네트워크](#네트워크-net_status_node)). `history=true` 면 대상별 최근 핑 기록도 |
+| `POST /api/network/check` | 자세히 확인 (10 s 동안 1 s 마다 핑 + 상태 토픽 주기). `202 {"duration_sec"}` / `503` 측정 노드 없음. 로봇에는 아무것도 보내지 않아 읽기 전용 백엔드에서도 된다 |
 | `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
 | `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
 | `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
@@ -210,7 +212,122 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 팔 노드 쪽 확인할 것: RESET 으로 꺼진 뒤에도 그 전 HOLD 표시가 남아 `hold_active=true` 로 옵니다 (`held` 를 RESET 에서 지우지 않음). 화면은 `HOLD` 로 보여 주고 정지 해제를 먼저 하게 합니다.
 
+## 네트워크 (net_status_node)
+
+관제 PC 에서 잴 수 있는 것만 잽니다. 로봇·Station PC 의 DDS 종류는 ROS 로 물어볼 수 없어
+데이터가 오는지로만 적습니다 (`dds` 칸).
+
+**빠르기 두 가지** (헬스체크는 가볍게 계속, 자세한 확인은 필요할 때만):
+
+| | 핑 | 상태 토픽 수신 주기 |
+|---|---|---|
+| 평소 | 대상마다 5 s 에 한 번 (장치 5대 → 초당 약 80 바이트) | 재지 않음 (구독 안 함) |
+| 자세히 확인 (`POST /api/network/check`, 화면 버튼) | 10 s 동안 1 s 마다 | 10 s 동안 구독해서 잼. 끝나면 구독을 지우고 결과를 `checked_at` 과 함께 그대로 냄 |
+
+팔 상태(10 Hz)를 관제 PC 가 하나 더 구독하면 Station PC 가 한 벌 더 보낼 수 있어서 평소에는 구독하지 않습니다.
+
+`/control_center/host_status` (std_msgs/String JSON, 3 s, RELIABLE, 각 PC 의 `host_status_node` → `fleet_api_node`):
+관제 PC 가 아닌 PC 가 자기 상태를 보낸다. 여러 PC 가 같은 토픽에 내고 `host` 로 나눈다 (`station` 이면 Station PC 카드).
+
+```json
+{"host": "station", "label": "Station PC", "hostname": "station-pc", "time": 1794763662.3, "period_sec": 3.0,
+ "local_ip": "192.168.45.10",
+ "dds": {"rmw": "rmw_cyclonedds_cpp", "domain_id": 100, "rmw_env": "rmw_cyclonedds_cpp",
+         "cyclonedds_uri": null, "discovery_range": null},
+ "interfaces": [아래 net_status 의 interfaces 와 같은 모양],
+ "system": {"cpu_pct": 2.0, "cpu_count": 8, "load1": 0.56, "mem": {"total_mb": 15395, "used_pct": 66.0},
+            "temp_c": 51.0, "temp_zone": "x86_pkg_temp", "disk_pct": 28.0, "uptime_sec": 132600},
+ "thresholds": {"cpu_warn_pct": 90.0, "mem_warn_pct": 90.0, "temp_warn_c": 80.0, "disk_warn_pct": 90.0,
+                "wifi_warn_dbm": -70.0, "wifi_warn_pct": 40.0}}
+```
+
+- `cpu_pct` 는 앞 보고와의 차이라 첫 보고는 `null`. 온도는 CPU thermal zone(`x86_pkg_temp`, `cpu-thermal` 등), 없으면 가장 높은 zone.
+- 화면 판정: 보고가 `host_stale_sec`(10 s) 넘게 끊기면 빨강, DDS·도메인이 관제와 다르면 주황, 각 값이 `thresholds` 이상이면 주황.
+
+`/control_center/net_check` (std_msgs/String JSON `{"source": 누른 곳 IP}`, `fleet_api_node` → `net_status_node`):
+자세히 확인 시작. 진행 중에 또 오면 끝 시각만 늘립니다.
+
+`/control_center/net_status` (std_msgs/String JSON, 1 Hz, transient_local, `net_status_node` → `fleet_api_node`)
+
+```json
+{"time": 1794761073.5, "ping_available": true, "local_ip": "192.168.45.9", "pid": 1234,
+ "targets": {"pinky1": {"host": "192.168.45.21", "state": "ok", "samples": 12, "last_ms": 2.4,
+                        "avg_ms": 2.6, "max_ms": 7.1, "loss_pct": 0.0, "last_ok_age": 0.4,
+                        "mac": "2c:cf:67:a8:67:b5", "mac_fresh": true}, "...": {}},
+ "topics": {"pinky1/patrol_status": {"topic": "/pinky1/patrol_status", "hz": 0.9, "age": 0.8,
+                                     "state": "ok", "expect_hz": null, "checked_at": 1794762439.3},
+            "omx_1/status": {"topic": "/manipulation/omx_1/status", "hz": 10.0, "...": 0}},
+ "interfaces": [{"name": "wlo1", "kind": "wifi", "oper": "up", "ips": ["192.168.45.9/24"],
+                 "mac": "40:d1:33:34:56:ac", "gateway": "192.168.45.1", "default_route": true,
+                 "robot_net": true, "carrier_changes": 4, "state": "ok",
+                 "wifi": {"ssid": "SK_D490_5G", "signal_pct": 77, "level_dbm": null, "chan": "44",
+                          "rate": "270 Mbit/s", "same_channel": ["FASTCAMPUS_10F"], "state": "ok"}},
+                {"name": "enp130s0", "kind": "ethernet", "oper": "up", "ips": ["192.168.0.9/24"],
+                 "mac": "...", "gateway": null, "default_route": false, "robot_net": false,
+                 "speed_mbps": 1000, "duplex": "full", "state": "ok"},
+                {"name": "tailscale0", "kind": "vpn", "oper": "unknown", "ips": ["100.92.218.126/32"],
+                 "mac": null, "robot_net": false, "state": "ok"}],
+ "detail": {"active": false, "remaining_sec": 0.0, "started_at": 1794762428.4, "duration_sec": 10.0},
+ "thresholds": {"ping_warn_ms": 100.0, "ping_warn_loss_pct": 10.0, "ping_bad_fails": 3,
+                "wifi_warn_dbm": -70.0, "wifi_warn_pct": 40.0, "ping_period_sec": 5.0, "detail_period_sec": 1.0}}
+```
+
+- 핑 대상 `mac` 은 관제 PC 의 ARP 표(`/proc/net/arp`) 값이다. 핑을 보내므로 이미 있고 따로 패킷을 보내지 않는다.
+  `mac_fresh` 가 거짓이면 예전에 알던 값.
+- 핑 대상 키: `router`, `station`, 로봇 이름. `state`: `ok` / `warn`(평균 지연 또는 손실률이 기준 이상) /
+  `bad`(마지막 `ping_bad_fails` 번 연속 실패) / `na`(아직 안 잼, 또는 이 PC 에 `ping` 이 없음).
+- 토픽 `state`: 끊긴 지 `*_stale_sec` 넘으면 `bad`, 기대 주기(`expect_hz`)의 절반 미만이면 `warn`.
+  `topics` 는 자세히 확인을 한 번도 안 했으면 비어 있다.
+- `interfaces`: 이 PC 의 연결 전부 (`/sys/class/net`, 도커·가상 연결 제외). 관제 PC 는 Wi-Fi 와 유선이 함께 있을 수 있다.
+  `kind`: `ethernet` / `wifi` / `vpn`(터널 장치) / `other`. `robot_net` 은 공유기(`router_host`)로 가는 경로의 연결,
+  `default_route`·`gateway` 는 `ip -4 route show default` 의 기본 경로. `carrier_changes` 는 켜진 뒤 링크가 끊겼다 붙은 횟수.
+  Wi-Fi 신호는 `/proc/net/wireless` 의 dBm 이 있으면 그것, 없으면(드라이버에 따라 비어 있음) `nmcli` 신호 %.
+  `nmcli` 는 다시 찾기(rescan) 없이 10 s 에 한 번 읽는다. `same_channel` 은 같은 채널의 다른 AP (겹치면 느려질 수 있음).
+
+`GET /api/network` 응답 (상태 이름은 위와 같음):
+
+| 키 | 내용 |
+|---|---|
+| `overall` | 전체에서 가장 나쁜 상태, 헬스체크 포함 (상단 바 '네트워크 상태보기' 점 색) |
+| `health` | 헬스체크 `{"state", "counts": {"ok", "warn", "bad", "na"}, "cards": [{"id", "label", "kind": "robot"\|"arm" (장비 줄) \| "station"\|"control" (PC 줄), "select": 구조도에서 열 상자(팔은 "station"), "state", "checks": [{"name", "state", "value"}]}], "issues": [정상이 아닌 점검, 나쁜 것부터 + "card", "select", "label"]}`. 관제 PC 카드의 연결 줄은 유선 → 무선 → VPN·기타 순서이고 판정은 로봇망 연결만 한다. 로봇 점검은 `fleet_status` 의 `alerts`(배터리·FAILED·끼임·시계)를 그대로 써서 경고 띠와 기준이 같다 |
+| `local` | 이 PC: `rmw`(직접 확인), `rmw_env`, `domain_id`, `cyclonedds_uri`, `discovery_range`, `static_peers`, `nodes`(도메인에서 이름이 보이는 노드), `unknown_nodes`(이름이 안 보이는 노드 수, DDS 가 다를 때) |
+| `control` | 관제 PC 안 노드 상자 `[{"id", "label", "state", "text"}]`: fleet_api, fleet_status, fleet_control, zone_manager, arm_command, net_status |
+| `bridges` | 로봇별 브릿지 상자 (`fleet_status` 의 `infra` 판정, `node`, `note`) |
+| `router` · `station` · `robots` | 장치 상자. `ping`(위 핑 요약), 로봇은 `rate`(patrol_status)·`topic_age`, Station PC 는 `arms`·`rates`(팔별 ArmStatus 주기). `text` 는 끊긴 곳 설명 (예: "핑은 되는데 데이터 없음 (브릿지 확인)") |
+| `links` | 선 `[{"from", "to", "state", "ms"}]`: 관제 PC─공유기, 공유기─각 장치 |
+| `net_online` | 측정 노드 값이 `net_stale_sec`(3 s) 안에 왔는지. 거짓이면 핑 칸이 비고 나머지는 그대로 그림 |
+| `interfaces` | 측정 노드 값 + `summary`(화면 한 줄, 예: "연결됨 · 192.168.45.9/24 · SK_D490_5G · 77% · 5 GHz ch44 · 270 Mbit/s"), `badges`(["로봇망", "기본 경로", "VPN"] 중), `kind_text`(유선·무선·VPN·기타) |
+| `detail` · `local_ip` · `ping_available` · `thresholds` | 측정 노드 값 그대로 |
+| `history` | (`history=true` 일 때) 대상별 `[[UNIX 시각, rtt ms 또는 null], ..]` 최근 300개 |
+| `alerts` | 상단 경고 띠에 더할 네트워크·PC 경고 `[{"robot", "code": "net:<카드>:<줄>", "level", "text"}]` (`fleet_status` alerts 와 같은 모양). 로봇은 '네트워크' 줄만, 팔은 빼고(로봇팔 패널에 있음), Station PC·관제 PC 는 관제 노드·브릿지(상단 점) 말고 모두 |
+
+네트워크·PC 경고가 생기고 풀릴 때는 `fleet_api_node` 가 2 초마다 비교해 이벤트(`kind: "network"`, 풀림은
+`level: "info"`, `"… 회복"`)를 `/api/events` 와 `/ws/fleet` 스냅샷 `events` 에 넣습니다. 값(지연 ms 등)만 바뀌면 새 이벤트를 내지 않습니다.
+
 ## 파라미터
+
+`net_status_node` (`config/net_status_node.yaml`). 주소는 2026-11-16 기준이며 바뀌면 여기만 고칩니다.
+
+| 이름 | 기본값 | 뜻 |
+|---|---|---|
+| `robots` · `robot_hosts` | `[pinky1..3]` · `[192.168.45.21..23]` | 핑할 로봇과 주소 (같은 순서) |
+| `station_host` · `router_host` | `192.168.45.10` · `192.168.45.1` | Station PC · 공유기. 비우면 재지 않음 |
+| `arm_ids` | `[omx_1, omx_2, omx_3]` | 수신 주기를 볼 팔 (`/manipulation/{arm}/status`) |
+| `ping_period_sec` · `ping_timeout_sec` · `ping_window` | `5.0` · `1` · `12` | 평소 대상마다 핑 주기 [s], `ping -W` [s], 손실률·평균을 낼 최근 횟수 |
+| `detail_period_sec` · `detail_duration_sec` | `1.0` · `10.0` | 자세히 확인 중 핑 주기 [s], 자세히 확인 길이 [s] (토픽 주기도 이 구간) |
+| `check_topic` | `/control_center/net_check` | 자세히 확인 요청 |
+| `ping_warn_ms` · `ping_warn_loss_pct` · `ping_bad_fails` | `100` · `10` · `3` | 주황 기준 [ms]·[%], 빨강이 되는 연속 실패 수 |
+| `robot_status_stale_sec` · `arm_status_stale_sec` · `arm_status_expect_hz` | `3.0` · `1.0` · `10.0` | 토픽이 끊긴 것으로 볼 시간 [s], 팔 기대 주기 [Hz] |
+| `wifi_warn_dbm` · `wifi_warn_pct` | `-70` · `40` | 관제 PC Wi-Fi 가 이보다 약하면 주황 (dBm 이 없으면 % 로) |
+| `nmcli_period_sec` | `10.0` | nmcli 로 Wi-Fi 연결 정보를 읽는 주기 [s] |
+| `interface_skip_prefixes` | `[lo, docker, veth, br-, p2p, virbr]` | 화면에 안 보일 연결 이름 앞부분 |
+
+`host_status_node` (`config/host_status_node.yaml`, 관제 PC 가 아닌 PC 에서): `host`(`station`, launch 인자), `label`,
+`router_host`(로봇망으로 볼 연결), `publish_period_sec`(3.0), `nmcli_period_sec`, `interface_skip_prefixes`,
+`cpu_warn_pct`·`mem_warn_pct`·`disk_warn_pct`(90), `temp_warn_c`(80), `wifi_warn_dbm`·`wifi_warn_pct`.
+
+`fleet_api_node` 쪽: `host_status_topic`, `host_stale_sec`(10.0), `net_stale_sec`(3.0), `network_robots`, `network_arms`(구조도에 그릴 목록), `net_status_topic`, `net_check_topic`,
+`station_node_patterns`(`['omx*_adapter']`, Station PC 노드로 볼 이름. ROS 그래프는 노드가 어느 PC 에 있는지 모르므로 이름으로 고른다 → `local.station_nodes`, `station.nodes`).
 
 `fleet_status_node` (`config/fleet_status_node.yaml`)
 
@@ -287,4 +404,5 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `detail.js` | 로봇 상세 화면 (`#/robot/<id>`): 상태줄·카메라·확대 지도·요약·타임라인·진단 |
 | `pose.js` | 초기위치 [홈]·[좌표 지정] (상세 위치 칸, 확대 지도 누르고 끌기) |
 | `arms.js` | 로봇팔 패널 (`/api/arms` 1 s 마다, 켜기·끄기·정지, 작업 시험) |
+| `network.js` | 네트워크 상태 화면 (`#/network`): 헬스체크 카드·구조도·자세히·핑 지연 그래프, 상단 바 버튼 점 (`/api/network` 2 s 마다) |
 | `main.js` | 시작, `/api/health` 확인 |

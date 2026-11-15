@@ -19,7 +19,9 @@ function robotIndex(robotId) {
 function renderAlerts(alerts, fresh) {
   const box = $("alerts");
   // 관제 노드가 끊기면 마지막 경고가 남아 있어 헷갈리므로 숨긴다 (끊김은 상단 점이 알려 준다).
-  const list = fresh ? alerts || [] : [];
+  // 네트워크·PC 경고(network.js 가 /api/network 에서 받음)는 관제 노드와 따로라 늘 붙인다.
+  view.lastAlerts = { alerts, fresh };
+  const list = (fresh ? alerts || [] : []).concat(view.netAlerts || []);
   box.hidden = list.length === 0;
   box.replaceChildren();
   for (const alert of list) {

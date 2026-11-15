@@ -44,6 +44,8 @@ setup(
             'fleet_status_node = cobot_control_center.fleet_status_node:main',
             'fleet_api_node = cobot_control_center.fleet_api_node:main',
             'arm_command_node = cobot_control_center.arm_command_node:main',
+            'net_status_node = cobot_control_center.net_status_node:main',
+            'host_status_node = cobot_control_center.host_status_node:main',
         ],
     },
 )

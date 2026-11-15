@@ -819,3 +819,121 @@ body.detail-mode .layout { display: none; }
   .dt-map-wrap { flex: none; aspect-ratio: 4 / 3; }
   .arm-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---------- 네트워크 상태 (#/network, network.js) ---------- */
+/* 점·글 색은 상단 바와 같은 good/warn/bad/na. body 에 붙이는 이름은 network-mode */
+
+.net-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--active);
+  font-weight: 600;
+  text-decoration: none;
+}
+.net-btn:hover { border-color: var(--active); background: color-mix(in srgb, var(--active) 10%, var(--panel)); }
+.net-btn[data-state="bad"] i { background: var(--bad); }
+
+body.network-mode .layout { display: none; }
+.network-page[hidden] { display: none; }
+.network-page { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.net-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.net-summary { font-size: 13px; }
+.net-summary[data-state="warn"] { color: var(--warn); }
+.net-summary[data-state="bad"] { color: var(--bad); font-weight: 600; }
+.net-legend-dots { display: inline-flex; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+.net-check {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--active);
+  background: transparent;
+  color: var(--active);
+  cursor: pointer;
+}
+.net-check:hover:not(:disabled) { background: color-mix(in srgb, var(--active) 10%, var(--panel)); }
+.net-check:disabled { opacity: 0.6; cursor: default; }
+.net-check-note { font-size: 12px; }
+
+.net-diagram { overflow-x: auto; }
+.net-svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.net-svg text { fill: var(--text); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.net-svg .pc-title { font-size: 14px; font-weight: 600; text-anchor: start; }
+.net-svg .nb-title { font-size: 13px; font-weight: 600; }
+.net-svg .nb-sub { font-size: 11px; fill: var(--muted); }
+.net-svg .nb-sub.start { text-anchor: start; }
+.net-svg .nb-sub.dim { font-size: 10px; }
+.net-svg .nl-ms { font-size: 11px; fill: var(--muted); text-anchor: start; }
+.net-svg .nb { cursor: pointer; outline: none; }
+.net-svg .nb rect { fill: var(--panel); stroke: var(--idle); stroke-width: 1.2; }
+.net-svg .nb.pc > rect { fill: color-mix(in srgb, var(--idle) 6%, var(--panel)); stroke-dasharray: 6 4; }
+.net-svg .nb[data-state="good"] rect { stroke: var(--good); fill: color-mix(in srgb, var(--good) 8%, var(--panel)); }
+.net-svg .nb[data-state="warn"] rect { stroke: var(--warn); fill: color-mix(in srgb, var(--warn) 12%, var(--panel)); }
+.net-svg .nb[data-state="bad"] rect { stroke: var(--bad); fill: color-mix(in srgb, var(--bad) 12%, var(--panel)); }
+.net-svg .nb.pc[data-state] > rect { fill: color-mix(in srgb, var(--idle) 6%, var(--panel)); }
+.net-svg .nb.sel rect, .net-svg .nb:focus-visible rect { stroke-width: 2.5; }
+.net-svg .nl { fill: none; stroke: var(--idle); stroke-width: 2; stroke-dasharray: 5 4; }
+.net-svg .nl[data-state="good"] { stroke: var(--good); stroke-dasharray: none; }
+.net-svg .nl[data-state="warn"] { stroke: var(--warn); }
+.net-svg .nl[data-state="bad"] { stroke: var(--bad); stroke-dasharray: 2 4; }
+
+/* 자세히 칸 묶음 제목 (유선·무선·VPN) */
+.diag .diag-heading {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text);
+}
+.net-card {
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--idle);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 10px;
+  cursor: pointer;
+  /* button 은 기본으로 내용을 세로 가운데 두므로, 높이가 다른 카드끼리 위를 맞춘다 */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.net-card[data-state="good"] { border-left-color: var(--good); }
+.net-card[data-state="warn"] { border-left-color: var(--warn); }
+.net-card[data-state="bad"] { border-left-color: var(--bad); }
+.net-card.sel { border-color: var(--active); border-left-width: 4px; }
+.net-card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.net-badge { font-size: 12px; color: var(--muted); }
+.net-card[data-state="bad"] .net-badge { color: var(--bad); font-weight: 600; }
+.net-card[data-state="warn"] .net-badge { color: var(--warn); }
+
+/* 헬스체크: 지금 볼 것 목록 + 카드 (구조도 위) */
+.health-issues { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.health-issues li {
+  font-size: 13px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.health-issues li[data-state="good"] { border-color: var(--good); color: var(--good); cursor: default; }
+.health-issues li[data-state="warn"] { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.health-issues li[data-state="bad"] { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, transparent); }
+.health-issues strong { margin-right: 4px; }
+.health-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+/* PC 줄: Station PC | 관제 PC (둘 다 연결 줄이 길어 반씩) */
+.health-pcs { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 8px; }
+@media (max-width: 900px) {
+  .health-pcs { grid-template-columns: minmax(0, 1fr); }
+}
+
+.net-chart { display: block; width: 100%; height: 180px; }
+.net-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 12px; }
+.net-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.net-legend i { width: 14px; height: 3px; border-radius: 2px; }
+.net-foot { font-size: 12px; margin: 0; }
