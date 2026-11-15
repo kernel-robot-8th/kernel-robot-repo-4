@@ -35,10 +35,21 @@ print('사람용 로그', os.environ['ARM_ID'], os.environ['ROBOT_PORT'], flush=
 if mode == 'fatal':
     emit(event='fatal', detail='모델 없음')
     sys.exit(2)
-emit(event='ready', actions=['pick'])
+joints = {'shoulder_pan.pos': 1.0, 'gripper.pos': 50.0}
+emit(event='ready', actions=['pick'], joints=joints)
 for line in sys.stdin:
     msg = json.loads(line)
     if msg['cmd'] == 'quit':
+        break
+    if msg['cmd'] == 'state':
+        joints['shoulder_pan.pos'] += 1
+        emit(event='state', joints=joints)
+        continue
+    if msg['cmd'] == 'release':
+        if mode == 'not_rest':
+            emit(event='release_refused', detail='쉬는 자세가 아님', pose_error={}, joints=joints)
+            continue
+        emit(event='released', pose_error={})
         break
     if msg['cmd'] == 'hold':
         emit(event='done', id=held, success=False, end_reason='hold', arm_safe=False)
@@ -185,3 +196,57 @@ def test_parse_worker_line():
     for bad in ['@fleet not json', '@fleet []', '@fleet {"id": 1}']:
         with pytest.raises(ValueError):
             parse_worker_line(bad)
+
+
+def test_state_updates_joints():
+    backend, _ = worker()
+    ready(backend)
+    assert backend.joints == {'shoulder_pan.pos': 1.0, 'gripper.pos': 50.0}
+    backend.request_state(NOW)
+    backend.request_state(NOW)    # 답을 기다리는 동안 두 번 보내지 않는다
+    wait(backend, until=lambda b, _: b.joints['shoulder_pan.pos'] == 2.0)
+    assert backend.joints_at is not None and not backend.state_pending
+    backend.shutdown()
+
+
+def test_release_at_rest_ends_worker_without_fault():
+    backend, _ = worker()
+    ready(backend)
+    backend.release(NOW)
+    wait(backend, until=lambda b, _: b.release_result is not None)
+    assert backend.take_release() == (True, '') and backend.take_release() is None
+    wait(backend, until=lambda b, _: not b.running() and b.events.empty())
+    backend.poll(NOW)
+    assert backend.dead == ''    # 정상 끄기 뒤의 끝남은 고장이 아니다
+    backend.reset()
+    backend.attach(PORT, NOW)    # reset 뒤에는 다시 켤 수 있다
+    wait(backend, until=lambda b, _: b.ready)
+    backend.shutdown()
+
+
+def test_release_refused_keeps_worker():
+    backend, _ = worker('not_rest')
+    ready(backend)
+    backend.release(NOW)
+    wait(backend, until=lambda b, _: b.release_result is not None)
+    assert backend.take_release() == (False, '쉬는 자세가 아님')
+    assert backend.running() and backend.ready and not backend.releasing
+    backend.shutdown()
+
+
+def test_reset_after_crash_allows_new_worker():
+    backend, _ = worker('crash')
+    ready(backend)
+    backend.start(request(), PORT, NOW)
+    wait(backend, until=lambda _, f: f)
+    assert backend.dead
+    backend.reset()
+    assert backend.dead == '' and backend.process is None
+    backend.attach(PORT, NOW)
+    wait(backend, until=lambda b, _: b.ready)
+
+
+def test_release_without_running_worker_is_immediate():
+    backend, _ = worker()
+    backend.release(NOW)
+    assert backend.take_release() == (True, '')

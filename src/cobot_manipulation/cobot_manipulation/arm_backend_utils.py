@@ -33,6 +33,7 @@ import shlex
 import signal
 import subprocess
 import threading
+import time
 
 # 실물이 쓰는 도메인. cobot_mock 과 같은 규칙이다 (코드는 import 하지 않는다, CLAUDE.md 3-6).
 FORBIDDEN_DOMAINS = frozenset({0, 10, 12, 20, 30, 100})
@@ -57,6 +58,11 @@ class ArmBackend:
 
     start() 로 시작하고, 노드가 주기적으로 poll() 을 불러 끝난 작업을 받아 간다.
     poll() 은 (요청, 성공 여부, data, detail) 목록을 돌려준다.
+
+    전원 (관제 CMD_START·CMD_RESET, arm_power_utils): attach() 로 팔에 연결하고 ready 가 참이 되면 일을 받는다.
+    release() 는 끄기를 요청하고, 결과는 take_release() 가 (끔, 이유) 로 한 번 돌려준다.
+    dead 가 비어 있지 않으면 고장이다. reset() 이 상태를 비워 다시 attach() 할 수 있게 한다.
+    joints·joints_at 은 마지막으로 잰 관절 값과 그 시각[s] 이다 (ArmStatus 용, 모르면 None).
     """
 
     name = 'base'
@@ -64,6 +70,11 @@ class ArmBackend:
 
     def __init__(self):
         self.job = None
+        self.ready = False
+        self.dead = ''
+        self.joints = None
+        self.joints_at = None
+        self.release_result = None
 
     def busy(self):
         """작업 중인지."""
@@ -85,7 +96,28 @@ class ArmBackend:
         """정지 해제. 동작을 시작하지는 않는다."""
 
     def attach(self, port, now):
-        """팔이 READY 가 되면 노드가 부른다."""
+        """팔에 연결한다 (CMD_START 또는 auto_start)."""
+
+    def running(self):
+        """팔에 연결된 실행기가 떠 있는지."""
+        return False
+
+    def release(self, now):
+        """끄기를 요청한다. 연결된 팔이 없으면 바로 끈다."""
+        self.ready = False
+        self.release_result = (True, '')
+
+    def take_release(self):
+        """끄기 결과 (끔, 이유) 를 한 번 돌려준다. 아직이면 None."""
+        result, self.release_result = self.release_result, None
+        return result
+
+    def request_state(self, now):
+        """대기 중이면 관절 값을 새로 읽게 한다."""
+
+    def reset(self):
+        """고장·끄기 뒤 상태를 비운다. 다음 attach() 를 받을 수 있게 된다."""
+        self.job, self.ready, self.dead, self.release_result = None, False, '', None
 
     def shutdown(self):
         """노드가 꺼질 때 부른다. 하던 일이 있으면 멈춘다."""
@@ -109,6 +141,12 @@ class FakeBackend(ArmBackend):
     def __init__(self, duration_sec):
         super().__init__()
         self.duration_sec = duration_sec
+
+    def attach(self, port, now):
+        self.ready = True
+
+    def running(self):
+        return self.ready
 
     def start(self, request, port, now):
         if self.busy():
@@ -195,16 +233,17 @@ class WorkerBackend(ArmBackend):
         self.log = log or (lambda text: None)
         self.process = None
         self.events = queue.Queue()
-        self.ready = False
-        self.dead = ''          # 실행기가 끝난 이유. 비어 있지 않으면 일을 받지 않는다
         self.stopping = None    # hold 를 보낸 작업 id: 실행기의 done 을 기다리는 중
+        self.releasing = False  # release 를 보내고 답을 기다리는 중
+        self.state_pending = False
+        self.released = False   # 실행기가 쉬는 자세를 확인하고 정상으로 끝냄
 
     def busy(self):
         """작업 중이거나 멈추는 중인지."""
         return self.job is not None or self.stopping is not None
 
     def attach(self, port, now):
-        """팔이 READY 가 되면 실행기를 띄운다. 이미 떠 있거나 죽은 뒤면 아무것도 안 한다."""
+        """실행기를 띄운다. 이미 떠 있거나 고장(dead) 이면 아무것도 안 한다 (reset() 뒤 다시)."""
         if self.process is not None or self.dead:
             return
         if not self.argv:
@@ -219,10 +258,11 @@ class WorkerBackend(ArmBackend):
         except OSError as error:
             self.dead = f'실행기 실행 실패: {error}'
             return
-        threading.Thread(target=self._read, args=(self.process,), daemon=True).start()
+        self.events = queue.Queue()  # 앞 실행기의 남은 줄과 섞이지 않게
+        threading.Thread(target=self._read, args=(self.process, self.events), daemon=True).start()
         self.log(f'{self.arm_id} 실행기 시작 (pid {self.process.pid}): 팔에 연결하고 모델을 불러옴')
 
-    def _read(self, process):
+    def _read(self, process, events):
         for line in process.stdout:
             line = line.rstrip('\n')
             try:
@@ -233,8 +273,8 @@ class WorkerBackend(ArmBackend):
             if event is None:
                 self.log(f'{self.arm_id} | {line}')
             else:
-                self.events.put(event)
-        self.events.put({'event': 'exited'})
+                events.put(event)
+        events.put({'event': 'exited'})
 
     def _send(self, message):
         try:
@@ -282,19 +322,61 @@ class WorkerBackend(ArmBackend):
             finished += self._finish_job(False, {}, '시간 초과로 멈춤 (토크 유지): 팔 상태를 모름')
         return finished
 
+    def running(self):
+        return self.process is not None and self.process.poll() is None
+
+    def release(self, now):
+        """실행기에 release 를 보낸다. 실행기가 쉬는 자세인지 보고 끄거나 거절한다."""
+        if not self.running():
+            super().release(now)
+            return
+        if self._send({'cmd': 'release'}):
+            self.releasing = True
+        else:
+            self.release_result = (False, '실행기에 명령을 보내지 못함')
+
+    def request_state(self, now):
+        if self.ready and not self.busy() and not self.releasing and not self.state_pending:
+            self.state_pending = self._send({'cmd': 'state'})
+
+    def reset(self):
+        """끝난 실행기를 정리한다. 아직 살아 있으면 quit 을 보낸다 (토크가 꺼진다)."""
+        if self.running():
+            self._send({'cmd': 'quit'})
+        super().reset()
+        self.process, self.stopping, self.releasing, self.state_pending = None, None, False, False
+        self.released = False
+
+    def _on_joints(self, event):
+        if isinstance(event.get('joints'), dict):
+            self.joints, self.joints_at = event['joints'], time.time()
+
     def _on_event(self, event):
         kind = event['event']
         job_id = self.job[0]['request_id'] if self.job else None
-        if kind == 'ready':
+        self._on_joints(event)
+        if kind == 'state':
+            self.state_pending = False
+        elif kind == 'released':
+            self.releasing, self.ready, self.released = False, False, True
+            self.release_result = (True, '')
+            self.log(f'{self.arm_id} 쉬는 자세 확인, 실행기가 연결을 끊음')
+        elif kind == 'release_refused':
+            self.releasing = False
+            self.release_result = (False, str(event.get('detail') or '거절'))
+        elif kind == 'ready':
             self.ready = True
             self.log(f'{self.arm_id} 실행기 준비 완료: {event.get("actions")}')
         elif kind == 'fatal':
             self.dead = f'실행기 오류: {event.get("detail")}'
             self.log(f'{self.arm_id} {self.dead}')
         elif kind == 'exited':
-            self.dead = self.dead or '실행기가 끝남'
-            self.ready = False
-            self.stopping = None
+            self.ready, self.stopping, self.state_pending = False, None, False
+            if self.releasing:
+                self.releasing = False
+                self.release_result = (False, '끄는 중 실행기가 끝남')
+            if not self.released:
+                self.dead = self.dead or '실행기가 끝남'  # 정상 끄기(released) 뒤의 끝남은 고장이 아니다
             if self.job:
                 return self._finish_job(False, {}, f'{self.dead}: 팔 상태를 모름')
         elif kind == 'rejected' and self.job and event.get('id') == job_id:
