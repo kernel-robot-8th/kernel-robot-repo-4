@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""관제(cobot_manipulation arm_adapter, backend=worker)용 팔 실행기 (lerobot 0.4.4).
+
+omx_chain.py 의 함수(로봇 만들기·모델 불러오기·초기 자세 이동·단계 실행)를 그대로 쓰고,
+사람 대신 어댑터가 stdin/stdout 으로 일을 시킨다. 같은 폴더의 omx_chain.py·success_judge.py 는
+tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 복사한 것이다.
+
+왜 따로 두나: 작업마다 lerobot-record 를 새로 켜면 끝날 때·시작할 때 토크가 꺼져 팔이 떨어진다.
+이 실행기는 켜질 때 한 번 연결하고 모든 모델을 미리 올린 뒤, 작업이 끝나도 토크를 유지한 채 다음 일을 기다린다.
+
+대화 방식 (한 줄 = JSON 하나)
+  stdin  {"cmd": "run", "id": "<request_id>", "action": "pick"}
+         {"cmd": "hold"}   지금 단계를 멈추고 토크 유지 (안전 자세 이동도 하지 않음)
+         {"cmd": "quit"}   연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
+  stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
+         @fleet {"event": "ready", "actions": [...]}
+         @fleet {"event": "started", "id": ...}
+         @fleet {"event": "done", "id": ..., "success": bool, "success_basis": "judge"|"none",
+                 "arm_safe": bool, "end_reason": "success"|"timeout"|"hold", "pose_error": {...}, "joints": {...}}
+         @fleet {"event": "rejected", "id": ..., "detail": "..."}   팔을 움직이지 않은 거절
+         @fleet {"event": "fatal", "detail": "..."}                 이후 일을 하지 않고 끝냄
+
+판단 규칙
+  - success: 성공 판단(success.json 의 YOLO)이 성공을 낸 경우만 true. 판단기가 없으면 항상 false (success_basis=none).
+  - arm_safe: 단계가 끝난 뒤 그 action 의 safe_pose 로 이동하고 (그리퍼는 그대로 둠 — 잡은 물건을 놓지 않게)
+    관절을 다시 읽어 그리퍼 외 모든 관절 오차가 safe_tol 이하일 때만 true. hold 로 끝나면 이동하지 않으므로 false.
+
+팔별 설정은 --arms-file (YAML) 에서 ARM_ID 환경변수로 고른다. 포트는 ROBOT_PORT 환경변수 (어댑터가 넘김).
+
+  ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/... ~/venv/il/bin/python omx_fleet_worker.py --arms-file fleet_arms.yaml
+"""
+
+import argparse
+import json
+import os
+import queue
+import sys
+import threading
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import omx_chain  # noqa: E402
+
+PREFIX = "@fleet "
+GRIPPER = "gripper.pos"
+
+
+def emit(**event):
+    """기계용 한 줄. 사람용 로그와 섞여도 PREFIX 로 구분된다."""
+    sys.stdout.write(PREFIX + json.dumps(event, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def load_arm_config(path, arm_id):
+    """arms-file 에서 arm_id 칸을 읽는다. 틀리면 ValueError."""
+    import yaml
+
+    data = yaml.safe_load(Path(path).expanduser().read_text()) or {}
+    arm = (data.get("arms") or {}).get(arm_id)
+    if not isinstance(arm, dict):
+        raise ValueError(f"{path} 에 arms.{arm_id} 가 없음")
+    for key in ("top", "wrist", "actions"):
+        if not arm.get(key):
+            raise ValueError(f"arms.{arm_id}.{key} 가 비어 있음")
+    actions = {}
+    for name, spec in arm["actions"].items():
+        if not isinstance(spec, dict) or not spec.get("model") or not spec.get("seconds"):
+            raise ValueError(f"arms.{arm_id}.actions.{name} 에 model·seconds 필요")
+        actions[name] = {
+            "model": str(Path(spec["model"]).expanduser()),
+            "seconds": float(spec["seconds"]),
+            "safe_pose": spec.get("safe_pose"),
+        }
+    arm["actions"] = actions
+    return arm
+
+
+def chain_args(arm, port, extra):
+    """omx_chain 함수들이 쓰는 args 를 만든다 (omx_chain 기본값 + 팔 설정 + 추가 인자)."""
+    argv = ["--port", port, "--top", str(arm["top"]), "--wrist", str(arm["wrist"])]
+    if arm.get("mjpg", True):
+        argv.append("--mjpg")
+    if arm.get("robot_id"):
+        argv += ["--robot-id", str(arm["robot_id"])]
+    return omx_chain.parse_args(argv + list(extra))
+
+
+def safe_pose_for(spec):
+    """action 의 안전 자세. safe_pose 가 없으면 그 모델 번들의 init_pose.json."""
+    if spec["safe_pose"]:
+        return omx_chain.read_pose(Path(spec["safe_pose"]).expanduser())
+    return omx_chain.find_init_pose(spec["model"])
+
+
+def read_joints(robot):
+    now = robot.bus.sync_read("Present_Position")
+    return {f"{k}.pos": round(float(v), 2) for k, v in now.items()}
+
+
+def retreat(robot, pose, args, label, tol):
+    """그리퍼를 뺀 관절만 pose 로 옮기고 실측 오차로 arm_safe 를 정한다."""
+    body = {k: v for k, v in pose.items() if k != GRIPPER}
+    target = dict(body)
+    target[GRIPPER] = read_joints(robot)[GRIPPER]  # 그리퍼는 지금 값 유지 (omx_chain.move_to_pose 는 모든 관절을 받음)
+    omx_chain.move_to_pose(robot, target, args, f"{label} 안전 자세")
+    joints = read_joints(robot)
+    error = {k: round(joints[k] - v, 2) for k, v in body.items()}
+    return all(abs(e) <= tol for e in error.values()), error, joints
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--arms-file", required=True)
+    p.add_argument("--safe-tol", type=float, default=3.0, help="안전 자세 허용 오차 (관절 단위, 1 ≈ 1.8°)")
+    mine, extra = p.parse_known_args(argv)
+    arm_id, port = os.environ.get("ARM_ID", ""), os.environ.get("ROBOT_PORT", "")
+    if not arm_id or not port:
+        emit(event="fatal", detail="ARM_ID·ROBOT_PORT 환경변수가 필요함")
+        return 2
+    try:
+        arm = load_arm_config(mine.arms_file, arm_id)
+        args = chain_args(arm, port, extra)
+    except (OSError, ValueError) as error:
+        emit(event="fatal", detail=f"설정 오류: {error}")
+        return 2
+    if os.environ.get("ACT_ENSEMBLE_K"):
+        import act_ensemble  # noqa: F401
+
+    from lerobot.datasets.utils import hw_to_dataset_features
+
+    stages, safe_poses = {}, {}
+    try:  # 로봇에 연결하기 전 준비. 여기서 실패하면 팔은 건드리지 않았다.
+        robot = omx_chain.make_robot(args)
+        features = {
+            **hw_to_dataset_features(robot.action_features, "action", True),
+            **hw_to_dataset_features(robot.observation_features, "observation", True),
+        }
+        print(f"[{arm_id}] 모델 {len(arm['actions'])}개를 불러오는 중… (로봇 연결 전)", flush=True)
+        for name, spec in arm["actions"].items():
+            stages[name] = omx_chain.load_stage(spec["model"], spec["seconds"], args)
+            omx_chain.check_inputs(stages[name], features)
+            safe_poses[name] = safe_pose_for(spec)
+            if not safe_poses[name]:
+                raise ValueError(f"{name}: safe_pose 도 init_pose.json 도 없음")
+    except (Exception, SystemExit) as error:  # noqa: BLE001 — omx_chain 은 SystemExit 로 알린다
+        emit(event="fatal", detail=f"준비 실패: {error}")
+        return 2
+
+    commands = queue.Queue()
+    stop_evt = threading.Event()
+
+    def read_stdin():
+        for line in sys.stdin:
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                print(f"[stdin] JSON 아님, 무시: {line.strip()[:80]}", flush=True)
+                continue
+            if msg.get("cmd") == "hold":
+                # 실행 중인 단계를 바로 끊는다 (run_stage 가 매 스텝 확인). 지우는 건 메인 루프가
+                # 이 hold 를 꺼냈을 때다. 그래야 앞서 줄 선 run 도 움직이지 않고 끝난다.
+                stop_evt.set()
+            commands.put(msg)
+        commands.put({"cmd": "quit"})  # 어댑터가 사라지면 끝낸다
+
+    threading.Thread(target=read_stdin, daemon=True).start()
+
+    robot.connect()
+    try:
+        emit(event="ready", actions=sorted(stages))
+        print(f"[{arm_id}] 준비 완료 — 토크 유지, 일을 기다림", flush=True)
+        while True:
+            msg = commands.get()
+            cmd = msg.get("cmd")
+            if cmd == "quit":
+                break
+            if cmd == "hold":
+                stop_evt.clear()  # 이 hold 앞의 run 은 모두 멈춘 채 끝났다
+                continue
+            if cmd != "run":
+                continue
+            job_id, action = msg.get("id"), msg.get("action")
+            if action not in stages:
+                emit(event="rejected", id=job_id, detail=f"{action} 모델이 설정되지 않음 (arms.{arm_id}.actions)")
+                continue
+            stage = stages[action]
+            emit(event="started", id=job_id)
+            if stage["init_pose"] and not stop_evt.is_set():
+                omx_chain.move_to_pose(robot, stage["init_pose"], args, stage["name"])
+            reason = "hold"
+            if not stop_evt.is_set():
+                reason = omx_chain.run_stage(robot, stage, features, args, stop_evt, ramp=True)
+                reason = "hold" if reason == "next" else reason
+            if reason == "hold":
+                # 멈춤: 더 움직이지 않는다. 토크는 유지돼 서보가 마지막 목표를 붙잡는다.
+                emit(event="done", id=job_id, success=False, end_reason="hold", arm_safe=False,
+                     success_basis="judge" if stage.get("judge") else "none", pose_error={}, joints=read_joints(robot))
+                continue
+            arm_safe, error, joints = retreat(robot, safe_poses[action], args, stage["name"], mine.safe_tol)
+            emit(event="done", id=job_id, success=reason == "success", end_reason=reason, arm_safe=arm_safe,
+                 success_basis="judge" if stage.get("judge") else "none", pose_error=error, joints=joints)
+    except Exception as error:  # noqa: BLE001 — 무슨 오류든 어댑터에 알리고 끝낸다
+        emit(event="fatal", detail=f"{type(error).__name__}: {error}")
+        raise
+    finally:
+        print(f"[{arm_id}] 연결 끊음 — 토크가 꺼지므로 팔이 내려앉을 수 있음", flush=True)
+        if robot.is_connected:
+            robot.disconnect()
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

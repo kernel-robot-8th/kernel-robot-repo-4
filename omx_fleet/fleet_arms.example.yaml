@@ -1,0 +1,21 @@
+# 관제용 팔 실행기(omx_fleet_worker.py) 팔별 설정 예시.
+# 복사해서 쓴다: cp fleet_arms.example.yaml fleet_arms.yaml  (fleet_arms.yaml 은 git 에서 제외)
+# 실행기는 ARM_ID 환경변수로 아래 칸을 고른다. 포트는 관제 어댑터가 ROBOT_PORT 로 넘기므로 적지 않는다.
+arms:
+  omx1:
+    # /dev/videoN 은 다시 꽂으면 바뀐다. /dev/v4l/by-id (또는 by-path) 경로를 쓴다.
+    top: /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0
+    wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
+    mjpg: true            # 두 카메라가 같은 USB 허브면 MJPG 라야 대역폭이 버틴다
+    robot_id: omx_follower  # 캘리브레이션 파일 이름. 이 팔의 보드로 캘리브레이션한 파일이어야 한다
+    actions:
+      # 관제 action → 모델 폴더(pretrained_model)·최대 시간[s]·안전 자세.
+      # safe_pose 를 비우면 그 모델 번들의 init_pose.json (<번들>/models/<모델> → <번들>/init_pose.json).
+      # 그리퍼는 안전 자세로 옮기지 않는다 (잡은 물건을 놓지 않게).
+      pick:
+        model: ~/il_ws/omx_shoebox_d/models/act_shoebox_d_5000step
+        seconds: 90
+      load:
+        model: ~/il_ws/omx_move_in_success/models/act_move_in_5000step
+        seconds: 90
+        # safe_pose: ~/il_ws/omx_move_in_success/init_pose.json
