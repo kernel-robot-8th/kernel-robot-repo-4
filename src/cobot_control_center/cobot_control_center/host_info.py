@@ -23,6 +23,7 @@
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import time
 
@@ -84,6 +85,55 @@ def parse_meminfo(text):
     if not total or avail is None:
         return None
     return {'total_mb': round(total / 1024), 'used_pct': round(100.0 * (total - avail) / total, 1)}
+
+
+def parse_proc_route(text):
+    """
+    /proc/net/route → {인터페이스: 게이트웨이} (기본 경로만). `ip` 명령이 없을 때(도커 이미지 등) 쓴다.
+
+    주소는 16진 리틀 엔디언이다 (012DA8C0 → 192.168.45.1).
+    """
+    result = {}
+    for line in (text or '').splitlines()[1:]:
+        fields = line.split()
+        if len(fields) < 3 or fields[1] != '00000000' or fields[0] in result:
+            continue
+        try:
+            gw = socket.inet_ntoa(int(fields[2], 16).to_bytes(4, 'little'))
+        except (ValueError, OverflowError):
+            continue
+        result[fields[0]] = None if gw == '0.0.0.0' else gw
+    return result
+
+
+def mask_to_prefix(mask):
+    try:
+        return bin(int.from_bytes(socket.inet_aton(mask), 'big')).count('1')
+    except OSError:
+        return None
+
+
+# ioctl 번호 (linux/sockios.h): 인터페이스 IPv4 주소·넷마스크
+SIOCGIFADDR = 0x8915
+SIOCGIFNETMASK = 0x891b
+
+
+def iface_ipv4(name):
+    """
+    인터페이스 IPv4 주소 'a.b.c.d/n' 목록 (주 주소 하나). `ip` 명령 없이 표준 라이브러리로 읽는다.
+
+    주소가 없으면 빈 목록.
+    """
+    import fcntl   # 리눅스 전용이라 여기서 부른다
+    request = struct.pack('256s', name.encode()[:15])
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            addr = socket.inet_ntoa(fcntl.ioctl(sock.fileno(), SIOCGIFADDR, request)[20:24])
+            mask = socket.inet_ntoa(fcntl.ioctl(sock.fileno(), SIOCGIFNETMASK, request)[20:24])
+    except OSError:
+        return []
+    prefix = mask_to_prefix(mask)
+    return [f'{addr}/{prefix}' if prefix is not None else addr]
 
 
 def pick_cpu_temp(zones):
@@ -152,10 +202,14 @@ class HostReader:
     def interfaces(self, local_ip):
         """이 PC 의 네트워크 연결 (유선·무선 모두). 로봇망(공유기로 가는 경로)인 것에 robot_net 표시."""
         now = time.monotonic()
-        addrs = nu.parse_ip_addr(run_text([self.ip_cmd, '-o', '-4', 'addr', 'show'])
-                                 if self.ip_cmd else '')
-        defaults = nu.parse_default_routes(
-            run_text([self.ip_cmd, '-4', 'route', 'show', 'default']) if self.ip_cmd else '')
+        # ip 명령이 없으면(관제 도커 이미지 등) 표준 라이브러리 ioctl·/proc/net/route 로 읽는다
+        if self.ip_cmd:
+            addrs = nu.parse_ip_addr(run_text([self.ip_cmd, '-o', '-4', 'addr', 'show']))
+            defaults = nu.parse_default_routes(
+                run_text([self.ip_cmd, '-4', 'route', 'show', 'default']))
+        else:
+            addrs = None
+            defaults = parse_proc_route(read_text('/proc/net/route'))
         proc = read_text('/proc/net/wireless')
         proc_wireless = nu.parse_wireless(proc) if proc else {}
         skip = tuple(self.cfg.get('interface_skip_prefixes') or ())
@@ -174,7 +228,7 @@ class HostReader:
             tunnel = read_text(os.path.join(base, 'type')) == '65534'
             kind = ('wifi' if wireless else 'vpn' if tunnel else
                     'ethernet' if os.path.exists(os.path.join(base, 'device')) else 'other')
-            ips = addrs.get(name, [])
+            ips = addrs.get(name, []) if addrs is not None else iface_ipv4(name)
             item = {'name': name, 'kind': kind,
                     'oper': read_text(os.path.join(base, 'operstate')) or 'unknown',
                     'ips': ips,

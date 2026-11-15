@@ -27,6 +27,7 @@ import collections
 import fnmatch
 import json
 import re
+import socket
 import threading
 import time
 
@@ -50,6 +51,24 @@ def worst(states):
     """가장 나쁜 상태 (na 는 다른 값이 있으면 무시). 비면 na."""
     states = list(states)
     return max(states, key=lambda s: _RANK.get(s, 0)) if states else NA
+
+
+def tcp_probe(host, port, timeout, connect=socket.create_connection, clock=time.monotonic):
+    """
+    TCP 연결 시도로 잰 왕복 시간 [ms]. 응답이 없으면 None.
+
+    ping 명령이 없을 때(관제 도커 이미지) 쓴다. 권한이 필요 없다. 연결이 되거나 거절(RST)되면
+    장치가 응답한 것이라 시간을 돌려준다. 시간 초과·경로 없음이면 None.
+    """
+    started = clock()
+    try:
+        conn = connect((host, port), timeout=timeout)
+        conn.close()
+    except ConnectionRefusedError:
+        pass
+    except OSError:
+        return None
+    return round((clock() - started) * 1000.0, 2)
 
 
 def parse_ping_rtt(text):
@@ -1039,4 +1058,5 @@ def network_view(local, snapshot, source_online, controller_online, arms, net, n
             'detail': (net or {}).get('detail'),
             'local_ip': (net or {}).get('local_ip'),
             'ping_available': (net or {}).get('ping_available'),
+            'probe': (net or {}).get('probe'), 'probe_port': (net or {}).get('probe_port'),
             'thresholds': (net or {}).get('thresholds')}

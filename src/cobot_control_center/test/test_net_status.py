@@ -47,6 +47,27 @@ def test_parse_ping_rtt():
     assert nu.parse_ping_rtt(None) is None
 
 
+def test_tcp_probe_when_no_ping_command():
+    times = iter([10.0, 10.0042])
+
+    class Conn:
+        def close(self):
+            pass
+
+    def refused(addr, timeout):
+        raise ConnectionRefusedError()
+
+    def timed_out(addr, timeout):
+        raise TimeoutError()
+
+    # 연결 성공·거절(RST) 모두 응답이 온 것 → 왕복 시간
+    assert nu.tcp_probe('h', 22, 1, connect=lambda a, timeout: Conn(),
+                        clock=lambda: next(times)) == 4.2
+    times = iter([0.0, 0.002])
+    assert nu.tcp_probe('h', 22, 1, connect=refused, clock=lambda: next(times)) == 2.0
+    assert nu.tcp_probe('h', 22, 1, connect=timed_out) is None
+
+
 def test_ping_window_states():
     window = nu.PingWindow(10)
     assert summary(window)['state'] == nu.NA
