@@ -212,3 +212,82 @@ def test_answer_text_is_kept(fx):
     result = fx.adapter.approve(request['request_id'], 'kgh')
     row = fx.store.work(request['request_id'])
     assert row['state'] == 'APPROVED' and json.loads(row['result_json']) == result
+
+
+def auto_fx(fx, targets=('vision',)):
+    fx.adapter.auto = set(targets)
+    return fx
+
+
+@pytest.mark.parametrize('stage,required', [
+    ('VERIFY_LOAD', ('load_present', 'arm_safe')),
+    ('VERIFY_UNLOAD', ('placed', 'load_absent', 'arm_safe')),
+    ('PICKUP_EXIT', ('clear',)), ('PATH_EXIT', ('clear',)), ('RETURN_EXIT', ('clear',)),
+])
+def test_auto_target_is_answered_at_once_and_marked_unjudged(fx, stage, required):
+    request = auto_fx(fx).request(stage)
+    assert fx.adapter.on_request(request)
+    (result,) = fx.results
+    assert result['request_id'] == request['request_id'] and result['source'] == 'vision'
+    assert result['success'] is True and result['measured'] is True
+    data = result['data']
+    assert all(data[key] is True for key in required)
+    assert data['decision'] == 'auto_unjudged' and data['unjudged'] is True
+    assert data['manual'] is False and data['operator'] == 'auto'
+    assert state_of(fx, request) == 'APPROVED'
+
+
+def test_auto_reply_is_off_by_default_and_skips_other_targets(fx):
+    request = fx.request('PICKUP_EXIT')
+    fx.adapter.on_request(request)
+    assert fx.results == [] and state_of(fx, request) == 'PENDING'
+    arm = auto_fx(fx).request('PICK', target='omx1')
+    fx.adapter.on_request(arm)
+    assert fx.results == [] and state_of(fx, arm) == 'PENDING'
+
+
+def test_auto_dock_waits_until_the_robot_stops_then_reports_pose_error(fx):
+    fx.state['speed_mps'] = 0.2
+    request = auto_fx(fx).request('DOCK_PICKUP')
+    fx.adapter.on_request(request)
+    assert fx.results == [] and state_of(fx, request) == 'PENDING'
+    assert fx.adapter.retry_auto() == []
+    fx.state['speed_mps'] = 0.0
+    (result,) = fx.adapter.retry_auto()
+    assert result['data']['xy_m'] == pytest.approx(0.05) and result['data']['unjudged'] is True
+    assert fx.adapter.retry_auto() == [] and len(fx.results) == 1
+
+
+def test_auto_retry_leaves_requests_past_the_stage_timeout(fx):
+    fx.state['speed_mps'] = 0.2
+    request = auto_fx(fx).request('DOCK_PICKUP', timeout_sec=10.0)
+    fx.adapter.on_request(request)
+    fx.state['speed_mps'] = 0.0
+    fx.now += 10.0
+    assert fx.adapter.retry_auto() == [] and fx.results == []
+
+
+def test_auto_reply_respects_session_and_blocking(fx):
+    auto_fx(fx)
+    stale = fx.request('PICKUP_EXIT', session_id='old')
+    fx.adapter.on_request(stale)
+    assert fx.results == [] and state_of(fx, stale) == 'REJECTED_SESSION'
+    fx.adapter.blocked = 'work_result 다른 발행자 x'
+    blocked = fx.request('PICKUP_EXIT')
+    assert not fx.adapter.on_request(blocked)
+    assert fx.results == [] and fx.store.work(blocked['request_id']) is None
+
+
+def test_targets_handed_to_the_arm_node_are_left_alone(fx):
+    waiting = fx.request('PICK', target='omx1')
+    fx.adapter.on_request(waiting)
+    fx.adapter.yielded = {'omx1'}
+    with pytest.raises(ValueError, match='차단'):
+        fx.adapter.approve(waiting['request_id'], 'kgh')
+    later = fx.request('LOAD', target='omx1')
+    assert not fx.adapter.on_request(later)
+    assert fx.store.work(later['request_id']) is None
+    vision = fx.request('PICKUP_EXIT')
+    assert fx.adapter.on_request(vision)
+    assert fx.adapter.approve(vision['request_id'], 'kgh')['success'] is True
+    assert len(fx.results) == 1

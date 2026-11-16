@@ -61,6 +61,11 @@ class AnomalyMonitorNode(Node):
             'evidence_stream': 'ceiling', 'calibration_id': 'replay-v1',
             'load_model': 'pinky-v1', 'evidence_topic': '/anomaly_monitor/zone_evidence',
             'manual_targets': ['vision', 'navigation', 'omx1', 'omx2', 'omx3'],
+            # 판정 없이 바로 성공으로 답할 대상. 빈 문자열만 있으면 끔(ROS 는 빈 목록 타입을 못 정한다)
+            'auto_targets': [''],
+            # 같은 결과 토픽에 함께 있어도 되는 노드와, 그 노드가 맡는 대상
+            'peer_result_nodes': ['arm_adapter'],
+            'peer_targets': ['omx1', 'omx2', 'omx3'],
             'allow_mock_events': True,
             'console_commands': False, 'observation_only': False,
             'camera_policy': 'field',
@@ -143,7 +148,8 @@ class AnomalyMonitorNode(Node):
         self.result_pub = self.create_publisher(String, config['work_result_topic'], 50)
         adapter = ManualAdapter(self.store, self._publish_result, config['manual_targets'],
                                 self.points, self.core._robot_view, join=self.join,
-                                exclusive=lambda: self.count_publishers(config['work_result_topic']) == 1)
+                                exclusive=lambda: not self._foreign_publishers()[0],
+                                auto_targets=[t for t in config['auto_targets'] if t])
         adapter.blocked = '기동 검사 전'
         self.create_subscription(String, config['heartbeat_topic'], self._heartbeat, 10)
         self.adapter_check = self.create_timer(ADAPTER_CHECK_SEC, self._check_adapter)
@@ -155,12 +161,24 @@ class AnomalyMonitorNode(Node):
         우리가 먼저 떠도 뒤늦게 올라온 어댑터를 잡아야 하므로 계속 확인한다.
         """
         before = self.adapter.blocked
-        count = self.count_publishers(self.config['work_result_topic'])
-        self.adapter.blocked = f'work_result 발행자 {count}개' if count > 1 else ''
+        foreign, peers = self._foreign_publishers()
+        # 팀 팔 노드가 있으면 팔 대상은 그쪽에 맡기고 나머지 대상에만 답한다.
+        self.adapter.yielded = set(self.config['peer_targets']) if peers else set()
+        self.adapter.blocked = ('work_result 다른 발행자 ' + ', '.join(foreign)) if foreign else ''
         if self.adapter.blocked and self.adapter.blocked != before:
             self.get_logger().error('수동 어댑터 꺼짐: ' + self.adapter.blocked)
         elif before and not self.adapter.blocked:
             self.get_logger().info('수동 어댑터 다시 켜짐: 다른 발행자가 사라졌습니다')
+
+    def _foreign_publishers(self):
+        """결과 토픽의 다른 발행자를 (모르는 노드, 허용한 팔 노드)로 나눈다."""
+        names = [info.node_name for info in
+                 self.get_publishers_info_by_topic(self.config['work_result_topic'])]
+        if self.get_name() in names:
+            names.remove(self.get_name())  # 자기 발행자 하나. 같은 이름이 더 있으면 남겨서 막는다
+        allowed = set(self.config['peer_result_nodes'])
+        return (sorted(n for n in names if n not in allowed),
+                sorted(n for n in names if n in allowed))
 
     def _send_request(self, payload):
         if self.request_pub is None:
@@ -217,6 +235,8 @@ class AnomalyMonitorNode(Node):
 
     def _refresh(self):
         self.core.graph = self._read_graph()
+        if self.adapter and self.adapter.auto:
+            self.adapter.retry_auto()
         self.core.flush()
         self.console.refresh()
 
