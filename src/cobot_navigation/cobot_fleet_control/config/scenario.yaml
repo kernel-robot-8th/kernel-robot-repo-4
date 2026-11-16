@@ -12,6 +12,16 @@ routes:
     pickup_arm: omx1
     dropoff_arm: omx2
     lane: main
+# 고객 주문 화면(cobot_gui customer_gateway)이 쓰는 선택 설정이다. 주문에 route 대신 destination(자리 ID)을
+# 주면 상품이 놓인 선반 열과 자리로 경로를 고른다 (경로 이름 col<열>__<자리>). route 를 직접 주는 주문은 그대로다.
+shelf:
+  rows: 3                      # 행은 팔이 집는 높이다. 1행이 위인지 아래인지는 팔 담당이 정한다.
+  columns:                     # 열 -> 핑키가 상차하러 갈 구역과 상차 팔
+    1: {pickup: ZA, pickup_arm: omx1}
+    2: {pickup: ZB, pickup_arm: omx1}
+    # 3열: 대응하는 상차 구역이 아직 없다. 구역을 추가한 뒤 적는다. 그 전에는 3열 상품 주문을 거절한다.
+destinations:                  # 자리 QR 의 위치 ID -> 하차 구역·하차 팔·통로
+  BENCH_1: {name: "고객 벤치 1", dropoff: ZC, dropoff_arm: omx2, lane: main}
 max_retries: 3                 # initial attempt + at most three safe retries
 step_timeout_sec: 300.0
 customer_timeout_sec: 120.0
