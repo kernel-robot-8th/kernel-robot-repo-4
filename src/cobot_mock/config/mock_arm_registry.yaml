@@ -1,0 +1,9 @@
+# 가짜 팔 등록표 (mock_fleet.launch.xml arms:=true). 실물 등록표는 cobot_manipulation/config/arm_registry.yaml.
+# 시리얼은 config/mock_serial_by_id/ 의 빈 파일 이름과 짝이다. 팔 노드는 그 이름만 읽고 장치를 열지 않는다.
+arms:
+  omx1:
+    serial: MOCK0000000000000000000000000001
+  omx2:
+    serial: MOCK0000000000000000000000000002
+  omx3:
+    serial: MOCK0000000000000000000000000003

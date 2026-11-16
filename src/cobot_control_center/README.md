@@ -1,0 +1,334 @@
+# cobot_control_center
+
+관제 PC에서 로봇 3대(pinky1~3)의 상태를 모아 웹 화면으로 보여 주고, 화면에서 순찰 명령(이동·구역·나가기·홈·정지)을 보내는 관제 패키지입니다.
+
+- 로봇 명령 토픽(`/pinkyN/patrol_cmd`)에 발행하는 것은 **작업 노드 하나**, `cobot_fleet_control` 의 **`fleet_control_node`** 입니다. 이 패키지는 로봇 명령 토픽에 발행하지 않습니다 ([작업 노드](#작업-노드-fleet_control)).
+- **작업 노드는 bringup 이 함께 띄우지만 작업 명령이 꺼진 채로 시작합니다.** 화면 상단 **작업 명령 켜기**를 눌러야 이동·구역·나가기·홈이 나갑니다. 정지·비상정지는 꺼져 있어도 됩니다 ([명령 켜기](#명령-켜기)).
+- `/pinkyN/cmd_vel`·`goal_pose` 는 쓰지 않습니다. `initialpose` 는 화면 **초기위치** 버튼으로만 나가며, 발행은 이 패키지가 아니라 작업 노드가 합니다 (홈 좌표로 AMCL 재초기화).
+- **로봇 순찰 노드는 `central_controlled: true` 로 띄웁니다** (순찰 설정 `common.yaml` 기본값). 이때는 `fleet_control_node` 의 하트비트(`/pinkyN/fleet_heartbeat`)·세션·순번이 맞는 명령만 받습니다. 가짜 핑키·가제보도 같습니다.
+
+담당: 김지혜 (로봇 수행 관제)
+환경: Ubuntu 24.04 / ROS 2 Jazzy / Python 3.12
+
+| 문서 | 내용 |
+|---|---|
+| 이 README | 구성, 설치, 실행, 시험 |
+| [docs/screen_guide.md](docs/screen_guide.md) | 화면 사용법 (점·배지 뜻, 명령 보내기, 결과 모름 해제) |
+| [docs/api.md](docs/api.md) | 웹 API, `fleet_status` JSON 형식, 작업 상태, 파라미터 |
+
+## 구성
+
+```
+로봇(도메인 10/20/30) ─▶ cobot_domain_bridge ─▶ 관제 PC(도메인 100)
+                                                 │ /pinkyN/patrol_status, amcl_pose, battery/percent
+                                                 │ /zone_manager/status, queue_slot
+                                                 ▼
+                                        fleet_status_node ── /control_center/fleet_status (JSON, 1 Hz)
+                                                 ▼
+                                        fleet_api_node (FastAPI) ── HTTP·WebSocket ──▶ 브라우저 (web/)
+                                                 │ ▲ /control_center/task_request · task_events · tasks (JSON)
+                                                 ▼ │
+                                        fleet_control_node ── /pinkyN/patrol_cmd (세션 봉투) · fleet_heartbeat ──▶ 로봇
+                                          (검증·BT·SQLite 원장) ◀── patrol_status ──────────────────────────┘
+```
+
+작업 노드는 `fleet_control_node`(`cobot_fleet_control`) 하나만 뜹니다.
+
+| 노드 | 파일 | 하는 일 |
+|---|---|---|
+| `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 8초 끊기면 offline (`stale_timeout_sec`) |
+| `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 토픽 값을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
+| `arm_command_node` | `arm_command_node.py`, `arm_command_utils.py`, `site_arms_utils.py` | 로봇팔 켜기·끄기·정지·작업 시험을 팔 노드에 내고, 팔 상태·응답·알람 기록을 모아 웹 백엔드에 넘김. 현장 팔 배치는 `config/site_arms.yaml` (`site_arms_utils.py` 가 읽음) |
+| `host_status_node` | `host_status_node.py`, `host_info.py` | **관제 PC 가 아닌 PC(Station PC 등)에서 띄운다.** 자기 PC 의 연결(유선·무선)·CPU·메모리·온도·디스크·DDS 설정을 3초마다 `/control_center/host_status` 로 보냄 → 네트워크 화면 Station PC 카드. 읽기만 함 |
+| `net_status_node` | `net_status_node.py`, `net_status_utils.py`, `host_info.py` | 네트워크 측정: 공유기·핑키 3대·Station PC 에 평소 5초마다 핑, 관제 PC 연결(유선·Wi-Fi), 화면 [자세히 확인] 때만 10초 동안 1초 핑 + 상태 토픽 수신 주기 → `/control_center/net_status` (화면 `#/network`). 아무것도 명령하지 않음 |
+
+작업 노드 `fleet_control_node` 는 이 패키지가 아니라 `src/cobot_navigation/cobot_fleet_control/` 에 있습니다 ([README](../cobot_navigation/cobot_fleet_control/README.md)).
+
+`map_contract.py`(`map_hash`, `map_lint`)는 맵 계약 도구로, 이 문서 범위 밖입니다.
+
+## 데이터 흐름
+
+웹 서버(`fleet_api_node`)는 **토픽으로 받은 값을 메모리에 두고 GET·WebSocket 으로 보여 주기만** 합니다. DB 를 읽지 않습니다.
+SQLite 를 쓰는 것은 명령을 맡은 작업 노드(기본 `fleet_control_node`) 하나입니다.
+
+**상태** (읽기)
+
+```
+로봇 토픽 ─▶ fleet_status_node ─▶ /control_center/fleet_status
+                                        ▼ 구독
+                         fleet_api_node 메모리 (최신 스냅샷 + 이벤트 로그)
+                                        ├─ GET /api/fleet, /api/robots   처음 한 번
+                                        └─ WS  /ws/fleet                 바뀔 때마다 push
+```
+
+**명령** (쓰기)
+
+```
+브라우저 POST /api/tasks ─▶ fleet_api_node ─▶ /control_center/task_request
+                                                   ▼
+                   fleet_control_node: 검사 → SQLite 기록 → /pinkyN/patrol_cmd ─▶ 로봇
+                                                   ▼
+                   /control_center/tasks (전체 목록, transient_local) · task_events (바뀐 작업)
+                                                   ▼ 구독
+                   fleet_api_node 메모리 ─▶ GET /api/tasks, WS /ws/tasks
+```
+
+- 이벤트 로그는 메모리에만 있어 백엔드를 다시 켜면 지워집니다. 작업 기록은 SQLite 에 남습니다.
+- 지도·구역 표시는 `fleet_api_node` 가 시작할 때 파일에서 한 번 읽습니다.
+- `/control_center/tasks` 가 transient_local 이라 `fleet_api_node` 가 늦게 켜져도 마지막 목록을 바로 받습니다.
+
+## 처음 설치
+
+워크스페이스 최상위(`src/` 가 있는 곳)에서 한 번만 합니다. 웹 서버 패키지는 시스템 파이썬이 아니라 `.venv` 에 설치합니다 (CLAUDE.md §5).
+
+```bash
+source /opt/ros/jazzy/setup.bash
+python3 -m venv --system-site-packages .venv
+touch .venv/COLCON_IGNORE
+source .venv/bin/activate
+pip install fastapi==0.115.6 uvicorn==0.34.0 websockets==14.1 httpx==0.28.1
+```
+
+`websockets` 는 uvicorn 의 WebSocket 지원, `httpx` 는 시험(`TestClient`)용입니다.
+
+## 빌드·시험
+
+**`.venv` 를 켠 셸에서** 빌드해야 `fleet_api_node` 실행 파일이 venv 파이썬을 씁니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source .venv/bin/activate
+python -m colcon build --symlink-install --packages-up-to cobot_bringup
+python -m colcon test --packages-select cobot_control_center cobot_bringup
+python -m colcon test-result --verbose
+```
+
+`--packages-up-to cobot_bringup` 은 브릿지·zone_manager·이 패키지, 작업 노드 `cobot_fleet_control` 까지 함께 빌드합니다.
+`cobot_fleet_control` 은 `py_trees` 를 쓰므로 `.venv` 에 `py_trees==2.2.3` 이 있어야 합니다.
+
+## 실행
+
+관제 PC 전체 (권장):
+
+```bash
+source /opt/ros/jazzy/setup.bash && source .venv/bin/activate && source install/setup.bash
+export ROS_DOMAIN_ID=100
+ros2 launch cobot_bringup bringup.launch.xml
+```
+
+한 번에 뜨는 것: 도메인 브릿지 3개, zone_manager, `fleet_status_node`, `fleet_api_node`, 작업 노드 `fleet_control_node` (`cobot_fleet_control`, 작업 명령 꺼짐으로 시작).
+
+| 인자 | 기본값 | 뜻 |
+|---|---|---|
+| `pinky1` / `pinky2` / `pinky3` | `true` | 해당 로봇 브릿지 실행 여부. 일부 로봇만 켤 때 `pinky2:=false` |
+| `fleet_api` | `true` | 백엔드·화면 실행 여부. `.venv` 가 없는 환경이면 `fleet_api:=false` |
+| `controller` | `fleet` | 작업 노드. `fleet` (기본, `fleet_control_node`) / `none` (보기 전용) |
+
+로봇 쪽(Nav2, 순찰 노드)은 각 로봇에서 따로 켭니다. 순서는 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 봅니다.
+
+노드만 따로 띄울 때:
+
+```bash
+ros2 launch cobot_control_center fleet_status.launch.xml
+ros2 launch cobot_control_center fleet_api.launch.xml                  # 지도 기본값 사용
+ros2 launch cobot_control_center fleet_api.launch.xml map_yaml:=<지도.yaml>
+```
+
+`fleet_api.launch.xml` 은 네트워크 측정 노드(`net_status_node`)도 함께 띄웁니다. 인자 `net_hosts`:
+`real`(기본, `config/net_status_node.yaml` 의 실물 주소로 핑) / `local`(모든 핑을 127.0.0.1 로, 가짜 핑키·가제보가 씀) /
+`off`(띄우지 않음, 개발 백엔드 8083 이 씀 — 실물 bringup 의 측정값을 같이 본다).
+관제 PC 자기 상태 보고(`host_status_node`, `host:=control`)도 같은 조건으로 함께 뜹니다 (`off` 면 안 뜸).
+`host` 는 보고에 붙이는 이름표입니다. 화면이 `control` 이면 관제 PC 카드, `station` 이면 Station PC 카드에 넣습니다 (IP·컴퓨터 이름 아님).
+
+### Station PC 상태 보고 (관제는 띄우지 않음)
+
+관제 PC 는 남의 PC 안쪽(연결·CPU·온도·DDS 설정)을 읽을 수 없어서, Station PC 가 스스로 읽어 보냅니다.
+Station PC 에서는 **관제(fleet_api 등)를 띄우지 않고 이 노드 하나만** 띄웁니다. 이 패키지를 빌드는 해야 하지만
+이 노드는 `rclpy`·`std_msgs` 만 씁니다 (fastapi 같은 웹 의존성 불필요).
+
+```bash
+# Station PC (관제와 같은 도메인 100)
+colcon build --symlink-install --packages-select cobot_control_center
+source install/setup.bash
+export ROS_DOMAIN_ID=100
+ros2 launch cobot_control_center host_status.launch.xml host:=station
+```
+
+관제 화면 네트워크 페이지의 Station PC 카드에 보고 노드(호스트 이름), DDS·도메인(관제와 다르면 주황), 연결(유선·무선, [로봇망]),
+CPU·메모리·온도·디스크·켜진 시간이 나옵니다. 보고가 10초 넘게 끊기면 빨강 "끊김"입니다 (`host_stale_sec`).
+읽기만 합니다 (`/proc`, `/sys`, `ip`·`nmcli` 다시 찾기 없이). 로봇·팔 토픽을 구독하지 않고 명령을 내지 않습니다.
+
+SSH 터미널에서 띄우면 접속이 끊길 때 같이 꺼질 수 있으므로 관제 PC 의 tmux 안에서 띄웁니다 (`tmux new -s fms` → 실행 → Ctrl+B, D / 다시 보기 `tmux attach -t fms`).
+
+## 화면 보기
+
+**bringup 은 기본으로 내부망에 공개(`host=0.0.0.0`, 포트 8080)합니다.** 로그인 기능이 아직 없어서 같은 내부망의 누구나 화면을 열고 명령을 보낼 수 있습니다. 방화벽을 쓰고 있다면 8080 도 열어야 합니다.
+`fleet_api.launch.xml` 을 따로 띄우면 기본이 `127.0.0.1`(이 PC 에서만)입니다.
+
+- 관제 PC 에서: 브라우저로 `http://localhost:8080/`
+- 내부망 다른 PC 에서: `http://<관제 PC 주소>:8080/`
+- 이 PC 에서만 열려면 `ros2 launch cobot_bringup bringup.launch.xml host:=127.0.0.1` 로 띄웁니다. 이때 다른 PC 에서는 SSH 터널을 연 채로 그 PC 브라우저에서 `http://localhost:8080/` 을 엽니다.
+
+  ```bash
+  ssh -N -L 8080:127.0.0.1:8080 <사용자>@<관제 PC 주소>
+  ```
+
+화면 사용법은 [docs/screen_guide.md](docs/screen_guide.md) 를 봅니다.
+
+## 화면 개발 (실물 보면서)
+
+실물 bringup(8080)은 그대로 두고, **읽기 전용 개발 백엔드**를 따로 띄워 실물 데이터를 보면서 화면·백엔드를 고칩니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash && source .venv/bin/activate && source install/setup.bash
+export ROS_DOMAIN_ID=100
+ros2 launch cobot_control_center fleet_api_dev.launch.xml      # 화면 http://<관제 PC>:8083/
+```
+
+- **읽기 전용**: 상태·지도·작업 목록·카메라는 실물 그대로 보입니다. 명령 경로는 `503` 이고 `task_request` 발행자도 만들지 않아, 고치던 코드가 실물 로봇을 움직이지 않습니다. 화면 칩에 `개발(읽기 전용)` 이 붙고 명령 버튼은 모두 꺼집니다. 명령 화면을 고칠 때는 [가짜 핑키](#로봇-없이-시험하기)(8081)를 씁니다.
+- **고친 것 반영**: 화면(`web/`)은 `src` 를 바로 읽으므로 새로 고침만 하면 됩니다 (새 js 파일도). 파이썬 백엔드를 고쳤으면 이 launch 만 Ctrl+C 후 다시 띄웁니다. 실물 bringup 은 재시작하지 않아도 됩니다.
+- 처음 한 번, 그리고 `setup.py`·`package.xml`·launch 파일을 새로 만들었을 때는 다시 빌드합니다.
+
+| 포트 | 용도 | 띄우는 명령 | 도메인 |
+|---|---|---|---|
+| 8080 | 실물 관제 | `ros2 launch cobot_bringup bringup.launch.xml` | 100 |
+| 8081 | 가짜 핑키 | `ros2 launch cobot_mock mock_fleet.launch.xml` | 101 |
+| 8082 | 가제보 시뮬 | `ros2 launch cobot_gazebo sim_fleet.launch.xml` | 140 |
+| 8083 | 개발 (읽기 전용) | `ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 100 |
+
+어느 포트를 누가 띄웠는지 모르겠으면:
+
+```bash
+ss -ltnp | grep -E ':808[0-9]'                 # 포트별 프로세스·PID
+ps -o pid,tty,lstart,cmd -p <PID>              # 언제, 어떤 명령으로 (tty 가 ? 면 터미널 밖)
+pstree -s -p -a <PID> | cut -c1-150            # 누가 띄웠는지 (terminator, sshd, .claude/remote 등)
+```
+
+## 명령 켜기
+
+**로봇 없이 (권장, 먼저 이것으로)**: 가짜 핑키 launch 가 작업 노드 `fleet_control_node` 까지 함께 띄우고, **작업 명령이 켜진 채로 시작**합니다(`start_armed:=false` 면 꺼짐). 개발용 수동 명령 칸도 켜져 있습니다(`allow_raw_cmd:=false` 면 꺼짐). 기록은 `~/.ros/cobot_control_center/fleet_mock.sqlite3`.
+
+```bash
+export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+ros2 launch cobot_mock mock_fleet.launch.xml        # 화면 http://localhost:8081/
+```
+
+**실물 (도메인 100)**: [bringup](#실행) 이 작업 노드 `fleet_control_node` 를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 로봇 하나를 정지하면 멈추기만 하고(잠그지 않음), 비상정지하면 그 로봇만 보류되며(복구 필요), 상단 **전체 비상정지**를 누르면 작업 명령 전체가 꺼지므로 다시 켜야 합니다. 기록은 `~/.cobot/fleet_control.sqlite3` 이고, 누가(접속 IP, `source`) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다. 실물에서는 수동 명령 칸이 꺼져 있습니다(`allow_raw_cmd: false`).
+
+bringup 을 `controller:=none` 으로 띄웠다면 따로 켭니다:
+
+```bash
+export ROS_DOMAIN_ID=100
+ros2 launch cobot_fleet_control fleet_control.launch.xml
+```
+
+## 작업 노드 (fleet_control)
+
+화면 명령은 `/control_center/task_request` 로 작업 노드 `fleet_control_node`(`cobot_fleet_control`)에 넘어갑니다. bringup·가짜 핑키(`cobot_mock`)·가제보(`cobot_gazebo`) 모두 이 노드를 띄우고, 개발 차이는 설정(`allow_raw_cmd`, `start_armed`)으로만 둡니다. 예전 작업 노드 `task_manager_node` 는 2026-11-09 에 지웠습니다.
+
+| 항목 | 동작 |
+|---|---|
+| 로봇 명령 허용 | 하트비트(`/pinkyN/fleet_heartbeat`)가 살아 있고 세션·순번이 맞을 때 (PC 끼리 시계 비교·TTL 없음) (로봇 `central_controlled: true`) |
+| 정지 | 그 로봇만 멈춤 · **잠그지 않음** (바로 다음 명령 가능). 구역 안이면 구역 밖으로 물러남. 그 로봇에 주문이 걸려 있으면 제자리 정지 + 보류 (2026-11-09, 진호 님 순찰 노드 기준) |
+| 비상정지 | `estop` (백엔드가 `emergency: true` 정지를 바꿔 보냄). 제자리 소프트 정지 · **그 로봇만 보류** (복구 필요). 상단 **전체 비상정지**만 작업 명령 전체를 끔 |
+| 정지 잠금 복구 | `release_control` (아래 API) 또는 UNKNOWN 작업 `resolve` |
+| 수동 명령 칸 | `allow_raw_cmd` 일 때 (가짜 핑키·가제보만 켬, 실물 꺼짐 403). 세션 봉투를 붙여 보냄 |
+
+- `/api/health` 의 `holds` 가 fleet 이 보류한 로봇 → 사유(`STOP`·`ESTOP` 등)를, `orders` 가 끝나지 않은 주문을 알립니다. 작업 노드가 켜져 있는지는 `controller_online` 으로 봅니다 (`cobot_fleet_control` 의 도커 `smoke_check` 도 이 값을 읽음).
+- 정지 잠금·상차 확인 API:
+  - `POST /api/commands/estop` — 전체 비상정지 (로봇·팔 모두).
+  - `POST /api/robots/{id}/release_control` — body 는 모두 선택 (`operator`, `note`, `evidence`). 누가 눌렀는지는 접속 IP 로 넘깁니다. 검사는 fleet 이 하고 거절 사유를 그대로 돌려줍니다.
+  - `POST /api/orders/{order_id}/confirm_loaded` — 수동 상차 확인. body `{operator, note, evidence:{sku, load_present, arm_safe, pickup_path_clear}}`. fleet 이 상차장 도착·정지·예약을 검사하고 통과하면 상차 구역 이탈부터 재개합니다.
+- 화면은 카드 상태 줄에 **정지 잠금**(로봇 `central_latched` 또는 fleet 보류, 점유 구역)을 표시합니다.
+  그 빨간 줄을 누르면 **확인 창**이 한 번 뜨고("현장에서 로봇이 멈춰 있고 주변이 안전한지 확인했나요?"), 확인하면 `release_control` 을 보냅니다 (`web/release.js`). 이름·메모 입력은 없습니다 (주문 없는 주행 로봇용 임시 일반형, 2026-11-09. 시나리오별 단계 확인은 나중).
+  보류 중인 로봇은 결과 모름 작업이 있어도 이 복구 하나로 함께 풀립니다 (결과 모름은 실패로 기록). 보류 없이 결과 모름만 있으면 결과 모름 해제를 씁니다.
+- 주문이 멈추면(비상정지·통신 끊김 등) 카드 줄이 **주문 o1 멈춤 (비상정지) · 눌러서 이어서 가기/취소** 가 됩니다. 누르면 확인 창으로 **이어서 가기**(이동 단계만)와 **주문 취소**를 고릅니다 (`POST /api/orders/{id}/recover`). 취소하면 실은 상자는 사람이 꺼내고 로봇은 제자리에 둡니다. 결과 모름 해제도 확인 창 한 번입니다 (메모 입력 없음, 2026-11-09 임시 일반형).
+- 상차장에서 멈춘 주문이 있으면 그 로봇 카드 상태 줄이 **상차 확인 대기 · 주문 ID (SKU)** 가 됩니다. 누르면 **수동 상차 확인 띠**(`web/load.js`)가 뜹니다: 현장 확인 체크 하나(적재됨·팔 퇴피·통로 비움) + 운영자 + 메모 → `confirm_loaded` (SKU 는 주문 값). 순서는 상차 확인 → 멈춘 주문 복구 → 결과 모름 해제·정지 잠금 복구입니다 ([화면 사용법](docs/screen_guide.md#수동-상차-확인)).
+- 구역 안에서 잠긴 경우(`held_zone`)도 복구·해제할 수 있습니다. 복구한 뒤 **나가기**로 빼냅니다. 그때까지 구역 토큰은 그 로봇이 잡고 있어 다른 로봇은 들어오지 못합니다 (2026-11-09).
+
+## 실물 시험 순서
+
+2026-11-02 실물 pinky1~3 으로 처음 돌려 보며 정리한 순서입니다. 처음에는 로봇 한 대로 시작합니다.
+
+1. **각 로봇: bringup → Nav2.** 명령과 도메인(10/20/30)은 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 따릅니다.
+2. **관제 PC: bringup** ([실행](#실행)). 쓰는 로봇만 켭니다 (`pinky2:=false` 등).
+   **관제 PC 는 한 대만** 띄웁니다. 두 PC 가 함께 켜면 브릿지와 zone_manager 가 두 벌이 되어 구역 토큰이 따로 나갑니다. 다른 PC 에서는 [SSH 터널](#화면-보기)로 화면만 봅니다.
+3. **초기 위치.** 로봇을 홈에 놓고 켜도 Nav2 는 그 자리를 모를 수 있습니다. 관제 화면 그 로봇 카드의 **초기위치** 를 누르고 확인 창에서 확인합니다. 작업 노드가 순찰 설정의 홈 좌표로 `/pinkyN/initialpose` 를 보냅니다 (로봇은 움직이지 않음, 작업 명령 켜기 없이 가능, 로봇이 멈춰 있어야 함). 홈이 아닌 곳이면 상세 화면 위치 칸의 **좌표 지정**으로 지도에서 위치·방향을 찍습니다 ([화면 안내](docs/screen_guide.md#초기위치)). 화면을 쓸 수 없으면 RViz `2D Pose Estimate` 로 찍거나 관제 PC 에서 아래 한 줄을 보냅니다.
+
+   | 로봇 | 홈 | x, y [m] | 방향 |
+   |---|---|---|---|
+   | pinky1 | `I1` | 0.0, 0.0 | 0° |
+   | pinky2 | `I2` | 0.0, -0.2 | 0° |
+   | pinky3 | `I3` | 0.0, -0.4 | 0° |
+
+   ```bash
+   ROS_DOMAIN_ID=100 ros2 topic pub --once /pinky2/initialpose geometry_msgs/msg/PoseWithCovarianceStamped "{header: {frame_id: map}, pose: {pose: {position: {x: 0.0, y: -0.2}, orientation: {w: 1.0}}, covariance: [0.0625, 0, 0, 0, 0, 0, 0, 0.0625, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.068]}}"
+   ```
+
+   화면 지도에서 로봇이 홈 자리에 오는지 봅니다. 2026-11-02 기준 Nav2 시작 위치는 pinky1 만 홈과 맞고, pinky2 는 (0, 0), pinky3 는 (0, -0.67) 로 떠서 다시 넣어야 했습니다 (주행 담당 확인 필요).
+4. **각 로봇: 순찰 노드.** 로봇 워크스페이스는 `~/ws/kernel-robot-repo-4` 입니다.
+
+   ```bash
+   source ~/ws/kernel-robot-repo-4/install/setup.bash
+   ros2 launch cobot_pinky_patrol pinky2_patrol.launch.xml
+   ```
+
+5. **관제 화면: 작업 명령 켜기** ([명령 켜기](#명령-켜기)) → 화면에서 가까운 지점으로 `goto` 를 보내고, 이동 중 정지, `home` 순으로 확인합니다. 끝나면 **작업 명령 끄기**.
+
+끄기: 관제 PC 와 로봇의 노드를 먼저 끄고 로봇 전원을 끕니다. 네트워크가 끊긴 채로 끄면 로봇에 노드가 남을 수 있으니 `ssh pinky2 'pgrep -af "ros2 launch"'` 로 확인합니다.
+
+화면의 `연결` 은 배터리(bringup)나 위치를 받고 있다는 뜻까지입니다. Nav2·순찰 노드가 켜졌는지는 화면에서 알 수 없으니 3·4 단계는 터미널 로그로 확인합니다.
+
+## 현장 팔 배치
+
+어느 자리(ZA·ZB·ZC)를 어느 팔(omx1~3)이 맡고, 그 팔이 어느 보드·어느 Station PC 에 붙는지는
+[`config/site_arms.yaml`](config/site_arms.yaml) 한 곳에 적습니다. 팔 이름은 자리 순서와 1:1 로 고정합니다 (ZA = omx1, ZB = omx2, ZC = omx3).
+
+- 로봇팔 명령 노드가 팔 목록을 여기서 정하고, 화면 카드에 `ZA 상차 · 8-OMEN` 처럼 보여 줍니다 (마우스를 올리면 보드 시리얼).
+- `actions` 에 그 자리 팔이 하는 작업을 적습니다 (ZA·ZB `[pick, load]`, ZC 는 신발 정리 동작이 정해질 때까지 `[]`). 작업 시험은 여기 적힌 작업만 보냅니다.
+- 팔이나 보드·PC 를 옮기면 이 파일을 고치고 관제를 다시 켭니다 (`--symlink-install` 이면 다시 빌드 안 해도 됨, 도커는 이미지 다시 빌드).
+- 아직 팔 노드 등록표(`cobot_manipulation/config/arm_registry.yaml`)와 주행 관제 시나리오(`cobot_fleet_control/config/scenario.yaml` 의 `pickup_arm`·`dropoff_arm`)는 따로 적혀 있습니다. 여기를 바꾸면 그 둘도 맞는지 확인합니다.
+
+## 로봇 없이 시험하기
+
+실물 도메인(100, 10/20/30)과 섞이지 않게 **다른 도메인·이 PC 안에서만** 돌립니다. 브릿지는 띄우지 않습니다.
+
+보통은 가짜 핑키 3대와 관제 노드를 한 번에 띄우는 [`cobot_mock`](../cobot_mock/README.md) 이 편합니다 ([명령 켜기](#명령-켜기)).
+아래는 노드 하나만 손으로 확인할 때입니다.
+
+```bash
+export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+ros2 launch cobot_control_center fleet_status.launch.xml &
+ros2 launch cobot_control_center fleet_api.launch.xml &
+ros2 topic pub -r 5 /pinky1/amcl_pose geometry_msgs/msg/PoseWithCovarianceStamped \
+  "{pose: {pose: {position: {x: 0.3, y: 0.4}, orientation: {w: 1.0}}}}" &
+ros2 topic pub -r 1 /pinky1/battery/percent std_msgs/msg/Float32 "{data: 87.0}" &
+ros2 topic pub --once /pinky1/patrol_status std_msgs/msg/String \
+  "{data: '{\"state\": \"MOVING\", \"waypoint\": 1, \"detail\": \"P3\"}'}"
+ros2 topic pub --once /zone_manager/status std_msgs/msg/String "{data: 'B:occupied_by:pinky1'}"
+curl http://127.0.0.1:8080/api/robots/pinky1
+```
+
+가짜 발행을 멈추면 8초 뒤 그 로봇이 `끊김`이 됩니다.
+
+## 문제 해결
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| 화면이 안 뜸, 로그에 `No module named 'fastapi'` | `.venv` 를 켜지 않고 빌드해서 실행 파일이 시스템 파이썬을 씀 | `.venv` 를 켠 셸에서 다시 빌드 ([빌드·시험](#빌드시험)) |
+| 지도가 안 뜸 | 풀 뒤 다시 빌드하지 않음, 또는 `install/`·`src/` 가 나란히 있지 않음 (`--merge-install`, 도커 등) | 다시 빌드. 안 되면 `fleet_api.launch.xml map_yaml:=<지도.yaml>`. 로그의 `지도` 줄로 어느 쪽인지 구분 |
+| 카드에 `작업 노드 꺼짐` | 작업 노드(`fleet_control_node`)가 꺼짐 (`controller:=none` 으로 띄움, 노드 오류), 또는 백엔드가 꺼짐 | [명령 켜기](#명령-켜기) |
+| 카드에 `명령 잠김: 상단 '작업 명령 켜기'를 누르세요` | 작업 명령이 꺼져 있음 (기본, 재시작 뒤에도) | 화면 상단 **작업 명령 켜기** → 확인 |
+| 명령이 `결과 모름`, 그 로봇 버튼이 잠김 | 순찰 노드가 꺼져 있을 때 보내서 응답이 없음 | 순찰 노드를 켜고 화면에서 [결과 모름 해제](docs/screen_guide.md#결과-모름-해제) |
+| 정지를 눌러도 반응 없음 | 순찰 노드는 이동 중이 아니면 정지를 무시함 (로그 `순찰 중이 아닙니다. 명령 무시.`) | 정상 |
+| 순찰 노드 `Package 'cobot_pinky_patrol' not found` | 로봇 워크스페이스를 source 하지 않음 | `source ~/ws/kernel-robot-repo-4/install/setup.bash` |
+| 지도 위 로봇 위치가 홈과 다름 | 초기 위치를 넣지 않음 | [실물 시험 순서](#실물-시험-순서) 3번 |
+| `연결`/`끊김` 이 몇 초마다 바뀜 | 실물 배터리 토픽이 5초 주기이고, 서 있는 로봇은 위치를 거의 안 냄 | `stale_timeout_sec` 를 8초로 올림 (반영됨) |
+| 공유기가 느려지거나 끊김 | 아직 확정 못 함. 로봇 3대를 한꺼번에 켰을 때, 다른 PC 와 관제를 함께 켰을 때 생김. 1대로 15분 돌렸을 때는 안정 (공유기 핑 평균 2.6 ms) | 한 대씩 늘리며 `ping 192.168.45.1` 로 지켜봄 |
+
+## 주의
+
+- **새 의존성**: fastapi·uvicorn(·websockets·httpx)은 팀 허락을 PR 에서 받습니다. `.venv` 없이 빌드하면 `fleet_api_node` 와 그 시험이 실패합니다.
+- **`web/` 위치**: CLAUDE.md §3-7 은 웹 자원을 `cobot_gui/web/` 에만 두게 하지만, 관제 전용 화면이라 이 패키지에 두었습니다. 규칙 개정 합의가 필요합니다.
+- **명령 기능은 실물을 움직입니다**: 예전 작업 노드 `task_manager_node`(2026-11-09 삭제)로는 2026-11-02 실물 pinky2 에서 명령 전달·정지·결과 모름 해제까지 확인했습니다. 작업 노드 `fleet_control_node` 를 이 관제 화면과 함께 실물에서 돌린 기록은 이 README 에 아직 없습니다 (fleet 쪽 기록은 [`cobot_fleet_control/README.md`](../cobot_navigation/cobot_fleet_control/README.md)). 실물 시험은 매번 사용자·현장 확인 뒤, 한 대씩 합니다.
+- **로그인 없음**: bringup 기본(`host=0.0.0.0`)은 내부망의 누구나 명령을 보낼 수 있습니다. 믿을 수 없는 망이면 `host:=127.0.0.1` 로 띄우고 SSH 터널로만 접속합니다. 여러 사람이 쓰게 되면 로그인·권한을 먼저 넣습니다.

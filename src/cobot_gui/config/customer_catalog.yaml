@@ -1,0 +1,37 @@
+# 고객 주문 화면(보조 A)의 신발 목록. 관제 PC 의 customer_gateway 가 읽는다.
+# 설명: src/cobot_gui/docs/customer_app.md
+#
+# 자리(QR 위치 ID) 목록과 재고는 여기 두지 않는다. cobot_fleet_control 이 알려 준다
+#   (자리: 그 패키지 config/scenario.yaml 의 destinations, 재고·선반 칸: type=inventory 요청).
+# items: sku 는 fleet_control 재고의 SKU 와 맞춘다 (영문·숫자·밑줄·하이픈). price 는 [원].
+#   image 는 web/public/customer/shoes/ 아래 파일 이름 (비면 그림 대신 아이콘). 장당 100 KB 이하로 줄여 넣는다.
+#   지금 목록은 자리 채움 예시다. 실제 신발 예시를 받으면 바꾼다.
+items:
+  - sku: "SHOE_RUN_WHITE_260"
+    name: "에어 러너"
+    brand: "COBOT"
+    size: "260"
+    color: "화이트"
+    price: 89000
+    image: ""
+  - sku: "SHOE_SNEAKER_BLACK_270"
+    name: "클래식 스니커즈"
+    brand: "COBOT"
+    size: "270"
+    color: "블랙"
+    price: 69000
+    image: ""
+  - sku: "SHOE_BOOT_BROWN_250"
+    name: "워커 부츠"
+    brand: "COBOT"
+    size: "250"
+    color: "브라운"
+    price: 129000
+    image: ""
+  - sku: "SHOE_SANDAL_BEIGE_240"
+    name: "컴포트 샌들"
+    brand: "COBOT"
+    size: "240"
+    color: "베이지"
+    price: 49000
+    image: ""

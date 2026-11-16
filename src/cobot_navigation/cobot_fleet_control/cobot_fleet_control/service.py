@@ -1,0 +1,108 @@
+"""단일 ROS executor에서 사용하는 주행 명령 BT 서비스."""
+
+import time
+
+import py_trees
+
+from .behaviours import build_tree
+from .bt_visualization import TreeTrace
+from .contracts import Command
+from .repository import encode
+
+
+class FleetService:
+    """로봇별 한 작업, 서로 다른 로봇의 BT는 독립적으로 tick한다."""
+
+    def __init__(self, repository, gateway, robots, clock=time.monotonic):
+        self.repository = repository
+        self.gateway = gateway
+        self.robots = robots
+        self.clock = clock
+        self.active = {}
+        self.traces = {}
+        repository.recover()
+
+    def submit(self, payload):
+        """같은 명령 ID는 재실행하지 않고 같은 ID의 다른 내용은 거절한다."""
+        command = Command.parse(payload, self.robots)
+        previous = self.repository.get(command.command_id)
+        if previous:
+            if previous['payload'] != encode(command.payload()):
+                raise ValueError('같은 command_id에 다른 명령을 사용할 수 없습니다')
+            return previous
+        if self.repository.busy(command.robot_id):
+            raise ValueError('로봇 작업 중 또는 UNKNOWN: 기존 작업 확인 필요')
+        self.repository.create(command)
+        tree, result = build_tree(command, self.repository, self.gateway, self.clock)
+        self.active[command.command_id] = (tree, result)
+        self.traces[command.command_id] = TreeTrace(command, tree, self.repository)
+        self.traces[command.command_id].capture('created')
+        return self.repository.get(command.command_id)
+
+    def tick(self, allow_dispatch=True):
+        """통신 발행의 성공을 로봇 도착 성공으로 처리하지 않는다."""
+        failed = []
+        for command_id, (tree, _) in list(self.active.items()):
+            if not allow_dispatch and self.repository.get(command_id)['state'] == 'ACCEPTED':
+                continue
+            try:
+                tree.tick()
+            except Exception as error:
+                self.quarantine(command_id, '명령 전달 중 예외: ' + str(error))
+                failed.append(command_id)
+                continue
+            self.traces[command_id].capture()
+            if tree.root.status != py_trees.common.Status.RUNNING:
+                del self.active[command_id]
+                del self.traces[command_id]
+        return failed
+
+    def quarantine(self, command_id, detail):
+        """장치에 정지를 요청하기 전에 로컬에서 전달 대기 중인 명령을 제거한다."""
+        row = self.repository.get(command_id)
+        if row and row['state'] not in {'SUCCEEDED', 'FAILED'}:
+            self.repository.require_confirmation(command_id)
+            self.repository.transition(command_id, 'UNKNOWN', detail)
+            self.forget(command_id, 'interrupted')
+
+    def forget(self, command_id, label=None):
+        """이 명령의 실행 트리를 더는 돌리지 않는다. label 이 있으면 마지막 모습을 기록한다."""
+        self.active.pop(command_id, None)
+        trace = self.traces.pop(command_id, None)
+        if trace and label:
+            trace.capture(label)
+
+    def cancel_pending(self, robot_id, detail):
+        """아직 로봇에 보내지 않은(ACCEPTED) 작업을 보내지 않고 끝낸다."""
+        # 이미 보낸(RUNNING) 작업은 로봇이 보내는 STOPPED 결과로 끝나므로 건드리지 않는다.
+        rows = list(self.repository.db.execute(
+            "SELECT command_id FROM commands WHERE robot_id=? AND state='ACCEPTED'",
+            (robot_id,)))
+        for (command_id,) in rows:
+            self.repository.transition(command_id, 'FAILED', detail)
+            self.forget(command_id, 'canceled')
+        return [command_id for (command_id,) in rows]
+
+    def on_status(self, robot_id, status):
+        """잘못된 로봇·이전 작업·중간 DONE을 완료로 오인하지 않는다."""
+        if not isinstance(status, dict):
+            raise ValueError('로봇 상태는 JSON 객체여야 합니다')
+        command_id = status.get('command_id')
+        if not isinstance(command_id, str):
+            return
+        row = self.repository.get(command_id)
+        if not row or row['robot_id'] != robot_id:
+            return
+        if row['state'] not in {'RUNNING', 'UNKNOWN'}:
+            return
+        if (status.get('task_finished') is not True
+                or status.get('state') not in {'DONE', 'FAILED', 'STOPPED'}):
+            return
+        if command_id in self.active:
+            self.active[command_id][1].result = status
+        elif (row['state'] == 'UNKNOWN'
+              and not self.repository.confirmation_required(command_id)):
+            # 지연 완료가 실제로 도착했을 때만 자동으로 점유를 해제한다.
+            self.repository.transition(command_id,
+                                       'SUCCEEDED' if status['state'] == 'DONE' else 'FAILED',
+                                       status.get('detail', ''))

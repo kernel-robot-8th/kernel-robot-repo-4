@@ -4,3 +4,5 @@ docs/fms_web_dependencies.md text eol=lf
 src/cobot_gui/web/src/generated/menus.ts text eol=lf
 src/cobot_gui/web/package-lock.json text eol=lf
 src/cobot_gui/web/src/generated/messages.ts text eol=lf
+# Linux에서 실행되는 관제·진단 셸 스크립트의 Windows CRLF 변환을 막는다.
+src/cobot_navigation/**/*.sh text eol=lf

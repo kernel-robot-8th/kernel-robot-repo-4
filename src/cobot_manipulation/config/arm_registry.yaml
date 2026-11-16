@@ -1,0 +1,16 @@
+# 팔 자리 이름 ↔ 그 자리에 있어야 할 OpenRB-150 보드 시리얼.
+# 팔 자리 이름은 관제 cobot_fleet_control/config/scenario.yaml 의 pickup_arm·dropoff_arm 과 같다.
+# 팔 이름은 구역 순서와 1:1 이다: ZA = omx1, ZB = omx2, ZC = omx3.
+# 관제 현장 배치 cobot_control_center/config/site_arms.yaml (구역·PC·시리얼)와 같게 유지한다.
+# 시리얼 확인: ls -l /dev/serial/by-id  →  usb-ROBOTIS_OpenRB-150_<시리얼>-if00
+# 빈 칸이면 그 팔은 UNKNOWN 으로 두고 일을 하지 않는다.
+arms:
+  omx1:
+    # ZA 상차 · 8-OMEN. 2026-11-16 이 PC /dev/serial/by-id 에서 확인.
+    serial: 77AABA9150323952582E3120FF06102E
+  omx2:
+    # ZB (상차 또는 창고) · PC 미정
+    serial: ""
+  omx3:
+    # ZC 하차 · OMEN-11. 2026-11-16 OMEN-11 /dev/serial/by-id 에서 확인 (전에 omx1 에 잘못 적혀 있던 보드).
+    serial: 6D96FA0450323952582E3120FF052A1E

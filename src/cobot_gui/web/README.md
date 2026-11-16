@@ -13,3 +13,9 @@ npm run build && npm run check:dist
 - 메뉴 목록은 `src/cobot_gui/config/menu_tree.yaml`, 메시지 타입은 `src/cobot_interfaces` 정의가 정본이다. `src/generated/*` 는 직접 고치지 않는다.
 - 데이터는 `useMessages('RobotStatus')` 처럼 읽는다. 기본은 모의 데이터(`src/mock/*.json`)다.
 - 이 앱은 읽기 전용이다. 로봇에 명령을 보내는 화면은 만들지 않는다.
+
+## 고객 주문 화면 (관제 PC 의 customer_gateway 가 내보냄)
+
+- `customer.html` + `src/customer/` 는 고객 핸드폰용 화면이다. 관제 화면과 따로 빌드 입력을 둔다.
+- 설명서: [`src/cobot_gui/docs/customer_app.md`](../docs/customer_app.md)
+- 모의 확인: `npm run dev` 후 `/customer.html?loc=BENCH_1`

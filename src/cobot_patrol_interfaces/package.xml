@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cobot_patrol_interfaces</name>
+  <version>0.0.0</version>
+  <description>순찰 규격 v2 메시지 (PatrolCommand, PatrolCommandAck, PatrolState). 지금 주행 규격 v1(std_msgs/String)과 다른 토픽 이름으로 나란히 둔다. 작업 ID 로 명령과 결과를 짝짓는다. 팀이 받아들이면 msg 파일을 cobot_interfaces 로 옮겨 합친다. 메시지 양식만 있고 실행 코드는 없다.</description>
+  <maintainer email="bebe217@gmail.com">jihye kim</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <depend>std_msgs</depend>
+
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <test_depend>ament_cmake_copyright</test_depend>
+  <test_depend>ament_cmake_flake8</test_depend>
+  <test_depend>ament_cmake_pep257</test_depend>
+  <test_depend>ament_cmake_lint_cmake</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
