@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { formatPrice } from "./format";
-import { createMockApi, isMockMode, viewOf } from "./api";
+import { ApiError, createMockApi, isMockMode, viewOf } from "./api";
 
 let clock = 0;
 
@@ -45,6 +45,23 @@ describe("고객 주문 화면", () => {
     renderApp("");
     await flush();
     expect(screen.getByText("자리의 QR 코드를 찍어 주세요")).toBeInTheDocument();
+  });
+
+  it("관제와 연결되기 전이면 기다렸다가 다시 물어 신발 목록을 연다", async () => {
+    const api = createMockApi(1000, () => clock);
+    const real = api.catalog;
+    let calls = 0;
+    api.catalog = (loc) => {
+      calls += 1;
+      return calls === 1 ? Promise.reject(new ApiError(503, "CONTROL_CENTER_UNAVAILABLE")) : real(loc);
+    };
+    render(<App api={api} search="?loc=BENCH_1" />);
+    await flush();
+    expect(screen.getByText("매장 시스템에 연결하는 중이에요")).toBeInTheDocument();
+    expect(screen.queryByText("자리의 QR 코드를 찍어 주세요")).not.toBeInTheDocument();
+    await advance(3000);
+    expect(calls).toBe(2);
+    expect(screen.getByLabelText("주문 자리")).toHaveTextContent("고객 벤치 1");
   });
 
   it("신발 목록과 자리, 품절을 보인다", async () => {

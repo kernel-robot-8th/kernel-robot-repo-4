@@ -105,9 +105,10 @@ def test_catalog_has_location_and_stock(api):
 def test_catalog_unknown_location_is_null(api):
     api_obj, fleet = api
     assert api_obj.handle('GET', '/catalog', {'loc': ['X']}, {})[1]['location'] is None
-    # 스냅숏을 아직 못 받았으면 자리를 모른다.
+    # 스냅숏을 아직 못 받았으면 '모르는 자리' 가 아니라 관제 연결 대기다 (화면이 다시 묻는다).
     fleet.places = None
-    assert api_obj.handle('GET', '/catalog', {'loc': ['BENCH_1']}, {})[1]['location'] is None
+    assert api_obj.handle('GET', '/catalog', {'loc': ['BENCH_1']}, {}) == (
+        503, {'error': 'CONTROL_CENTER_UNAVAILABLE'})
 
 
 def test_order_goes_to_fleet_with_destination(api):
@@ -237,6 +238,23 @@ def test_static_serves_only_customer_files(tmp_path):
     assert gw.resolve_static(str(tmp_path), '/index.html') is None
     assert gw.resolve_static(str(tmp_path), '/assets/../index.html') is None
     assert gw.resolve_static(str(tmp_path), '/assets/missing.js') is None
+
+
+def test_static_serves_symlinked_install(tmp_path):
+    """Symlink 설치(colcon --symlink-install)처럼 파일이 build/ 를 가리켜도 내보낸다."""
+    build = tmp_path / 'build'
+    root = tmp_path / 'install'
+    (build / 'assets').mkdir(parents=True)
+    (root / 'assets').mkdir(parents=True)
+    for name in ('customer.html', 'index.html', 'assets/a.js'):
+        (build / name).write_text(name)
+        (root / name).symlink_to(build / name)
+    assert gw.resolve_static(str(root), '/') == str(root / 'customer.html')
+    assert gw.resolve_static(str(root), '/assets/a.js') == str(root / 'assets' / 'a.js')
+    # 바로가기여도 관제 화면과 '..' 탈출은 그대로 막는다.
+    assert gw.resolve_static(str(root), '/index.html') is None
+    assert gw.resolve_static(str(root), '/assets/../index.html') is None
+    assert gw.resolve_static(str(root), '/assets/../../build/index.html') is None
 
 
 def test_http_server_end_to_end(tmp_path, api):

@@ -156,6 +156,9 @@ class CustomerApi:
         return {'id': loc, 'name': str(info.get('name') or loc)}
 
     def _catalog_view(self, loc):
+        # 자리 목록을 아직 모르면 '모르는 자리(QR 안내)' 와 구분해 503 을 준다. 화면은 다시 묻는다.
+        if self._backend.destinations() is None:
+            return 503, {'error': 'CONTROL_CENTER_UNAVAILABLE'}
         items = []
         for item in self._catalog['items']:
             available = self._backend.available(item['sku'])
@@ -254,8 +257,11 @@ def resolve_static(web_root, path):
         rel = path.lstrip('/')
         if rel.split('/', 1)[0] not in STATIC_DIRS:
             return None
-    root = os.path.realpath(web_root)
-    full = os.path.realpath(os.path.join(root, rel))
+    # 바로가기(symlink)는 풀지 않고 경로 글자로만 web_root 안인지 본다.
+    # colcon --symlink-install 은 dist 파일을 build/ 를 가리키는 바로가기로 설치하므로,
+    # realpath 로 풀면 정상 파일도 web_root 밖으로 판정된다.
+    root = os.path.abspath(web_root)
+    full = os.path.normpath(os.path.join(root, rel))
     if os.path.commonpath([root, full]) != root or not os.path.isfile(full):
         return None
     # '..' 로 허용 폴더 밖(관제 화면 등)을 가리키는 경로를 막는다.

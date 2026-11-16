@@ -76,6 +76,7 @@ http://<관제 PC IP>:8080/?loc=BENCH_1
 
 - `view`: `preparing`, `arrived`, `paid`, `cancelled`, `failed`, `out_of_stock`
 - 오류: 400 (형식), 404 (모르는 주문·다른 세션), 409 (fleet_control 거절: `ORDER_REJECTED`, `WRONG_STAGE`. `detail` 에 거절 이유), 503 (fleet_control 응답 없음 또는 스냅숏을 아직 못 받음)
+- `GET /catalog` 도 스냅숏을 한 번도 못 받았으면 503 이다 (`location: null` 은 '모르는 자리' 에만 쓴다). 화면은 "매장 시스템에 연결하는 중" 을 보이고 3초마다 다시 묻는다. 그래서 게이트웨이를 fleet_control 보다 먼저 켜도 QR 안내 화면에 멈추지 않는다.
 - `client_key` 는 주문 버튼 한 번마다 새로 만든다 (영문·숫자·밑줄·하이픈). 게이트웨이가 `cust-<client_key>` 를 fleet_control 의 `order_id` 로 쓴다. 같은 `order_id` 를 다시 보내면 fleet_control 이 같은 주문을 돌려준다.
 - `available` 은 스냅숏의 `stock` 에서 온다. 스냅숏이 5초 넘게 없으면 `null` (모름), fleet_control 재고에 없는 SKU 는 0 이다.
 - 재고가 없으면 주문을 만들지 않고 `view: out_of_stock` 을 돌려준다.
@@ -90,6 +91,10 @@ ros2 launch cobot_gui customer_gateway.launch.xml          # 고객 화면
 ```
 
 - 두 노드는 같은 관제 PC, 같은 `ROS_DOMAIN_ID` 에서 돈다 (값은 `docs/fms_interfaces.md`, 임의로 바꾸지 않는다).
+- `--symlink-install` 빌드도 된다. 게이트웨이는 설치 폴더의 바로가기를 풀지 않고 경로로만 허용 범위를 본다.
+- fleet_control 을 도커(`cobot_fleet_control/config/docker`)로 켰다면 게이트웨이도 같은 DDS 설정으로 띄운다:
+  `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `CYCLONEDDS_URI=file://<저장소>/src/cobot_navigation/cobot_fleet_control/config/docker/cyclonedds.xml`.
+  도커 관제 web 이 8080 을 쓰므로 게이트웨이 포트(`config/customer_gateway.yaml` 의 `port`)는 겹치지 않게 바꾼 설정 파일을 `params_file:=` 로 준다.
 - 주문하려면 fleet_control 에 재고와 선반 칸이 있어야 한다. 예 (1행 1열에 3켤레):
   ```bash
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \

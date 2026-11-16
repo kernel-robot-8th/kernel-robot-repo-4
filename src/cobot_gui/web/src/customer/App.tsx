@@ -19,6 +19,8 @@ import { formatPrice } from "./format";
 import { ApiError, type Catalog, type CustomerApi, type Decision, type OrderState, type Shoe } from "./api";
 
 const POLL_MS = 1000;
+// 관제(fleet_control)와 아직 연결되지 않았을 때 신발 목록을 다시 묻는 간격
+const CATALOG_RETRY_MS = 3000;
 const STORAGE_KEY = "cobot-customer-order";
 
 const STEPS = [
@@ -70,10 +72,16 @@ function errorText(error: unknown): string {
   return "네트워크 연결을 확인해 주세요.";
 }
 
+/** 관제가 아직 안 켜졌거나 잠깐 끊긴 경우. 이때는 오류 화면 대신 기다렸다가 다시 묻는다. */
+function isWaitingForStore(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.code === "CONTROL_CENTER_UNAVAILABLE";
+}
+
 export default function App({ api, search }: { api: CustomerApi; search: string }) {
   const loc = useMemo(() => new URLSearchParams(search).get("loc") ?? "", [search]);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [waitingStore, setWaitingStore] = useState(false);
   const [selected, setSelected] = useState<Shoe | null>(null);
   const [saved, setSaved] = useState<Saved | null>(() => {
     const value = loadSaved();
@@ -86,10 +94,31 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
   const session = useRef(saved?.session ?? randomId());
 
   useEffect(() => {
-    api
-      .catalog(loc)
-      .then(setCatalog)
-      .catch((e) => setLoadError(errorText(e)));
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () =>
+      api
+        .catalog(loc)
+        .then((value) => {
+          if (!alive) return;
+          setCatalog(value);
+          setWaitingStore(false);
+        })
+        .catch((e) => {
+          if (!alive) return;
+          if (isWaitingForStore(e)) {
+            // 관제보다 화면을 먼저 열어도 연결되면 저절로 신발 목록이 뜨게 한다.
+            setWaitingStore(true);
+            timer = setTimeout(load, CATALOG_RETRY_MS);
+          } else {
+            setLoadError(errorText(e));
+          }
+        });
+    load();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
   }, [api, loc]);
 
   const view = order?.view ?? (saved ? "preparing" : null);
@@ -171,6 +200,15 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
   let body;
   if (loadError) {
     body = <Message icon={X} title="화면을 불러오지 못했어요" text={loadError} />;
+  } else if (!catalog && waitingStore) {
+    body = (
+      <Message
+        icon={LoaderCircle}
+        spin
+        title="매장 시스템에 연결하는 중이에요"
+        text="잠시만 기다려 주세요. 연결되면 저절로 신발 목록이 열려요."
+      />
+    );
   } else if (!catalog) {
     body = <Message icon={LoaderCircle} spin title="불러오는 중이에요" />;
   } else if (!catalog.location) {
