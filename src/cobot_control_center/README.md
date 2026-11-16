@@ -38,6 +38,7 @@
 |---|---|---|
 | `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 8초 끊기면 offline (`stale_timeout_sec`) |
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py` | 토픽 값을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
+| `arm_command_node` | `arm_command_node.py`, `arm_command_utils.py`, `site_arms_utils.py` | 로봇팔 켜기·끄기·정지·작업 시험을 팔 노드에 내고, 팔 상태·응답·알람 기록을 모아 웹 백엔드에 넘김. 현장 팔 배치는 `config/site_arms.yaml` (`site_arms_utils.py` 가 읽음) |
 | `host_status_node` | `host_status_node.py`, `host_info.py` | **관제 PC 가 아닌 PC(Station PC 등)에서 띄운다.** 자기 PC 의 연결(유선·무선)·CPU·메모리·온도·디스크·DDS 설정을 3초마다 `/control_center/host_status` 로 보냄 → 네트워크 화면 Station PC 카드. 읽기만 함 |
 | `net_status_node` | `net_status_node.py`, `net_status_utils.py`, `host_info.py` | 네트워크 측정: 공유기·핑키 3대·Station PC 에 평소 5초마다 핑, 관제 PC 연결(유선·Wi-Fi), 화면 [자세히 확인] 때만 10초 동안 1초 핑 + 상태 토픽 수신 주기 → `/control_center/net_status` (화면 `#/network`). 아무것도 명령하지 않음 |
 

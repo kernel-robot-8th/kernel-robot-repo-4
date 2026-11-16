@@ -36,13 +36,13 @@ import time
 
 from builtin_interfaces.msg import Time
 from cobot_control_center import arm_command_utils as arms
+from cobot_control_center.site_arms_utils import load_site_arms
 from cobot_interfaces.msg import ArmCommand, ArmStatus, CommandAck, CommandHeader
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
-import yaml
 
 # 팔 노드(arm_adapter_node)와 같은 QoS: 명령·이벤트 RELIABLE, 텔레메트리 BEST_EFFORT KEEP_LAST 1
 COMMAND_QOS = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
@@ -152,9 +152,8 @@ class ArmCommandNode(Node):
         if not path:
             return {}
         try:
-            with open(path, encoding='utf-8') as handle:
-                site = arms.parse_site_arms(yaml.safe_load(handle))
-        except (OSError, yaml.YAMLError, ValueError) as error:
+            site = load_site_arms(path)
+        except ValueError as error:
             self.get_logger().error(f'현장 팔 배치 파일을 못 읽음 ({path}): {error}. arm_ids 를 씀')
             return {}
         self.get_logger().info('현장 팔 배치: ' + ', '.join(
@@ -175,11 +174,7 @@ class ArmCommandNode(Node):
             return
         text = (f'{ack["robot_id"]} {out["body"]["command"]} → {result} '
                 f'{ack["reason"]} (stop_executed={ack["stop_executed"]})')
-        # rclpy 는 한 호출 자리에서 심각도가 바뀌면 ValueError 를 낸다. 그래서 자리를 나눈다.
-        if out['status'] == 200:
-            self.get_logger().info(text)
-        else:
-            self.get_logger().warning(text)
+        self._log(out['status'] == 200, text)
         self._send_event(out)
 
     def _on_request(self, msg):
@@ -210,10 +205,8 @@ class ArmCommandNode(Node):
         name = request['command'].lower()
         text = (f'{header["robot_id"]} {name} 발행 (epoch {header["epoch"]}, '
                 f'seq {header["seq"]}, 요청자 {request.get("source") or "?"})')
-        if name == arms.START:
-            self.get_logger().warning(f'{text}: 실제 팔이면 토크가 켜집니다')
-        else:
-            self.get_logger().info(text)
+        self._log(name != arms.START, text if name != arms.START
+                  else f'{text}: 실제 팔이면 토크가 켜집니다')
         self.command_pubs[header['robot_id']].publish(message)
 
     def _on_work_request(self, request):
@@ -243,10 +236,7 @@ class ArmCommandNode(Node):
             return   # 주문(fleet_control) 결과이거나 이미 받은 결과
         text = (f'{record["arm_id"]} 작업 시험 {record["action"]} → {record["state"]} '
                 f'({record["duration"]} s) {record["detail"]}')
-        if record['state'] == arms.WORK_SUCCEEDED:
-            self.get_logger().info(text)
-        else:
-            self.get_logger().warning(text)
+        self._log(record['state'] == arms.WORK_SUCCEEDED, text)
 
     def _tick(self):
         self.commander.check_links(time.monotonic(), time.time())
@@ -262,6 +252,17 @@ class ArmCommandNode(Node):
         snapshot = self.commander.snapshot(time.monotonic(), time.time())
         self.arms_pub.publish(String(data=json.dumps(snapshot, ensure_ascii=False,
                                                      allow_nan=False)))
+
+    def _log(self, ok, text):
+        """
+        성공(ok)이면 info, 아니면 warning 으로 남긴다.
+
+        rclpy 는 한 호출 자리에서 심각도가 바뀌면 ValueError 를 낸다. 그래서 두 자리를 따로 둔다.
+        """
+        if ok:
+            self.get_logger().info(text)
+        else:
+            self.get_logger().warning(text)
 
     def _send_event(self, event):
         self.events_pub.publish(String(data=json.dumps(event, ensure_ascii=False)))

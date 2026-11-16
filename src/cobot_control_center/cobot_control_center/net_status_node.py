@@ -65,6 +65,7 @@ PARAMS = {
     'detail_period_sec': 1.0,
     'detail_duration_sec': 10.0,
     'ping_timeout_sec': 1,
+    'tcp_probe_port': 22,   # ping 명령이 없을 때 연결을 시도할 포트 (로봇·Station PC 는 ssh)
     'ping_window': 12,
     'ping_warn_ms': 100.0,
     'ping_warn_loss_pct': 10.0,
@@ -107,13 +108,17 @@ class NetStatusNode(Node):
         self._detail_started = None  # 마지막 자세히 확인 시작 (UNIX 시각)
         self._stop = threading.Event()
         self._threads = []
-        if self.ping_cmd:
-            for key, host in self.targets.items():
-                thread = threading.Thread(target=self._ping_loop, args=(key, host), daemon=True)
-                thread.start()
-                self._threads.append(thread)
-        else:
-            self.get_logger().warning('ping 명령이 없음: 핑은 측정 불가로 낸다')
+        # ping 명령이 없으면(관제 도커 이미지 등) TCP 연결 시도로 잰다. 권한이 필요 없고,
+        # 연결이 거절돼도(RST) 응답이 온 것이라 장치가 살아 있고 왕복 시간을 안다.
+        self.probe = 'icmp' if self.ping_cmd else 'tcp'
+        if not self.ping_cmd:
+            self.get_logger().warning(
+                f'ping 명령이 없음: TCP {c["tcp_probe_port"]} 연결 시도로 잰다 '
+                '(포트를 막은 장치는 응답 없음으로 보일 수 있음)')
+        for key, host in self.targets.items():
+            thread = threading.Thread(target=self._ping_loop, args=(key, host), daemon=True)
+            thread.start()
+            self._threads.append(thread)
 
         # 수신 주기는 자세히 확인 중에만 잰다. 키 → (토픽, 형식, QoS, stale, 기대 Hz)
         self._rate_specs = {}
@@ -187,6 +192,8 @@ class NetStatusNode(Node):
     def _ping_once(self, host):
         """한 번 핑. 응답 rtt[ms] 또는 None. 명령이 멈춰도 타임아웃보다 조금 더 기다리고 끊는다."""
         timeout = max(1, int(self.cfg['ping_timeout_sec']))
+        if self.probe == 'tcp':
+            return nu.tcp_probe(host, int(self.cfg['tcp_probe_port']), timeout)
         try:
             done = subprocess.run(
                 [self.ping_cmd, '-c', '1', '-W', str(timeout), '-n', host],
@@ -221,8 +228,6 @@ class NetStatusNode(Node):
             for key, window in self._windows.items():
                 summary = window.summary(now, c['ping_warn_ms'], c['ping_warn_loss_pct'],
                                          c['ping_bad_fails'])
-                if not self.ping_cmd:
-                    summary['state'] = nu.NA
                 entry = arp.get(self.targets[key]) or {}
                 targets[key] = dict(summary, host=self.targets[key], mac=entry.get('mac'),
                                     mac_fresh=entry.get('complete'))
@@ -231,6 +236,8 @@ class NetStatusNode(Node):
             started = self._detail_started
         local_ip = self.host.local_ip()
         data = {'time': time.time(), 'ping_available': bool(self.ping_cmd),
+                'probe': self.probe,
+                'probe_port': c['tcp_probe_port'] if self.probe == 'tcp' else None,
                 'targets': targets, 'topics': topics,
                 'interfaces': self.host.interfaces(local_ip),
                 'local_ip': local_ip, 'pid': os.getpid(),

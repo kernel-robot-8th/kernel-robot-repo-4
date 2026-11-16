@@ -18,6 +18,7 @@ import json
 import math
 
 from cobot_control_center import arm_command_utils as arms
+from cobot_control_center import site_arms_utils as site_arms
 import pytest
 
 STATUS = {'torque_enabled': True, 'hold_active': False, 'hold_reason': '', 'work_step': 'IDLE',
@@ -444,7 +445,7 @@ def test_order_work_results_are_logged_once():
 # ---------- 현장 팔 배치 (config/site_arms.yaml) ----------
 
 def test_parse_site_arms_keeps_order_and_blanks():
-    site = arms.parse_site_arms({'arms': {
+    site = site_arms.parse_site_arms({'arms': {
         'omx1': {'station': 'ZA', 'role': 'pickup', 'host': '8-OMEN', 'serial': '77aa01'},
         'omx_2': {'station': 'ZB', 'role': '', 'host': None},
         'omx3': None}})
@@ -467,14 +468,14 @@ def test_parse_site_arms_keeps_order_and_blanks():
 ])
 def test_parse_site_arms_rejects_bad_files(data):
     with pytest.raises(ValueError):
-        arms.parse_site_arms(data)
+        site_arms.parse_site_arms(data)
 
 
 def test_installed_site_arms_file_parses():
     import pathlib
     import yaml
     path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
-    site = arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
+    site = site_arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
     assert list(site) == ['omx_1', 'omx_2', 'omx_3']
     assert [info['station'] for info in site.values()] == ['ZA', 'ZB', 'ZC']
 
@@ -490,17 +491,17 @@ def test_snapshot_carries_site():
 # ---------- 자리별 작업 (site_arms.yaml actions) ----------
 
 def test_parse_site_actions():
-    site = arms.parse_site_arms({'arms': {
+    site = site_arms.parse_site_arms({'arms': {
         'omx1': {'actions': ['pick', 'LOAD', 'pick']}, 'omx2': {'actions': []}, 'omx3': {}}})
     assert site['omx_1']['actions'] == ['pick', 'load']
     assert site['omx_2']['actions'] == [] and site['omx_3']['actions'] is None
     for bad in [['dance'], 'pick', [1], ['hold']]:
         with pytest.raises(ValueError):
-            arms.parse_site_arms({'arms': {'omx1': {'actions': bad}}})
+            site_arms.parse_site_arms({'arms': {'omx1': {'actions': bad}}})
 
 
 def test_work_only_for_site_actions():
-    site = arms.parse_site_arms({'arms': {
+    site = site_arms.parse_site_arms({'arms': {
         'omx1': {'station': 'ZA', 'actions': ['pick', 'load']},
         'omx2': {'station': 'ZC', 'actions': []}}})
     commander = arms.ArmCommander(list(site), 5000, 8.0, 1.0, site=site)
@@ -525,5 +526,40 @@ def test_installed_site_actions():
     import pathlib
     import yaml
     path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
-    site = arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
+    site = site_arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
     assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'], []]
+
+
+# ---------- 꺼짐 / 고장(FAULT) 구분 ----------
+
+FAULT_ACK = {'accepted': False, 'result': 'REJECTED_STATE',
+             'reason': '꺼짐(DISARMED)에서만 켤 수 있음 (지금 FAULT)', 'received_at': 100.0}
+
+
+def test_off_allows_start_but_not_reset():
+    assert 'start' in arms.ALLOWED[arms.OFF] and 'reset' not in arms.ALLOWED[arms.OFF]
+    assert 'reset' in arms.ALLOWED[arms.FAULT] and 'start' not in arms.ALLOWED[arms.FAULT]
+
+
+def test_fault_from_start_rejection():
+    off = dict(STATUS, torque_enabled=False)
+    assert arms.derive_state(off, True, FAULT_ACK) == arms.FAULT
+    # 다른 거절이나 수락은 그냥 꺼짐
+    assert arms.derive_state(off, True, dict(FAULT_ACK, reason='seq 역행')) == arms.OFF
+    assert arms.derive_state(off, True, dict(FAULT_ACK, accepted=True)) == arms.OFF
+    # 토크가 켜져 있으면(다시 켜짐) 고장이 아님
+    assert arms.derive_state(STATUS, True, FAULT_ACK) == arms.READY
+
+
+def test_fault_snapshot_alarm_and_clear_by_reset():
+    commander = make()
+    commander.put_status('omx_1', dict(STATUS, torque_enabled=False), 10.0)
+    header, _ = commander.make_command(request('start'), 100.0, 10.0)
+    commander.put_ack(ack(header, result=5, reason=FAULT_ACK['reason']), 100.1)
+    arm = commander.snapshot(10.1, 100.2)['arms'][0]
+    assert arm['state'] == arms.FAULT and arm['allowed'] == ['reset', 'hold', 'soft_latch']
+    assert [a['code'] for a in arm['alarms']] == ['fault']
+    header, _ = commander.make_command(request('reset', request_id='r2'), 100.3, 10.2)
+    commander.put_ack(ack(header), 100.4)
+    arm = commander.snapshot(10.3, 100.5)['arms'][0]
+    assert arm['state'] == arms.OFF and arm['alarms'] == []

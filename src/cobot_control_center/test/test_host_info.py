@@ -50,6 +50,20 @@ def test_meminfo_and_temp():
     assert hi.pick_cpu_temp([]) == (None, None)
 
 
+ROUTE = ('Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n'
+         'wlo1\t00000000\t012DA8C0\t0003\t0\t0\t600\t00000000\t0\t0\t0\n'
+         'enp130s0\t0000A8C0\t00000000\t0001\t0\t0\t100\t00FFFFFF\t0\t0\t0\n'
+         'tun0\t00000000\t00000000\t0001\t0\t0\t50\t00000000\t0\t0\t0\n')
+
+
+def test_without_ip_command():
+    # 관제 도커 이미지에는 ip 명령이 없다 → /proc/net/route·ioctl 로 읽는다
+    assert hi.parse_proc_route(ROUTE) == {'wlo1': '192.168.45.1', 'tun0': None}
+    assert hi.mask_to_prefix('255.255.255.0') == 24 and hi.mask_to_prefix('255.255.0.0') == 16
+    assert hi.iface_ipv4('lo') == ['127.0.0.1/8']
+    assert hi.iface_ipv4('no_such_iface0') == []
+
+
 def test_host_reader_reads_this_pc():
     reader = hi.HostReader({'router_host': '', 'interface_skip_prefixes': ['lo'],
                             'nmcli_period_sec': 10.0, 'wifi_warn_dbm': -70.0,

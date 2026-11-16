@@ -252,6 +252,85 @@ def load_map_layers(points_dir, zone_params_path, site=DEFAULT_SITE):
             'hidden_points': hidden_points, 'warnings': warnings}
 
 
+def json_object(text):
+    """JSON 문자열 → dict. 깨졌거나 dict 가 아니면 None (토픽으로 받은 값 검사용)."""
+    try:
+        data = json.loads(text)
+    except (TypeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+class EventLog:
+    """
+    번호를 붙인 이벤트 기록 (최근 maxlen 개, 메모리에만). 핑키 이벤트와 팔 기록이 같이 쓴다.
+
+    who 는 대상 필드 이름 ('robot' / 'arm'). 잠금은 하지 않으므로 쓰는 저장소의 lock 안에서 부른다.
+    """
+
+    def __init__(self, maxlen, who):
+        self._items = collections.deque(maxlen=int(maxlen))
+        self._last_id = 0
+        self.who = who
+
+    def add(self, event):
+        """이벤트 하나에 다음 번호를 붙여 쌓고, 번호가 붙은 dict 를 돌려준다."""
+        self._last_id += 1
+        numbered = dict(event, id=self._last_id)
+        self._items.append(numbered)
+        return numbered
+
+    def since(self, after=0, who=None, limit=200):
+        """번호가 after 보다 큰 것을 오래된 것부터 최대 limit 개. who 를 주면 그 대상만."""
+        items = [e for e in self._items
+                 if e['id'] > after and (who is None or e.get(self.who) == who)]
+        return items[-limit:] if limit > 0 else []
+
+
+class ReplyWaiter:
+    """
+    요청에 request_id 를 붙여 내고, 같은 번호의 응답({type: reply})을 timeout 초까지 기다린다.
+
+    작업 노드(TaskStore)와 로봇팔 명령 노드(ArmStore)가 같이 쓴다. ROS 콜백 스레드가 offer() 로
+    응답을 넣고, 웹 서버 스레드가 request() 로 기다린다. 기다리는 동안 lock 을 놓는다.
+    """
+
+    def __init__(self, timeout_sec):
+        self.timeout_sec = float(timeout_sec)
+        self._cond = threading.Condition()
+        self._replies = {}
+        self._waiting = set()
+
+    def offer(self, data):
+        """기다리는 요청의 응답이면 넘기고 True. 아니면 False (다른 종류이거나 이미 늦은 응답)."""
+        if data.get('type') != 'reply':
+            return False
+        with self._cond:
+            if data.get('request_id') not in self._waiting:
+                return False
+            self._replies[data['request_id']] = data
+            self._cond.notify_all()
+        return True
+
+    def request(self, payload, publish):
+        """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None."""
+        request_id = uuid.uuid4().hex
+        with self._cond:
+            self._waiting.add(request_id)
+        try:
+            publish(json.dumps(dict(payload, request_id=request_id), ensure_ascii=False))
+            with self._cond:
+                if not self._cond.wait_for(lambda: request_id in self._replies,
+                                           self.timeout_sec):
+                    return None
+                reply = self._replies.pop(request_id)
+        finally:
+            with self._cond:
+                self._waiting.discard(request_id)
+                self._replies.pop(request_id, None)
+        return reply.get('status'), reply.get('body')
+
+
 class SnapshotStore:
     """fleet_status JSON 의 최신 값과 받은 시각, 순번을 보관한다."""
 
@@ -264,8 +343,7 @@ class SnapshotStore:
         self._seq = 0
         # 스냅샷의 'events' 는 그 주기에 새로 생긴 것만 담겨 온다. 여기서 번호를 붙여 쌓는다.
         # 메모리에만 두므로 백엔드를 다시 켜면 지워진다.
-        self._events = collections.deque(maxlen=int(events_max))
-        self._event_id = 0
+        self._events = EventLog(events_max, 'robot')
         # 백엔드가 직접 만든 이벤트 (네트워크 경고 생김·풀림). 다음 스냅샷과 함께 WebSocket 으로 나간다.
         self._pending = []
 
@@ -274,18 +352,12 @@ class SnapshotStore:
         with self._cond:
             for event in events:
                 if isinstance(event, dict):
-                    self._event_id += 1
-                    numbered = dict(event, id=self._event_id)
-                    self._events.append(numbered)
-                    self._pending.append(numbered)
+                    self._pending.append(self._events.add(event))
 
     def put(self, text):
         """JSON 문자열을 넣는다. dict 가 아니거나 깨진 값이면 False 이고 기존 값을 유지한다."""
-        try:
-            data = json.loads(text)
-        except (TypeError, ValueError):
-            return False
-        if not isinstance(data, dict):
+        data = json_object(text)
+        if data is None:
             return False
         new_events = data.get('events')
         if not isinstance(new_events, list):
@@ -293,11 +365,7 @@ class SnapshotStore:
         with self._cond:
             # 직접 넣은 이벤트는 이미 번호가 있고 _events 에도 있다. 스냅샷에만 같이 싣는다.
             numbered, self._pending = self._pending, []
-            for event in new_events:
-                if isinstance(event, dict):
-                    self._event_id += 1
-                    numbered.append(dict(event, id=self._event_id))
-                    self._events.append(numbered[-1])
+            numbered += [self._events.add(e) for e in new_events if isinstance(e, dict)]
             # 화면은 id 로 중복을 거른다 (처음엔 /api/events, 그 뒤엔 스냅샷의 events).
             data['events'] = numbered
             self._snapshot = data
@@ -326,9 +394,7 @@ class SnapshotStore:
     def events(self, after=0, robot=None, limit=200):
         """번호가 after 보다 큰 이벤트를 오래된 것부터 최대 limit 개. robot 을 주면 그 로봇만."""
         with self._cond:
-            items = [e for e in self._events
-                     if e['id'] > after and (robot is None or e.get('robot') == robot)]
-        return items[-limit:] if limit > 0 else []
+            return self._events.since(after, robot, limit)
 
     def wait_newer(self, seq, timeout):
         """순번이 seq 보다 큰 값이 들어올 때까지 최대 timeout 초 기다린다. 새 값이 있으면 True."""
@@ -448,7 +514,7 @@ class TaskStore:
     작업 노드(fleet_control_node)와 주고받는 값 보관: 작업 목록 캐시, 요청 응답 기다리기, 바뀐 작업 순번.
 
     ROS 콜백 스레드가 put_*() 로 넣고, 웹 서버 스레드가 request()·tasks()·changes_since() 로 읽는다.
-    request() 는 발행 함수를 받아 요청을 낸 뒤, 같은 request_id 의 응답을 timeout 초까지 기다린다.
+    request() 는 발행 함수를 받아 요청을 낸 뒤, 같은 request_id 의 응답을 timeout 초까지 기다린다 (ReplyWaiter).
     """
 
     # 바뀐 작업을 이만큼만 기억한다. 더 밀린 WebSocket 은 전체 목록을 다시 받는다.
@@ -462,8 +528,7 @@ class TaskStore:
         self._tasks = {}
         self._snapshot = None
         self._received = None
-        self._replies = {}
-        self._waiting = set()
+        self._replies = ReplyWaiter(reply_timeout_sec)
         self._seq = 0
         self._log = []
 
@@ -481,11 +546,8 @@ class TaskStore:
 
     def put_snapshot(self, text):
         """/control_center/tasks JSON. 깨진 값이면 False."""
-        try:
-            data = json.loads(text)
-        except (TypeError, ValueError):
-            return False
-        if not isinstance(data, dict) or not isinstance(data.get('tasks'), list):
+        data = json_object(text)
+        if data is None or not isinstance(data.get('tasks'), list):
             return False
         with self._cond:
             self._snapshot = data
@@ -499,17 +561,11 @@ class TaskStore:
 
     def put_event(self, text):
         """/control_center/task_events JSON. 응답이면 기다리는 요청에 넘기고, 작업이면 반영한다."""
-        try:
-            data = json.loads(text)
-        except (TypeError, ValueError):
+        data = json_object(text)
+        if data is None:
             return False
-        if not isinstance(data, dict):
-            return False
-        with self._cond:
-            if data.get('type') == 'reply' and data.get('request_id') in self._waiting:
-                self._replies[data['request_id']] = data
-                self._cond.notify_all()
-            elif data.get('type') == 'task':
+        if not self._replies.offer(data) and data.get('type') == 'task':
+            with self._cond:
                 self._upsert(data.get('task'))
         return True
 
@@ -540,26 +596,8 @@ class TaskStore:
                 'orders': active_orders(orders) if online else []}
 
     def request(self, payload, publish):
-        """
-        요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None.
-
-        payload 에 request_id 를 붙여 publish(JSON 문자열) 로 낸다. 기다리는 동안 lock 을 놓는다.
-        """
-        request_id = uuid.uuid4().hex
-        with self._cond:
-            self._waiting.add(request_id)
-        try:
-            publish(json.dumps(dict(payload, request_id=request_id), ensure_ascii=False))
-            with self._cond:
-                if not self._cond.wait_for(lambda: request_id in self._replies,
-                                           self.reply_timeout_sec):
-                    return None
-                reply = self._replies.pop(request_id)
-        finally:
-            with self._cond:
-                self._waiting.discard(request_id)
-                self._replies.pop(request_id, None)
-        return reply.get('status'), reply.get('body')
+        """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None."""
+        return self._replies.request(payload, publish)
 
     def tasks(self, robot_id=None, state=None, limit=50):
         """최근 작업 (최신순)."""
@@ -595,8 +633,8 @@ class ArmStore:
     """
     로봇팔 명령 노드(arm_command_node)와 주고받는 값 보관: 팔 상태 모음, 요청 응답 기다리기.
 
-    ROS 콜백 스레드가 put_*() 로 넣고, 웹 서버 스레드가 snapshot()·request() 로 읽는다.
-    응답 기다리기는 TaskStore 와 같다. 팔 끄기(RESET) 응답은 팔이 쉬는 자세를 확인한 뒤에 와서
+    ROS 콜백 스레드가 put_*() 로 넣고, 웹 서버 스레드가 snapshot()·request()·events() 로 읽는다.
+    응답 기다리기는 TaskStore 와 같다 (ReplyWaiter). 팔 끄기(RESET) 응답은 팔이 쉬는 자세를 확인한 뒤에 와서
     수 초 걸리므로 reply_timeout_sec 는 작업 노드보다 길다.
     """
 
@@ -607,19 +645,14 @@ class ArmStore:
         self._cond = threading.Condition()
         self._snapshot = None
         self._received = None
-        self._replies = {}
-        self._waiting = set()
+        self._replies = ReplyWaiter(reply_timeout_sec)
         # 알람 기록: 번호를 붙여 메모리에만 둔다 (SnapshotStore 이벤트와 같은 방식, 번호 체계는 따로)
-        self._events = collections.deque(maxlen=int(events_max))
-        self._event_id = 0
+        self._events = EventLog(events_max, 'arm')
 
     def put_snapshot(self, text):
         """/control_center/arms JSON. 깨진 값이면 False."""
-        try:
-            data = json.loads(text)
-        except (TypeError, ValueError):
-            return False
-        if not isinstance(data, dict) or not isinstance(data.get('arms'), list):
+        data = json_object(text)
+        if data is None or not isinstance(data.get('arms'), list):
             return False
         with self._cond:
             self._snapshot = data
@@ -627,28 +660,20 @@ class ArmStore:
         return True
 
     def put_event(self, text):
-        """/control_center/arm_events JSON. 기다리는 요청의 응답이면 넘긴다."""
-        try:
-            data = json.loads(text)
-        except (TypeError, ValueError):
+        """/control_center/arm_events JSON. 기다리는 요청의 응답이면 넘기고, 알람 기록이면 쌓는다."""
+        data = json_object(text)
+        if data is None:
             return False
-        if not isinstance(data, dict):
-            return False
-        with self._cond:
-            if data.get('type') == 'reply' and data.get('request_id') in self._waiting:
-                self._replies[data['request_id']] = data
-                self._cond.notify_all()
-            elif data.get('type') == 'event' and isinstance(data.get('event'), dict):
-                self._event_id += 1
-                self._events.append(dict(data['event'], id=self._event_id))
+        if not self._replies.offer(data) and data.get('type') == 'event' \
+                and isinstance(data.get('event'), dict):
+            with self._cond:
+                self._events.add(data['event'])
         return True
 
     def events(self, after=0, arm=None, limit=100):
         """번호가 after 보다 큰 알람 기록을 오래된 것부터 최대 limit 개. arm 을 주면 그 팔만."""
         with self._cond:
-            items = [e for e in self._events
-                     if e['id'] > after and (arm is None or e.get('arm') == arm)]
-        return items[-limit:] if limit > 0 else []
+            return self._events.since(after, arm, limit)
 
     def _age(self):
         return None if self._received is None else self.clock() - self._received
@@ -674,19 +699,5 @@ class ArmStore:
                 'arms': arms}
 
     def request(self, payload, publish):
-        """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None (TaskStore.request 와 같다)."""
-        request_id = uuid.uuid4().hex
-        with self._cond:
-            self._waiting.add(request_id)
-        try:
-            publish(json.dumps(dict(payload, request_id=request_id), ensure_ascii=False))
-            with self._cond:
-                if not self._cond.wait_for(lambda: request_id in self._replies,
-                                           self.reply_timeout_sec):
-                    return None
-                reply = self._replies.pop(request_id)
-        finally:
-            with self._cond:
-                self._waiting.discard(request_id)
-                self._replies.pop(request_id, None)
-        return reply.get('status'), reply.get('body')
+        """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None."""
+        return self._replies.request(payload, publish)

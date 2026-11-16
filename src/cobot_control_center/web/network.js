@@ -95,7 +95,8 @@ function renderNetwork() {
   } else {
     summary.textContent = `전체 ${NET_TEXT[d.overall]}`
       + (d.net_online ? "" : " · 측정 노드(net_status_node) 응답 없음 → 핑 칸 비어 있음")
-      + (d.net_online && d.ping_available === false ? " · 이 PC 에 ping 명령 없음" : "");
+      // ping 명령이 없는 환경(관제 도커 이미지)은 TCP 연결 시도로 잰다. 포트를 막은 장치는 응답 없음으로 보일 수 있다.
+      + (d.net_online && d.probe === "tcp" ? ` · ping 대신 TCP ${d.probe_port} 연결로 잼` : "");
     summary.dataset.state = netDot(d.overall);
   }
   renderCheck(d);

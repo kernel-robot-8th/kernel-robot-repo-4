@@ -16,7 +16,8 @@ const ARM_LOG_MAX = 300;   // 화면에 들고 있을 알람 기록 수 (백엔�
 // arm_command_utils.py 의 화면 상태 → 배지 글·색 묶음
 const ARM_STATE = {
   STALE: { text: "미연결", level: "na", hint: "팔 노드 상태가 안 들어옴 (Station PC 노드·도메인 확인)" },
-  OFF: { text: "꺼짐", level: "idle", hint: "토크 꺼짐. 고장이면 마지막 응답 사유를 보고 끄기(RESET)로 풀기" },
+  OFF: { text: "꺼짐", level: "idle", hint: "토크 꺼짐. 켜기만 됨 (고장이면 켜기가 거절되고 '고장'으로 바뀜)" },
+  FAULT: { text: "고장", level: "bad", hint: "팔 실행기가 멈춤 (켜기 거절 사유로 판단). 끄기(RESET)로 꺼짐에 되돌린 뒤 다시 켜기" },
   READY: { text: "대기", level: "good", hint: "켜짐, 작업을 받을 수 있음" },
   BUSY: { text: "작업·연결 중", level: "active", hint: "연결 중이거나 작업 중이거나 끄는 중" },
   HOLD: { text: "정지", level: "warn", hint: "정지 유지 중. 정지 해제 또는 끄기" },
@@ -112,12 +113,7 @@ function fillWorkActions(select, actions) {
   const keep = select.value;
   const options = actions.length ? actions.map((action) => [action, ARM_WORK_TEXT[action] || action])
     : [["", "작업 없음"]];
-  select.replaceChildren(...options.map(([value, text]) => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = text;
-    return option;
-  }));
+  select.replaceChildren(...options.map(([value, text]) => makeOption(value, text)));
   if (actions.includes(keep)) select.value = keep;
 }
 

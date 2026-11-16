@@ -20,7 +20,10 @@
     ping_period_sec: 5.0       # [s] 평소 대상마다 한 번
     detail_period_sec: 1.0     # [s] 자세히 확인 중 대상마다 한 번
     detail_duration_sec: 10.0  # [s] 자세히 확인 길이 (토픽 수신 주기도 이 구간으로 잰다)
-    ping_timeout_sec: 1        # [s] ping -W (정수)
+    ping_timeout_sec: 1        # [s] ping -W (정수). TCP 연결 시도의 기다림 시간도 같다
+    # ping 명령이 없을 때(관제 도커 이미지) 이 포트로 TCP 연결을 시도해 잰다. 연결이 거절돼도 응답이라 살아 있음.
+    # 로봇·Station PC 는 ssh(22) 가 열려 있다. 포트를 막은 장치는 응답 없음으로 보일 수 있다.
+    tcp_probe_port: 22
     ping_window: 12            # 최근 몇 번으로 손실률·평균을 낼지 (평소 5 s 면 1분)
     ping_warn_ms: 100.0        # [ms] 평균이 이 이상이면 주황
     ping_warn_loss_pct: 10.0   # [%] 손실률이 이 이상이면 주황
