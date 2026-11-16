@@ -16,14 +16,16 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
                             팔 설정 release_move: true 면 거절 대신 쉬는 자세로 옮긴 뒤 다시 재서 끈다
          {"cmd": "quit"}   무조건 연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
   stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
-         @fleet {"event": "ready", "actions": [...], "joints": {...}}
+         @fleet {"event": "ready", "actions": [...], "joints": {...}, "models": {action: {...}},
+                 "rest_pose": {관절: 값} | null, "safe_tol": N}      models 칸은 model_meta() 참고
          @fleet {"event": "state", "joints": {...}}
          @fleet {"event": "release_moving", "seconds": N, ...}       release_move: 쉬는 자세로 이동 시작 (약 N 초)
          @fleet {"event": "released", "pose_error": {...}}             이어서 연결을 끊고 끝냄
          @fleet {"event": "release_refused", "detail": "...", "pose_error": {...}, "joints": {...}}
          @fleet {"event": "started", "id": ...}
          @fleet {"event": "done", "id": ..., "success": bool, "success_basis": "judge"|"none",
-                 "arm_safe": bool, "end_reason": "success"|"timeout"|"hold", "pose_error": {...}, "joints": {...}}
+                 "arm_safe": bool, "end_reason": "success"|"timeout"|"hold", "pose_error": {...}, "joints": {...},
+                 "model": "<bundle>@<version>"}
          @fleet {"event": "rejected", "id": ..., "detail": "..."}   팔을 움직이지 않은 거절
          @fleet {"event": "fatal", "detail": "..."}                 이후 일을 하지 않고 끝냄
 
@@ -33,6 +35,7 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
     관절을 다시 읽어 그리퍼 외 모든 관절 오차가 safe_tol 이하일 때만 true. hold 로 끝나면 이동하지 않으므로 false.
 
 팔별 설정은 --arms-file (YAML) 에서 ARM_ID 환경변수로 고른다. 포트는 ROBOT_PORT 환경변수 (어댑터가 넘김).
+모델은 action 마다 bundle·version (README "모델 번들 규격") 이나 model 경로로 적는다.
 
   ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/... ~/venv/il/bin/python omx_fleet_worker.py --arms-file fleet_arms.yaml
 """
@@ -41,6 +44,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import sys
 import threading
 import time
@@ -51,6 +55,8 @@ import omx_chain  # noqa: E402
 
 PREFIX = "@fleet "
 GRIPPER = "gripper.pos"
+DEFAULT_BUNDLES_DIR = "~/il_ws/bundles"
+VERSION_RE = re.compile(r"^v\d+$")  # 번들 버전 폴더 이름 (HF 태그와 같게: v1, v2, ...)
 
 
 def emit(**event):
@@ -70,14 +76,18 @@ def load_arm_config(path, arm_id):
     for key in ("top", "wrist", "actions"):
         if not arm.get(key):
             raise ValueError(f"arms.{arm_id}.{key} 가 비어 있음")
+    bundles_dir = Path(data.get("bundles_dir") or DEFAULT_BUNDLES_DIR).expanduser()
     actions = {}
     for name, spec in arm["actions"].items():
-        if not isinstance(spec, dict) or not spec.get("model") or not spec.get("seconds"):
-            raise ValueError(f"arms.{arm_id}.actions.{name} 에 model·seconds 필요")
+        where = f"arms.{arm_id}.actions.{name}"
+        if not isinstance(spec, dict) or not spec.get("seconds"):
+            raise ValueError(f"{where} 에 seconds 필요")
+        model = resolve_model(spec, bundles_dir, where)
         actions[name] = {
-            "model": str(Path(spec["model"]).expanduser()),
+            "model": model,
             "seconds": float(spec["seconds"]),
             "safe_pose": spec.get("safe_pose"),
+            "meta": model_meta(model),
         }
     arm["actions"] = actions
     # 쉬는 자세: 토크를 꺼도(release) 팔이 다치지 않는 자세. 없으면 release 는 늘 거절된다.
@@ -89,6 +99,64 @@ def load_arm_config(path, arm_id):
         raise ValueError(f"arms.{arm_id}.release_move 는 true/false ({move!r})")
     arm["release_move"] = move
     return arm
+
+
+def resolve_model(spec, bundles_dir, where):
+    """action 칸의 모델 폴더 경로. bundle·version 이면 <bundles_dir>/<bundle>/<version>/models/<모델>.
+
+    model 을 안 적으면 models/ 아래 폴더가 하나일 때만 그것을 쓴다 (여럿이면 어느 것인지 모르므로 오류).
+    bundle 없이 model 만 적으면 예전처럼 그 경로를 그대로 쓴다.
+    """
+    if spec.get("bundle") or spec.get("version"):
+        bundle, version = str(spec.get("bundle") or ""), str(spec.get("version") or "")
+        if not bundle or not version:
+            raise ValueError(f"{where}: bundle 과 version 을 함께 적어야 함")
+        models = bundles_dir / bundle / version / "models"
+        if not models.is_dir():
+            raise ValueError(f"{where}: 번들이 없음 ({models}). hf download --revision {version} 로 받으세요")
+        if spec.get("model"):
+            path = models / str(spec["model"])
+        else:
+            found = sorted(d for d in models.iterdir() if d.is_dir()) if models.is_dir() else []
+            if len(found) != 1:
+                names = ", ".join(d.name for d in found) or "없음"
+                raise ValueError(f"{where}: {models} 아래 모델 폴더가 하나여야 함 ({names}). model 칸으로 고르세요")
+            path = found[0]
+        if not path.is_dir():
+            raise ValueError(f"{where}: 모델 폴더가 없음 ({path})")
+        return str(path)
+    if not spec.get("model"):
+        raise ValueError(f"{where} 에 bundle·version 또는 model 필요")
+    return str(Path(spec["model"]).expanduser())
+
+
+def model_meta(model_path):
+    """관제에 보여 줄 모델 정보. 경로 모양에서 번들 이름·버전을 읽는다 (규격 밖 경로면 None)."""
+    path = Path(model_path)
+    meta = {"bundle": None, "version": None, "model_name": path.name, "path": str(path),
+            "init_pose": False, "success_judge": False}
+    if path.parent.name != "models":
+        return meta
+    bundle_dir = path.parent.parent  # <번들>/models/<모델> 또는 <번들>/<버전>/models/<모델>
+    meta["init_pose"] = (bundle_dir / "init_pose.json").is_file()
+    meta["success_judge"] = (bundle_dir / "success.json").is_file()
+    if VERSION_RE.match(bundle_dir.name):
+        meta["bundle"], meta["version"] = bundle_dir.parent.name, bundle_dir.name
+    else:
+        meta["bundle"] = bundle_dir.name
+    return meta
+
+
+def model_label(meta):
+    """작업 결과에 싣는 짧은 모델 이름: omx_pick_za@v1 (버전을 모르면 번들 이름, 그것도 없으면 폴더 이름)."""
+    if meta["bundle"] and meta["version"]:
+        return f"{meta['bundle']}@{meta['version']}"
+    return meta["bundle"] or meta["model_name"]
+
+
+def plain_pose(pose):
+    """{관절.pos: 값} → {관절: 값} (init_pose.json 형식, 관제 표시용)."""
+    return {k[:-len(".pos")] if k.endswith(".pos") else k: v for k, v in pose.items()}
 
 
 def chain_args(arm, port, extra):
@@ -189,7 +257,9 @@ def main(argv=None):
 
     robot.connect()
     try:
-        emit(event="ready", actions=sorted(stages), joints=read_joints(robot))
+        emit(event="ready", actions=sorted(stages), joints=read_joints(robot),
+             models={name: spec["meta"] for name, spec in arm["actions"].items()},
+             rest_pose=plain_pose(rest_pose) if rest_pose else None, safe_tol=mine.safe_tol)
         print(f"[{arm_id}] 준비 완료 — 토크 유지, 일을 기다림", flush=True)
         while True:
             msg = commands.get()
@@ -238,6 +308,7 @@ def main(argv=None):
                 emit(event="rejected", id=job_id, detail=f"{action} 모델이 설정되지 않음 (arms.{arm_id}.actions)")
                 continue
             stage = stages[action]
+            model = model_label(arm["actions"][action]["meta"])
             emit(event="started", id=job_id)
             if stage["init_pose"] and not stop_evt.is_set():
                 omx_chain.move_to_pose(robot, stage["init_pose"], args, stage["name"])
@@ -248,11 +319,13 @@ def main(argv=None):
             if reason == "hold":
                 # 멈춤: 더 움직이지 않는다. 토크는 유지돼 서보가 마지막 목표를 붙잡는다.
                 emit(event="done", id=job_id, success=False, end_reason="hold", arm_safe=False,
-                     success_basis="judge" if stage.get("judge") else "none", pose_error={}, joints=read_joints(robot))
+                     success_basis="judge" if stage.get("judge") else "none", pose_error={}, joints=read_joints(robot),
+                     model=model)
                 continue
             arm_safe, error, joints = retreat(robot, safe_poses[action], args, stage["name"], mine.safe_tol)
             emit(event="done", id=job_id, success=reason == "success", end_reason=reason, arm_safe=arm_safe,
-                 success_basis="judge" if stage.get("judge") else "none", pose_error=error, joints=joints)
+                 success_basis="judge" if stage.get("judge") else "none", pose_error=error, joints=joints,
+                 model=model)
     except Exception as error:  # noqa: BLE001 — 무슨 오류든 어댑터에 알리고 끝낸다
         emit(event="fatal", detail=f"{type(error).__name__}: {error}")
         raise

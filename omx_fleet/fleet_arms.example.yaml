@@ -1,30 +1,40 @@
 # 관제용 팔 실행기(omx_fleet_worker.py) 팔별 설정 예시.
 # 복사해서 쓴다: cp fleet_arms.example.yaml fleet_arms.yaml  (fleet_arms.yaml 은 git 에서 제외)
 # 실행기는 ARM_ID 환경변수로 아래 칸을 고른다. 포트는 관제 어댑터가 ROBOT_PORT 로 넘기므로 적지 않는다.
+# 모델 번들을 받아 둔 곳 (README "모델 번들 규격"). <bundles_dir>/<번들>/<버전>/models/<모델>
+bundles_dir: ~/il_ws/bundles
 arms:
   omx1:
     # /dev/videoN 은 다시 꽂으면 바뀐다. /dev/v4l/by-id (또는 by-path) 경로를 쓴다.
     top: /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0
     wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
     mjpg: true            # 두 카메라가 같은 USB 허브면 MJPG 라야 대역폭이 버틴다
-    robot_id: omx_follower  # 캘리브레이션 파일 이름. 이 팔의 보드로 캘리브레이션한 파일이어야 한다
+    robot_id: omx_follower  # 캘리브레이션 파일 이름 (~/.cache/huggingface/lerobot/calibration/robots/omx_follower/<이 값>.json)
     # 쉬는 자세 (init_pose.json 과 같은 형식). 관제가 끄기(release)를 할 때 지금 자세가 여기서
     # 그리퍼 빼고 3 단위 안이어야 끈다. 끄면 토크가 꺼지므로 이 자세에서 팔이 떨어지지 않아야 한다.
-    # 처음엔 shoebox_d 시작 자세. 실제 팔로 쉬는 자세를 재서 바꿀 것.
-    rest_pose: ~/il_ws/omx_shoebox_d/init_pose.json
+    # 쉬는 자세는 번들이 아니라 팔에 딸린 값이다. 팔을 쉬는 자세에 두고 arm_console.py saverest 로 만든다.
+    rest_pose: ~/il_ws/poses/rest_pose_omx1.json
     # 끄기(release) 때 쉬는 자세가 아니면 거절 대신 쉬는 자세로 옮긴 뒤 끈다 (녹화기 Servo OFF 방식).
     # 기본 false: "관제는 팔 모션을 시작하지 않는다"(ArmCommand.msg) 팀 규칙. 켜려면 현장에서 정한다.
     # 위험: 충돌 검사 없이 관절 보간으로 움직이고, 이동 중에는 hold 로 멈추지 않는다 (비상은 12 V 차단).
     # rest_pose 를 실제 팔로 잰 값으로 바꾼 뒤에만 켠다 (틀린 자세로 옮겨 토크를 끄면 팔이 떨어진다).
     release_move: false
     actions:
-      # 관제 action → 모델 폴더(pretrained_model)·최대 시간[s]·안전 자세.
-      # safe_pose 를 비우면 그 모델 번들의 init_pose.json (<번들>/models/<모델> → <번들>/init_pose.json).
-      # 그리퍼는 안전 자세로 옮기지 않는다 (잡은 물건을 놓지 않게).
+      # 관제 action → 모델 번들·버전·최대 시간[s]·안전 자세.
+      # bundle·version: <bundles_dir>/<bundle>/<version>/models/ 아래 폴더가 하나면 그것을 쓴다 (여럿이면 model 로 고름).
+      # 버전은 폴더째 고정한다. 바꾸거나 되돌릴 때는 version 만 고치고 팔을 다시 켠다.
+      # safe_pose 를 비우면 그 번들의 init_pose.json. 그리퍼는 안전 자세로 옮기지 않는다 (잡은 물건을 놓지 않게).
       pick:
-        model: ~/il_ws/omx_shoebox_d/models/act_shoebox_d_5000step
+        bundle: omx_pick_za
+        version: v1
         seconds: 90
       load:
-        model: ~/il_ws/omx_move_in_success/models/act_move_in_5000step
+        bundle: omx_load_za
+        version: v1
         seconds: 90
-        # safe_pose: ~/il_ws/omx_move_in_success/init_pose.json
+        # model: act            # models/ 아래 폴더가 여럿일 때 고름
+        # safe_pose: ~/il_ws/poses/load_safe_omx1.json
+      # 번들 규격 밖 모델은 예전처럼 경로로 적어도 된다 (관제에는 버전 없이 폴더 이름만 보인다):
+      # pick:
+      #   model: ~/il_ws/omx_shoebox_d/models/act_shoebox_d_5000step
+      #   seconds: 90

@@ -19,8 +19,70 @@
 |---|---|
 | `omx_fleet_worker.py` | 실행기. 대화 방식은 파일 맨 위 설명 |
 | `omx_chain.py`, `success_judge.py` | `tool/omx-dashboard-v2` (a54637d) `omx_dashboard_v2/` 에서 **고치지 않고 복사**. 바꿀 일이 있으면 원본과 함께 바꾼다 |
-| `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델) |
+| `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 번들·버전) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
+
+## 모델 번들 규격 (v0.1, 2026-11-16 제안)
+
+학습한 모델은 아래 구조로 올린다. **작업 하나 = 번들 하나 = Hugging Face 저장소 하나**.
+
+### 이름과 버전
+- 저장소 이름: `<HF 계정>/omx_<작업>_<구역>`. 작업은 관제 action 이름(`pick`, `load`, `unload`…), 구역은 `za`·`zb`·`zc`.
+  예: `Sungah/omx_pick_za`, `Sungah/omx_unload_zc`
+- 버전: 새로 학습할 때마다 git 태그 `v1`, `v2`, … 를 새로 붙인다. 한 번 붙인 태그는 옮기거나 덮어쓰지 않는다.
+  바꾼 이유는 모델 카드 맨 아래에 한 줄 (`v2: 에피소드 30 → 50`).
+
+### 폴더
+```text
+omx_pick_za/
+├── models/
+│   └── act/                 pretrained_model 폴더 내용 그대로 (config.json, model.safetensors, policy_*)
+├── init_pose.json           필수: 시작 자세 = 끝난 뒤 돌아오는 안전 자세 (학습 데이터 첫 프레임)
+├── success.json             선택: YOLO 성공 판단 (형식은 success_judge.py 기본값)
+├── yolo/<가중치>.pt          선택: success.json 의 model (번들 기준 상대 경로)
+└── README.md                필수: 모델 카드
+```
+- `models/` 아래 모델 폴더는 하나만 둔다 (여럿이면 설정에 `model:` 로 골라야 한다).
+- 모델: **lerobot 0.4.4 에서 읽히는 ACT**, 입력 `observation.state` [6] + `top`·`wrist` 카메라.
+  0.6.1 로 학습했으면 `config.json` 의 `pretrained_revision` 을 지우고 올린다 (`omx_train/ACT/README.md`).
+- `init_pose.json`: `{"pose": {"shoulder_pan": .., "shoulder_lift": .., "elbow_flex": .., "wrist_flex": .., "wrist_roll": .., "gripper": ..}}`
+  (lerobot 캘리브레이션 단위). 없으면 `safe_pose` 를 따로 적지 않는 한 실행기가 시작을 거부한다.
+- 쉬는 자세(`rest_pose`)는 번들에 넣지 않는다. 팔에 딸린 값이라 현장에서 팔마다 잰다.
+
+### 모델 카드 (`README.md`)
+```markdown
+# omx_pick_za
+| 항목 | 값 |
+|---|---|
+| 작업 / 구역 / 팔 | pick / ZA / omx1 |
+| 하는 일 | 선반 2행에서 신발 상자 집기 |
+| 데이터셋 | Sungah/omx_box_merged (에피소드 50개) |
+| 학습 | ACT, 20k step, batch 8, lerobot 0.4.4 |
+| 입력 | 관절 6 + top·wrist 카메라 |
+| 녹화한 팔 / 캘리브레이션 | omx1 / omx_follower_arm |
+| 최대 시간 | 90 s |
+| 실물 시험 | 20회 중 17회 성공 (2026-11-20) |
+| 상태 | 후보 / 검증됨 |
+```
+
+### 올리기 (학습 담당)
+```bash
+hf upload Sungah/omx_pick_za ./omx_pick_za .
+huggingface-cli tag Sungah/omx_pick_za v1      # 새 CLI 는 hf repo tag create Sungah/omx_pick_za v1
+```
+올리기 전 확인: 이름 `omx_<작업>_<구역>` / `models/` 아래 모델 하나, 0.4.4 에서 열림 / `init_pose.json` 관절 6개 / 모델 카드 / 태그 `vN`.
+
+### 현장에 두기 (Station PC)
+```bash
+hf download Sungah/omx_pick_za --revision v1 --local-dir ~/il_ws/bundles/omx_pick_za/v1
+```
+```text
+~/il_ws/
+├── bundles/<번들>/<vN>/     받은 번들 (예전 버전은 되돌리기용으로 남긴다)
+└── poses/rest_pose_<팔>.json 쉬는 자세 (saverest 로 만듦)
+```
+`fleet_arms.yaml` 의 action 에 `bundle`·`version` 을 적는다 (`fleet_arms.example.yaml`). 관제 팔 카드에는
+`pick omx_pick_za@v1` 처럼 보이고, 작업 결과에도 `model` 로 남는다.
 
 ## 한 작업의 순서
 
@@ -46,7 +108,10 @@
     충돌 검사가 없고, 이동 중 온 hold 는 이동이 끝난 뒤 처리된다. `rest_pose` 를 실측한 뒤에만 켠다.
 - `state`: 대기 중 관절 값을 `state` 로 알린다. 어댑터가 1초마다 물어 `ArmStatus` 에 싣는다.
 - `rest_pose` 가 없으면 `release` 는 늘 거절된다. 처음 값은 shoebox_d 시작 자세이므로 실제 팔로 재서 바꾼다.
-  팔을 쉬는 자세에 두고 켠 뒤 관제 저장소 `scripts/arm_console.py` 의 `saverest` 로 `rest_pose_omx1.json` 을 만든다.
+  팔을 쉬는 자세에 두고 켠 뒤 관제 저장소 `scripts/arm_console.py` 의 `saverest` 로 `rest_pose_omx1.json` 을 만든다
+  (`~/il_ws/poses/` 로 옮기거나 경로를 인자로 준다).
+- `ready` 에는 action 별 모델 정보(`models`: bundle·version·model_name·path·init_pose·success_judge 유무),
+  `rest_pose`, `safe_tol` 이 실린다. 어댑터가 이것을 관제에 넘겨 팔 카드에 보인다. `done` 에는 `model` (`omx_pick_za@v1`).
 
 ## 실행
 
