@@ -19,9 +19,13 @@ MQTT 토픽 목록 YAML(config/mqtt_topics_<로봇>.yaml)을 읽어 중계 규�
 (cobot_domain_bridge)의 것과 형식만 같고 파일은 별개라서, 여기를 고쳐도 DDS 쪽에는 영향이
 없다. ROS 에 의존하지 않아 단독 시험이 된다.
 
-방향: to_domain 이 관제 도메인이면 up(로봇→관제), from_domain 이 관제 도메인이면
+방향: from_domain 이 로봇 도메인이면 up(로봇→관제), to_domain 이 로봇 도메인이면
 down(관제→로봇). 로봇 쪽 토픽 이름과 관제 쪽 이름이 다르면 remap 이 관제 쪽(up) 또는
 로봇 쪽(down) 이름이다.
+
+왜 로봇 도메인으로 가르는가: 로봇 도메인(10/20/30)은 고정이고 관제 도메인은 시험(200)과
+운영(100)에서 바뀐다. 관제 도메인으로 가르면 관제 도메인을 바꾸는 순간 모든 항목이 경고 없이
+빠져 아무것도 중계하지 않는다. 로봇 도메인 항목이 하나도 없으면 ValueError 로 알린다.
 
 읽는 순서: load_rules() 가 입구다. YAML 항목을 _make_rule() 로 TopicRule 하나씩 만들고,
 _is_excluded() 로 빼야 할 것을 거른다. 결과 목록을 mqtt_bridge_node.py 가 받아 토픽마다
@@ -31,8 +35,8 @@ YAML 항목 예 (up: 로봇이 만든 값을 관제로 보낸다):
     topics:
       /odom:
         type: nav_msgs/msg/Odometry
-        from_domain: 10      # 로봇 도메인
-        to_domain: 200       # 관제 도메인 -> to_domain 이 관제이므로 up
+        from_domain: 10      # 로봇 도메인 -> from_domain 이 로봇이므로 up
+        to_domain: 200       # 관제 쪽 표시 (방향 판정에는 쓰지 않음)
         remap: /pinky1/odom  # 관제 쪽에서 보이는 이름 (없으면 같은 이름)
 이 항목은 다음 TopicRule 이 된다:
     robot_topic=/odom, pc_topic=/pinky1/odom, direction=up,
@@ -52,7 +56,7 @@ DOWN = 'down'
 class BridgeSettings:
     """중계 규칙을 만들 때 필요한 설정 (config/mqtt_bridge.yaml 에서 온다)."""
 
-    pc_domain: int = 200  # 관제 쪽 ROS 도메인. YAML 항목의 방향을 가르는 기준값이다.
+    robot_domain: int = 10  # 로봇 쪽 ROS 도메인(10/20/30). YAML 항목의 방향을 가르는 기준값이다.
     topic_prefix: str = 'mqtt_bridge'  # 모든 MQTT 주제의 맨 앞 글자 (다른 용도와 섞이지 않게)
     exclude_patterns: tuple = ()  # 중계에서 뺄 토픽 이름 패턴(fnmatch). 예: '*/lane/*'
     latched_topics: tuple = ()  # 마지막 값을 새로 접속한 쪽에도 주어야 하는 토픽(/tf_static 등)
@@ -105,24 +109,33 @@ def load_rules(bridge_yaml_path, robot, settings):
     topics = document.get('topics') or {}
     limits = parse_rate_limits(settings.rate_limits)  # 반복마다 풀지 않게 한 번만 변환
     rules = []
+    matched = 0
     for name, entry in topics.items():
         rule = _make_rule(name, entry, robot, settings, limits)
-        # None 은 관제 도메인과 상관없는 항목(예: 로봇 안에서만 쓰는 토픽)이다.
-        if rule is None or _is_excluded(rule, settings.exclude_patterns):
+        # None 은 이 로봇 도메인과 상관없는 항목이다.
+        if rule is None:
+            continue
+        matched += 1
+        if _is_excluded(rule, settings.exclude_patterns):
             continue
         rules.append(rule)
+    if topics and not matched:
+        # 도메인 값을 잘못 적으면 노드가 아무것도 중계하지 않은 채 조용히 켜지는 것을 막는다.
+        raise ValueError(
+            f'{robot}: robot_domain={settings.robot_domain} 인데 {bridge_yaml_path} 에 '
+            f'이 도메인 항목이 하나도 없다. from_domain/to_domain 값을 확인할 것')
     return rules
 
 
 def _make_rule(name, entry, robot, settings, limits):
-    """항목 하나를 규칙으로 바꾼다. 관제 도메인과 무관한 항목이면 None."""
-    pc_domain = settings.pc_domain
+    """항목 하나를 규칙으로 바꾼다. 로봇 도메인과 무관한 항목이면 None."""
+    robot_domain = settings.robot_domain
     remap = entry.get('remap') or name
     # YAML 의 키(name)는 "값이 만들어지는 쪽" 이름이고 remap 은 "받는 쪽" 이름이다.
     # 그래서 방향에 따라 로봇 쪽/관제 쪽 이름이 뒤바뀐다.
-    if int(entry['to_domain']) == pc_domain:  # 관제로 가는 항목 = up
+    if int(entry['from_domain']) == robot_domain:  # 로봇에서 나가는 항목 = up
         direction, robot_topic, pc_topic = UP, name, remap
-    elif int(entry['from_domain']) == pc_domain:  # 관제에서 오는 항목 = down
+    elif int(entry['to_domain']) == robot_domain:  # 로봇으로 들어가는 항목 = down
         direction, robot_topic, pc_topic = DOWN, remap, name
     else:
         return None

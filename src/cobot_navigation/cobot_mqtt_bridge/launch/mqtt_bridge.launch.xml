@@ -18,7 +18,9 @@
   <arg name="enable_down" default="false" description="관제→로봇(명령) 중계 사용 여부 (mode:=cmd 이면 자동으로 켜짐)"/>
   <arg name="duration_sec" default="0.0" description="실행 시간 [s], 0 이면 계속"/>
   <arg name="pc_domain" default="200" description="관제 쪽 ROS 도메인 (시험은 102)"/>
-  <arg name="robot_domain" default="10" description="로봇 쪽 ROS 도메인"/>
+  <arg name="pinky1_domain" default="10" description="pinky1 로봇 쪽 ROS 도메인 (토픽 YAML 의 방향 판정 기준)"/>
+  <arg name="pinky2_domain" default="20" description="pinky2 로봇 쪽 ROS 도메인"/>
+  <arg name="pinky3_domain" default="30" description="pinky3 로봇 쪽 ROS 도메인"/>
   <arg name="cyclonedds_uri" default="file://$(env HOME)/.ros/cyclonedds_pc.xml" description="관제 쪽 CycloneDDS 설정"/>
   <arg name="robot_remote" default="true" description="ssh 로 pinky1 의 로봇 쪽 노드도 켤지 여부"/>
   <arg name="robot_host" default="pinky@192.168.45.21" description="로봇 쪽 ssh 주소"/>
@@ -29,12 +31,12 @@
   <let name="down_on" value="$(eval &quot;'true' if ('$(var mode)' == 'cmd' or '$(var enable_down)' == 'true') else 'false'&quot;)"/>
   <let name="confirm" value="$(eval &quot;'$(var pc_domain)' if '$(var confirm_real_domain)' == 'unset' else '$(var confirm_real_domain)'&quot;)"/>
   <let name="down_params" value="$(eval &quot;'$(var down_params_file)' if '$(var mode)' == 'cmd' else '$(var params_file)'&quot;)"/>
-  <let name="robot_extra" value="$(eval &quot;'--params-file /home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_down.yaml -p enable_down:=true -p confirm_real_domain:=$(var robot_domain)' if '$(var mode)' == 'cmd' else ''&quot;)"/>
+  <let name="robot_extra" value="$(eval &quot;'--params-file /home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_down.yaml -p enable_down:=true -p confirm_real_domain:=$(var pinky1_domain)' if '$(var mode)' == 'cmd' else ''&quot;)"/>
 
   <set_env name="ROS_DOMAIN_ID" value="$(var pc_domain)"/>
   <set_env name="CYCLONEDDS_URI" value="$(var cyclonedds_uri)"/>
 
-  <executable cmd="echo [mqtt_bridge] mode=$(var mode) 관제 도메인=$(var pc_domain) 로봇 도메인=$(var robot_domain) (cmd 이면 로봇이 움직일 수 있다)" output="screen" shell="false"/>
+  <executable cmd="echo [mqtt_bridge] mode=$(var mode) 관제 도메인=$(var pc_domain) 로봇 도메인=$(var pinky1_domain)/$(var pinky2_domain)/$(var pinky3_domain) (cmd 이면 로봇이 움직일 수 있다)" output="screen" shell="false"/>
 
   <node pkg="cobot_mqtt_bridge" exec="mqtt_bridge_node" name="mqtt_bridge_pinky1"
         output="screen" if="$(var pinky1)">
@@ -42,6 +44,7 @@
     <param from="$(var down_params)"/>
     <param name="robot" value="pinky1"/>
     <param name="side" value="pc"/>
+    <param name="robot_domain" value="$(var pinky1_domain)"/>
     <param name="host" value="$(var host)"/>
     <param name="port" value="$(var port)"/>
     <param name="enable_down" value="$(var down_on)"/>
@@ -56,6 +59,7 @@
     <param from="$(var down_params)"/>
     <param name="robot" value="pinky2"/>
     <param name="side" value="pc"/>
+    <param name="robot_domain" value="$(var pinky2_domain)"/>
     <param name="host" value="$(var host)"/>
     <param name="port" value="$(var port)"/>
     <param name="enable_down" value="$(var down_on)"/>
@@ -70,6 +74,7 @@
     <param from="$(var down_params)"/>
     <param name="robot" value="pinky3"/>
     <param name="side" value="pc"/>
+    <param name="robot_domain" value="$(var pinky3_domain)"/>
     <param name="host" value="$(var host)"/>
     <param name="port" value="$(var port)"/>
     <param name="enable_down" value="$(var down_on)"/>
@@ -81,7 +86,7 @@
   <!-- 로봇 쪽(pinky1): ssh -tt 라서 이 launch 를 Ctrl+C 로 끄면 로봇 쪽 노드도 같이 끝난다.
        서비스 mqtt_bridge_robot 이 켜져 있으면 시작하지 않는다. 코드는 ~/mqtt_bridge 에 복사해 둔 것을 쓴다(빌드 불필요).
        원격 명령은 <let> 으로 따로 두어 ssh 에 한 인자로 넘긴다(cmd 속성은 치환마다 따로 쪼개져 따옴표를 걸칠 수 없다). -->
-  <let name="robot_script" value="systemctl is-active --quiet mqtt_bridge_robot &amp;&amp; { echo &quot;[mqtt_bridge] mqtt_bridge_robot 서비스가 켜져 있어 로봇 쪽을 시작하지 않는다: sudo systemctl stop mqtt_bridge_robot&quot;; exit 3; }; source /opt/ros/jazzy/setup.bash; export ROS_DOMAIN_ID=$(var robot_domain) RMW_IMPLEMENTATION=rmw_cyclonedds_cpp CYCLONEDDS_URI=file:///home/pinky/.ros/cyclonedds_robot.xml PYTHONPATH=/home/pinky/mqtt_bridge/cobot_mqtt_bridge:$PYTHONPATH; exec python3 -m cobot_mqtt_bridge.mqtt_bridge_node --ros-args --params-file /home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_bridge.yaml $(var robot_extra) -p robot:=pinky1 -p side:=robot -p bridge_config:=/home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_topics_pinky1.yaml -p duration_sec:=$(var duration_sec) -r __node:=mqtt_bridge_pinky1_robot"/>
+  <let name="robot_script" value="systemctl is-active --quiet mqtt_bridge_robot &amp;&amp; { echo &quot;[mqtt_bridge] mqtt_bridge_robot 서비스가 켜져 있어 로봇 쪽을 시작하지 않는다: sudo systemctl stop mqtt_bridge_robot&quot;; exit 3; }; source /opt/ros/jazzy/setup.bash; export ROS_DOMAIN_ID=$(var pinky1_domain) RMW_IMPLEMENTATION=rmw_cyclonedds_cpp CYCLONEDDS_URI=file:///home/pinky/.ros/cyclonedds_robot.xml PYTHONPATH=/home/pinky/mqtt_bridge/cobot_mqtt_bridge:$PYTHONPATH; exec python3 -m cobot_mqtt_bridge.mqtt_bridge_node --ros-args --params-file /home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_bridge.yaml $(var robot_extra) -p robot:=pinky1 -p side:=robot -p robot_domain:=$(var pinky1_domain) -p bridge_config:=/home/pinky/mqtt_bridge/cobot_mqtt_bridge/config/mqtt_topics_pinky1.yaml -p duration_sec:=$(var duration_sec) -r __node:=mqtt_bridge_pinky1_robot"/>
   <executable cmd="ssh -tt -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=3 $(var robot_host) $(var robot_script)"
               output="screen" shell="false" if="$(eval &quot;'$(var robot_remote)' == 'true' and '$(var pinky1)' == 'true'&quot;)"/>
 </launch>

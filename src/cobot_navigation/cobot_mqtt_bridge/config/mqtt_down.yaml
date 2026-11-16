@@ -1,9 +1,16 @@
 # mode:=cmd(명령 모드)에서 mqtt_bridge.yaml 위에 덧씌우는 값. 관제·로봇 양쪽 노드가 같이 읽는다.
-# 열 명령은 patrol_cmd 하나뿐이다 (아래 제외 목록이 나머지 down 토픽을 막는다).
-# [TODO] watchdog_ms, max_linear, max_angular 는 시험용 제안 값이다. 팀이 정하면 여기만 고친다.
+# 결정 A0(2026-11-16): domain_bridge 와 같게 관제→로봇 7개를 모두 연다.
+#   patrol_cmd, cmd_vel, initialpose, goal_pose, fleet_heartbeat, zone_manager grant_entry·queue_slot
+# 특정 명령을 다시 막으려면 exclude_patterns 에 패턴을 넣는다. 예: ["/cmd_vel", "/goal_pose"]
+#
+# cmd_vel 보호 (결정 A0: 워치독만 유지)
+#   watchdog_ms 는 통신이 끊겼을 때 로봇을 세우는 장치라 유지한다.
+#   속도 상한은 사실상 제한하지 않도록 핑키 최대 속도 수준으로 둔다. 실제 로봇 도메인에서는
+#   셋 다 0 보다 커야 노드가 시작하므로 0 으로 두지 않는다.
+#   [TODO] max_linear/max_angular 는 핑키 최대 속도 추정값이다. B3 실물 시험에서 확인 후 고친다.
 "/**":
   ros__parameters:
-    exclude_patterns: ["*/lane/*", "*/crossline/*", "/cmd_vel", "/goal_pose", "/initialpose", "/zone_manager/*"]
+    exclude_patterns: [""]
     watchdog_ms: 500.0
-    max_linear: 0.15
-    max_angular: 0.4
+    max_linear: 0.3
+    max_angular: 1.5

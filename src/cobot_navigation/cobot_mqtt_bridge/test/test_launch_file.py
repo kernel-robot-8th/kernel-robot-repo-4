@@ -64,7 +64,7 @@ def test_one_line_launch_defaults():
     args = args_of(LAUNCH)
     assert args['mode'] == 'read'
     assert (args['pinky1'], args['pinky2'], args['pinky3']) == ('true', 'false', 'false')
-    assert args['pc_domain'] == '200' and args['robot_domain'] == '10'
+    assert args['pc_domain'] == '200'
 
 
 def test_cmd_mode_opens_down_only_in_cmd():
@@ -78,3 +78,13 @@ def test_robot_side_refuses_when_service_is_active():
     text = LAUNCH.read_text(encoding='utf-8')
     assert 'systemctl is-active --quiet mqtt_bridge_robot' in text
     assert 'ssh -tt' in text
+
+
+def test_each_robot_gets_its_own_domain():
+    # 결정 A0: pinky1/2/3 = 10/20/30. 관제 쪽 노드도 이 값으로 토픽 방향을 가른다.
+    args = args_of(LAUNCH)
+    assert (args['pinky1_domain'], args['pinky2_domain'], args['pinky3_domain']) == (
+        '10', '20', '30')
+    for node in ET.parse(LAUNCH).getroot().iter('node'):
+        params = {p.get('name'): p.get('value') for p in node.iter('param') if p.get('name')}
+        assert params['robot_domain'] == f"$(var {params['robot']}_domain)"

@@ -1,15 +1,15 @@
 # cobot_mqtt_bridge
 
-로봇(pinky1~3, ROS 도메인 10)과 관제 PC(ROS 도메인 200) 사이의 ROS 2 토픽을 MQTT로 중계하는 ROS 2 Python 패키지입니다.
+로봇(pinky1/2/3, ROS 도메인 10/20/30)과 관제 PC(ROS 도메인 200, 운영 전환 후 100) 사이의 ROS 2 토픽을 MQTT로 중계하는 ROS 2 Python 패키지입니다.
 
 ![cobot_mqtt_bridge 구성도](docs/architecture.svg)
 
 ## 주요 기능
 - **로봇 → 관제(up):** 로봇의 `/scan`, `/odom`, `/tf`, `/amcl_pose`, 배터리 등 값을 MQTT로 보내 관제 PC의 도메인 200에 `/pinky1/...` 이름으로 다시 발행합니다. 기본으로 켜져 있습니다.
-- **관제 → 로봇(down):** `patrol_cmd` 같은 명령을 MQTT로 보내 로봇 도메인 10에 발행합니다. **로봇이 움직일 수 있어 기본은 꺼져 있고** `enable_down:=true`를 줘야 켜집니다.
+- **관제 → 로봇(down):** `patrol_cmd`, `cmd_vel`, `goal_pose`, `initialpose`, `fleet_heartbeat`, `/zone_manager/grant_entry·queue_slot` 7개를 MQTT로 보내 로봇 도메인에 발행합니다. **로봇이 움직일 수 있어 기본은 꺼져 있고** `enable_down:=true`를 줘야 켜집니다.
 - **안전장치:** 실제 도메인(10, 200)에 발행하려면 `confirm_real_domain`을 명시해야 합니다. `cmd_vel`은 속도 상한, 오래된 메시지 폐기, 워치독을 거칩니다. 관제 역할은 도메인 10에 발행하지 않습니다. 부하(load)가 `load_abort`(3.0)를 넘으면 로봇 쪽 중계를 스스로 멈춥니다.
 - **연결 보안:** MQTT 브로커는 관제 PC의 `127.0.0.1:1883`에만 열고, 로봇은 SSH 역방향 터널로 접속합니다.
-- **로봇별 토픽 목록:** `config/mqtt_topics_pinky1~3.yaml` 로 로봇마다 중계할 토픽을 따로 정합니다.
+- **로봇별 토픽 목록:** `config/mqtt_topics_pinky1~3.yaml` 로 로봇마다 중계할 토픽을 따로 정합니다. 방향(up/down)은 로봇 도메인(`robot_domain`) 값으로 가르므로 관제 도메인을 바꿔도 이 파일은 고치지 않습니다. 도메인 값이 맞지 않으면 노드가 시작하지 않습니다.
 - 기존 `cobot_domain_bridge`(DDS 방식)와 별개이며, **같은 도메인에서 동시에 켜지 않습니다.**
 
 ## 설치 방법
@@ -54,7 +54,7 @@ systemctl is-active mosquitto mqtt_bridge_tunnel
 ```bash
 cd ~/dev_ws/kernel-robot-repo-4/src/cobot_navigation/cobot_mqtt_bridge
 source /opt/ros/jazzy/setup.bash
-python3 -m pytest test -q          # 57 passed
+python3 -m pytest test -q
 ```
 
 ### 2. 가짜 모드 (로봇 없이, 이 PC 안에서만) — 터미널 4개
@@ -89,8 +89,8 @@ ros2 daemon stop; ros2 topic hz /pinky1/scan --no-daemon                    # �
 ```bash
 ros2 launch cobot_mqtt_bridge mqtt_bridge.launch.xml mode:=cmd
 ```
-- `mode:=cmd`가 `enable_down`, 확인 값, 보호 값 파일(`config/mqtt_down.yaml`)을 양쪽에 자동으로 붙입니다. 열리는 명령은 `patrol_cmd` 하나뿐입니다.
-- 보호 값(`watchdog_ms` 500, `max_linear` 0.15, `max_angular` 0.4)은 시험용 제안이며 팀 합의 전입니다. 합의되면 `config/mqtt_down.yaml`만 고칩니다. [TODO]
+- `mode:=cmd`가 `enable_down`, 확인 값, 보호 값 파일(`config/mqtt_down.yaml`)을 양쪽에 자동으로 붙입니다. 관제→로봇 7개가 모두 열립니다. 다시 막으려면 `mqtt_down.yaml`의 `exclude_patterns`에 넣습니다.
+- 보호 값은 워치독만 실제로 쓰고(`watchdog_ms` 500), 속도 상한은 핑키 최대 속도 수준(`max_linear` 0.3, `max_angular` 1.5)으로 두어 사실상 제한하지 않습니다(결정 A0). 실제 도메인에서는 셋 다 0보다 커야 시작합니다. 속도 값은 추정값이라 실물 시험에서 확인합니다. [TODO]
 - pinky1의 서비스 `mqtt_bridge_robot`이 켜져 있으면 로봇 쪽은 시작하지 않고 이유를 출력합니다(관제 쪽만 켜짐).
 - `Ctrl+C`로 끌 때 로봇 쪽 노드까지 같이 끝나는지는 실물에서 아직 확인하지 못했습니다. 끈 뒤 아래로 확인하세요. [TODO]
 ```bash
@@ -128,7 +128,8 @@ python3 pinky_control_client.py pinky1 goto P1          # 정지: pinky1 emergen
 |---|---|---|
 | `mode` | `read` | `read` 값 보기, `cmd` 명령 모드 |
 | `pinky1` / `pinky2` / `pinky3` | `true` / `false` / `false` | 관제 쪽 노드를 켤 로봇. 로봇 쪽 자동 시작은 pinky1만 됩니다. |
-| `pc_domain` / `robot_domain` | `200` / `10` | 시험은 `pc_domain:=102` |
+| `pc_domain` | `200` | 관제 쪽 도메인. 운영 전환 때 `100` |
+| `pinky1_domain` / `pinky2_domain` / `pinky3_domain` | `10` / `20` / `30` | 로봇별 도메인. 토픽 YAML 의 방향 판정 기준 |
 | `robot_remote` | `true` | `false`면 ssh로 로봇 쪽을 켜지 않음 (관제 쪽만) |
 | `robot_host` | `pinky@192.168.45.21` | 로봇 ssh 주소 |
 | `cyclonedds_uri` | `file://$HOME/.ros/cyclonedds_pc.xml` | 관제 쪽 DDS 설정 |
@@ -157,8 +158,8 @@ cobot_mqtt_bridge/
 ## 아직 확인하지 못한 것 [TODO]
 - pinky2, pinky3의 실물 시험은 하지 않았습니다. launch의 로봇 쪽 자동 시작은 pinky1만 지원하고, pinky2·3의 주소와 코드 복사는 정해지지 않았습니다.
 - `stop`, `emergency_stop`, `zone`(`/zone_manager/*`) 명령은 실물에서 시험하지 않았습니다.
-- 보호 값(`watchdog_ms` 500, `max_linear` 0.15, `max_angular` 0.4)은 제안이며 팀 합의 전입니다.
-- 로봇 3대를 모두 도메인 10으로 통일했으므로, 각 로봇의 DDS를 루프백 전용으로 두는 설정과 `ROS_DOMAIN_ID` 확인이 필요합니다.
+- `max_linear` 0.3, `max_angular` 1.5는 핑키 최대 속도 추정값입니다. 실물에서 확인이 필요합니다.
+- 로봇 도메인은 10/20/30을 유지합니다(결정 A0). 각 로봇의 DDS를 루프백 전용으로 두는 설정은 전환 단계(B4)에서 합니다.
 - 다른 팀의 DDS 브릿지는 도메인 100을 씁니다. 도메인 10에서 `patrol_cmd`를 발행하는 노드가 따로 있어, 명령이 겹치지 않는지 확인이 필요합니다.
 - 로봇끼리 위치·경로를 공유하는 기능은 아직 없습니다. 설계 논의 단계입니다.
 

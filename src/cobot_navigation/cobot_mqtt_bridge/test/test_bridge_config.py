@@ -21,6 +21,9 @@ import pytest
 
 CONFIG_DIR = Path(__file__).resolve().parents[1] / 'config'
 PINKY1 = CONFIG_DIR / 'mqtt_topics_pinky1.yaml'
+ROBOT_DOMAINS = {'pinky1': 10, 'pinky2': 20, 'pinky3': 30}  # 결정 A0: 10/20/30 유지
+DOWN_TOPICS = {'/patrol_cmd', '/cmd_vel', '/initialpose', '/goal_pose', '/fleet_heartbeat',
+               '/zone_manager/grant_entry', '/zone_manager/queue_slot'}
 
 needs_yaml = pytest.mark.skipif(not PINKY1.exists(), reason='MQTT 토픽 YAML 이 없음')
 
@@ -32,9 +35,9 @@ def by_robot_topic(rules):
 @needs_yaml
 def test_pinky1_direction_counts():
     rules = load_rules(PINKY1, 'pinky1', BridgeSettings())
-    assert len(rules) == 21
-    assert sum(rule.direction == UP for rule in rules) == 15
-    assert sum(rule.direction == DOWN for rule in rules) == 6
+    assert len(rules) == 19
+    assert sum(rule.direction == UP for rule in rules) == 12
+    assert sum(rule.direction == DOWN for rule in rules) == 7
 
 
 @needs_yaml
@@ -62,12 +65,19 @@ def test_topic_without_remap_keeps_same_name():
 
 
 @needs_yaml
-def test_exclude_patterns_drop_lane_topics():
-    settings = BridgeSettings(exclude_patterns=('*/lane/*', '*/crossline/*'))
-    rules = load_rules(PINKY1, 'pinky1', settings)
-    assert len(rules) == 18
+def test_lane_topics_removed():
+    # 결정 A0: 차선 토픽은 쓰지 않는다. 목록에서 지웠으므로 제외 패턴 없이도 없어야 한다.
+    rules = load_rules(PINKY1, 'pinky1', BridgeSettings())
     assert not any('lane' in rule.robot_topic or 'crossline' in rule.robot_topic
                    for rule in rules)
+
+
+@needs_yaml
+def test_exclude_patterns_drop_matching_topics():
+    settings = BridgeSettings(exclude_patterns=('/cmd_vel', '/goal_pose'))
+    names = set(by_robot_topic(load_rules(PINKY1, 'pinky1', settings)))
+    assert '/cmd_vel' not in names and '/goal_pose' not in names
+    assert '/patrol_cmd' in names
 
 
 @needs_yaml
@@ -82,11 +92,11 @@ def test_latched_and_rate_limit_applied():
     assert rules['/odom'].max_rate_hz == 0.0
 
 
-@pytest.mark.parametrize('name,total', [('pinky1', 21), ('pinky2', 18), ('pinky3', 18)])
+@pytest.mark.parametrize('name,total', [('pinky1', 19), ('pinky2', 19), ('pinky3', 19)])
 def test_all_robot_configs_parse(name, total):
     path = CONFIG_DIR / f'mqtt_topics_{name}.yaml'
     assert path.exists(), f'{path} 가 없다'
-    rules = load_rules(path, name, BridgeSettings())
+    rules = load_rules(path, name, BridgeSettings(robot_domain=ROBOT_DOMAINS[name]))
     assert len(rules) == total
     assert len({rule.mqtt_topic for rule in rules}) == len(rules)
     assert all(rule.mqtt_topic.startswith(f'mqtt_bridge/{name}/') for rule in rules)
@@ -125,3 +135,46 @@ def test_mqtt_topic_name():
 def test_status_topic_name():
     assert status_topic_name('mqtt_bridge', 'pinky1', 'robot') == 'mqtt_bridge/pinky1/status/robot'
     assert status_topic_name('mqtt_bridge', 'pinky1', 'pc') == 'mqtt_bridge/pinky1/status/pc'
+
+
+@pytest.mark.parametrize('name', sorted(ROBOT_DOMAINS))
+def test_every_robot_opens_all_down_topics(name):
+    # 결정 A0: 관제→로봇 7개를 모두 연다 (fleet_heartbeat 포함)
+    path = CONFIG_DIR / f'mqtt_topics_{name}.yaml'
+    rules = load_rules(path, name, BridgeSettings(robot_domain=ROBOT_DOMAINS[name]))
+    down = {rule.robot_topic for rule in rules if rule.direction == DOWN}
+    assert down == DOWN_TOPICS
+
+
+@pytest.mark.parametrize('name', sorted(ROBOT_DOMAINS))
+def test_heartbeat_goes_down_to_robot_name(name):
+    path = CONFIG_DIR / f'mqtt_topics_{name}.yaml'
+    rules = load_rules(path, name, BridgeSettings(robot_domain=ROBOT_DOMAINS[name]))
+    rule = by_robot_topic(rules)['/fleet_heartbeat']
+    assert rule.direction == DOWN
+    assert rule.pc_topic == f'/{name}/fleet_heartbeat'
+
+
+@needs_yaml
+def test_direction_does_not_depend_on_pc_domain(tmp_path):
+    # 관제 도메인이 200(시험)이든 100(운영)이든 YAML 을 고치지 않고 같은 규칙이 나와야 한다.
+    text = PINKY1.read_text(encoding='utf-8')
+    moved = tmp_path / 'mqtt_topics_pinky1.yaml'
+    moved.write_text(text.replace('domain: 200', 'domain: 100'), encoding='utf-8')
+    before = load_rules(PINKY1, 'pinky1', BridgeSettings())
+    after = load_rules(moved, 'pinky1', BridgeSettings())
+    assert before == after
+
+
+@pytest.mark.parametrize('name,wrong', [('pinky2', 10), ('pinky3', 20)])
+def test_wrong_robot_domain_raises(name, wrong):
+    # 도메인이 맞지 않으면 아무것도 중계하지 않은 채 켜지지 않고 바로 오류를 낸다.
+    path = CONFIG_DIR / f'mqtt_topics_{name}.yaml'
+    with pytest.raises(ValueError, match=f'robot_domain={wrong}'):
+        load_rules(path, name, BridgeSettings(robot_domain=wrong))
+
+
+def test_empty_topic_yaml_is_not_an_error(tmp_path):
+    path = tmp_path / 'mqtt_topics_empty.yaml'
+    path.write_text('topics:\n', encoding='utf-8')
+    assert load_rules(path, 'pinky1', BridgeSettings()) == []

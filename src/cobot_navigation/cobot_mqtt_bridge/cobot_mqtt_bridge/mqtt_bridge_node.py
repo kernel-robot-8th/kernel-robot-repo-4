@@ -196,7 +196,7 @@ class MqttBridge:
         if self._side not in SIDES:
             return f'side 는 {"/".join(SIDES)} 중 하나여야 한다 (현재 {self._side!r})'
         settings = BridgeSettings(
-            pc_domain=int(self._param('pc_domain')),
+            robot_domain=int(self._param('robot_domain')),
             topic_prefix=self._param('topic_prefix'),
             exclude_patterns=self._list_param('exclude_patterns'),
             latched_topics=self._list_param('latched_topics'),

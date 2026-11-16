@@ -9,13 +9,14 @@
     keepalive_sec: 30
     topic_prefix: "mqtt_bridge"
 
-    # 관제 PC 쪽 ROS 도메인 번호 (브릿지 YAML 에서 to_domain 이 이 값이면 로봇→관제 방향)
+    # 관제 PC 쪽 ROS 도메인 번호. 관제 쪽 발행 허용 여부(confirm_real_domain) 확인에 쓴다.
     pc_domain: 200
-    # 로봇 쪽 ROS 도메인 번호 (실제 로봇에 명령을 발행하려면 confirm_real_domain 으로 확인해야 함)
+    # 로봇 쪽 ROS 도메인 번호. 토픽 YAML 의 방향(up/down)을 이 값으로 가른다.
+    # pinky1/2/3 = 10/20/30. launch 는 pinkyN_domain 인자로 로봇마다 넣는다.
     robot_domain: 10
 
-    # 사용하지 않기로 한 토픽 (로봇 쪽 이름 기준, fnmatch 패턴)
-    exclude_patterns: ["*/lane/*", "*/crossline/*"]
+    # 중계에서 뺄 토픽 (fnmatch 패턴). 차선 토픽은 토픽 목록에서 지웠으므로 비워 둔다.
+    exclude_patterns: [""]
 
     # 마지막 값을 보관하는 토픽: ROS transient_local + MQTT retain
     latched_topics: ["/tf_static", "/amcl_pose"]
