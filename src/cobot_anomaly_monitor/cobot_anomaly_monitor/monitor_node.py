@@ -64,7 +64,7 @@ class AnomalyMonitorNode(Node):
             # 판정 없이 바로 성공으로 답할 대상. 빈 문자열만 있으면 끔(ROS 는 빈 목록 타입을 못 정한다)
             'auto_targets': [''],
             # 같은 결과 토픽에 함께 있어도 되는 노드와, 그 노드가 맡는 대상
-            'peer_result_nodes': ['arm_adapter'],
+            'peer_result_nodes': ['arm_adapter', 'omx1_adapter', 'omx2_adapter', 'omx3_adapter'],
             'peer_targets': ['omx1', 'omx2', 'omx3'],
             'allow_mock_events': True,
             'console_commands': False, 'observation_only': False,

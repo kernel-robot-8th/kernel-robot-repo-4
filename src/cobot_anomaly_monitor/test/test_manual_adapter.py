@@ -258,6 +258,16 @@ def test_auto_dock_waits_until_the_robot_stops_then_reports_pose_error(fx):
     assert fx.adapter.retry_auto() == [] and len(fx.results) == 1
 
 
+def test_auto_dock_waits_while_odom_is_missing(fx):
+    fx.state['speed_mps'] = None
+    request = auto_fx(fx).request('DOCK_PICKUP')
+    fx.adapter.on_request(request)
+    assert fx.results == [] and state_of(fx, request) == 'PENDING'
+    fx.state['speed_mps'] = 0.0
+    (result,) = fx.adapter.retry_auto()
+    assert result['data']['stopped'] is True
+
+
 def test_auto_retry_leaves_requests_past_the_stage_timeout(fx):
     fx.state['speed_mps'] = 0.2
     request = auto_fx(fx).request('DOCK_PICKUP', timeout_sec=10.0)

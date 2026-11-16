@@ -10,8 +10,8 @@ anomaly_monitor:
     manual_targets: [vision, navigation, omx1, omx2, omx3]
     # 판정 없이 바로 성공으로 답할 대상(통신 연결용). 끄려면 ['']. 켜려면 [vision, navigation]
     auto_targets: ['']
-    # 팀 팔 노드(arm_adapter)가 같은 도메인에 있으면 팔 대상은 그쪽에 맡긴다
-    peer_result_nodes: [arm_adapter]
+    # 팀 팔 노드가 같은 도메인에 있으면 팔 대상은 그쪽에 맡긴다 (arm_station.launch.xml 의 노드 이름)
+    peer_result_nodes: [arm_adapter, omx1_adapter, omx2_adapter, omx3_adapter]
     peer_targets: [omx1, omx2, omx3]
     allow_mock_events: false                    # 모의 이벤트 주입. 시뮬에서만 켠다
     console_commands: false                     # 콘솔 명령. 시뮬에서만 켠다

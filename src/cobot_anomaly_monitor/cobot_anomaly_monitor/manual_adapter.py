@@ -95,6 +95,8 @@ class ManualAdapter:
             return None  # 적재 결합 시험은 근거 3장과 팔 확인으로만 답한다
         try:
             data = dict(self._evidence(request, None), decision=AUTO_DECISION, unjudged=True)
+            if data.get('stopped') is False:
+                return None  # /odom 이 없어 정지를 모른다. 이대로 답하면 관제가 받지 않고 단계가 멈춘다
             return self._finish(request, 'APPROVED', True, '자동 응답(판정 기준 미적용)', data,
                                 AUTO_OPERATOR)
         except (KeyError, ValueError):
