@@ -92,9 +92,9 @@ lerobot 은 연결·해제 때 토크를 꺼서 팔이 떨어지고 물건을 �
 
 | 실행기 event | 어댑터 처리 |
 |---|---|
-| `ready` | ARMED. 그 전 요청은 거절 (retry_safe) |
+| `ready` | ARMED. 그 전 요청은 거절 (retry_safe). `actions`·`models`·`rest_pose`·`safe_tol` 을 info 토픽으로 넘긴다 (끈 뒤에도 마지막 값 유지) |
 | `started` | 없음 |
-| `done` | **`success` 와 `arm_safe` 가 둘 다 true 일 때만 성공**. `data` 에 `arm_safe`·`end_reason`·`success_basis`·`pose_error`·`joints` |
+| `done` | **`success` 와 `arm_safe` 가 둘 다 true 일 때만 성공**. `data` 에 `arm_safe`·`end_reason`·`success_basis`·`pose_error`·`joints`·`model` (`omx_pick_za@v1`) |
 | `rejected` | 움직이기 전 거절 → retry_safe 실패 |
 | `fatal` / 프로세스 끝남 | FAULT, 이후 모든 작업 거절. 저절로 다시 띄우지 않는다 (정상 `released` 뒤 끝남은 제외) |
 | `state` | `ArmStatus` 관절 갱신 (`state_poll_sec` 마다 요청) |
@@ -108,11 +108,9 @@ lerobot 은 연결·해제 때 토크를 꺼서 팔이 떨어지고 물건을 �
 ### 3-2. 팔 실행기 `omx_fleet`
 
 팔 팀 `omx_chain.py` 의 함수를 그대로 쓴다. 팔별 설정은 `omx_fleet/fleet_arms.yaml` (git 제외, `fleet_arms.example.yaml` 을 복사).
-
-| action | 모델 | 시간 |
-|---|---|---|
-| `pick` | `omx_shoebox_d/models/act_shoebox_d_5000step` | 90 s |
-| `load` | `omx_move_in_success/models/act_move_in_5000step` | 90 s |
+모델은 action 마다 **번들·버전**으로 고른다: `{bundle: omx_pick_za, version: v1, seconds: 90}` →
+`~/il_ws/bundles/omx_pick_za/v1/models/<모델>`. 번들 구조·이름·버전 규칙은 `omx_fleet/README.md` "모델 번들 규격" 이 정본이다.
+예전처럼 `model:` 경로를 적어도 되지만 관제에는 버전 없이 폴더 이름만 보인다.
 
 - 순서: 모델의 `init_pose.json` 으로 이동 → 정책 실행 → 안전 자세로 이동(그리퍼 제외) → 다시 재서 판정.
 - `success`: `success.json` 의 YOLO 판단이 성공일 때만. **지금은 판단 모델이 없어 항상 false** → 관제는 주문을 보류한다 (가짜 성공을 보내지 않음).
@@ -143,6 +141,11 @@ ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake  # 팔 3대 
 | `/control_center/omx_1/command` | `ArmCommand` | 관제 → 팔 노드 | RELIABLE, VOLATILE, depth 10 |
 | `/manipulation/omx_1/command_ack` | `CommandAck` | 팔 노드 → 관제 | RELIABLE, VOLATILE, depth 50 |
 | `/manipulation/omx_1/status` | `ArmStatus` | 팔 노드 → 관제, 10 Hz | BEST_EFFORT, VOLATILE, depth 1 |
+| `/manipulation/omx_1/info` | `std_msgs/String` (JSON) | 팔 노드 → 관제, 바뀔 때 + 5 s | RELIABLE, TRANSIENT_LOCAL, depth 1 |
+
+`info` 는 `ArmStatus` 에 칸이 없는 설정·실행기 정보다 (msg 는 바꾸지 않는다, `arm_info_utils.make_info`):
+`{v, arm_id, interface_arm_id, boot_id, backend, detect: {state, reason, port}, power, worker: {ready, actions, models, rest_pose, safe_tol | fake}, dead, at}`.
+관제 팔 카드가 켜기 막힘 이유·작업별 모델·쉬는 자세 차이를 보이는 데 쓴다.
 
 ### 전원 상태 흐름
 

@@ -32,6 +32,7 @@ import uuid
 from builtin_interfaces.msg import Time
 from cobot_interfaces.msg import ArmCommand, ArmStatus, CommandAck
 from cobot_manipulation import arm_backend_utils as backends
+from cobot_manipulation import arm_info_utils as info_utils
 from cobot_manipulation import arm_power_utils as power
 from cobot_manipulation import arm_registry_utils as registry_utils
 from cobot_manipulation import work_contract_utils as contract
@@ -49,6 +50,9 @@ EVENT_QOS = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.VOLATILE)
 TELEMETRY_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT,
                            durability=DurabilityPolicy.VOLATILE)
+# 설정성 정보: 늦게 붙은 관제도 마지막 값을 받게 TRANSIENT_LOCAL (CLAUDE.md §7)
+INFO_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                      durability=DurabilityPolicy.TRANSIENT_LOCAL)
 GRIPPER_KEY = 'gripper.pos'
 
 
@@ -85,6 +89,8 @@ class ArmAdapterNode(Node):
             'command_topic': '',
             'status_topic': '',
             'ack_topic': '',
+            'info_topic': '',
+            'info_period_sec': 5.0,
             'auto_start': False,
             'status_period_sec': 0.1,
             'state_poll_sec': 1.0,
@@ -144,11 +150,15 @@ class ArmAdapterNode(Node):
             'command': value['command_topic'] or f'/control_center/{self.iid}/command',
             'status': value['status_topic'] or f'/manipulation/{self.iid}/status',
             'ack': value['ack_topic'] or f'/manipulation/{self.iid}/command_ack',
+            'info': value['info_topic'] or f'/manipulation/{self.iid}/info',
         }
+        self.info_period_sec = value['info_period_sec']
+        self.last_info, self.last_info_at = None, 0.0
 
         self.result_pub = self.create_publisher(String, value['result_topic'], 50)
         self.status_pub = self.create_publisher(ArmStatus, topics['status'], TELEMETRY_QOS)
         self.ack_pub = self.create_publisher(CommandAck, topics['ack'], EVENT_QOS)
+        self.info_pub = self.create_publisher(String, topics['info'], INFO_QOS)
         self.create_subscription(String, value['request_topic'], self._on_request, 50)
         self.create_subscription(ArmCommand, topics['command'], self._on_command, COMMAND_QOS)
         self._detect()
@@ -158,7 +168,8 @@ class ArmAdapterNode(Node):
         self.get_logger().info(
             f'{self.arm_id} 시작: backend={self.backend.name}, 전원 {self.power} '
             f'(auto_start={self.auto_start}), 요청 {value["request_topic"]} → 결과 '
-            f'{value["result_topic"]}, 명령 {topics["command"]}, 상태 {topics["status"]}')
+            f'{value["result_topic"]}, 명령 {topics["command"]}, 상태 {topics["status"]}, '
+            f'정보 {topics["info"]}')
 
     def _detect(self):
         state, port, reason = registry_utils.detect(
@@ -320,6 +331,19 @@ class ArmAdapterNode(Node):
                 and now - self.last_state_poll >= self.state_poll_sec):
             self.last_state_poll = now
             self.backend.request_state(now)
+        self._publish_info(now)
+
+    def _publish_info(self, now):
+        """백엔드·탐지·실행기 정보. 바뀌면 바로, 아니면 info_period_sec 마다 낸다."""
+        info = info_utils.make_info(
+            self.arm_id, self.iid, self.boot_id, self.backend.name, self.backend.ready,
+            self.backend.worker_info, (self.state, self.reason, self.port), self.power,
+            self.backend.dead, now)
+        if (not info_utils.info_changed(self.last_info, info)
+                and now - self.last_info_at < self.info_period_sec):
+            return
+        self.last_info, self.last_info_at = info, now
+        self.info_pub.publish(String(data=info_utils.encode(info)))
 
     def _tick_release(self):
         ack, deadline, before = self.pending_reset

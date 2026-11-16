@@ -35,6 +35,8 @@ import subprocess
 import threading
 import time
 
+from cobot_manipulation import arm_info_utils as info_utils
+
 # 실물이 쓰는 도메인. cobot_mock 과 같은 규칙이다 (코드는 import 하지 않는다, CLAUDE.md 3-6).
 FORBIDDEN_DOMAINS = frozenset({0, 10, 12, 20, 30, 100})
 
@@ -77,6 +79,8 @@ class ArmBackend:
         self.joints_at = None
         self.release_result = None
         self.release_moving = None
+        # 관제에 보일 실행기 정보 (모델·쉬는 자세). 끈 뒤에도 마지막 값을 남긴다 (arm_info_utils).
+        self.worker_info = {}
 
     def busy(self):
         """작업 중인지."""
@@ -152,6 +156,7 @@ class FakeBackend(ArmBackend):
 
     def attach(self, port, now):
         self.ready = True
+        self.worker_info = {'fake': True}
 
     def running(self):
         return self.ready
@@ -201,7 +206,7 @@ def judge_done(event):
     """
     arm_safe = event.get('arm_safe') is True
     data = {'arm_safe': arm_safe}
-    for key in ('end_reason', 'success_basis', 'pose_error', 'joints'):
+    for key in ('end_reason', 'success_basis', 'pose_error', 'joints', 'model'):
         if key in event:
             data[key] = event[key]
     if event.get('success') is not True:
@@ -382,6 +387,7 @@ class WorkerBackend(ArmBackend):
             self.release_result = (False, str(event.get('detail') or '거절'))
         elif kind == 'ready':
             self.ready = True
+            self.worker_info = info_utils.worker_info_from_ready(event)
             self.log(f'{self.arm_id} 실행기 준비 완료: {event.get("actions")}')
         elif kind == 'fatal':
             self.dead = f'실행기 오류: {event.get("detail")}'

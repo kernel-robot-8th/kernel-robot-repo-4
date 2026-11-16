@@ -36,7 +36,9 @@ if mode == 'fatal':
     emit(event='fatal', detail='모델 없음')
     sys.exit(2)
 joints = {'shoulder_pan.pos': 1.0, 'gripper.pos': 50.0}
-emit(event='ready', actions=['pick'], joints=joints)
+emit(event='ready', actions=['pick'], joints=joints,
+     models={'pick': {'bundle': 'omx_pick_za', 'version': 'v1'}, 'bad': 'x'},
+     rest_pose={'shoulder_pan': 1.0, 'bad': 'x'}, safe_tol=3.0)
 for line in sys.stdin:
     msg = json.loads(line)
     if msg['cmd'] == 'quit':
@@ -125,6 +127,20 @@ def test_runs_job_and_succeeds_only_with_success_and_arm_safe():
     assert 'retry_safe' not in data and not backend.busy()
     backend.shutdown()
     assert backend.process.wait(timeout=5) == 0
+
+
+def test_ready_keeps_worker_info_and_done_keeps_model():
+    backend, _ = worker(done={'success': True, 'arm_safe': True, 'model': 'omx_pick_za@v1'})
+    assert backend.worker_info == {}
+    ready(backend)
+    assert backend.worker_info == {
+        'actions': ['pick'], 'models': {'pick': {'bundle': 'omx_pick_za', 'version': 'v1'}},
+        'rest_pose': {'shoulder_pan': 1.0}, 'safe_tol': 3.0}
+    assert backend.start(request(), PORT, NOW) is None
+    [(_, success, data, _)] = wait(backend, until=lambda _, f: f)
+    assert success is True and data['model'] == 'omx_pick_za@v1'
+    backend.shutdown()
+    assert backend.worker_info['actions'] == ['pick']  # 끈 뒤에도 마지막 값을 남긴다
 
 
 @pytest.mark.parametrize('done, part', [
