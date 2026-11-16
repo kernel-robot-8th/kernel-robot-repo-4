@@ -1,0 +1,49 @@
+# MQTT 브릿지 파라미터. 토픽 목록은 여기에 적지 않고 config/mqtt_topics_<로봇>.yaml 에서 읽는다(DDS 브릿지 YAML 과 별개).
+# 사용: ros2 run cobot_mqtt_bridge mqtt_bridge_node --ros-args --params-file <이 파일> -p robot:=pinky1 -p side:=pc
+# 최상위 키가 /** 라서 launch 가 붙이는 노드 이름(mqtt_bridge_pinky1 등)에도 그대로 적용된다.
+"/**":
+  ros__parameters:
+    # 브로커. 관제 PC localhost 전용이고 pinky1 은 SSH 역방향 터널로 접속한다.
+    host: "127.0.0.1"
+    port: 1883
+    keepalive_sec: 30
+    topic_prefix: "mqtt_bridge"
+
+    # 관제 PC 쪽 ROS 도메인 번호 (브릿지 YAML 에서 to_domain 이 이 값이면 로봇→관제 방향)
+    pc_domain: 200
+    # 로봇 쪽 ROS 도메인 번호 (실제 로봇에 명령을 발행하려면 confirm_real_domain 으로 확인해야 함)
+    robot_domain: 10
+
+    # 사용하지 않기로 한 토픽 (로봇 쪽 이름 기준, fnmatch 패턴)
+    exclude_patterns: ["*/lane/*", "*/crossline/*"]
+
+    # 마지막 값을 보관하는 토픽: ROS transient_local + MQTT retain
+    latched_topics: ["/tf_static", "/amcl_pose"]
+
+    # 토픽별 전송 상한 "토픽=Hz". 적지 않은 토픽은 원래 주기 그대로 보낸다.
+    # /tf 는 원래 주기 측정 전이라 보수적으로 제한한다. [TODO] 측정 후 조정
+    rate_limits: ["/tf=30.0"]
+
+    # 안전장치
+    load_abort: 3.0          # 이 값을 넘으면 로봇 쪽 중계를 스스로 멈춘다 (1분 load)
+    load_check_sec: 15.0
+    summary_sec: 60.0        # 토픽별 통계 로그 주기
+    duration_sec: 0.0        # 0 이면 계속 실행, 시험 때는 초 단위로 지정
+    discovery_wait_sec: 3.0  # 실제 도메인에서 기존 발행자를 확인하기 전 대기 시간
+    confirm_real_domain: ""  # pc 역할은 "200", robot 역할(명령 발행)은 "10" 을 명시
+
+    # 명령 방향(관제→로봇). 로봇이 움직일 수 있어 기본은 꺼짐.
+    enable_down: false
+    cmd_vel_topics: ["/cmd_vel"]   # 로봇 쪽 이름 기준, 아래 보호를 거치는 속도 명령 토픽
+    # cmd_vel 보호. 기본값은 일부러 0(꺼짐)이다. 실제 로봇 도메인에서는 셋 다 0 보다 커야 시작한다.
+    # 시험 값은 실행할 때 -p 로 넣는다. [TODO] 팀이 정하는 값
+    watchdog_ms: 0.0   # 마지막 명령 뒤 이 시간이 지나면 0 속도를 한 번 발행 (100 ms 단위로 확인)
+    max_linear: 0.0    # 선속도 크기 상한 [m/s]
+    max_angular: 0.0   # 각속도 크기 상한 [rad/s]
+    max_age_ms: 0.0    # 이보다 오래된 메시지는 버림. 두 장비 시계를 맞춘 뒤에만 켠다
+
+    # 연결 복구 (접속 뒤 끊겼을 때). 첫 접속 실패는 재시도하지 않고 종료 코드 2로 끝난다.
+    reconnect_min_sec: 1.0    # 재접속 대기 시작값, 실패할수록 두 배로 늘어남
+    reconnect_max_sec: 30.0   # 재접속 대기 상한
+    # 부모 프로세스(launch)가 사라지면 스스로 종료. launch 가 true 로 켠다.
+    exit_on_parent_loss: false

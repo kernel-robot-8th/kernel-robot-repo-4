@@ -1,0 +1,9 @@
+# mode:=cmd(명령 모드)에서 mqtt_bridge.yaml 위에 덧씌우는 값. 관제·로봇 양쪽 노드가 같이 읽는다.
+# 열 명령은 patrol_cmd 하나뿐이다 (아래 제외 목록이 나머지 down 토픽을 막는다).
+# [TODO] watchdog_ms, max_linear, max_angular 는 시험용 제안 값이다. 팀이 정하면 여기만 고친다.
+"/**":
+  ros__parameters:
+    exclude_patterns: ["*/lane/*", "*/crossline/*", "/cmd_vel", "/goal_pose", "/initialpose", "/zone_manager/*"]
+    watchdog_ms: 500.0
+    max_linear: 0.15
+    max_angular: 0.4
