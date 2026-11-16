@@ -2,7 +2,7 @@
 # Copyright 2026 Pinky_Team4
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 #
-# 팔 어댑터 노드(omx1)를 Station PC 에서 띄운다. 노드는 꺼짐(DISARMED)으로 시작하므로
+# 팔 어댑터 노드 하나(기본 omx1, --arm 으로 바꿈)를 Station PC 에서 띄운다. 노드는 꺼짐(DISARMED)으로 시작하므로
 # 띄우기만 해서는 팔이 움직이지 않는다. 관제 '켜기'(CMD_START)를 받으면 실행기를 띄워 실제 팔에 연결한다.
 #
 #   scripts/run_arm_adapter.sh                    # 관제와 연결: 도메인 100, 같은 망 공개, backend=worker
@@ -20,7 +20,7 @@ set -eo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FLEET=${OMX_FLEET_DIR:-"$(dirname "$REPO")/$(basename "$REPO")-omx-dashboard/omx_fleet"}
 VENV_PY=${OMX_VENV_PY:-"$HOME/venv/il/bin/python"}
-ARM_ID=omx1
+ARM_ID=omx1   # --arm 으로 바꾼다. 이 PC 자리 팔은 cobot_control_center/config/site_arms.yaml 의 host
 
 DOMAIN=100
 LOCALHOST=0
@@ -30,12 +30,13 @@ AUTO_START=false
 usage() {
     sed -n '5,17p' "$0" | sed 's/^# \{0,1\}//'
     echo
-    echo "옵션: --domain N  --localhost  --backend worker|fake|none  --auto-start"
+    echo "옵션: --arm omxN (기본 omx1)  --domain N  --localhost  --backend worker|fake|none  --auto-start"
     exit "${1:-0}"
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --arm) ARM_ID="$2"; shift 2 ;;
         --domain) DOMAIN="$2"; shift 2 ;;
         --localhost) LOCALHOST=1; shift ;;
         --backend) BACKEND="$2"; shift 2 ;;
@@ -48,6 +49,7 @@ done
 fail() { echo "✗ $*" >&2; exit 1; }
 ok() { echo "✓ $*"; }
 
+case "$ARM_ID" in omx[0-9]|omx[0-9][0-9]) ;; *) fail "팔 이름은 omxN 형태 ($ARM_ID)" ;; esac
 case "$BACKEND" in worker|fake|none) ;; *) fail "backend 는 worker·fake·none 중 하나 ($BACKEND)" ;; esac
 case "$DOMAIN" in ''|*[!0-9]*) fail "도메인은 숫자 ($DOMAIN)" ;; esac
 if [ "$DOMAIN" = 10 ] || [ "$DOMAIN" = 12 ]; then
@@ -60,7 +62,7 @@ fi
 # ---- 사전 검사 ----
 # 같은 팔 어댑터가 이미 떠 있으면 같은 토픽에 두 노드가 답한다
 if pgrep -f "arm_adapter_node.*arm_id:=$ARM_ID" >/dev/null; then
-    fail "omx1 어댑터가 이미 떠 있음: $(pgrep -af "arm_adapter_node.*arm_id:=$ARM_ID" | head -1)"
+    fail "$ARM_ID 어댑터가 이미 떠 있음: $(pgrep -af "arm_adapter_node.*arm_id:=$ARM_ID" | head -1)"
 fi
 
 if [ "$BACKEND" = worker ]; then
@@ -84,7 +86,7 @@ if [ "$BACKEND" != none ]; then
     if [ -n "$SERIAL" ] && ls /dev/serial/by-id/ 2>/dev/null | grep -q "_${SERIAL}-if00"; then
         ok "보드 $SERIAL 연결됨"
     else
-        echo "! omx1 보드(${SERIAL:-시리얼 미등록})가 안 보임. 노드는 뜨지만 UNKNOWN 으로 일을 안 한다"
+        echo "! $ARM_ID 보드(${SERIAL:-시리얼 미등록})가 안 보임. 노드는 뜨지만 UNKNOWN 으로 일을 안 한다"
     fi
 fi
 

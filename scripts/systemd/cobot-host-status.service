@@ -1,0 +1,23 @@
+# Copyright 2026 Pinky_Team4
+# Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+#
+# Station PC: PC 상태 보고 노드(host_status_node)를 계속 띄워 둔다. 사용자 서비스 (sudo 없음).
+# 읽기만 한다 (/proc, /sys, ip·nmcli). 로봇·팔에 명령을 내지 않는다.
+# 설치: scripts/systemd/install_station_services.sh (@REPO@ 를 저장소 경로로 바꿔 복사한다)
+# 설명서: docs/station_pc_services.md
+
+[Unit]
+Description=cobot Station PC host status report
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/cobot/station.env
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && source @REPO@/install/setup.bash && exec ros2 launch cobot_control_center host_status.launch.xml host:=station'
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

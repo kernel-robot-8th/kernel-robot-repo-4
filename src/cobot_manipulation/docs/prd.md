@@ -124,6 +124,7 @@ lerobot 은 연결·해제 때 토크를 꺼서 팔이 떨어지고 물건을 �
 ```bash
 colcon build --symlink-install --packages-up-to cobot_manipulation && source install/setup.bash
 scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake   # 혼자 시험 (팔 안 씀)
+scripts/run_arm_adapter.sh --arm omx3 --backend none                 # 다른 자리 팔 (기본 omx1)
 scripts/run_arm_adapter.sh                                           # 관제와 연결: 도메인 100, worker
 /usr/bin/python3 scripts/arm_console.py                              # 관제 대신 명령 (어댑터와 같은 도메인·범위)
 ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake  # 팔 3대 (enable_omx1~3, registry_file)
@@ -251,7 +252,7 @@ sequenceDiagram
 - 성공 판단 YOLO 모델 (`success.json` 의 `model`).
 - 관제 켜기·끄기 버튼(`feature/control-center`, 2026-11-15)의 submaster 병합·실물 확인. 관제 PC cyclonedds Peers 에 Station PC IP.
 - omx2·omx3 실행기 설정·보드 시리얼. 관제 `scenario.yaml` 에 omx3 경로 없음 (역할 미정).
-- Station PC 부팅 때 노드 자동 시작 (D18 뒤).
+- Station PC 부팅 때 노드 자동 시작: OMEN-11 에서 omx3·backend=none 으로 사용자 systemd 서비스 시험 적용 중 ([`docs/station_pc_services.md`](../../../docs/station_pc_services.md)). 팀 확정은 D18 뒤.
 
 팀이 정할 것:
 1. 팔 이름: 명세 `omx_1` vs 시나리오 `omx1` (지금은 `interface_arm_id` 로 이어 붙임).

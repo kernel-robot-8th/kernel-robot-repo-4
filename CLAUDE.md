@@ -37,10 +37,12 @@
 │   ├── fms_map_contract.md     # 맵 정본, map_hash, 작업점·정차점
 │   ├── fms_menu_tree.md        # FMS 메뉴 표 (레지스트리에서 자동 생성, 손으로 고치지 않음)
 │   ├── fms_offline_bundle.md   # 인터넷 없는 현장 PC 에 설치할 오프라인 번들 목록
-│   └── fms_roadmap.md          # FMS 단계 계획 S0~S6 과 단계별 출구 검사
+│   ├── fms_roadmap.md          # FMS 단계 계획 S0~S6 과 단계별 출구 검사
+│   └── station_pc_services.md  # Station PC 노드 상시 실행 (systemd 사용자 서비스)
 ├── scripts/                    # 환경 설정, 보조 스크립트
 │   ├── docker/                 # 개발용 도커 스크립트 (dev_docker_guide.md 참고)
-│   └── spikes/                 # 한 번 확인하고 끝나는 검증 스크립트 (결과는 docs/ 에 기록)
+│   ├── spikes/                 # 한 번 확인하고 끝나는 검증 스크립트 (결과는 docs/ 에 기록)
+│   └── systemd/                # Station PC 상시 실행 서비스 (station_pc_services.md 참고)
 └── CLAUDE.md
 ```
 - `build/`, `install/`, `log/`는 colcon 산출물이므로 수정·커밋하지 않습니다. (`.gitignore` 등록)
