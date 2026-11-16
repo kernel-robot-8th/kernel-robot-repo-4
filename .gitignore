@@ -231,3 +231,8 @@ log/
 
 # Claude personal settings
 *.local.md
+
+# 모델 가중치는 커밋하지 않는다 (CLAUDE.md 3-1). 받는 방법은 각 폴더 README 참고
+scripts/vision/homelab_vision/weights/*.pt
+scripts/vision/edge_view/models/**/*.bin
+scripts/vision/edge_view/models/**/best.xml

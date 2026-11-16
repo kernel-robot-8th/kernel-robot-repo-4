@@ -22,6 +22,16 @@
 | `edge_view.py` | 패킷 뷰어 복사본. 허용 장치를 넣었고, 단독 실행은 막았습니다 |
 | `test_stream_manager.py` | 관리자 시험. 모델과 장치가 없어도 돕니다 |
 
+## 모델 받는 방법
+
+OpenVINO 모델 파일(`models/kneg_v3/best.bin`, `best.xml`)은 저장소에 넣지 않습니다(CLAUDE.md 3-1, `.gitignore` 등록). `metadata.yaml` 만 커밋합니다.
+홈랩 묶음 `homelab-20261107-modelb` 의 `models/kneg_v3` 를 받아 `cameras.json` 의 `model` 경로에 둡니다. 묶음 위치는 비전 담당(강건한)에게 묻습니다.
+
+| 파일 | SHA-256 |
+|---|---|
+| `best.bin` | `de3b2217adf1a3a09b938acb75df205b3caa3f41631e1dc44baa6e1b99d420d8` |
+| `best.xml` | `54c862dfc03193c8de4e3c34b9baf4ff78b30659f90b6cc575db09f96d7d6958` |
+
 ## 실행과 끄기
 
 ```bash

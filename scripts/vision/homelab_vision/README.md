@@ -13,6 +13,13 @@ omen-8 에는 아무것도 보내지 않았고, 실제 브로커(1883)와 실제
     - pinky_v2_final.pt 58a8fe5f...3c0573
     - kneg_d_final.pt f7991cdc...8595bd
   - zone 모듈 11개 파일(수정 없이 복사)
+
+### 가중치 받는 방법
+
+가중치(`weights/*.pt`)는 저장소에 넣지 않는다(CLAUDE.md 3-1, `.gitignore` 등록).
+홈랩 묶음 `homelab-20261110-omen-yolo` 에서 두 파일을 받아 `weights/` 에 둔 뒤 빌드한다.
+빌드 때 `PACKET_SHA256SUMS` 로 대조하므로 다른 파일이면 빌드가 멈춘다.
+묶음 위치는 비전 담당(강건한)에게 묻는다.
 - 앱(`app/`): MJPEG 를 읽어 두 모델로 추론하고, 구역 판정 근거를 MQTT 로 내보낸다.
   - 주제: `relay/evidence/zones`, `relay/evidence/boxes` (QoS 1, retain 없음),
     `relay/status/vision` (1초 상태, QoS 0, 유언 "offline")
