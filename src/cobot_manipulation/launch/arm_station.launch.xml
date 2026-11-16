@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  Station PC: 팔 3대(omx1~3)의 관제 어댑터 노드를 띄운다. 팔 1대 = 노드 1개.
+  각 노드는 등록표의 시리얼로 자기 보드를 찾고, 없으면 UNKNOWN 으로 두고 일을 하지 않는다.
+  관제 PC 와 같은 ROS_DOMAIN_ID 를 쓴다. 시험(fake)은 격리 도메인에서만:
+    export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+    ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake
+-->
+<launch>
+  <arg name="backend" default="none" description="none (모든 작업 거절), fake (격리 도메인 시험), worker (팔 실행기, 실제 팔 구동)"/>
+  <arg name="registry_file" default="$(find-pkg-share cobot_manipulation)/config/arm_registry.yaml"
+       description="팔 자리 이름 ↔ 보드 시리얼 등록표"/>
+  <arg name="enable_omx1" default="true" description="omx1 노드를 띄울지"/>
+  <arg name="enable_omx2" default="true" description="omx2 노드를 띄울지"/>
+  <arg name="enable_omx3" default="true" description="omx3 노드를 띄울지"/>
+
+  <node pkg="cobot_manipulation" exec="arm_adapter_node" name="omx1_adapter" output="screen"
+        if="$(var enable_omx1)">
+    <param from="$(find-pkg-share cobot_manipulation)/config/arm_adapter.yaml"/>
+    <param name="arm_id" value="omx1"/>
+    <param name="backend" value="$(var backend)"/>
+    <param name="registry_file" value="$(var registry_file)"/>
+  </node>
+  <node pkg="cobot_manipulation" exec="arm_adapter_node" name="omx2_adapter" output="screen"
+        if="$(var enable_omx2)">
+    <param from="$(find-pkg-share cobot_manipulation)/config/arm_adapter.yaml"/>
+    <param name="arm_id" value="omx2"/>
+    <param name="backend" value="$(var backend)"/>
+    <param name="registry_file" value="$(var registry_file)"/>
+  </node>
+  <node pkg="cobot_manipulation" exec="arm_adapter_node" name="omx3_adapter" output="screen"
+        if="$(var enable_omx3)">
+    <param from="$(find-pkg-share cobot_manipulation)/config/arm_adapter.yaml"/>
+    <param name="arm_id" value="omx3"/>
+    <param name="backend" value="$(var backend)"/>
+    <param name="registry_file" value="$(var registry_file)"/>
+  </node>
+</launch>

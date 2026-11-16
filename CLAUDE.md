@@ -15,6 +15,7 @@
 <ws>/
 ├── src/
 │   ├── cobot_interfaces/       # 공용 msg / srv / action (코드 없음)
+│   ├── cobot_patrol_interfaces/ # 순찰 규격 v2 msg 제안 (v1 과 나란히, 합의 뒤 cobot_interfaces 로 합침)
 │   ├── cobot_bringup/          # 전체 launch, 통합 파라미터 YAML
 │   ├── cobot_description/      # URDF/xacro, 메시 (모바일 베이스 + 팔)
 │   ├── cobot_vision/           # [비전] 카메라, 검출/인식, 좌표 변환
@@ -22,6 +23,11 @@
 │   ├── cobot_manipulation/     # [매니퓰레이터] 팔/그리퍼 제어, pick&place
 │   ├── cobot_moveit_config/    # [매니퓰레이터] MoveIt2 설정
 │   ├── cobot_control_center/   # [관제] 상태 수집, 작업 할당, 로그
+│   ├── cobot_mock/             # [관제] 개발·시험용 가짜 핑키 (격리 도메인 전용, 폴더째 빼도 됨)
+│   ├── cobot_gazebo/           # [관제] 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드, 시뮬 도메인 140~143, worlds/ 예외)
+│   ├── pinky_interfaces_stub/  # [관제] 시뮬 PC 전용 대체 pinky_interfaces (SetLed). 실물 로봇에서는 빌드 안 함
+│   ├── cobot_anomaly_monitor/  # [관제] 시나리오 기록, CCTV 이상 판정, 수동 어댑터 (중계 장비)
+│   ├── cobot_simulation/       # [시뮬레이션] 경량 다중 로봇 & 아레나 통합 시뮬레이션
 │   └── cobot_gui/              # [GUI] 사용자/관제 화면 (웹 화면 자원은 web/ → 3-7 참고)
 ├── docs/                       # 팀 공통 문서 (전체 PRD, 토픽·TF·인터페이스 명세) → 4번 참고
 │   ├── dev_docker_guide.md     # 도커로 빌드·시험하는 방법 (도커를 처음 쓰는 사람용 설명 포함)
@@ -31,10 +37,12 @@
 │   ├── fms_map_contract.md     # 맵 정본, map_hash, 작업점·정차점
 │   ├── fms_menu_tree.md        # FMS 메뉴 표 (레지스트리에서 자동 생성, 손으로 고치지 않음)
 │   ├── fms_offline_bundle.md   # 인터넷 없는 현장 PC 에 설치할 오프라인 번들 목록
-│   └── fms_roadmap.md          # FMS 단계 계획 S0~S6 과 단계별 출구 검사
+│   ├── fms_roadmap.md          # FMS 단계 계획 S0~S6 과 단계별 출구 검사
+│   └── station_pc_services.md  # Station PC 노드 상시 실행 (systemd 사용자 서비스)
 ├── scripts/                    # 환경 설정, 보조 스크립트
 │   ├── docker/                 # 개발용 도커 스크립트 (dev_docker_guide.md 참고)
-│   └── spikes/                 # 한 번 확인하고 끝나는 검증 스크립트 (결과는 docs/ 에 기록)
+│   ├── spikes/                 # 한 번 확인하고 끝나는 검증 스크립트 (결과는 docs/ 에 기록)
+│   └── systemd/                # Station PC 상시 실행 서비스 (station_pc_services.md 참고)
 └── CLAUDE.md
 ```
 - `build/`, `install/`, `log/`는 colcon 산출물이므로 수정·커밋하지 않습니다. (`.gitignore` 등록)
@@ -47,8 +55,9 @@
 | 주행 | `cobot_navigation` | 김진호 |
 | 로봇팔 | `cobot_manipulation`, `cobot_moveit_config` | 강민석, 김성아, 허지석 |
 | 비전 | `cobot_vision` | 손선아, 강건한 |
-| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center` | 김지혜 |
-| 이상 감지 관제 | `cobot_gui`, `cobot_control_center` | 강건한 |
+| 로봇 수행 관제 | `cobot_gui`, `cobot_control_center`, `cobot_mock`, `cobot_gazebo`, `pinky_interfaces_stub`, `cobot_patrol_interfaces`(합칠 때 공통으로) | 김지혜 |
+| 이상 감지 관제 | `cobot_gui`, `cobot_control_center`, `cobot_anomaly_monitor` | 강건한 |
+| 시뮬레이션 | `cobot_simulation` | 강건한 (공통 테스트베드) |
 | 공통 | `cobot_interfaces`, `cobot_bringup`, `cobot_description` | 팀 전체 (관련 담당 리뷰) |
 
 담당 기준은 [2026-10-24 사용자 지정](docs/team_roles.md)이다. 두 관제는 공통 GUI·관제 코어를 재사용하며 로봇 기능 개발과 구분한다.

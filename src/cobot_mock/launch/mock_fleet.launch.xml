@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<!--
+  Copyright 2026 Pinky_Team4
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+  가짜 핑키 + 관제(fleet_status, fleet_api, 작업 노드) 를 함께 띄운다. 로봇 없이 관제 화면을 시험할 때 쓴다.
+  작업 노드는 실물과 같은 fleet_control 이 기본이다. 가짜 핑키도 실물처럼 하트비트·세션·순번을 지킨다.
+  반드시 격리 도메인에서 실행한다 (실물 0·10·12·20·30·100 이면 가짜 핑키가 시작을 거부한다):
+    export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+    ros2 launch cobot_mock mock_fleet.launch.xml
+  가짜 팔 3대(omx1~3)도 함께 뜬다 (arms:=false 로 끔). 실제 팔 노드(cobot_manipulation arm_adapter_node)를
+  backend:=fake 로 띄운 것이라 판단(켜기·끄기·정지·작업 요청 검사)은 진짜이고, 팔을 움직이는 부분만 가짜다:
+  작업은 arm_fake_duration_sec 뒤 늘 성공, 실패는 작업 중 정지로만 나고, 관절 값은 없다.
+  팔 노드에는 도메인 검사가 없어서, 실물 도메인이면 이 launch 가 팔 노드를 띄우지 않는다.
+  관제 화면은 http://localhost:8081/ 이다. 실물 관제(8080)와 한 PC 에서 함께 띄워도 포트가 겹치지 않는다.
+  지점·구역 좌표는 실제 순찰·zone_manager 설정 파일을 그대로 읽는다.
+-->
+<launch>
+  <arg name="points_dir" default="$(find-pkg-share cobot_pinky_patrol)/config"
+       description="순찰 설정 폴더 (common.yaml·sites/·robots/, 또는 합친 pinkyN.yaml)"/>
+  <arg name="site" default="lab" description="순찰 설정 sites/ 의 현장 이름"/>
+  <arg name="zone_params" default="$(find-pkg-share cobot_zone_traffic_control)/config/zone_params.yaml"
+       description="zone_manager 설정 파일"/>
+  <arg name="auto_patrol" default="false"
+       description="가짜 핑키가 스스로 돌아다닐지 (중앙 모드라 실제로는 꺼진다. fleet 만 명령한다)"/>
+  <arg name="dropout_robot" default="" description="주기적으로 끊기는 로봇 (끊김 화면 시험용, 기본 없음)"/>
+  <arg name="with_control_center" default="true" description="fleet_status·fleet_api·작업 노드도 함께 띄울지"/>
+  <arg name="port" default="8081" description="관제 화면 포트 (실물 관제 8080 과 겹치지 않게)"/>
+  <arg name="allow_raw_cmd" default="true" description="관제 화면의 개발용 수동 명령 칸 (가짜 핑키라 기본 켬)"/>
+  <arg name="arms" default="true" description="가짜 팔 3대(omx1~3, 실제 팔 노드 + fake 백엔드)도 띄울지"/>
+  <arg name="arm_fake_duration_sec" default="6.0" description="가짜 팔 작업 하나가 성공하기까지 [s]"/>
+  <!-- 실물 도메인(비었음·0·10·12·20·30·100, mock_pinky_sim.FORBIDDEN_DOMAINS 와 같게)이면 가짜 팔을 띄우지 않는다 -->
+  <let name="arms_ok"
+       value="$(eval &quot;'$(var arms)'.lower() == 'true' and '$(env ROS_DOMAIN_ID none)' not in ('none', '', '0', '10', '12', '20', '30', '100')&quot;)"/>
+  <let name="arm_params" value="$(find-pkg-share cobot_manipulation)/config/arm_adapter.yaml"/>
+  <let name="mock_share" value="$(find-pkg-share cobot_mock)"/>
+  <arg name="start_armed" default="true"
+       description="관제 작업 명령 켜진 상태로 시작 (가짜 핑키라 기본 켬, false 면 화면에서 켬)"/>
+
+  <node pkg="cobot_mock" exec="mock_pinky_node" name="mock_pinky_node" output="screen">
+    <param from="$(find-pkg-share cobot_mock)/config/mock_pinky_node.yaml"/>
+    <param name="points_dir" value="$(var points_dir)"/>
+    <param name="site" value="$(var site)"/>
+    <param name="zone_params" value="$(var zone_params)"/>
+    <param name="auto_patrol" value="$(var auto_patrol)"/>
+    <param name="dropout_robot" value="$(var dropout_robot)"/>
+    <param name="central_controlled" value="true"/>
+  </node>
+
+  <group if="$(var arms_ok)">
+    <node pkg="cobot_manipulation" exec="arm_adapter_node" name="omx1_adapter" output="screen">
+      <param from="$(var arm_params)"/>
+      <param name="arm_id" value="omx1"/>
+      <param name="backend" value="fake"/>
+      <param name="fake_duration_sec" value="$(var arm_fake_duration_sec)"/>
+      <param name="registry_file" value="$(var mock_share)/config/mock_arm_registry.yaml"/>
+      <param name="serial_by_id_dir" value="$(var mock_share)/config/mock_serial_by_id"/>
+    </node>
+    <node pkg="cobot_manipulation" exec="arm_adapter_node" name="omx2_adapter" output="screen">
+      <param from="$(var arm_params)"/>
+      <param name="arm_id" value="omx2"/>
+      <param name="backend" value="fake"/>
+      <param name="fake_duration_sec" value="$(var arm_fake_duration_sec)"/>
+      <param name="registry_file" value="$(var mock_share)/config/mock_arm_registry.yaml"/>
+      <param name="serial_by_id_dir" value="$(var mock_share)/config/mock_serial_by_id"/>
+    </node>
+    <node pkg="cobot_manipulation" exec="arm_adapter_node" name="omx3_adapter" output="screen">
+      <param from="$(var arm_params)"/>
+      <param name="arm_id" value="omx3"/>
+      <param name="backend" value="fake"/>
+      <param name="fake_duration_sec" value="$(var arm_fake_duration_sec)"/>
+      <param name="registry_file" value="$(var mock_share)/config/mock_arm_registry.yaml"/>
+      <param name="serial_by_id_dir" value="$(var mock_share)/config/mock_serial_by_id"/>
+    </node>
+  </group>
+
+  <group if="$(var with_control_center)">
+    <include file="$(find-pkg-share cobot_control_center)/launch/fleet_status.launch.xml"/>
+    <include file="$(find-pkg-share cobot_control_center)/launch/fleet_api.launch.xml">
+      <arg name="port" value="$(var port)"/>
+      <!-- 네트워크 측정 핑은 이 PC(127.0.0.1)로만 보낸다 (실물 장치에 핑이 가지 않게) -->
+      <arg name="net_hosts" value="local"/>
+    </include>
+    <!-- 명령 기록은 실물과 다른 파일에 둔다 -->
+    <include file="$(find-pkg-share cobot_fleet_control)/launch/fleet_control.launch.xml">
+      <arg name="patrol_config_dir" value="$(var points_dir)"/>
+      <arg name="site" value="$(var site)"/>
+      <arg name="db_path" value="~/.ros/cobot_control_center/fleet_mock.sqlite3"/>
+      <arg name="allow_raw_cmd" value="$(var allow_raw_cmd)"/>
+      <arg name="start_armed" value="$(var start_armed)"/>
+    </include>
+  </group>
+</launch>

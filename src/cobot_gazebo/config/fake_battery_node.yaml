@@ -1,0 +1,7 @@
+# 시뮬 가짜 배터리. 실물 핑키의 배터리 토픽 주기(5초, 2026-11-02 실측)에 맞춘다.
+# 관제 offline 기준(fleet_status_node.yaml stale_timeout_sec 8초)보다 짧아야 서 있는 로봇이 online 으로 남는다.
+fake_battery_node:
+  ros__parameters:
+    period_sec: 5.0
+    percent: 100.0   # [%]
+    voltage: 8.4     # [V] 2S 리튬 만충 (cobot_mock 의 battery_voltage 와 같은 근사)

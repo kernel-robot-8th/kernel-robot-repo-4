@@ -1,0 +1,14 @@
+{
+  "model": "/home/kgh1005/yolo_edge/inbox/homelab-20261107-modelb/models/kneg_v3",
+  "threads": 2,
+  "bind": "127.0.0.1",
+  "bridge_bind": "172.17.0.1",
+  "port": 8893,
+  "event_log_dir": "~/yolo_edge/logs",
+  "cameras": [
+    {"id": "ceiling", "name": "천장 폰", "source": "http://192.168.0.7:18086/processed",
+     "stream_id": "CAM_CEILING_01", "max_fps": 5, "event_log": true, "enabled": true, "map_crop": true},
+    {"id": "usb", "name": "USB 웹캠", "source": "/dev/v4l/by-id/usb-GENERAL_GENERAL_WEBCAM-video-index0",
+     "stream_id": "CAM_USB_01", "max_fps": 5, "event_log": false, "enabled": true}
+  ]
+}

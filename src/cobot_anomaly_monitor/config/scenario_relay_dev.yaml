@@ -1,0 +1,18 @@
+# 개발 전용 fleet_control scenario_config. 팀 scenario.yaml은 고치지 않고 파라미터로 넘긴다.
+routes:
+  # 팀 scenario.yaml 과 같은 이름·팔. 현장 주문이 와도 기록이 비지 않게 한다.
+  lab_delivery: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx2, lane: main}
+  lab_delivery_zb: {pickup: ZB, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx2, lane: main}
+  # 개발 전용. 하차 팔을 따로 두고 보는 경우에만 쓴다.
+  wh_a_to_store: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx3, lane: main}
+  wh_b_to_store: {pickup: ZB, dropoff: ZC, pickup_arm: omx2, dropoff_arm: omx3, lane: main}
+max_retries: 3
+step_timeout_sec: 300.0
+customer_timeout_sec: 120.0
+stale_sec: 3.0
+battery_stale_sec: 10.0
+battery_min: 20.0
+departure_gap_sec: 3.0
+dock_xy_m: 0.05    # 임시값. 시뮬 값이 정해지면 맞춘다. 팀 기본은 0.01
+dock_yaw_deg: 15.0
+allow_returns: false

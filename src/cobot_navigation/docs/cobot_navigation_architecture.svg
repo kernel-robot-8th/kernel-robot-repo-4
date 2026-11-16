@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 556" width="960" height="556" role="img" aria-labelledby="t d">
+  <title id="t">cobot_navigation 구성도</title>
+  <desc id="d">관제 PC의 명령과 구역 허가 메시지가 cobot_domain_bridge를 거쳐 로봇의 순찰 노드와 ZoneGateClient로 오가는 구성도</desc>
+  <style>
+    .sans { font-family: 'Noto Sans CJK KR','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo','Noto Sans CJK SC',sans-serif; }
+    .mono { font-family: 'SFMono-Regular','Menlo','Consolas','DejaVu Sans Mono',monospace; }
+    .ink { fill: #1f2937; }
+    .sub { fill: #6b7280; }
+    .acc { fill: #1d4ed8; }
+    .box { fill: #ffffff; stroke: #8a94a3; stroke-width: 1.4; }
+    .boxacc { fill: #e8f0fd; stroke: #2f6fde; stroke-width: 2; }
+    .zone { fill: #f5f6f8; stroke: #c9ced6; stroke-width: 1.4; }
+    .line { stroke: #5b6573; stroke-width: 1.5; fill: none; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#5b6573"/>
+    </marker>
+  </defs>
+  <rect width="960" height="556" fill="#ffffff"/>
+
+  <text x="24" y="34" class="sans ink" font-size="18" font-weight="700">cobot_navigation 구성도</text>
+  <text x="24" y="54" class="sans sub" font-size="12.5">명령과 구역 허가 메시지는 모두 cobot_domain_bridge 를 지나 관제 PC 와 로봇 사이를 오갑니다</text>
+
+  <!-- 관제 PC -->
+  <rect class="zone" x="24" y="72" width="230" height="340" rx="10"/>
+  <text x="40" y="96" class="sans ink" font-size="14" font-weight="700">관제 PC</text>
+  <text x="40" y="113" class="mono sub" font-size="11.5">ROS_DOMAIN_ID=100</text>
+
+  <rect class="box" x="40" y="134" width="198" height="56" rx="8"/>
+  <text x="139" y="158" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">pinky_control_client</text>
+  <text x="139" y="176" text-anchor="middle" class="mono sub" font-size="11">goto/zone/leave/home/stop</text>
+
+  <rect class="boxacc" x="40" y="284" width="198" height="56" rx="8"/>
+  <text x="139" y="308" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">zone_manager_node</text>
+  <text x="139" y="326" text-anchor="middle" class="sans sub" font-size="11.5">구역별 토큰 + 대기열 · 1대만</text>
+
+  <text x="40" y="366" class="sans sub" font-size="11.5">status 토픽은 관제 PC 안에서만</text>
+  <text x="40" y="382" class="sans sub" font-size="11.5">발행하고 브릿지를 건너지 않음</text>
+
+  <!-- 브릿지 -->
+  <rect class="zone" x="392" y="72" width="176" height="340" rx="10"/>
+  <text x="480" y="96" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">cobot_domain_bridge</text>
+  <text x="480" y="116" text-anchor="middle" class="sans sub" font-size="12">관제 PC 에서 실행</text>
+  <text x="480" y="133" text-anchor="middle" class="sans sub" font-size="12">로봇당 프로세스 1개</text>
+
+  <!-- 로봇 -->
+  <rect class="zone" x="706" y="72" width="230" height="340" rx="10"/>
+  <text x="722" y="96" class="sans ink" font-size="14" font-weight="700">로봇 3대</text>
+  <text x="722" y="113" class="mono sub" font-size="11.5">pinky1=10 · pinky2=20</text>
+  <text x="722" y="127" class="mono sub" font-size="11.5">pinky3=30 (ROS_DOMAIN_ID)</text>
+
+  <rect class="box" x="722" y="146" width="198" height="56" rx="8"/>
+  <text x="821" y="170" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">pinky_patrol_node</text>
+  <text x="821" y="188" text-anchor="middle" class="sans sub" font-size="11.5">Nav2 순찰 (로봇마다 1개)</text>
+
+  <rect class="box" x="722" y="284" width="198" height="56" rx="8"/>
+  <text x="821" y="308" text-anchor="middle" class="mono ink" font-size="12.5" font-weight="700">ZoneGateClient</text>
+  <text x="821" y="326" text-anchor="middle" class="sans sub" font-size="11.5">순찰 노드가 import 해서 사용</text>
+
+  <line class="line" x1="821" y1="202" x2="821" y2="284" marker-end="url(#arrow)"/>
+  <text x="832" y="248" class="mono sub" font-size="11.5">import</text>
+
+  <!-- 순찰 명령 / 상태 -->
+  <line class="line" x1="238" y1="162" x2="392" y2="162" marker-end="url(#arrow)"/>
+  <line class="line" x1="392" y1="184" x2="238" y2="184" marker-end="url(#arrow)"/>
+  <line class="line" x1="568" y1="162" x2="722" y2="162" marker-end="url(#arrow)"/>
+  <line class="line" x1="722" y1="184" x2="568" y2="184" marker-end="url(#arrow)"/>
+  <text x="262" y="154" class="mono ink" font-size="11.5"><tspan class="acc" font-weight="700">1</tspan> patrol_cmd</text>
+  <text x="262" y="200" class="mono ink" font-size="11.5"><tspan class="acc" font-weight="700">2</tspan> patrol_status</text>
+
+  <!-- 구역 메시지 -->
+  <line class="line" x1="392" y1="300" x2="238" y2="300" marker-end="url(#arrow)"/>
+  <line class="line" x1="238" y1="326" x2="392" y2="326" marker-end="url(#arrow)"/>
+  <line class="line" x1="722" y1="300" x2="568" y2="300" marker-end="url(#arrow)"/>
+  <line class="line" x1="568" y1="326" x2="722" y2="326" marker-end="url(#arrow)"/>
+  <text x="262" y="252" class="mono ink" font-size="11.5"><tspan class="acc" font-weight="700">3</tspan> request_entry</text>
+  <text x="262" y="268" class="mono ink" font-size="11.5">  cancel_entry</text>
+  <text x="262" y="284" class="mono ink" font-size="11.5">  notify_exit</text>
+  <text x="262" y="346" class="mono ink" font-size="11.5"><tspan class="acc" font-weight="700">4</tspan> grant_entry</text>
+  <text x="262" y="362" class="mono ink" font-size="11.5">  queue_slot</text>
+
+  <!-- 범례 -->
+  <text x="24" y="442" class="sans ink" font-size="13" font-weight="700">화살표 = 토픽</text>
+  <text x="130" y="442" class="sans sub" font-size="11.5">(관제 PC 쪽 이름. 로봇 쪽에서는 /pinkyN/ 접두 없이 같은 이름)</text>
+  <text x="24" y="466" class="mono acc" font-size="12" font-weight="700">1</text>
+  <text x="48" y="466" class="sans ink" font-size="12">관제 → 로봇</text>
+  <text x="150" y="466" class="mono ink" font-size="12">/pinkyN/patrol_cmd</text>
+  <text x="24" y="488" class="mono acc" font-size="12" font-weight="700">2</text>
+  <text x="48" y="488" class="sans ink" font-size="12">로봇 → 관제</text>
+  <text x="150" y="488" class="mono ink" font-size="12">/pinkyN/patrol_status</text>
+  <text x="24" y="510" class="mono acc" font-size="12" font-weight="700">3</text>
+  <text x="48" y="510" class="sans ink" font-size="12">로봇 → 관제</text>
+  <text x="150" y="510" class="mono ink" font-size="12">/zone_manager/request_entry · cancel_entry · notify_exit</text>
+  <text x="24" y="532" class="mono acc" font-size="12" font-weight="700">4</text>
+  <text x="48" y="532" class="sans ink" font-size="12">관제 → 로봇</text>
+  <text x="150" y="532" class="mono ink" font-size="12">/zone_manager/grant_entry · queue_slot</text>
+</svg>

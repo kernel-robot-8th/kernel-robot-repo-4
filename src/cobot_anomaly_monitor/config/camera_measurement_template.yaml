@@ -1,0 +1,23 @@
+# 현장 측정값을 채우는 양식. 비어 있으면 보정 파일을 만들지 않는다. 추정값을 넣지 않는다.
+camera_id: CAM_CEILING_01
+image_size: null          # [폭, 높이] px. 검출 bbox와 같은 원본 프레임 기준
+lens: null                # {fx, fy, cx, cy, k1, k2}. 체커보드로 잰 값. 마커로 맞춘 값은 쓰지 않는다
+frame: null               # v9 또는 canonical. canonical이면 v9로 바꿔 저장한다
+plane_height_m: null      # 기준 마커 면의 높이. 바닥이면 0.0
+reference: []             # - {id: 마커 ID, pixel: [u, v], map: [x, y]}. 마커 중심, 4개 이상
+check_points: []          # - {pixel: [u, v], map: [x, y], height_m: 높이}. 마커가 아닌 지점
+                          # 화면 네 사분면과 아래 구역 근처(0.45 m 이내)에 모두 있어야 한다
+required_zones:           # v9 map 기준. cobot_pinky_patrol config/sites/lab.yaml 값
+  - {name: ZA, map: [0.6, 0.5]}
+  - {name: ZB, map: [0.6, -0.15]}
+  - {name: ZC, map: [-0.5, 0.3]}
+limits:
+  min_markers: null           # 판정 때 보여야 하는 기준 마커 수
+  max_marker_shift_px: null   # 이보다 움직이면 좌표를 내지 않는다
+  max_check_error_m: null     # 검증점 오차 상한. 사용자 결정 값
+camera: null              # {map_xy: [x, y], height_m: 높이}. 물체 높이가 기준면과 다르면 필요
+classes:                  # height_m: bbox 중심의 실제 높이. 바닥 상자는 상자 높이의 절반
+  box_on_floor: {height_m: null}
+  box_run_over: {height_m: null}      # 짓눌린 모양이 달라 실물로 잰다
+  box_perched_on_rim: {height_m: null}
+  lid_detached: {height_m: null}

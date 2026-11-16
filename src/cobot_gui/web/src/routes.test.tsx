@@ -33,6 +33,42 @@ describe("레지스트리에서 생성된 메뉴 데이터", () => {
   });
 });
 
+describe("5대 운영자 디버그 관측 경로", () => {
+  it("루트(/) 및 /debug/overview 접속 시 1. 실시간 실행·배정 현황이 열린다", async () => {
+    renderAt("/");
+    expect(await screen.findByRole("heading", { level: 1, name: /1\. 실시간 실행·배정 현황/ })).toBeInTheDocument();
+    cleanup();
+    renderAt("/debug/overview");
+    expect(await screen.findByRole("heading", { level: 1, name: /1\. 실시간 실행·배정 현황/ })).toBeInTheDocument();
+  });
+
+  it("/debug/trace 접속 시 2. 주문 19단계 실행 추적 및 생명주기 로깅이 열린다", async () => {
+    renderAt("/debug/trace");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /2\. 주문 19단계 실행 추적 및 생명주기 로깅/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("/debug/comm 접속 시 3. 통신·DDS 브리지·노드 진단이 열린다", async () => {
+    renderAt("/debug/comm");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /3\. 통신·DDS 브리지·노드 진단/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("/debug/vision 접속 시 4. 비전 적재 판정·이상 감지 로그가 열린다", async () => {
+    renderAt("/debug/vision");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /4\. 비전 적재 판정·이상 감지 로그/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("/debug/sim-tools 접속 시 5. 시뮬레이션·수동 보조 도구가 열린다", async () => {
+    renderAt("/debug/sim-tools");
+    expect(await screen.findByText(/SR-22 3D 물리 시뮬레이션 온라인 실험장/)).toBeInTheDocument();
+  });
+});
+
 describe("모든 메뉴 경로", () => {
   it.each(ACTIVE_MENUS.map((menu) => [menu.id, menu.name]))("메뉴 %s 가 열린다 (%s)", async (id, name) => {
     renderAt(`/menus/${id}`);
@@ -67,10 +103,18 @@ describe("모든 메뉴 경로", () => {
 });
 
 describe("사이드바", () => {
-  it("개요 링크와 메뉴 링크가 모두 있다", () => {
+  it("5대 디버그 메뉴 링크와 기획 카탈로그 34개 아카이브 링크가 모두 있다", () => {
     renderAt("/");
     const nav = screen.getByRole("navigation", { name: "메뉴 트리" });
-    expect(within(nav).getAllByRole("link")).toHaveLength(ACTIVE_MENUS.length + 1);
+    // 디버그 링크 7개(5대 + 자원 모니터링 + 맵 실시간 화면) + 기획 개요 링크 1개 + 34개 메뉴 링크 = 42개
+    expect(within(nav).getAllByRole("link")).toHaveLength(ACTIVE_MENUS.length + 1 + 7);
+    expect(within(nav).getByRole("link", { name: /1\.\s*실시간 실행·배정 현황/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /2\.\s*주문 19단계 실행 추적·로깅/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /3\.\s*통신·DDS 브리지·노드 진단/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /4\.\s*비전 적재 판정·이상 감지 로그/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /5\.\s*시뮬레이션·수동 보조 도구/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /6\.\s*자원 모니터링/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /7\.\s*맵 실시간 화면/ })).toBeInTheDocument();
     expect(within(nav).getAllByRole("heading", { level: 2 })).toHaveLength(6);
   });
 });
@@ -90,9 +134,9 @@ describe("3.7 팀원 앱 화면", () => {
   });
 });
 
-describe("개요", () => {
+describe("기획 카탈로그 개요 (/overview)", () => {
   it("관제 두 영역과 지정된 개인 담당을 표시한다", () => {
-    renderAt("/");
+    renderAt("/overview");
     const split = screen.getByLabelText("관제 담당");
     expect(within(split).getByRole("heading", { name: "로봇 수행 관제" })).toBeInTheDocument();
     expect(within(split).getByRole("heading", { name: "이상 감지 관제" })).toBeInTheDocument();
@@ -111,12 +155,12 @@ describe("개요", () => {
   });
 
   it("메뉴 34개 행과 구현도를 보인다", () => {
-    renderAt("/");
+    renderAt("/overview");
     expect(screen.getByRole("heading", { level: 1, name: "FMS 관제 대시보드 메뉴 트리" })).toBeInTheDocument();
     const summary = screen.getByLabelText("요약");
     expect(within(summary).getByText("메뉴").nextElementSibling).toHaveTextContent("34");
     expect(screen.getAllByText("외부 구현 (통합 전)").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("정의 없음").length).toBeGreaterThanOrEqual(2); // 3.3, 3.4 (DatasetSummary)
+    expect(screen.getAllByText("정의 없음").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByRole("row")).toHaveLength(34 + 6);
   });
 });

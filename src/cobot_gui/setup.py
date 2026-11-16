@@ -24,13 +24,18 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/menu_tree.yaml']),
+        ('share/' + package_name + '/config', [
+            'config/menu_tree.yaml',
+            'config/customer_catalog.yaml',
+            'config/customer_gateway.yaml',
+        ]),
+        ('share/' + package_name + '/launch', ['launch/customer_gateway.launch.xml']),
     ] + _web_dist_files(),
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='rkd1rjs2',
     maintainer_email='rkd1rjs2@gmail.com',
-    description='FMS 관제 대시보드(GUI): 메뉴 레지스트리와 검사·문서 생성 도구',
+    description='FMS 관제 대시보드(GUI): 메뉴 레지스트리 도구와 고객 주문 게이트웨이',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
@@ -39,6 +44,7 @@ setup(
             'gen_web_menus = cobot_gui.gen_web_menus:main',
             'gen_web_types = cobot_gui.gen_web_types:main',
             'check_menu_tree = cobot_gui.menu_registry:main',
+            'customer_gateway_node = cobot_gui.customer_gateway_node:main',
         ],
     },
 )

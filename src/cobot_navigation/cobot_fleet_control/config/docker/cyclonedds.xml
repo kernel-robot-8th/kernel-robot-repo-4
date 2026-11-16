@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Select the lab robot network even when wired Ethernet is also connected.
+     A subnet address selects the matching local interface without an OS-specific name. -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="192.168.45.0"/>
+      </Interfaces>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <Peers>
+        <Peer Address="192.168.45.21"/>
+        <Peer Address="192.168.45.22"/>
+        <Peer Address="192.168.45.23"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

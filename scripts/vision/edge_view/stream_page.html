@@ -1,0 +1,91 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>스트림 관리</title>
+<style>
+:root{color-scheme:dark;--bg:#10151b;--panel:#18202a;--line:#2b3644;--fg:#e6edf3;--mute:#93a1b0;--bad:#ff6b5e;--ok:#5fd38d;--warn:#f2c14e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Noto Sans KR","Malgun Gothic",sans-serif}
+header{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+h1{font-size:18px;margin:0}h2{font-size:13px;margin:0 0 6px;color:var(--mute);font-weight:600}
+#alert{display:none;background:var(--bad);color:#14090a;font-weight:600;padding:8px 16px}
+main{padding:12px 16px;display:grid;gap:12px}
+#cams{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:12px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-width:0}
+.cam h3{font-size:15px;margin:0;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.video{background:#000;margin:8px 0;min-height:160px;text-align:center}.video img{display:block;margin:0 auto;max-width:100%;max-height:60vh}
+.video.off{display:flex;align-items:center;justify-content:center;color:var(--mute)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:2px 4px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:500;font-size:12px}
+dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;margin:0}dt{color:var(--mute)}dd{margin:0;overflow-wrap:anywhere}
+button{background:#263241;color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:3px 10px;font:inherit;cursor:pointer}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mute{color:var(--mute)}
+#res{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+footer{padding:0 16px 14px;color:var(--mute);font-size:13px}
+</style></head><body>
+<header><div><h1>스트림 관리 <span class="warn">관측 전용</span></h1><div class="mute" id="sub">불러오는 중</div></div>
+<button id="reload" type="button">설정 다시 읽기</button></header>
+<div id="alert"></div>
+<main><div id="cams"></div><div id="res">
+<section><h2>추론 스케줄러</h2><dl id="sch"></dl></section>
+<section><h2>장비</h2><dl id="sys"></dl></section>
+<section><h2>스레드별 CPU (100 = 논리 코어 하나)</h2><table><tbody id="thr"></tbody></table></section>
+</div></main>
+<footer>이벤트는 기록만 합니다. 경보나 관제 명령은 보내지 않습니다. 표시는 관측값이고 사고 판정이 아닙니다.</footer>
+<script>
+const KO={box_on_floor:"바닥 상자",box_perched_on_rim:"턱 걸림",box_run_over:"깔림",lid_detached:"뚜껑 분리",box_on_tray:"적재판 위",box_stock:"재고 상자"};
+const $=id=>document.getElementById(id);
+const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
+const dl=(rows)=>rows.flatMap(([k,v,c])=>[el("dt",k),el("dd",v,c)]);
+// 브라우저는 호스트당 연결이 6개다. 영상이 다 차지하면 상태 요청과 정지 버튼이 멈춘다.
+const MAX_STREAMS=4,WAIT_MS=3000,RETRY_MS=3000;
+let actionError="",actionNote="",actionUntil=0,busy=false,order=0,shown=0;
+const timeout=()=>AbortSignal.timeout(WAIT_MS);
+function note(text,bad){if(bad){actionError=text;actionNote=""}else{actionNote=text;actionError=""}actionUntil=Date.now()+8000}
+async function act(url){try{const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}",signal:timeout()});
+ const b=await r.json().catch(()=>({}));if(!r.ok)note(b.detail||("요청 실패 "+r.status),true);
+ else{actionError="";if(b.restart_needed&&b.restart_needed.length)note(`재시작해야 적용되는 값: ${b.restart_needed.join(", ")}`)}}
+ catch(e){note("요청이 끝나지 않았습니다. 영상 탭을 줄이고 다시 시도하세요.",true)}tick()}
+function detach(v){const i=v.querySelector("img");if(i){i.onerror=null;i.src=""}}
+function attach(v,s){detach(v);v.className="video";v.replaceChildren();const i=el("img");i.alt=`${s.name} 검출 박스 영상`;i.dataset.run=s.run_id;i.dataset.at=Date.now();
+ i.src=`/cameras/${s.id}/stream.mjpg?run=${s.run_id}&t=${Date.now()}`;i.onerror=()=>{i.dataset.at=0;i.dataset.failed=Date.now()};v.append(i)}
+function rest(v,text){detach(v);v.className="video off";v.replaceChildren(el("span",text))}
+$("reload").onclick=()=>act("/api/reload");
+function card(id){let c=document.querySelector(`[data-id="${id}"]`);if(c)return c;c=el("section",undefined,"cam");c.dataset.id=id;
+ const h=el("h3");h.append(el("span"),el("button"));h.lastChild.type="button";c.append(h,el("div",undefined,"video"),el("dl"),el("table"));$("cams").append(c);return c}
+function draw(c,s,mayStream){const[name,btn]=c.querySelector("h3").children;const on=s.state==="running";
+ name.textContent=`${s.name} `;name.append(el("span",on?(s.stale?"멈춤":"수신 중"):(s.state==="error"?"오류":"정지"),on&&!s.stale?"ok":"bad"));
+ btn.textContent=on?"정지":"시작";btn.onclick=()=>act(`/api/cameras/${s.id}/${on?"stop":"start"}`);
+ const v=c.querySelector(".video"),im=v.querySelector("img");
+ if(on&&mayStream){const failed=im&&im.dataset.failed&&Date.now()-Number(im.dataset.failed)>RETRY_MS;
+  if(!im||failed||im.dataset.run!==String(s.run_id)||(s.clients===0&&Date.now()-Number(im.dataset.at)>RETRY_MS))attach(v,s)}
+ else if(on){if(im||!v.classList.contains("off"))rest(v,document.hidden?"탭이 숨겨져 영상을 쉬고 있습니다":`영상은 한 화면에 ${MAX_STREAMS}개까지 엽니다`)}
+ else if(im||!v.classList.contains("off"))rest(v,"영상 없음");
+ const input=s.input||{};
+ const rows=on&&s.input?[["처리",`${s.fps_processed} fps (상한 ${s.max_fps})`],["수신",`${input.fps_received} fps, ${input.transport}${input.http_status&&input.http_status!==200?`, HTTP ${input.http_status}`:""}`],["추론",`${s.detect_ms_recent??"-"} ms`],["프레임 나이",`${s.frame_age_sec??"-"} 초`],["크기",s.frame_size?s.frame_size.join("x"):"-"],["재연결·오류",`${s.reconnects} / ${s.detect_errors}`]]:[["상태",s.error||"정지"]];
+ const head=el("tr");head.append(el("th","클래스"),el("th","표시 프레임"),el("th",`${s.conf_alarm??"경보 문턱"} 이상`),el("th","최고 점수"),el("th","이벤트"));
+ c.querySelector("dl").replaceChildren(...dl(rows));
+ c.querySelector("table").replaceChildren(head,...(s.classes||[]).filter(k=>k.frames_display).map(k=>{const r=el("tr");r.append(el("td",KO[k.name]||k.name),el("td",String(k.frames_display)),el("td",String(k.frames_alarm_conf)),el("td",String(k.max_conf)),el("td",k.alarm_class?String(k.events):"-"));return r}))}
+async function tick(){if(busy)return;busy=true;const mine=++order;let s;
+ try{s=await(await fetch("/api/state",{cache:"no-store",signal:timeout()})).json()}
+ catch(e){$("alert").style.display="block";$("alert").textContent="상태를 읽지 못합니다. 관리자가 멈췄거나 영상 탭이 너무 많습니다. 탭을 닫아 보세요.";return}
+ finally{busy=false}
+ if(mine<shown)return;shown=mine;
+ $("sub").textContent=`모델 ${s.model} · 카메라 ${s.cameras.length}대`;
+ const live=new Set(s.cameras.map(c=>c.id));document.querySelectorAll("[data-id]").forEach(n=>{if(!live.has(n.dataset.id))n.remove()});
+ const msg=[];let streams=0;
+ for(const c of s.cameras){const may=!document.hidden&&c.state==="running"&&streams<MAX_STREAMS;if(may)streams++;
+  try{draw(card(c.id),c,may)}catch(e){msg.push(`${c.name} 표시 실패: ${e.message}`)}}
+ const q=s.scheduler,r=s.resources;
+ if(!q.alive)msg.push("추론 스케줄러가 멈췄습니다. 관리자를 다시 시작하세요.");
+ else if(q.demand_fps>0&&q.last_work_age_sec>q.stall_after_sec)msg.push(`입력은 있는데 ${q.last_work_age_sec}초째 추론이 없습니다.`);
+ if(q.overloaded)msg.push(`추론 여력 부족: 수요 ${q.demand_fps} fps, 처리 능력 약 ${q.capacity_fps} fps`);
+ if(r.error)msg.push(`자원 측정 실패: ${r.error}`);if(s.leftover_threads.length)msg.push(`끝나지 않은 수신 스레드: ${s.leftover_threads.join(", ")}`);
+ if(Date.now()<actionUntil&&(actionError||actionNote))msg.push(actionError||actionNote);
+ for(const c of s.cameras){if(c.error)msg.push(`${c.name}: ${c.error}`);
+  const i=c.input||{};if(i.http_status&&i.http_status!==200)msg.push(`${c.name}: 입력이 HTTP ${i.http_status}로 거절했습니다.`);
+  if(c.frame_size&&c.frame_size.join("x")==="1080x1440"&&!c.roi_applied)msg.push(`${c.name}: 회전이나 렌즈가 기준과 달라 제외 영역이 꺼졌습니다.`)}
+ $("alert").style.display=msg.length?"block":"none";$("alert").textContent=msg.join(" ");
+ $("sch").replaceChildren(...dl([["요청 합",`${q.requested_fps} fps`],["실제 수요",`${q.demand_fps} fps`],["처리 능력",`${q.capacity_fps??"-"} fps`],["한 프레임",`${q.cycle_ms??"-"} ms`],["점유율",q.busy_ratio===null?"-":`${Math.round(q.busy_ratio*100)}%`],["지연",`${q.lag_ms??"-"} ms`]]));
+ $("sys").replaceChildren(...dl([["장비 전체 CPU",`${r.system_cpu_pct??"-"}%`],["이 프로세스",r.process_cpu_pct==null?"-":`논리 코어 ${(r.process_cpu_pct/100).toFixed(1)}개 / ${r.logical_cpus}개`],["메모리",`${r.process_rss_mb??"-"} MB, 여유 ${r.mem_available_mb??"-"} MB`],["부하",(r.load_avg||[]).join(" ")],["온도",`${r.cpu_temp_c??"-"} ℃`],["클럭",`${r.cpu_mhz??"-"} MHz`]]));
+ $("thr").replaceChildren(...Object.entries(r.cpu_groups||{}).map(([k,v])=>{const t=el("tr");t.append(el("td",k),el("td",`${v}%`));return t}))}
+document.addEventListener("visibilitychange",tick);
+tick();setInterval(tick,1000);
+</script></body></html>
