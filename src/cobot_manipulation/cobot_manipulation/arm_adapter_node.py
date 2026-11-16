@@ -32,6 +32,7 @@ import uuid
 from builtin_interfaces.msg import Time
 from cobot_interfaces.msg import ArmCommand, ArmStatus, CommandAck
 from cobot_manipulation import arm_backend_utils as backends
+from cobot_manipulation import arm_info_utils as info_utils
 from cobot_manipulation import arm_power_utils as power
 from cobot_manipulation import arm_registry_utils as registry_utils
 from cobot_manipulation import work_contract_utils as contract
@@ -49,6 +50,9 @@ EVENT_QOS = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.VOLATILE)
 TELEMETRY_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT,
                            durability=DurabilityPolicy.VOLATILE)
+# 설정성 정보: 늦게 붙은 관제도 마지막 값을 받게 TRANSIENT_LOCAL (CLAUDE.md §7)
+INFO_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                      durability=DurabilityPolicy.TRANSIENT_LOCAL)
 GRIPPER_KEY = 'gripper.pos'
 
 
@@ -85,6 +89,8 @@ class ArmAdapterNode(Node):
             'command_topic': '',
             'status_topic': '',
             'ack_topic': '',
+            'info_topic': '',
+            'info_period_sec': 5.0,
             'auto_start': False,
             'status_period_sec': 0.1,
             'state_poll_sec': 1.0,
@@ -136,6 +142,7 @@ class ArmAdapterNode(Node):
         self.retract = (False, False)   # (retract_safe, retract_safe_measured)
         self.pending_reset = None       # 끄기 결과를 기다리는 RESET: (ack 재료, 기한, 이전 상태)
         self.release_ok = False
+        self.release_acked = False      # 쉬는 자세로 옮기기 시작해 RESET ACK 를 먼저 보냄
         self.state_poll_sec = value['state_poll_sec']
         self.release_timeout_sec = value['release_timeout_sec']
         self.last_state_poll = 0.0
@@ -143,11 +150,15 @@ class ArmAdapterNode(Node):
             'command': value['command_topic'] or f'/control_center/{self.iid}/command',
             'status': value['status_topic'] or f'/manipulation/{self.iid}/status',
             'ack': value['ack_topic'] or f'/manipulation/{self.iid}/command_ack',
+            'info': value['info_topic'] or f'/manipulation/{self.iid}/info',
         }
+        self.info_period_sec = value['info_period_sec']
+        self.last_info, self.last_info_at = None, 0.0
 
         self.result_pub = self.create_publisher(String, value['result_topic'], 50)
         self.status_pub = self.create_publisher(ArmStatus, topics['status'], TELEMETRY_QOS)
         self.ack_pub = self.create_publisher(CommandAck, topics['ack'], EVENT_QOS)
+        self.info_pub = self.create_publisher(String, topics['info'], INFO_QOS)
         self.create_subscription(String, value['request_topic'], self._on_request, 50)
         self.create_subscription(ArmCommand, topics['command'], self._on_command, COMMAND_QOS)
         self._detect()
@@ -157,7 +168,8 @@ class ArmAdapterNode(Node):
         self.get_logger().info(
             f'{self.arm_id} 시작: backend={self.backend.name}, 전원 {self.power} '
             f'(auto_start={self.auto_start}), 요청 {value["request_topic"]} → 결과 '
-            f'{value["result_topic"]}, 명령 {topics["command"]}, 상태 {topics["status"]}')
+            f'{value["result_topic"]}, 명령 {topics["command"]}, 상태 {topics["status"]}, '
+            f'정보 {topics["info"]}')
 
     def _detect(self):
         state, port, reason = registry_utils.detect(
@@ -269,6 +281,7 @@ class ArmAdapterNode(Node):
             self.backend.release(now)
             self.pending_reset = (ack, time.monotonic() + self.release_timeout_sec, self.power)
             self.release_ok = False
+            self.release_acked = False
             self.power = power.RELEASING
             self.get_logger().info(f'{self.arm_id} 끄기 요청 (관제 RESET): 쉬는 자세 확인 중')
             return
@@ -318,27 +331,58 @@ class ArmAdapterNode(Node):
                 and now - self.last_state_poll >= self.state_poll_sec):
             self.last_state_poll = now
             self.backend.request_state(now)
+        self._publish_info(now)
+
+    def _publish_info(self, now):
+        """백엔드·탐지·실행기 정보. 바뀌면 바로, 아니면 info_period_sec 마다 낸다."""
+        info = info_utils.make_info(
+            self.arm_id, self.iid, self.boot_id, self.backend.name, self.backend.ready,
+            self.backend.worker_info, (self.state, self.reason, self.port), self.power,
+            self.backend.dead, now)
+        if (not info_utils.info_changed(self.last_info, info)
+                and now - self.last_info_at < self.info_period_sec):
+            return
+        self.last_info, self.last_info_at = info, now
+        self.info_pub.publish(String(data=info_utils.encode(info)))
 
     def _tick_release(self):
         ack, deadline, before = self.pending_reset
+        moving = self.backend.take_release_moving()
+        if moving is not None and not self.release_acked:
+            # 실행기가 쉬는 자세로 옮기기 시작했다 (fleet_arms.yaml release_move). 이동이 관제의
+            # ACK 대기(8 s)보다 길 수 있어 RESET 은 지금 받아들였다고 답하고, 끝은 ArmStatus 로 보인다.
+            deadline = time.monotonic() + moving + self.release_timeout_sec
+            self.pending_reset = (ack, deadline, before)
+            self.release_acked = True
+            why = f'쉬는 자세로 이동 중 (약 {moving:.0f}s), 도착하면 토크 끔'
+            self.get_logger().warning(f'{self.arm_id} {why}')
+            self._ack(ack, power.ACCEPTED, why, False)
         result = self.backend.take_release()
         if result is not None and not result[0]:
             self.power, self.pending_reset = before, None
             self.get_logger().warning(f'{self.arm_id} 끄기 거절: {result[1]}')
-            self._ack(ack, power.REJECTED_STATE, result[1], False)
+            self._ack_release(ack, power.REJECTED_STATE, result[1])
             return
         if result is not None:
             self.release_ok = True
         if self.release_ok and not self.backend.running():
             self.pending_reset = None
             self._disarm('쉬는 자세에서 토크를 껐습니다')
-            self._ack(ack, power.ACCEPTED, '', False)
+            self._ack_release(ack, power.ACCEPTED, '')
         elif self.backend.dead:
             self.power, self.pending_reset = power.FAULT, None
-            self._ack(ack, power.REJECTED_STATE, f'끄는 중 고장: {self.backend.dead}', False)
+            self._ack_release(ack, power.REJECTED_STATE, f'끄는 중 고장: {self.backend.dead}')
         elif time.monotonic() > deadline:
             self.power, self.pending_reset = before, None
-            self._ack(ack, power.REJECTED_STATE, '실행기가 끄기에 답하지 않음', False)
+            self._ack_release(ack, power.REJECTED_STATE, '실행기가 끄기에 답하지 않음')
+
+    def _ack_release(self, ack, result, reason):
+        """RESET 의 최종 ACK. 이동을 시작할 때 이미 답했으면 다시 보내지 않고 로그만 남긴다."""
+        if not self.release_acked:
+            self._ack(ack, result, reason, False)
+        elif result != power.ACCEPTED:
+            self.get_logger().error(f'{self.arm_id} 이동 뒤 끄지 못함 (토크 상태는 ArmStatus): {reason}')
+        self.release_acked = False
 
     def _publish_status(self):
         joints = self.backend.joints or {}

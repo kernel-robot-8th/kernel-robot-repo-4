@@ -22,6 +22,9 @@
     command_topic: ""           # 비우면 /control_center/<omx_n>/command
     status_topic: ""            # 비우면 /manipulation/<omx_n>/status
     ack_topic: ""               # 비우면 /manipulation/<omx_n>/command_ack
+    # 설정·실행기 정보 (String JSON, TRANSIENT_LOCAL): 백엔드·보드 탐지·작업별 모델·쉬는 자세. 관제 팔 카드가 쓴다.
+    info_topic: ""              # 비우면 /manipulation/<omx_n>/info
+    info_period_sec: 5.0        # [s] 내용이 같아도 이 주기로 다시 낸다 (바뀌면 바로)
     auto_start: false           # true 면 팔이 탐지되자마자 연결 (관제 START 없이). 기본은 꺼짐으로 시작
     status_period_sec: 0.1      # [s] ArmStatus 발행 주기 (10 Hz)
     state_poll_sec: 1.0         # [s] 대기 중 실행기에 관절 값을 다시 읽게 하는 주기
