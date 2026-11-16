@@ -182,12 +182,12 @@ O3의 200ms는 제안 값이다. B0에서 현재 domain_bridge 지연을 재서 
 
 **자동화 설계**
 
-1. **로봇 정보 단일 파일:** `config/robots.yaml`에 로봇별 IP, SSH 계정, ROS 도메인을 적는다. 스크립트, 서비스, launch가 모두 이 파일을 읽는다 (O2).
+1. **로봇 정보 단일 파일:** `config/robots.yaml`에 로봇별 IP, SSH 계정, ROS 도메인을 적는다. 스크립트, 서비스, launch가 모두 이 파일을 읽는다 (O2). `cobot_fleet_control/config/fleet_startup.yaml`에도 IP·도메인이 있지만, 그 파일의 `ssh_user`를 채우면 fleet_control이 실제 SSH 기동을 할 수 있어 건드리지 않는다. 대신 두 파일의 IP·도메인이 같은지 시험으로 확인한다.
 2. **systemd 템플릿 유닛:** 로봇 이름만 바꿔 쓴다. 로봇별 값은 `robots.yaml`에서 만든 환경 파일(`/etc/cobot_mqtt_bridge/<robot>.env`)로 넣는다.
     - 관제 PC: `mqtt_bridge_tunnel@pinky1~3.service`
     - 로봇: `mqtt_bridge_robot@pinkyN.service`
-3. **mosquitto 설정 명시:** `/etc/mosquitto/conf.d/cobot_mqtt_bridge.conf`에 `listener 1883 127.0.0.1`을 적는다. Ubuntu 24.04의 mosquitto 2.x는 기본값도 localhost 전용이지만, 기본값이 바뀌어도 동작하도록 명시한다.
-4. **스크립트 4개** (`cobot_mqtt_bridge/scripts/`)
+3. **mosquitto 설정 명시:** `/etc/mosquitto/conf.d/cobot_mqtt_bridge.conf`에 `listener 1883 127.0.0.1`과 `allow_anonymous true`를 적는다(mosquitto 2.x는 listener를 적으면 allow_anonymous가 없을 때 접속을 거부한다). Ubuntu 24.04의 mosquitto 2.x는 기본값도 localhost 전용이지만, 기본값이 바뀌어도 동작하도록 명시한다.
+4. **스크립트 4개** (워크스페이스 최상위 `scripts/mqtt_bridge/`. CLAUDE.md 3-1이 패키지 안 `scripts/` 폴더를 허용하지 않아 `scripts/docker/`와 같은 방식으로 둔다)
 
 | 스크립트 | 실행 위치 | 하는 일 |
 | --- | --- | --- |
@@ -411,3 +411,56 @@ O3의 200ms는 제안 값이다. B0에서 현재 domain_bridge 지연을 재서 
 - [ ] A3 장애 재현용 `stress-ng` 설치 승인 (관제 PC, 시험용 새 의존성)
 
 **확정됨** (2026-11-16): 로봇 도메인 10/20/30 유지, 최종 관제 도메인 100, 로봇 주소·계정, 차선 토픽 제거, 관제→로봇 7개 모두 열기, cmd_vel 워치독만 유지, 브릿지 생존 판단은 노드 이름 형식.
+
+## 진행 상황과 다음 작업 (인계)
+
+작업 PC 구분: 개인 PC(ROS 없음)에서 코드·문서를 작성하고, GitHub를 거쳐 ROS 2가 설치된 작업용 PC에서 빌드·시험·이어서 작업한다.
+
+| 단계 | 상태 | 커밋 |
+| --- | --- | --- |
+| A0 결정 | 완료 (2026-11-16) | `c787f7b` |
+| A1 패키지 보완 | 코드 완료, **작업용 PC 검증 대기** | `c787f7b` |
+| A2 설치 자동화·진단 도구 | 계획 확정, 작성 전 | – |
+| A3 이후 | 시작 전 | – |
+
+### 작업용 PC에서 먼저 할 일: A1 검증
+
+개인 PC에는 ROS가 없어 순수 파이썬 시험 66건만 간이 실행기로 통과시켰다. 아래는 아직 실행하지 않았다.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd <ws>
+colcon build --symlink-install --packages-select cobot_mqtt_bridge
+colcon test --packages-select cobot_mqtt_bridge
+colcon test-result --verbose            # flake8·pep257·copyright 포함
+```
+
+가짜 모드(101/102): README "2. 가짜 모드" 절차로 pinky1 F1 토픽 통과를 확인하고, 관제 쪽에서 7개 하향 토픽이 로봇 역할 노드에 도착하는지 본다. pinky2·3로 시험할 때는 `-p robot_domain:=20`(pinky3은 30)을 붙인다. 하향 시험은 `-p enable_down:=true --params-file config/mqtt_down.yaml`을 양쪽에 준다.
+
+### A2 작성 계획 (확정)
+
+새로 만들 파일:
+
+| 파일 | 내용 |
+| --- | --- |
+| `cobot_mqtt_bridge/config/robots.yaml` | pinky1~3의 host, ssh_user(`pinky`), ssh_port, domain |
+| `cobot_mqtt_bridge/config/mqtt_bridge_tunnel@.service` | PC 터널 템플릿. 주소는 `/etc/cobot_mqtt_bridge/%i.env`, `User`는 설치 때 현재 사용자로 채움 |
+| `cobot_mqtt_bridge/config/mqtt_bridge_robot@.service` | 로봇 서비스 템플릿. `-p robot:=%i -p robot_domain:=${ROS_DOMAIN_ID}`, 구독 전용 유지 |
+| `cobot_mqtt_bridge/config/mosquitto_cobot_mqtt_bridge.conf` | `listener 1883 127.0.0.1`, `allow_anonymous true` |
+| `scripts/mqtt_bridge/setup_pc.sh` | mosquitto·mosquitto-clients 설치·설정, SSH 키 생성·등록, 터널 등록. 응답 없는 로봇은 경고 후 건너뜀 |
+| `scripts/mqtt_bridge/deploy_robot.sh <pinkyN\|all>` | 코드·YAML 복사, paho 설치(인터넷 없으면 `.deb`), env 파일·템플릿 서비스 등록, 예전 `mqtt_bridge_robot.service` 끄기, `--robots <파일>`·`--no-systemd` 옵션 |
+| `scripts/mqtt_bridge/doctor.sh [pinkyN]` | A2의 8개 구간 점검 |
+| `scripts/mqtt_bridge/collect_logs.sh [pinkyN]` | `~/mqtt_bridge_logs/<시각>.tar.gz` |
+| `scripts/mqtt_bridge/fake_robot/Dockerfile`, `robots_fake.yaml` | `ros:jazzy-ros-base` + sshd + 계정 `pinky`, 127.0.0.1:2222, 도메인 101 |
+| `cobot_mqtt_bridge/test/test_robots_config.py` | robots.yaml ↔ 토픽 YAML·launch 기본값·fleet_startup 도메인/IP 일치, 스크립트 `bash -n` |
+
+수정할 파일:
+- `config/mqtt_bridge_tunnel.service`, `config/mqtt_bridge_robot.service`: 템플릿으로 대체 후 삭제
+- `launch/mqtt_bridge.launch.xml`: 서비스 실행 여부 검사를 `mqtt_bridge_robot@pinky1`로
+- `setup.py`: `config/*.conf` 설치 추가, 서비스 glob이 `@.service`를 포함하는지 확인
+- `test/test_service_files.py`: 템플릿 기준으로 수정
+- `README.md`: 설치 절을 스크립트 3줄로
+
+검증(작업용 PC): `colcon test` → 가짜 로봇 컨테이너에 `deploy_robot.sh --robots robots_fake.yaml --no-systemd` 두 번(결과 동일) → 컨테이너 안 로봇 노드로 터널·브로커·관제(102) 통과 → 컨테이너·터널·브로커·도메인 값을 하나씩 끊어 `doctor.sh` 진단 일치 → `collect_logs.sh` 압축 파일 생성.
+
+작업용 PC가 실제 관제 PC가 아니면 mosquitto·터널도 도커 안에서만 시험하고, 실제 `setup_pc.sh`는 B0 때 관제 PC에서 실행한다.
