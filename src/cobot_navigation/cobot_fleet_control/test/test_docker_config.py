@@ -76,7 +76,7 @@ def runner(tmp_path):
     repo = tmp_path / 'repo'
     config = repo / 'src/cobot_navigation/cobot_fleet_control/config/docker'
     shutil.copytree(CONFIG, config)
-    for name in ('cobot_control_center', 'cobot_patrol_interfaces'):
+    for name in ('cobot_control_center', 'cobot_patrol_interfaces', 'cobot_interfaces'):
         package = repo / 'src' / name
         package.mkdir(parents=True)
         (package / 'original.txt').write_text('committed source\n')
@@ -125,6 +125,7 @@ def test_build_only_builds_and_labels_source(runner):
     staged = runner.staged_dir / 'src'
     assert (staged / 'cobot_control_center/original.txt').read_text() == 'working tree edit\n'
     assert (staged / 'cobot_patrol_interfaces/original.txt').read_text() == 'committed source\n'
+    assert (staged / 'cobot_interfaces/original.txt').read_text() == 'committed source\n'
 
 
 def test_down_preserves_volumes_by_default(runner):
