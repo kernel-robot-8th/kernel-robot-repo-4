@@ -55,7 +55,8 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh logs --tail=100
 sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 ```
 
-관제 PC 브라우저: **http://127.0.0.1:8080**.
+관제 PC 브라우저: **http://127.0.0.1:8080**. 다른 PC 에서는 **http://<관제 PC IP>:8080** (예: http://192.168.45.9:8080).
+웹은 기본으로 내부망에 공개(0.0.0.0)합니다. 로그인 기능이 없어 같은 망의 누구나 명령 화면을 쓸 수 있으니, 이 PC 에서만 보려면 `COBOT_WEB_HOST=127.0.0.1` 을 줍니다.
 `up`은 bridge → zone-manager/fleet → web의 의존 관계에 따라 네 서비스를 실행합니다.
 프로세스 기동 순서이며 로봇 준비 완료를 보장하는 검사는 아닙니다.
 웹은 기존 fleet_api_node·fleet_status_node만 시작하고 `fleet:=existing`으로 fleet에 연결합니다.
@@ -93,8 +94,8 @@ Cyclone DDS는 이미지의 `/opt/cobot/cyclonedds.xml`로 로봇망 `192.168.45
 
 ```bash
 sudo env COBOT_RMW_IMPLEMENTATION=rmw_fastrtps_cpp bash cobot_fleet_control/config/docker/fleet_docker.sh up
-# 다른 PC에서 웹에 접속하려면 (기본은 관제 PC 내부 전용)
-sudo env COBOT_WEB_HOST=0.0.0.0 COBOT_WEB_PORT=8080 bash cobot_fleet_control/config/docker/fleet_docker.sh up
+# 웹을 관제 PC 안에서만 열려면 (기본은 내부망 공개 0.0.0.0)
+sudo env COBOT_WEB_HOST=127.0.0.1 COBOT_WEB_PORT=8080 bash cobot_fleet_control/config/docker/fleet_docker.sh up
 ```
 
 ## 포함되는 코드와 의존성
