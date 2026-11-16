@@ -81,7 +81,13 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 - `pose_age` [s]: 위치를 마지막으로 받은 뒤 지난 시간. `teach`: 위치 복사 판정 `{"ok", "warnings": [..], "std_xy" [m], "std_yaw" [rad]}`.
 - `queues`: 구역별 대기 로봇 (앞 순번부터). `/zone_manager/queue_slot`(`"<구역>:<로봇>:<k>:<x>,<y>,<yaw>"`, 1초마다 다시 옴)으로 만들고, `queue_stale_sec` 동안 안 온 로봇과 이미 그 구역을 점유한 로봇은 뺍니다. 대기자가 없는 구역은 싣지 않습니다.
 - `alerts`: 지금 경고 `[{"robot", "code", "level", "text"}]`. `code` 는 `offline`·`battery_low`·`state_bad`(FAILED/STOPPED)·`stuck`(끼임 의심)·`zone_hold`(구역 오래 점유, `zone` 포함). `level` 은 `warn`/`bad`.
-- `events`: 이번 주기에 새로 생긴 이벤트 `[{"id", "time", "robot", "kind", "level", "text", "data"?}]`. `kind` 는 `state`·`link`·`zone`·`alert`·`clear`. `id` 는 백엔드가 붙입니다. state 이벤트의 `data.extra` 에 `command_id` 같은 모르는 필드가 그대로 남습니다.
+- `events`: 이번 주기에 새로 생긴 이벤트 `[{"id", "time", "robot", "kind", "level", "text", "data"?}]`. `kind` 는 `state`·`link`·`zone`·`alert`·`clear`·`cmd`. `id` 는 백엔드가 붙입니다. state 이벤트의 `data.extra` 에 `command_id` 같은 모르는 필드가 그대로 남습니다.
+  - `cmd`: 관제(`fleet_control_node`)가 `/pinkyN/patrol_cmd` 로 낸 주행 명령. `fleet_status_node` 가 **구독만** 해서 남깁니다. 글 `명령 zone:ZA (a1b2c3)` (봉투 없는 문자열이면 `(봉투 없음)`), `data: {command_id, command}`. `stop`·`control_reset` 은 warn, `emergency_stop` 은 bad.
+    같은 `command_id` 의 `patrol_status` 가 `task_finished: true` 를 내면 `명령 완료 zone:ZA (12.3 s)` (FAILED 면 `명령 실패 …: 사유`, bad), `data` 에 `state`·`duration` 을 더합니다. 순찰 상태가 올 때마다 보므로 1초 사이에 끝나도 놓치지 않습니다.
+- 주문 이벤트(`kind: "order"`)는 이 스냅샷이 아니라 `fleet_api_node` 가 `/control_center/tasks` 의 `orders` 를 1초마다 비교해 같은 이벤트 로그(`/api/events`, `/ws/fleet` 의 `events`)에 넣습니다 (`fleet_api_utils.order_events`). `robot` 은 주문의 `robot_id`(배정 전 null), `data` 는 주문 필드(`order_id`·`robot_id`·`state`·`stage`·`sku`·`route` 등).
+  - 접수 `주문 <id> 접수 (SKU, 루트 …)`, 단계 `주문 <id> MOVE_PICKUP → PICK`, 로봇 배정, 완료 info.
+  - 실패 사유가 생김(fleet 은 사유를 먼저 적고 HOME 복귀 뒤 FAILED 로 끝냄)·`FAILED`·`UNKNOWN` 등 보류 상태 bad.
+  - 백엔드를 막 켜면 끝나지 않은 주문만 `진행 중 <state> <stage>` 한 줄씩 남깁니다.
 - `infra` 는 ROS 그래프 조회로만 만듭니다 (구독·발행 없음). 1초마다 갱신합니다.
   - `mode`: 가짜 핑키 노드가 보이면 `mock`, 도메인이 `control_domain_id` 이면 `real`, 그 밖은 `test`.
   - `state`: `ok` / `missing` / `duplicate` / `unknown`(이름이 안 보임) / `n/a`(실물 아님).
@@ -124,7 +130,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `/control_center/omx_N/command` | `ArmCommand`, RELIABLE depth 10 (팔 노드와 같음) |
 | `/manipulation/omx_N/command_ack` | `CommandAck`, RELIABLE depth 50 |
 | `/manipulation/omx_N/status` | `ArmStatus`, BEST_EFFORT KEEP_LAST 1 |
-| `/fleet/work_request`, `/fleet/work_result` | `std_msgs/String` JSON, RELIABLE depth 50 (`fleet_control_node` 와 같음). 작업 시험만 |
+| `/fleet/work_request`, `/fleet/work_result` | `std_msgs/String` JSON, RELIABLE depth 50 (`fleet_control_node` 와 같음). 작업 시험을 내고, 주문(`fleet_control_node`)이 낸 요청도 **듣기만** 해서 그 팔 카드 `work` 와 기록에 남김. 결과는 `request_id` 로 짝지음 |
 
 헤더 (`CommandHeader`): `command_id` 새 UUID, `tx_id` = `client_request_id`, `robot_id` = `omx_N`, `ttl_ms` 5000, `issued_by` `control_center`, `issued_at` 관제 PC 시계.
 팔 노드가 `issued_at + ttl` 을 자기 시계로 보므로 **두 PC 시계가 맞아야** 합니다 (안 맞으면 모두 `REJECTED_TTL`). 서명(`sig`)은 아직 채우지 않습니다 (팔 노드도 안 봄).
@@ -145,7 +151,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
 | `site` | 현장 팔 배치 `{station, role, host, serial, actions}` 또는 null (`config/site_arms.yaml`, 빈 칸은 미정). `actions` 말고는 표시용 |
 | `work_actions` | 그 팔에 작업 시험으로 보낼 수 있는 작업 (`site.actions`, 칸이 없으면 전체). 비면 `allowed` 에 `work` 가 없음 |
-| `work` | 마지막 작업 시험 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT` |
+| `work` | 마지막 작업 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data, source, requested_by, order_id, robot_id, stage}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT`. `source`: `test`(웹 작업 시험, `requested_by` 는 누른 곳 IP) / `order`(fleet_control 주문 작업, `order_id`·`robot_id`·`stage` 채움). 주문 작업이 진행 중이면 작업 시험은 409. 결과 기한은 요청의 `timeout_sec` + `work_result_margin_sec` (작업 시험은 `work_timeout_sec`). `stage: SAFETY`(release_hold 등) 요청은 `work` 를 바꾸지 않고 기록만 |
 
 | `alarms` | 활성 알람 `[{code, level, since, text}]` (아래 [알람](#알람-활성-알람기록)) |
 
@@ -185,7 +191,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `boot` | 팔 노드가 다시 켜짐 (`ArmStatus.robot_boot_id` 바뀜) | warn |
 | `ack` | 명령 응답. 다른 곳이 낸 명령이면 `다른 곳이 낸 명령` | 수락·정지 실행 info, 거절 warn |
 | `timeout` | 명령 응답 없음 (`ack_timeout_sec`) | bad |
-| `work` | 작업 결과: 작업 시험과 **주문 작업** (`/fleet/work_result` 의 `source` 가 그 팔) | 성공 info, 팔 안 움직인 실패 warn, 도중 실패·결과 없음 bad |
+| `work` | 주문 작업 요청(`주문 작업 PICK pick 요청 (order, robot)`)·SAFETY 요청, 작업 결과: 작업 시험과 **주문 작업** (`/fleet/work_result` 의 `source` 가 그 팔, 걸린 시간 포함) | 요청 info, 성공 info, 팔 안 움직인 실패 warn, 도중 실패·결과 없음 bad |
 
 2026-11-16 도메인 101 시험 (가짜 핑키 + `fleet_control_node` + 팔 노드 4934bac `backend:=fake` 3대): 켜기 → 작업 시험 성공 → 작업 중 정지(활성 `hold`·`posture_unknown`) → 정지 해제 → 끄기(둘 다 풀림) → 또 끄기(거절 warn 기록) → 다른 곳이 낸 주문 작업 실패 결과(omx_2 `posture_unknown`) → omx3 팔 노드 끔(활성 `offline`, 끊김 기록) → 다시 켬(`boot`·연결됨 기록, `offline` 풀림). 헤드리스 크롬으로 알람 칸 확인.
 

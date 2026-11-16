@@ -18,9 +18,10 @@ import json
 import math
 
 from cobot_control_center.fleet_status_utils import (
-    clock_offset, count_state, diff_events, FleetState, judge_infra, judge_teach_pose,
-    MOVING_STATES,
-    parse_patrol_status, parse_queue_slot, parse_zone_status, std_from_covariance,
+    clock_offset, command_level, count_state, diff_events, FleetState, judge_infra,
+    judge_teach_pose, MOVING_STATES,
+    parse_patrol_cmd, parse_patrol_status, parse_queue_slot, parse_zone_status,
+    std_from_covariance,
     UNKNOWN_NODE_NAME,
     yaw_from_quaternion)
 import pytest
@@ -414,3 +415,66 @@ def test_clock_skew_needs_robot_time_and_online():
     fleet.update_status('pinky1', json.dumps({'state': 'IDLE', 'time': 50.0}), 100.0)
     # 위치·배터리를 받은 적 없어 offline 이면 시계 경고를 내지 않는다 (끊김 경고가 먼저)
     assert not [a for a in fleet.snapshot(100.0)['alerts'] if a['code'] == 'clock_skew']
+
+
+def test_parse_patrol_cmd_envelope_and_raw():
+    envelope = json.dumps({'command_id': 'abc123def', 'command': 'zone:ZA', 'seq': 3})
+    assert parse_patrol_cmd(envelope) == {'command_id': 'abc123def', 'command': 'zone:ZA'}
+    assert parse_patrol_cmd(' home ') == {'command_id': None, 'command': 'home'}
+    assert parse_patrol_cmd('{"command": 5}') is None
+    assert parse_patrol_cmd('{broken') is None
+    assert parse_patrol_cmd('') is None
+
+
+@pytest.mark.parametrize('command, level', [('zone:ZA', 'info'), ('stop', 'warn'),
+                                            ('control_reset', 'warn'),
+                                            ('emergency_stop', 'bad')])
+def test_command_level(command, level):
+    assert command_level(command) == level
+
+
+def cmd(command_id, command):
+    return json.dumps({'command_id': command_id, 'command': command})
+
+
+def status(state, command_id=None, finished=False, detail=''):
+    data = {'state': state, 'detail': detail}
+    if command_id:
+        data.update(command_id=command_id, task_finished=finished)
+    return json.dumps(data)
+
+
+def test_command_then_done_events():
+    fleet = FleetState(['pinky1'], 3.0)
+    assert fleet.note_command('pinky1', cmd('abc123def', 'zone:ZA'), 10.0)
+    fleet.update_status('pinky1', status('MOVING', 'abc123def'), 11.0)
+    # 1초 스냅샷 사이에 끝났다가 다음 명령 없이 IDLE 로 바뀌어도 완료를 놓치지 않는다
+    fleet.update_status('pinky1', status('ARRIVED', 'abc123def', finished=True), 22.5)
+    fleet.update_status('pinky1', status('IDLE'), 22.6)
+    events = [e for e in fleet.collect_events(fleet.snapshot(23.0)) if e['kind'] == 'cmd']
+    assert [(e['level'], e['text']) for e in events] == [
+        ('info', '명령 zone:ZA (abc123)'),
+        ('info', '명령 완료 zone:ZA (12.5 s)')]
+    assert events[1]['data']['duration'] == 12.5
+    assert fleet.commands == {}
+
+
+def test_command_failed_and_other_id_ignored():
+    fleet = FleetState(['pinky1'], 3.0)
+    fleet.note_command('pinky1', cmd('aaa111', 'goto:P3'), 0.0)
+    # 다른 명령의 끝은 이 명령의 완료가 아니다
+    fleet.update_status('pinky1', status('FAILED', 'zzz999', finished=True), 1.0)
+    fleet.update_status('pinky1', status('FAILED', 'aaa111', finished=True, detail='막힘'), 4.0)
+    texts = [e['text'] for e in fleet.collect_events(fleet.snapshot(5.0)) if e['kind'] == 'cmd']
+    assert texts == ['명령 goto:P3 (aaa111)', '명령 실패 goto:P3 (4.0 s): 막힘']
+
+
+def test_command_raw_and_unknown_robot():
+    fleet = FleetState(['pinky1'], 3.0)
+    assert fleet.note_command('pinky1', 'stop', 0.0)
+    assert not fleet.note_command('pinky9', 'stop', 0.0)
+    assert not fleet.note_command('pinky1', '{bad', 0.0)
+    events = fleet.collect_events(fleet.snapshot(1.0))
+    assert [(e['kind'], e['level'], e['text']) for e in events] == [
+        ('cmd', 'warn', '명령 stop (봉투 없음)')]
+    assert fleet.commands == {}

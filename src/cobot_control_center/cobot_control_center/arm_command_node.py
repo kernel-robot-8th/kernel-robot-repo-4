@@ -24,7 +24,8 @@ fleet_api_node 는 로봇 토픽에 발행하지 않는다. 팔 켜기·끄기·
   /control_center/arms        (String JSON, transient_local) → fleet_api_node  (팔 상태 모음)
 
   /fleet/work_request (String JSON) → 팔 노드  (작업 시험 한 건, 실제 팔이 움직인다)
-  /fleet/work_result  (String JSON) ← 팔 노드  (내가 낸 request_id 의 결과만 기록)
+  /fleet/work_request (String JSON) ← fleet_control  (주문 작업, 듣기만 해서 카드 작업 칸·기록에 표시)
+  /fleet/work_result  (String JSON) ← 팔 노드  (작업 시험·주문 작업 결과를 request_id 로 짝지어 기록)
 
 START 는 실제 팔에 연결해 토크를 켠다. 팔 모션은 ArmCommand 로 시작하지 않는다 (ArmCommand.msg).
 작업 시험은 개발 대시보드용이다. 주행 관제(fleet_control_node)도 같은 작업 토픽을 쓰므로
@@ -137,6 +138,10 @@ class ArmCommandNode(Node):
         self.work_pub = self.create_publisher(String, value['work_request_topic'], WORK_QOS)
         self.create_subscription(String, value['work_result_topic'], self._on_work_result,
                                  WORK_QOS)
+        # 주문(fleet_control)이 보내는 작업 요청을 듣기만 한다. 내가 낸 작업 시험도 여기로 다시 오는데,
+        # request_id 로 걸러 두 번 세지 않는다.
+        self.create_subscription(String, value['work_request_topic'], self._on_other_work_request,
+                                 WORK_QOS)
         self.events_pub = self.create_publisher(String, value['events_topic'], BACKEND_QOS)
         self.arms_pub = self.create_publisher(String, value['arms_topic'], SNAPSHOT_QOS)
         self.create_subscription(String, value['request_topic'], self._on_request, BACKEND_QOS)
@@ -226,6 +231,19 @@ class ArmCommandNode(Node):
             'arm_id': arm_id, 'action': payload['action'], 'work_id': payload['request_id'],
             'client_request_id': request.get('client_request_id')}))
 
+    def _on_other_work_request(self, msg):
+        try:
+            request = json.loads(msg.data)
+        except (TypeError, ValueError):
+            return
+        arm_id = self.commander.put_other_request(request, time.time(), time.monotonic())
+        if arm_id is not None:
+            self.get_logger().info(
+                f'{arm_id} 주문 작업 요청: {request.get("stage")} {request.get("action")} '
+                f'(order {request.get("order_id") or "-"}, '
+                f'robot {request.get("robot_id") or "-"}, '
+                f'request {request.get("request_id")})')
+
     def _on_work_result(self, msg):
         try:
             result = json.loads(msg.data)
@@ -233,8 +251,8 @@ class ArmCommandNode(Node):
             return
         record = self.commander.put_work_result(result, time.time())
         if record is None:
-            return   # 주문(fleet_control) 결과이거나 이미 받은 결과
-        text = (f'{record["arm_id"]} 작업 시험 {record["action"]} → {record["state"]} '
+            return   # 짝지을 작업이 없는 결과(노드를 켜기 전 요청)이거나 이미 받은 결과
+        text = (f'{record["arm_id"]} {arms.work_label(record)} → {record["state"]} '
                 f'({record["duration"]} s) {record["detail"]}')
         self._log(record['state'] == arms.WORK_SUCCEEDED, text)
 
@@ -245,7 +263,7 @@ class ArmCommandNode(Node):
             self._send_event(out)
         for record in self.commander.expire_works(time.monotonic(), time.time()):
             self.get_logger().warning(
-                f'{record["arm_id"]} 작업 시험 {record["action"]}: {record["detail"]}')
+                f'{record["arm_id"]} {arms.work_label(record)}: {record["detail"]}')
         # 알람 기록은 스냅샷(depth 1)이 아니라 응답 토픽(RELIABLE depth 50)으로 보내 빠지지 않게 한다.
         for event in self.commander.take_events():
             self._send_event({'type': 'event', 'event': event})

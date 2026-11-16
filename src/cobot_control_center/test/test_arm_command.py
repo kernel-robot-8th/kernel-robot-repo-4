@@ -442,6 +442,75 @@ def test_order_work_results_are_logged_once():
     assert kinds(commander) == []
 
 
+def fleet_request(request_id='q1', target='omx1', stage='PICK', action='pick', timeout=60.0):
+    """fleet_control scenario_runtime.dispatch() + fleet_control_node.work() 가 내는 모양."""
+    return {'request_id': request_id, 'order_id': 'cust-1', 'robot_id': 'pinky1',
+            'stage': stage, 'target': target, 'action': action, 'sku': 'SHOE_1',
+            'timeout_sec': timeout, 'session_id': 'fleet', 'seq': 4, 'issued_at': 100.0,
+            'ttl_sec': 5.0}
+
+
+def test_order_request_fills_card_and_pairs_result():
+    commander = ready_commander()
+    commander.take_events()
+    assert commander.put_other_request(fleet_request(), 100.0, 10.5) == 'omx_1'
+    work = commander.snapshot(10.6, 100.1)['arms'][0]['work']
+    assert work['state'] == arms.WORK_RUNNING and work['source'] == arms.WORK_ORDER
+    assert (work['order_id'], work['robot_id'], work['stage']) == ('cust-1', 'pinky1', 'PICK')
+    assert kinds(commander) == [('omx_1', 'work', 'info',
+                                 '주문 작업 PICK pick 요청 (cust-1, pinky1)')]
+    # 주문 작업 중에는 작업 시험을 막는다
+    with pytest.raises(arms.CommandError) as error:
+        commander.make_work(work_request(), 101.0, 10.6)
+    assert error.value.status == 409
+    result = {'request_id': 'q1', 'order_id': 'cust-1', 'robot_id': 'pinky1', 'stage': 'PICK',
+              'source': 'omx1', 'measured': True, 'finished': True, 'success': False,
+              'detail': '백엔드 없음', 'data': {'retry_safe': True}}
+    record = commander.put_work_result(result, 108.1)
+    assert record['state'] == arms.WORK_FAILED and record['duration'] == 8.1
+    assert record['retry_safe'] is True
+    assert kinds(commander) == [(
+        'omx_1', 'work', 'warn',
+        '주문 작업 PICK pick (cust-1, pinky1) → 실패 (8.1 s): 백엔드 없음')]
+    # 같은 결과가 또 와도 다시 기록하지 않는다
+    assert commander.put_work_result(result, 109.0) is None
+    assert kinds(commander) == []
+
+
+def test_order_request_ignored_cases():
+    commander = ready_commander()
+    payload = commander.make_work(work_request(), 100.0, 10.5)
+    commander.take_events()
+    # 내가 낸 작업 시험이 구독으로 다시 들어온 것
+    assert commander.put_other_request(payload, 100.0, 10.5) is None
+    assert commander.put_other_request(fleet_request(target='omx9'), 100.0, 10.5) is None
+    assert commander.put_other_request('nope', 100.0, 10.5) is None
+    assert commander.put_other_request(dict(fleet_request(), request_id=''), 100.0, 10.5) is None
+    assert kinds(commander) == []
+    assert commander.snapshot(10.6, 100.1)['arms'][0]['work']['source'] == arms.WORK_TEST
+
+
+def test_order_safety_request_only_logged():
+    commander = ready_commander()
+    commander.take_events()
+    request = fleet_request(stage='SAFETY', action='release_hold')
+    assert commander.put_other_request(request, 100.0, 10.5) == 'omx_1'
+    assert commander.snapshot(10.6, 100.1)['arms'][0]['work'] is None
+    assert kinds(commander) == [('omx_1', 'work', 'info', '주문 관제 release_hold 요청 (pinky1)')]
+
+
+def test_order_request_without_result_expires_with_its_timeout():
+    commander = ready_commander(work_margin_sec=10.0)
+    commander.put_other_request(fleet_request(timeout=30.0), 100.0, 10.0)
+    commander.take_events()
+    assert commander.expire_works(49.9, 139.9) == []
+    late = commander.expire_works(50.1, 140.1)
+    assert len(late) == 1 and late[0]['state'] == arms.WORK_NO_RESULT
+    assert late[0]['detail'].startswith('40s 안에 결과가 없음')
+    assert kinds(commander)[0][3].startswith('주문 작업 PICK pick (cust-1, pinky1) → 결과 없음')
+    assert 'posture_unknown' in alarms(commander, 10.5)
+
+
 # ---------- 현장 팔 배치 (config/site_arms.yaml) ----------
 
 def test_parse_site_arms_keeps_order_and_blanks():

@@ -25,7 +25,7 @@ import threading
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
     active_orders, ArmStore, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
-    load_robot_params, MapError, mjpeg_part, SnapshotStore,
+    load_robot_params, MapError, mjpeg_part, order_events, SnapshotStore,
     TaskStore)
 from fastapi.testclient import TestClient
 import pytest
@@ -1072,3 +1072,59 @@ def test_json_object():
     assert json_object('{"a": 1}') == {'a': 1}
     for bad in ['', 'nope', '[1]', None, '3']:
         assert json_object(bad) is None
+
+
+def order(stage='MOVE_PICKUP', state='RUNNING', robot='pinky1', failure=None, order_id='o1'):
+    return {'order_id': order_id, 'robot_id': robot, 'state': state, 'stage': stage,
+            'sku': 'SHOE_1', 'route': 'col2__BENCH_1', 'completed': [], 'failure': failure,
+            'detail': ''}
+
+
+def texts(events):
+    return [(e['robot'], e['level'], e['text']) for e in events]
+
+
+def test_order_events_first_snapshot_only_running():
+    events = order_events(None, [order(), order(state='COMPLETED', order_id='old')], 5.0)
+    assert texts(events) == [('pinky1', 'info', '주문 o1 진행 중 RUNNING MOVE_PICKUP')]
+    assert events[0]['kind'] == 'order' and events[0]['time'] == 5.0
+    assert events[0]['data']['route'] == 'col2__BENCH_1'
+
+
+def test_order_events_new_stage_assign_done():
+    assert texts(order_events([], [order(robot=None, state='WAITING', stage='')], 1.0)) == [
+        (None, 'info', '주문 o1 접수 (SHOE_1, 루트 col2__BENCH_1)')]
+    before = [order(robot=None, state='WAITING', stage='')]
+    assert texts(order_events(before, [order()], 2.0)) == [
+        ('pinky1', 'info', '주문 o1 WAITING → RUNNING (MOVE_PICKUP)'),
+        ('pinky1', 'info', '주문 o1 로봇 배정 pinky1')]
+    assert texts(order_events([order()], [order(stage='PICK')], 3.0)) == [
+        ('pinky1', 'info', '주문 o1 MOVE_PICKUP → PICK')]
+    assert texts(order_events([order(stage='RETURN_HOME')],
+                              [order(stage='RETURN_HOME', state='COMPLETED')], 4.0)) == [
+        ('pinky1', 'info', '주문 o1 완료')]
+    assert order_events([order()], [order()], 5.0) == []
+
+
+def test_order_events_failure_and_blocked():
+    events = order_events([order(stage='PICK')],
+                          [order(stage='RETURN_HOME', failure='팔 거절')], 1.0)
+    assert texts(events) == [
+        ('pinky1', 'info', '주문 o1 PICK → RETURN_HOME'),
+        ('pinky1', 'bad', '주문 o1 실패 사유 생김 (RETURN_HOME): 팔 거절')]
+    assert texts(order_events([order(stage='PICK')], [order(stage='PICK', state='UNKNOWN')],
+                              2.0)) == [('pinky1', 'bad', '주문 o1 RUNNING → UNKNOWN (PICK)')]
+    assert texts(order_events([order(failure='팔 거절')],
+                              [order(state='FAILED', failure='팔 거절')], 3.0)) == [
+        ('pinky1', 'bad', '주문 o1 RUNNING → FAILED (MOVE_PICKUP): 팔 거절')]
+    assert order_events([order()], 'not a list', 4.0) == []
+
+
+def test_task_store_order_events_taken_once():
+    tasks = TaskStore(3.0, 1.0)
+    assert tasks.put_snapshot(json.dumps({'tasks': [], 'orders': [order()]}), now=1.0) is True
+    assert tasks.put_snapshot(json.dumps({'tasks': [], 'orders': [order(stage='PICK')]}),
+                              now=2.0) is True
+    assert [e['text'] for e in tasks.take_events()] == [
+        '주문 o1 진행 중 RUNNING MOVE_PICKUP', '주문 o1 MOVE_PICKUP → PICK']
+    assert tasks.take_events() == []

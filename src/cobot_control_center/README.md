@@ -55,6 +55,7 @@ SQLite 를 쓰는 것은 명령을 맡은 작업 노드(기본 `fleet_control_no
 
 ```
 로봇 토픽 ─▶ fleet_status_node ─▶ /control_center/fleet_status
+(/pinkyN/patrol_cmd 도 기록용으로 구독만 — 관제가 낸 주행 명령)
                                         ▼ 구독
                          fleet_api_node 메모리 (최신 스냅샷 + 이벤트 로그)
                                         ├─ GET /api/fleet, /api/robots   처음 한 번

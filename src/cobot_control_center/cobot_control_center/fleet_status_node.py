@@ -91,6 +91,11 @@ class FleetStatusNode(Node):
             self.create_subscription(
                 Float32, f'/{name}/battery/percent',
                 lambda msg, r=name: self._on_battery(r, msg), qos_profile_sensor_data)
+            # 관제(fleet_control)가 낸 주행 명령을 기록용으로 듣기만 한다. 발행자 수만 보는
+            # fleet_control 의 명령 전달 검사(ready)에는 영향이 없다 (ros2 topic echo 와 같음).
+            self.create_subscription(
+                String, f'/{name}/patrol_cmd',
+                lambda msg, r=name: self._on_command(r, msg), reliable)
         self.create_subscription(String, '/zone_manager/status', self._on_zone, reliable)
         self.create_subscription(String, '/zone_manager/queue_slot', self._on_queue_slot, reliable)
 
@@ -108,6 +113,10 @@ class FleetStatusNode(Node):
         if state != self._last_state[robot]:
             self._last_state[robot] = state
             self.get_logger().info(f'{robot}: state={state}')
+
+    def _on_command(self, robot, msg):
+        if not self.fleet.note_command(robot, msg.data, time.time()):
+            self.get_logger().warning(f'{robot}: patrol_cmd 를 읽지 못함: {msg.data!r}')
 
     def _on_pose(self, robot, msg):
         p = msg.pose.pose.position
@@ -157,7 +166,7 @@ class FleetStatusNode(Node):
         # 이번 주기에 새로 생긴 이벤트만 싣는다. 쌓아 두는 것은 백엔드(fleet_api_node)가 한다.
         snapshot['events'] = self.fleet.collect_events(snapshot)
         for event in snapshot['events']:
-            if event['kind'] in ('alert', 'clear', 'zone'):
+            if event['kind'] in ('alert', 'clear', 'zone', 'cmd'):
                 self.get_logger().info(f'{event["robot"] or "-"}: {event["text"]}')
         snapshot['infra'] = self._check_infra()
         self.pub.publish(String(data=json.dumps(snapshot, ensure_ascii=False)))

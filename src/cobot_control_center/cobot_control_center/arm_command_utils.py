@@ -27,6 +27,9 @@ ArmCommand 로 내는 명령은 연결·토크(START), 쉬는 자세에서 끄�
 주문 흐름과 같은 /fleet/work_request 계약(팔 노드 work_contract_utils)으로 보내고,
 /fleet/work_result 에서 내가 낸 request_id 의 결과만 받는다. 실제 팔이 움직인다.
 주행 관제(fleet_control_node)도 같은 토픽에 보내므로 주문 진행 중에는 쓰지 않는다.
+
+주문 작업(put_other_request): fleet_control 이 /fleet/work_request 로 보낸 요청도 듣기만 해서
+그 팔 카드의 작업 칸(work, source 'order')에 진행 중으로 보이고, 결과와 request_id 로 짝짓는다.
 """
 
 from collections import deque
@@ -47,6 +50,11 @@ WORK_RUNNING = 'RUNNING'
 WORK_SUCCEEDED = 'SUCCEEDED'
 WORK_FAILED = 'FAILED'
 WORK_NO_RESULT = 'NO_RESULT'
+# 작업 칸(work)을 채운 쪽: 웹의 작업 시험 / fleet_control 의 주문
+WORK_TEST = 'test'
+WORK_ORDER = 'order'
+# 팔 동작이 아닌 fleet_control 요청 단계 (release_hold 등). 카드 작업 칸은 바꾸지 않고 기록만 한다.
+SAFETY_STAGE = 'SAFETY'
 
 # CommandAck.result
 ACK_RESULTS = {0: 'ACCEPTED', 1: 'REJECTED_EPOCH', 2: 'REJECTED_SEQ', 3: 'REJECTED_TTL',
@@ -168,6 +176,14 @@ def work_level(success, retry_safe):
     return 'warn' if retry_safe else 'bad'
 
 
+def work_label(record):
+    """작업 칸 기록의 머리말: '작업 시험 pick' / '주문 작업 PICK (cust-1, pinky1)'."""
+    if record.get('source') == WORK_ORDER:
+        return (f'주문 작업 {record.get("stage") or "?"} {record.get("action")} '
+                f'({record.get("order_id") or "-"}, {record.get("robot_id") or "-"})')
+    return f'작업 시험 {record.get("action")}'
+
+
 def reply(request_id, status, body):
     """/control_center/arm_events 응답 (fleet_api 의 ArmStore 가 기다린다)."""
     return {'type': 'reply', 'request_id': request_id, 'status': status, 'body': body}
@@ -206,7 +222,7 @@ class ArmCommander:
                           'lost_at': None, 'boot_id': None, 'posture': None}
                       for a in self.arm_ids}
         self._pending = {}   # command_id → {request_id, arm_id, command, deadline, ...}
-        self._works = {}     # 작업 request_id → {arm_id, deadline}
+        self._works = {}     # 작업 request_id → {arm_id, deadline, timeout} (작업 시험·주문 작업)
         self._events = []    # take_events() 가 가져갈 기록
         self._seen_results = deque(maxlen=256)   # 주문 작업 결과 중복 거르기
 
@@ -307,13 +323,55 @@ class ArmCommander:
             'seq': arm['work_seq'], 'issued_at': now_wall, 'ttl_sec': self.ttl_ms / 1000.0,
             'timeout_sec': self.work_timeout_sec, 'attempt': 1}
         self._works[work_id] = {
-            'arm_id': arm_id, 'deadline': now_mono + self.work_timeout_sec + self.work_margin_sec}
+            'arm_id': arm_id, 'timeout': self.work_timeout_sec,
+            'deadline': now_mono + self.work_timeout_sec + self.work_margin_sec}
         arm['work'] = {
             'request_id': work_id, 'action': action, 'state': WORK_RUNNING, 'seq': arm['work_seq'],
             'sent_at': now_wall, 'finished_at': None, 'duration': None, 'detail': '',
-            'retry_safe': None, 'data': {}, 'source': request.get('source') or '',
+            'retry_safe': None, 'data': {}, 'source': WORK_TEST,
+            'requested_by': request.get('source') or '',
+            'order_id': '', 'robot_id': '', 'stage': self.work_stage,
             'client_request_id': request.get('client_request_id')}
         return payload
+
+    def put_other_request(self, request, now_wall, now_mono):
+        """
+        /fleet/work_request 에서 들은 요청 dict 를 넣는다 (주문 작업). 기록했으면 팔 이름, 아니면 None.
+
+        내가 낸 작업 시험(이미 _works 에 있음)과 등록 안 된 팔 요청은 무시한다.
+        SAFETY 단계(release_hold 등)는 카드 작업 칸을 바꾸지 않고 기록만 한다.
+        """
+        if not isinstance(request, dict):
+            return None
+        request_id = request.get('request_id')
+        arm_id = interface_arm_id(str(request.get('target') or ''))
+        if not request_id or request_id in self._works or arm_id not in self._arms:
+            return None
+        stage = str(request.get('stage') or '?')
+        action = str(request.get('action') or '?')
+        order = request.get('order_id') or '-'
+        robot = request.get('robot_id') or '-'
+        if stage == SAFETY_STAGE:
+            self._add(now_wall, arm_id, 'work', 'info',
+                      f'주문 관제 {action} 요청 ({robot})')
+            return arm_id
+        timeout = request.get('timeout_sec')
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) \
+                or not math.isfinite(timeout) or timeout <= 0:
+            timeout = self.work_timeout_sec
+        self._works[request_id] = {
+            'arm_id': arm_id, 'timeout': float(timeout),
+            'deadline': now_mono + float(timeout) + self.work_margin_sec}
+        self._arms[arm_id]['work'] = {
+            'request_id': request_id, 'action': action, 'state': WORK_RUNNING,
+            'seq': request.get('seq'), 'sent_at': now_wall, 'finished_at': None,
+            'duration': None, 'detail': '', 'retry_safe': None, 'data': {},
+            'source': WORK_ORDER, 'requested_by': 'fleet_control',
+            'order_id': request.get('order_id') or '', 'robot_id': request.get('robot_id') or '',
+            'stage': stage, 'client_request_id': None}
+        self._add(now_wall, arm_id, 'work', 'info',
+                  f'주문 작업 {stage} {action} 요청 ({order}, {robot})')
+        return arm_id
 
     def put_work_result(self, result, now_wall):
         """
@@ -328,6 +386,12 @@ class ArmCommander:
             self._put_other_result(result, now_wall)
             return None
         record = self._arms[work['arm_id']]['work']
+        if record is None or record.get('request_id') != result.get('request_id'):
+            # 카드 작업 칸이 그새 다른 작업으로 바뀜: 기록만 남긴다
+            self._put_other_result(result, now_wall)
+            return None
+        # 같은 결과가 또 오면 _put_other_result 가 거르게 한다 (_works 에서는 이미 뺐다)
+        self._seen_results.append(result.get('request_id'))
         data = result.get('data') if isinstance(result.get('data'), dict) else {}
         try:
             json.dumps(data, allow_nan=False)   # 스냅샷 JSON 에 실을 수 있어야 한다
@@ -340,7 +404,7 @@ class ArmCommander:
             data=data)
         self._note_work(work['arm_id'], now_wall, result.get('success') is True,
                         record['retry_safe'],
-                        f'작업 시험 {record["action"]} → '
+                        f'{work_label(record)} → '
                         f'{"성공" if record["state"] == WORK_SUCCEEDED else "실패"} '
                         f'({record["duration"]} s)', record['detail'])
         return dict(record, arm_id=work['arm_id'])
@@ -375,16 +439,20 @@ class ArmCommander:
         out = []
         for work_id in late:
             work = self._works.pop(work_id)
-            record = self._arms[work['arm_id']]['work']
-            record.update(
-                state=WORK_NO_RESULT, finished_at=now_wall,
-                detail=f'{self.work_timeout_sec + self.work_margin_sec:.0f}s 안에 결과가 없음. '
-                       '팔 노드 로그·연결 확인 (팔 자세를 모르니 직접 확인)')
-            self._add(now_wall, work['arm_id'], 'work', 'bad',
-                      f'작업 시험 {record["action"]} → 결과 없음: {record["detail"]}')
-            self._set_posture(work['arm_id'], now_wall,
-                              f'팔 자세 확인: 작업 시험 {record["action"]} 결과 없음')
-            out.append(dict(record, arm_id=work['arm_id']))
+            arm_id = work['arm_id']
+            detail = (f'{work["timeout"] + self.work_margin_sec:.0f}s 안에 결과가 없음. '
+                      '팔 노드 로그·연결 확인 (팔 자세를 모르니 직접 확인)')
+            record = self._arms[arm_id]['work']
+            if record is None or record.get('request_id') != work_id:
+                # 카드 작업 칸이 그새 다른 작업으로 바뀜: 기록·알람만 남긴다
+                self._add(now_wall, arm_id, 'work', 'bad', f'작업 {work_id[:8]} → 결과 없음: {detail}')
+                self._set_posture(arm_id, now_wall, f'팔 자세 확인: 작업 {work_id[:8]} 결과 없음')
+                continue
+            record.update(state=WORK_NO_RESULT, finished_at=now_wall, detail=detail)
+            self._add(now_wall, arm_id, 'work', 'bad',
+                      f'{work_label(record)} → 결과 없음: {detail}')
+            self._set_posture(arm_id, now_wall, f'팔 자세 확인: {work_label(record)} 결과 없음')
+            out.append(dict(record, arm_id=arm_id))
         return out
 
     def make_command(self, request, now_wall, now_mono):

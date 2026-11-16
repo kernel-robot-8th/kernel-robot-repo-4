@@ -117,17 +117,24 @@ function fillWorkActions(select, actions) {
   if (actions.includes(keep)) select.value = keep;
 }
 
+// 작업 칸 머리말: 웹의 작업 시험(source test) / fleet_control 이 보낸 주문 작업(source order)
+function workLabel(work) {
+  if (work.source === "order") return `주문 ${work.order_id || "-"} ${work.stage || ""}`.trim();
+  return "작업 시험";
+}
+
 function workText(work) {
   if (!work) return "";
   const what = ARM_WORK_TEXT[work.action] || work.action;
   const state = ARM_WORK_STATE[work.state] || work.state;
+  const label = workLabel(work);
   if (work.state === "RUNNING") {
-    return `작업 시험 ${what} ${state} · ${formatDuration(Date.now() / 1000 - work.sent_at)} 경과`;
+    return `${label} ${what} ${state} · ${formatDuration(Date.now() / 1000 - work.sent_at)} 경과`;
   }
   const took = work.duration !== null && work.duration !== undefined ? ` · ${formatDuration(work.duration)}` : "";
   const retry = work.state === "FAILED" ? (work.retry_safe ? " · 팔 안 움직임" : " · 팔 자세 확인 필요") : "";
   const detail = work.detail ? ` · ${work.detail}` : "";
-  return `작업 시험 ${formatTime(work.finished_at)} ${what} → ${state}${took}${retry}${detail}`;
+  return `${label} ${formatTime(work.finished_at)} ${what} → ${state}${took}${retry}${detail}`;
 }
 
 function workBlockedReason(canCommand, allowed, running, waiting, meta, actions) {
@@ -207,7 +214,9 @@ function renderArmCard(arm, canCommand) {
   const workEl = card.querySelector(".arm-work");
   workEl.textContent = workText(arm.work);
   workEl.dataset.state = arm.work ? arm.work.state : "";
-  workEl.title = arm.work ? `${workEl.textContent}\nrequest ${arm.work.request_id} · seq ${arm.work.seq}` : "";
+  const robot = arm.work && arm.work.robot_id ? ` · ${arm.work.robot_id}` : "";
+  workEl.title = arm.work
+    ? `${workEl.textContent}\nrequest ${arm.work.request_id} · seq ${arm.work.seq}${robot}` : "";
 
   const allowed = new Set(arm.allowed || []);
   const waiting = armsView.busy.has(arm.arm_id) || arm.pending > 0;

@@ -56,6 +56,41 @@ def parse_patrol_status(text):
     return parsed
 
 
+# 이벤트 기록에서 주황(warn)·빨강(bad)으로 남길 주행 명령. 그 밖은 info.
+WARN_COMMANDS = frozenset({'stop', 'control_reset'})
+BAD_COMMANDS = frozenset({'emergency_stop'})
+
+
+def parse_patrol_cmd(text):
+    """
+    patrol_cmd 문자열을 {'command_id', 'command'} 로 바꾼다. 읽을 수 없으면 None.
+
+    관제(fleet_control)는 JSON 봉투 {'command_id', 'command': 'zone:ZA', session_id, seq, ...} 를 보내고,
+    순찰 노드는 봉투 없는 문자열('zone:ZA')도 받는다. 문자열이면 command_id 는 None.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return None
+    if not text.lstrip().startswith('{'):
+        return {'command_id': None, 'command': text.strip()}
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get('command'), str):
+        return None
+    command_id = data.get('command_id')
+    return {'command_id': command_id if isinstance(command_id, str) and command_id else None,
+            'command': data['command'].strip()}
+
+
+def command_level(command):
+    """주행 명령 이벤트 수준. 'zone:ZA' 처럼 인자가 붙어도 앞 낱말로 본다."""
+    word = command.split(':', 1)[0].strip().lower()
+    if word in BAD_COMMANDS:
+        return 'bad'
+    return 'warn' if word in WARN_COMMANDS else 'info'
+
+
 def parse_queue_slot(text):
     """
     '/zone_manager/queue_slot' 문자열을 (구역, 로봇, 순번 k) 로 나눈다.
@@ -358,12 +393,52 @@ class FleetState:
         self.queue_stale_sec = float(queue_stale_sec)
         self.queue_slots = {}
         self._prev_snapshot = None
+        # 주행 명령 기록: 로봇별 마지막 명령 {'command_id', 'command', 'at'} 과 다음 발행 때 실을 이벤트.
+        # 완료는 patrol_status 가 올 때마다 본다. 1초 스냅샷 비교로는 task_finished 가 잠깐 켜진 것을 놓친다.
+        self.commands = {}
+        self._pending_events = []
+
+    def _note(self, now, robot, kind, level, text, data=None):
+        event = {'time': now, 'robot': robot, 'kind': kind, 'level': level, 'text': text}
+        if data is not None:
+            event['data'] = data
+        self._pending_events.append(event)
+
+    def note_command(self, robot, text, now):
+        """관제가 낸 patrol_cmd 를 기록한다 (구독만, 로봇에는 아무것도 보내지 않는다). 깨진 값이면 False."""
+        parsed = parse_patrol_cmd(text)
+        if parsed is None or robot not in self.robots:
+            return False
+        command, command_id = parsed['command'], parsed['command_id']
+        if command_id:
+            self.commands[robot] = {'command_id': command_id, 'command': command, 'at': now}
+        suffix = f' ({command_id[:6]})' if command_id else ' (봉투 없음)'
+        self._note(now, robot, 'cmd', command_level(command), f'명령 {command}{suffix}',
+                   {'command_id': command_id, 'command': command})
+        return True
+
+    def _check_command_done(self, robot, parsed, now):
+        """patrol_status 가 기억한 명령의 끝(task_finished)을 알리면 '명령 완료/실패' 를 기록한다."""
+        sent = self.commands.get(robot)
+        extra = parsed.get('extra') or {}
+        if (sent is None or extra.get('command_id') != sent['command_id']
+                or extra.get('task_finished') is not True):
+            return
+        del self.commands[robot]
+        took = now - sent['at']
+        failed = parsed.get('state') in BAD_STATES
+        detail = f': {parsed["detail"]}' if failed and parsed.get('detail') else ''
+        self._note(now, robot, 'cmd', 'bad' if failed else 'info',
+                   f'명령 {"실패" if failed else "완료"} {sent["command"]} ({took:.1f} s){detail}',
+                   {'command_id': sent['command_id'], 'command': sent['command'],
+                    'state': parsed.get('state'), 'duration': round(took, 1)})
 
     def update_status(self, robot, text, now):
         """patrol_status 를 반영한다. 깨진 값이면 False."""
         parsed = parse_patrol_status(text)
         if parsed is None or robot not in self.robots:
             return False
+        self._check_command_done(robot, parsed, now)
         state = self.robots[robot]
         was_moving = (state.status or {}).get('state') in MOVING_STATES
         state.status = parsed
@@ -479,7 +554,12 @@ class FleetState:
                 'alerts': alerts}
 
     def collect_events(self, snapshot):
-        """직전에 넘긴 스냅샷과 비교해 새 이벤트를 돌려준다. 발행 주기마다 한 번 부른다."""
-        events = diff_events(self._prev_snapshot, snapshot)
+        """
+        새 이벤트를 돌려준다. 발행 주기마다 한 번 부른다.
+
+        주행 명령·완료(받은 순서) 다음에 직전 스냅샷과의 비교(state 변화 등)를 붙인다.
+        """
+        events, self._pending_events = self._pending_events, []
+        events += diff_events(self._prev_snapshot, snapshot)
         self._prev_snapshot = snapshot
         return events

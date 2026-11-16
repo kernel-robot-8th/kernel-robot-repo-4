@@ -480,6 +480,60 @@ ORDER_RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER'}
 ORDER_FIELDS = ('order_id', 'robot_id', 'state', 'stage', 'completed', 'sku', 'route', 'detail')
 
 
+def _order_failure(order):
+    failure = order.get('failure') or order.get('detail')
+    return f': {failure}' if failure else ''
+
+
+def order_events(prev_orders, orders, now):
+    """
+    주문 목록(fleet 이 1초마다 내는 tasks 스냅샷의 orders)을 직전 것과 비교해 이벤트 목록을 만든다.
+
+    이벤트는 fleet_status 이벤트와 같은 모양 {'time', 'robot', 'kind': 'order', 'level', 'text', 'data'}.
+    prev_orders 가 None 이면(백엔드를 막 켬) 끝나지 않은 주문만 '진행 중' 한 줄씩 남긴다.
+    """
+    if not isinstance(orders, list):
+        return []
+    events = []
+    before = {} if prev_orders is None else {
+        o.get('order_id'): o for o in prev_orders if isinstance(o, dict)}
+
+    def add(order, level, text):
+        events.append({'time': now, 'robot': order.get('robot_id') or None, 'kind': 'order',
+                       'level': level, 'text': f'주문 {order.get("order_id")} {text}',
+                       'data': {key: order.get(key) for key in ORDER_FIELDS}})
+
+    for order in orders:
+        if not isinstance(order, dict) or not order.get('order_id'):
+            continue
+        state, stage = order.get('state'), order.get('stage')
+        if prev_orders is None:
+            if state not in ORDER_TERMINAL:
+                add(order, 'info', f'진행 중 {state} {stage}')
+            continue
+        old = before.get(order['order_id'])
+        if old is None:
+            if state not in ORDER_TERMINAL:
+                add(order, 'info',
+                    f'접수 ({order.get("sku") or "-"}, 루트 {order.get("route") or "-"})')
+            continue
+        if state != old.get('state'):
+            if state == 'COMPLETED':
+                add(order, 'info', '완료')
+            elif state == 'FAILED' or state in ORDER_BLOCKED:
+                add(order, 'bad', f'{old.get("state")} → {state} ({stage}){_order_failure(order)}')
+            else:
+                add(order, 'info', f'{old.get("state")} → {state} ({stage})')
+        elif stage != old.get('stage') and state not in ORDER_TERMINAL:
+            add(order, 'info', f'{old.get("stage") or "-"} → {stage}')
+        # fleet 은 실패 사유를 먼저 적고 HOME 복귀까지 마친 뒤 FAILED 로 끝낸다. 사유가 생긴 순간을 남긴다.
+        if order.get('failure') and not old.get('failure') and state not in ORDER_TERMINAL:
+            add(order, 'bad', f'실패 사유 생김 ({stage}): {order["failure"]}')
+        if order.get('robot_id') and order.get('robot_id') != old.get('robot_id'):
+            add(order, 'info', f'로봇 배정 {order["robot_id"]}')
+    return events
+
+
 def load_confirmable(order):
     """이 주문에 화면의 수동 상차 확인 버튼을 보일지."""
     completed = order.get('completed')
@@ -531,6 +585,13 @@ class TaskStore:
         self._replies = ReplyWaiter(reply_timeout_sec)
         self._seq = 0
         self._log = []
+        self._order_events = []
+
+    def take_events(self):
+        """put_snapshot 이 쌓은 주문 이벤트를 꺼낸다 (꺼낸 것은 비운다)."""
+        with self._cond:
+            events, self._order_events = self._order_events, []
+        return events
 
     def _upsert(self, task):
         """작업 하나를 반영한다. 바뀌었으면 순번을 올린다. lock 안에서 부른다."""
@@ -544,12 +605,20 @@ class TaskStore:
         del self._log[:-self.CHANGE_LOG]
         self._cond.notify_all()
 
-    def put_snapshot(self, text):
-        """/control_center/tasks JSON. 깨진 값이면 False."""
+    def put_snapshot(self, text, now=None):
+        """
+        /control_center/tasks JSON. 깨진 값이면 False.
+
+        직전 주문 목록과 비교한 주문 이벤트(order_events)를 쌓아 두고, take_events() 로 꺼낸다.
+        now 는 이벤트 시각 [s] (벽시계). 시험에서 넣으려고 인자로 둔다.
+        """
         data = json_object(text)
         if data is None or not isinstance(data.get('tasks'), list):
             return False
         with self._cond:
+            prev = self._snapshot.get('orders') if self._snapshot is not None else None
+            self._order_events += order_events(prev, data.get('orders'),
+                                               time.time() if now is None else now)
             self._snapshot = data
             self._received = self.clock()
             for task in reversed(data['tasks']):

@@ -242,6 +242,9 @@ class FleetApiNode(Node):
     def _on_tasks(self, msg):
         if not self.tasks.put_snapshot(msg.data):
             self.get_logger().warning('작업 목록(/control_center/tasks)을 읽지 못함')
+            return
+        # 주문 단계 변화는 핑키 이벤트 기록에 함께 남긴다 (/api/events·WebSocket 에 그대로 보임).
+        self.store.add_events(self.tasks.take_events())
 
     def _on_task_event(self, msg):
         if not self.tasks.put_event(msg.data):

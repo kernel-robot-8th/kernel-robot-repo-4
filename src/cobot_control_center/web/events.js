@@ -92,7 +92,9 @@ function addEvents(events) {
 }
 
 // 이벤트 칸 '보기' 고르기 값: "" 전체, "@robots" 로봇 전체, "@arms" 팔 전체, "@zones" 구역,
+// "@commands" 명령·주문 (관제가 낸 주행 명령 cmd, 주문 단계 order, 팔 작업 work),
 // "robot:pinky1" 로봇 하나, "arm:omx_1" 팔 하나.
+const COMMAND_KINDS = new Set(["cmd", "order", "work"]);
 function addOption(parent, value, text) {
   parent.appendChild(makeOption(value, text));
 }
@@ -140,7 +142,8 @@ function eventMatches(event, filter) {
   if (!filter) return true;
   if (filter === "@robots") return Boolean(event.robot);
   if (filter === "@arms") return Boolean(event.arm);
-  if (filter === "@zones") return !event.robot && !event.arm;
+  if (filter === "@zones") return event.kind === "zone";
+  if (filter === "@commands") return COMMAND_KINDS.has(event.kind);
   if (filter.startsWith("robot:")) return event.robot === filter.slice(6);
   if (filter.startsWith("arm:")) return event.arm === filter.slice(4);
   return true;
@@ -187,7 +190,8 @@ function renderEvents() {
         who.appendChild(where);
       }
     } else {
-      who.textContent = event.robot || "구역";
+      // 로봇이 정해지기 전 주문(접수)은 '주문', 그 밖에 대상 없는 줄은 구역 이벤트다.
+      who.textContent = event.robot || (event.kind === "order" ? "주문" : "구역");
     }
     const index = event.robot ? robotIndex(event.robot) : -1;
     if (index >= 0) who.style.setProperty("--robot-color", `var(${robotColorVar(index)})`);
