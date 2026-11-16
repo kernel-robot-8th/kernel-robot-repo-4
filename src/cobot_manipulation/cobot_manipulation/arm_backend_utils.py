@@ -61,6 +61,7 @@ class ArmBackend:
 
     전원 (관제 CMD_START·CMD_RESET, arm_power_utils): attach() 로 팔에 연결하고 ready 가 참이 되면 일을 받는다.
     release() 는 끄기를 요청하고, 결과는 take_release() 가 (끔, 이유) 로 한 번 돌려준다.
+    실행기가 끄기 전에 쉬는 자세로 옮기기 시작하면 take_release_moving() 이 예상 시간[s] 을 한 번 돌려준다.
     dead 가 비어 있지 않으면 고장이다. reset() 이 상태를 비워 다시 attach() 할 수 있게 한다.
     joints·joints_at 은 마지막으로 잰 관절 값과 그 시각[s] 이다 (ArmStatus 용, 모르면 None).
     """
@@ -75,6 +76,7 @@ class ArmBackend:
         self.joints = None
         self.joints_at = None
         self.release_result = None
+        self.release_moving = None
 
     def busy(self):
         """작업 중인지."""
@@ -112,12 +114,18 @@ class ArmBackend:
         result, self.release_result = self.release_result, None
         return result
 
+    def take_release_moving(self):
+        """끄기 전 쉬는 자세로 옮기는 중이면 예상 시간[s] 을 한 번 돌려준다. 아니면 None."""
+        seconds, self.release_moving = self.release_moving, None
+        return seconds
+
     def request_state(self, now):
         """대기 중이면 관절 값을 새로 읽게 한다."""
 
     def reset(self):
         """고장·끄기 뒤 상태를 비운다. 다음 attach() 를 받을 수 있게 된다."""
         self.job, self.ready, self.dead, self.release_result = None, False, '', None
+        self.release_moving = None
 
     def shutdown(self):
         """노드가 꺼질 때 부른다. 하던 일이 있으면 멈춘다."""
@@ -361,6 +369,14 @@ class WorkerBackend(ArmBackend):
             self.releasing, self.ready, self.released = False, False, True
             self.release_result = (True, '')
             self.log(f'{self.arm_id} 쉬는 자세 확인, 실행기가 연결을 끊음')
+        elif kind == 'release_moving' and self.releasing:
+            # 실행기 설정 release_move: 끄기 전에 쉬는 자세로 옮긴다. 결과(released·refused)는 그 뒤에 온다.
+            try:
+                seconds = max(0.0, float(event.get('seconds') or 0.0))
+            except (TypeError, ValueError):
+                seconds = 0.0
+            self.release_moving = seconds
+            self.log(f'{self.arm_id} 끄기 전 쉬는 자세로 이동 (약 {seconds:.1f}s)')
         elif kind == 'release_refused':
             self.releasing = False
             self.release_result = (False, str(event.get('detail') or '거절'))
