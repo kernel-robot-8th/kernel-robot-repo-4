@@ -145,6 +145,57 @@ def derive_state(status, online, last_ack=None):
     return BUSY
 
 
+DEFAULT_SAFE_TOL = 3.0   # 팔 실행기 --safe-tol 기본값 (omx_fleet_worker.py). info 에 값이 있으면 그것을 쓴다
+# 실행기 ready 가 info.worker 에 남기는 칸 (팔 노드 arm_info_utils.WORKER_KEYS)
+WORKER_REPORTED = ('actions', 'models', 'rest_pose', 'safe_tol')
+
+
+def start_block(info):
+    """
+    팔 노드 info 로 본 '켜기가 안 되는 이유'. 막힘이 없거나 info 가 없으면 ''.
+
+    info 는 팔 노드가 /manipulation/<arm>/info 로 내는 dict (cobot_manipulation arm_info_utils).
+    예전 팔 노드는 info 를 내지 않으므로 그때는 막지 않는다 (최종 판정은 팔 노드가 한다).
+    """
+    if not isinstance(info, dict):
+        return ''
+    if info.get('backend') == 'none':
+        return '실행기 없음 (backend=none): 팔 노드를 backend:=worker 로 띄워야 켤 수 있음'
+    detect = info.get('detect') or {}
+    if detect.get('state') and detect.get('state') != 'READY':
+        return f'보드 없음 ({detect.get("state")}): {detect.get("reason") or "?"}'
+    if info.get('dead'):
+        return f'실행기 고장: {info["dead"]}'
+    return ''
+
+
+def rest_check(status, info):
+    """
+    지금 관절과 쉬는 자세(rest_pose)의 차이. 끄기(RESET)는 그리퍼 뺀 관절이 모두 tol 안이어야 된다.
+
+    None: info 가 없거나 실행기 정보가 아직 없음. configured=False: 실행기에 rest_pose 가 없음 (끄기는 늘 거절).
+    diff·at_rest 가 None 이면 관절 값을 아직 모름 (실행기가 안 떠 있음).
+    """
+    worker = (info or {}).get('worker') if isinstance(info, dict) else None
+    if not worker or worker.get('fake') or not any(k in worker for k in WORKER_REPORTED):
+        return None   # 실행기가 아직 한 번도 ready 를 보내지 않음 (none·fake 백엔드 포함)
+    tol = worker.get('safe_tol')
+    number = isinstance(tol, (int, float)) and not isinstance(tol, bool)
+    tol = float(tol) if number else DEFAULT_SAFE_TOL
+    rest = {k: v for k, v in (worker.get('rest_pose') or {}).items() if k != 'gripper'}
+    if not rest:
+        return {'configured': False, 'tol': tol, 'diff': None, 'worst': None, 'at_rest': None}
+    names = (status or {}).get('joint_names') or []
+    values = (status or {}).get('joint_positions') or []
+    now = {n: v for n, v in zip(names, values) if v is not None}
+    if not all(k in now for k in rest):
+        return {'configured': True, 'tol': tol, 'diff': None, 'worst': None, 'at_rest': None}
+    diff = {k: round(now[k] - v, 2) for k, v in rest.items()}
+    worst = max(abs(d) for d in diff.values())
+    return {'configured': True, 'tol': tol, 'diff': diff, 'worst': round(worst, 2),
+            'at_rest': worst <= tol}
+
+
 def parse_request(text):
     """/control_center/arm_request JSON → dict. 틀리면 ValueError."""
     try:
@@ -219,7 +270,9 @@ class ArmCommander:
                           # 알람·기록용: 연결 여부, 마지막 화면 상태와 그 시각, 끊긴 시각,
                           # 팔 노드 boot id, 팔 자세 모름 {since, text}
                           'linked': False, 'state': None, 'state_since': None,
-                          'lost_at': None, 'boot_id': None, 'posture': None}
+                          'lost_at': None, 'boot_id': None, 'posture': None,
+                          # 팔 노드 info (백엔드·탐지·실행기 모델·쉬는 자세)와 받은 시각
+                          'info': None, 'info_at': None}
                       for a in self.arm_ids}
         self._pending = {}   # command_id → {request_id, arm_id, command, deadline, ...}
         self._works = {}     # 작업 request_id → {arm_id, deadline, timeout} (작업 시험·주문 작업)
@@ -236,6 +289,14 @@ class ArmCommander:
 
     def _set_posture(self, arm_id, now_wall, text):
         self._arms[arm_id]['posture'] = {'since': now_wall, 'text': text}
+
+    def put_info(self, arm_id, info, now_mono):
+        """팔 노드 info(dict)를 넣는다. 등록 안 된 팔이거나 dict 가 아니면 False."""
+        arm = self._arms.get(arm_id)
+        if arm is None or not isinstance(info, dict):
+            return False
+        arm['info'], arm['info_at'] = info, now_mono
+        return True
 
     def put_status(self, arm_id, status, now_mono, now_wall=None):
         """
@@ -578,8 +639,10 @@ class ArmCommander:
             state = derive_state(arm['status'], online, arm['last_ack'])
             running = self._running_work(arm_id)
             work_actions = self.work_actions(arm_id)
+            block = start_block(arm['info'])
             allowed = [c for c in ALLOWED[state]
-                       if not (c == WORK and (running or not work_actions))]
+                       if not (c == WORK and (running or not work_actions))
+                       and not (c == START and block)]
             arms.append({
                 'arm_id': arm_id, 'alias': scenario_arm_id(arm_id), 'online': online,
                 'age': None if age is None else round(age, 3), 'state': state,
@@ -587,6 +650,8 @@ class ArmCommander:
                 'last_ack': arm['last_ack'], 'work': arm['work'],
                 'alarms': self._alarms(arm, state, online),
                 'site': self.site.get(arm_id), 'work_actions': work_actions,
+                'info': arm['info'], 'start_block': block,
+                'rest_check': rest_check(arm['status'], arm['info']),
                 'pending': sum(1 for p in self._pending.values() if p['arm_id'] == arm_id),
                 'epoch': arm['accepted_epoch'], 'seq': arm['accepted_seq']})
         return {'time': now_wall, 'ttl_ms': self.ttl_ms, 'work_actions': list(WORK_ACTIONS),

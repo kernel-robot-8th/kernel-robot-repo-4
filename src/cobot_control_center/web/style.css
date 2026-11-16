@@ -573,7 +573,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-state[data-level="warn"] { background: var(--warn); }
 .arm-state[data-level="bad"] { background: var(--bad); }
 .arm-state[data-level="idle"] { background: var(--idle); }
-.arm-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; margin: 0; }
+.arm-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 8px; margin: 0; }
 .arm-facts > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; }   /* '토크 켜짐' 한 줄 */
 .arm-facts dt { font-size: 11px; color: var(--muted); flex: none; }
 .arm-facts dd { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -583,7 +583,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-facts dd[data-level="bad"] { color: var(--bad); }
 .arm-facts dd[data-level="idle"], .arm-facts dd[data-level="na"] { color: var(--muted); font-weight: 400; }
 /* 카드 높이를 글에 따라 바꾸지 않는다: 글 줄은 모두 한 줄 고정(말줄임), 비어 있어도 자리를 지킨다 */
-.arm-card .alias, .arm-ack, .arm-work, .arm-alarm {
+.arm-card .alias, .arm-ack, .arm-work, .arm-alarm, .arm-exec {
   min-height: 1.45em; line-height: 1.45em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .arm-ack { font-size: 12px; font-variant-numeric: tabular-nums; }
 .arm-ack.msg { color: var(--text); font-weight: 600; }   /* 버튼 결과 메시지 (잠깐) */
@@ -597,6 +597,10 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-work-row select:disabled { opacity: 0.45; }
 .card .arm-work-row button { flex: 0 0 auto; white-space: nowrap; }
 .arm-alarm { font-size: 12px; font-weight: 600; color: var(--warn); }
+/* 실행기 줄: 작업별 모델·버전, 또는 켜기가 안 되는 이유 (팔 노드 info) */
+.arm-exec { font-size: 12px; }
+.arm-exec[data-level="warn"] { color: var(--warn); font-weight: 600; }
+.arm-exec[data-level="bad"] { color: var(--bad); font-weight: 600; }
 .arm-alarm[data-level="bad"] { color: var(--bad); }
 
 /* ---------- 개발: 수동 명령 ---------- */
@@ -825,7 +829,7 @@ body.detail-mode .layout { display: none; }
   .detail-cmds { margin-left: 0; width: 100%; grid-template-columns: minmax(0, 1fr); }
   .detail-cmds .cmd-row button, .detail-cmds .stop-row button { min-width: 0; }
   .dt-map-wrap { flex: none; aspect-ratio: 4 / 3; }
-  .arm-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .arm-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ---------- 네트워크 상태 (#/network, network.js) ---------- */

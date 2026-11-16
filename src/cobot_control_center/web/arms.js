@@ -96,6 +96,59 @@ function retractText(status) {
   return status.retract_safe ? { text: "안전", level: "good" } : { text: "안전 아님", level: "bad" };
 }
 
+// 쉬는 자세 칸: 지금 관절과 실행기 rest_pose 의 차이 (서버 rest_check). 끄기는 그리퍼 뺀 관절이 tol 안이어야 된다.
+function restText(check) {
+  if (!check) return { text: "—", level: "na", title: "실행기 정보 없음 (켜면 실행기가 쉬는 자세를 알려 줌)" };
+  if (!check.configured) {
+    return { text: "미설정", level: "warn", title: "실행기 fleet_arms.yaml 에 rest_pose 가 없음 → 끄기는 늘 거절됨" };
+  }
+  if (!check.diff) return { text: "모름", level: "na", title: "관절 값 없음 (실행기가 떠 있을 때만 잼)" };
+  const lines = Object.entries(check.diff).map(([name, d]) => `${name} ${d >= 0 ? "+" : ""}${d.toFixed(1)}`);
+  const title = `지금 - 쉬는 자세 (허용 ±${check.tol}, 그리퍼 제외)\n${lines.join("\n")}`;
+  if (check.at_rest) return { text: "맞음", level: "good", title };
+  // 카드 칸이 좁아 값은 짧게, 몇 관절인지는 마우스로
+  const off = Object.values(check.diff).filter((d) => Math.abs(d) > check.tol).length;
+  return { text: `벗어남 ${check.worst.toFixed(1)}`, level: "warn", title: `${off}관절 벗어남 · ${title}` };
+}
+
+// 실행기 줄의 모델 이름: omx_pick_za@v1 (버전을 모르면 번들 이름, 그것도 없으면 폴더 이름)
+function modelLabel(meta) {
+  if (!meta) return "?";
+  if (meta.bundle && meta.version) return `${meta.bundle}@${meta.version}`;
+  return meta.bundle || meta.model_name || "?";
+}
+
+// 실행기 줄: 켜기가 막힌 이유가 있으면 그것, 아니면 작업별 모델 (팔 노드 info)
+function execText(arm) {
+  const info = arm.info;
+  if (!info) return { text: "실행기 정보 없음 (예전 팔 노드)", level: "", title: "" };
+  const detect = info.detect || {};
+  const worker = info.worker || {};
+  const base = [`backend ${info.backend} · 전원 ${info.power || "?"}`,
+    `보드 ${detect.state || "?"}: ${detect.reason || ""}`];
+  if (info.dead) base.push(`실행기 고장: ${info.dead}`);
+  if (arm.start_block) {
+    const bad = Boolean(info.dead) || (detect.state && detect.state !== "READY");
+    return { text: arm.start_block, level: bad ? "bad" : "warn", title: base.join("\n") };
+  }
+  if (info.backend === "fake") return { text: "가짜 팔 (backend=fake): 실제 팔 안 움직임", level: "", title: base.join("\n") };
+  const models = worker.models || {};
+  const names = Object.keys(models).sort();
+  if (!names.length) {
+    const text = worker.ready ? "실행기 켜짐 · 모델 정보 없음" : "worker · 켜면 모델을 불러옴";
+    return { text, level: "", title: base.join("\n") };
+  }
+  const text = names.map((name) => `${name} ${modelLabel(models[name])}`).join(" · ");
+  const detail = names.map((name) => {
+    const m = models[name];
+    const extra = [`init_pose ${m.init_pose ? "있음" : "없음"}`, `성공 판단 ${m.success_judge ? "있음" : "없음"}`];
+    return `${name}: ${m.path || m.model_name}\n  ${extra.join(" · ")}`;
+  });
+  const when = worker.ready ? "" : " (마지막으로 켰을 때)";
+  return { text: `${worker.ready ? "" : "지난 실행 · "}${text}`, level: "",
+    title: [...base, `작업별 모델${when}`, ...detail].join("\n") };
+}
+
 function ackText(ack) {
   if (!ack) return "";
   const what = ack.command ? `${ARM_COMMAND[ack.command] ? ARM_COMMAND[ack.command].text : ack.command} → ` : "";
@@ -195,6 +248,16 @@ function renderArmCard(arm, canCommand) {
   // 관절 값은 토크 칸에 마우스를 올리면 보인다. lerobot 단위(-100..100)는 명세 열거에 없어
   // joint_unit 이 비어 온다 → '단위 모름'
   torque.title = jointsText(status);
+  const rest = restText(arm.rest_check);
+  const restEl = card.querySelector(".arm-rest");
+  restEl.textContent = rest.text;
+  restEl.dataset.level = rest.level;
+  restEl.title = rest.title;
+  const exec = execText(arm);
+  const execEl = card.querySelector(".arm-exec");
+  execEl.textContent = exec.text;
+  execEl.dataset.level = exec.level;
+  execEl.title = exec.title || exec.text;
 
   // 응답 줄: 버튼을 누른 직후(MSG_MS)는 그 결과 메시지, 그 밖에는 팔 노드의 마지막 응답
   const msg = armsView.msg.get(arm.arm_id);
@@ -225,6 +288,7 @@ function renderArmCard(arm, canCommand) {
     // 정지는 응답을 기다리는 중에도 누를 수 있어야 한다.
     button.disabled = !canCommand || !allowed.has(cmd) || (waiting && !ARM_STOPS.has(cmd));
     button.title = !canCommand ? armsBlockedReason()
+      : cmd === "start" && arm.start_block && arm.state === "OFF" ? arm.start_block
       : !allowed.has(cmd) ? `지금 상태(${meta.text})에서는 쓰지 않음`
       : waiting && !ARM_STOPS.has(cmd) ? "앞 명령의 응답을 기다리는 중" : "";
   });

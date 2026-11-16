@@ -632,3 +632,85 @@ def test_fault_snapshot_alarm_and_clear_by_reset():
     commander.put_ack(ack(header), 100.4)
     arm = commander.snapshot(10.3, 100.5)['arms'][0]
     assert arm['state'] == arms.OFF and arm['alarms'] == []
+
+
+# ---- 팔 노드 info: 켜기 막힘 이유, 쉬는 자세 비교, 작업별 모델 ----
+
+def info(**overrides):
+    """팔 노드 arm_info_utils.make_info 모양."""
+    base = {'v': 1, 'arm_id': 'omx1', 'interface_arm_id': 'omx_1', 'boot_id': 'b1',
+            'backend': 'worker', 'detect': {'state': 'READY', 'reason': '보드 확인', 'port': '/dev/x'},
+            'power': 'DISARMED', 'worker': {'ready': False}, 'dead': '', 'at': 1.0}
+    base.update(overrides)
+    return base
+
+
+@pytest.mark.parametrize('value, part', [
+    (None, ''),
+    ('not a dict', ''),
+    (info(), ''),
+    (info(backend='none'), 'backend=none'),
+    (info(detect={'state': 'UNKNOWN', 'reason': '등록 시리얼 없음', 'port': None}), '보드 없음 (UNKNOWN)'),
+    (info(dead='실행기 오류: 준비 실패'), '실행기 고장'),
+    (info(detect={}), ''),
+])
+def test_start_block(value, part):
+    got = arms.start_block(value)
+    assert (part in got) if part else got == ''
+
+
+def test_put_info_and_start_hidden_when_blocked():
+    commander = make()
+    off = dict(STATUS, torque_enabled=False)
+    commander.put_status('omx_1', off, 10.0)
+    assert 'start' in commander.snapshot(10.1, 100.0)['arms'][0]['allowed']   # info 없음: 예전대로
+    assert not commander.put_info('omx_9', info(), 10.0)
+    assert not commander.put_info('omx_1', 'x', 10.0)
+    assert commander.put_info('omx_1', info(backend='none'), 10.0)
+    arm = commander.snapshot(10.1, 100.0)['arms'][0]
+    assert arm['state'] == arms.OFF and 'start' not in arm['allowed']
+    assert 'hold' in arm['allowed'] and 'backend=none' in arm['start_block']
+    assert arm['info']['backend'] == 'none'
+    commander.put_info('omx_1', info(), 10.2)
+    arm = commander.snapshot(10.3, 100.0)['arms'][0]
+    assert 'start' in arm['allowed'] and arm['start_block'] == ''
+    json.dumps(commander.snapshot(10.3, 100.0), allow_nan=False)
+
+
+def joints_status(**values):
+    names = list(values)
+    return dict(STATUS, joint_names=names, joint_positions=[values[n] for n in names])
+
+
+def test_rest_check():
+    worker = {'ready': True,
+              'rest_pose': {'shoulder_pan': 0.0, 'elbow_flex': 10.0, 'gripper': 50.0},
+              'safe_tol': 3.0}
+    assert arms.rest_check(STATUS, None) is None
+    assert arms.rest_check(STATUS, info()) is None   # 실행기를 아직 안 띄움
+    assert arms.rest_check(STATUS, info(worker={'ready': True, 'actions': ['pick']})) == {
+        'configured': False, 'tol': 3.0, 'diff': None, 'worst': None, 'at_rest': None}
+    assert arms.rest_check(STATUS, info(worker={'fake': True, 'ready': True})) is None
+    no_joints = arms.rest_check(STATUS, info(worker=worker))
+    assert no_joints['configured'] and no_joints['at_rest'] is None
+    ok = arms.rest_check(joints_status(shoulder_pan=1.0, elbow_flex=8.0), info(worker=worker))
+    assert ok == {'configured': True, 'tol': 3.0,
+                  'diff': {'shoulder_pan': 1.0, 'elbow_flex': -2.0},
+                  'worst': 2.0, 'at_rest': True}   # 그리퍼는 비교하지 않는다
+    far = arms.rest_check(joints_status(shoulder_pan=5.5, elbow_flex=10.0),
+                          info(worker=dict(worker, safe_tol=5.0)))
+    assert far['worst'] == 5.5 and far['at_rest'] is False and far['tol'] == 5.0
+    default_tol = arms.rest_check(joints_status(shoulder_pan=0.0, elbow_flex=10.0),
+                                  info(worker=dict(worker, safe_tol='x')))
+    assert default_tol['tol'] == arms.DEFAULT_SAFE_TOL and default_tol['at_rest'] is True
+
+
+def test_snapshot_carries_rest_check():
+    commander = make()
+    commander.put_status('omx_1', joints_status(shoulder_pan=0.5), 10.0)
+    worker = {'ready': True, 'rest_pose': {'shoulder_pan': 0.0}}
+    commander.put_info('omx_1', info(worker=worker), 10.0)
+    arm = commander.snapshot(10.1, 100.0)['arms'][0]
+    assert arm['rest_check']['at_rest'] is True
+    assert arm['rest_check']['diff'] == {'shoulder_pan': 0.5}
+    assert commander.snapshot(10.1, 100.0)['arms'][1]['rest_check'] is None

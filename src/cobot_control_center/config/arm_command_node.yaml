@@ -8,6 +8,7 @@
     command_topic_format: /control_center/{arm}/command      # ArmCommand (관제 → 팔)
     status_topic_format: /manipulation/{arm}/status          # ArmStatus (팔 → 관제, 10 Hz)
     ack_topic_format: /manipulation/{arm}/command_ack        # CommandAck (팔 → 관제)
+    info_topic_format: /manipulation/{arm}/info              # String JSON (팔 → 관제): 백엔드·탐지·모델·쉬는 자세
     request_topic: /control_center/arm_request   # fleet_api_node → 이 노드 (String JSON)
     events_topic: /control_center/arm_events     # 이 노드 → fleet_api_node (요청 응답)
     arms_topic: /control_center/arms             # 이 노드 → fleet_api_node (팔 상태 모음, transient_local)

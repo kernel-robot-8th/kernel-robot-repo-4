@@ -120,7 +120,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 ```text
 브라우저 ─HTTP→ fleet_api_node ─/control_center/arm_request→ arm_command_node ─/control_center/omx_N/command (ArmCommand)→ 팔 노드
         ←──────              ←─/control_center/arm_events (응답)─┤  ←─/manipulation/omx_N/command_ack (CommandAck)─┤
-                             ←─/control_center/arms (상태 모음)──┘  ←─/manipulation/omx_N/status (ArmStatus, 10 Hz)─┘
+                             ←─/control_center/arms (상태 모음)──┘  ←─/manipulation/omx_N/status (ArmStatus, 10 Hz)─┤
+                                                                     ←─/manipulation/omx_N/info (String JSON)────────┘
 ```
 
 | 토픽 | 타입·QoS |
@@ -130,6 +131,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `/control_center/omx_N/command` | `ArmCommand`, RELIABLE depth 10 (팔 노드와 같음) |
 | `/manipulation/omx_N/command_ack` | `CommandAck`, RELIABLE depth 50 |
 | `/manipulation/omx_N/status` | `ArmStatus`, BEST_EFFORT KEEP_LAST 1 |
+| `/manipulation/omx_N/info` | `std_msgs/String` JSON, RELIABLE TRANSIENT_LOCAL depth 1. 팔 노드가 바뀔 때 + 5 s 마다. 백엔드·보드 탐지·실행기 모델·쉬는 자세 (`ArmStatus` 에 칸이 없어 따로, 팔 노드 `arm_info_utils`) |
 | `/fleet/work_request`, `/fleet/work_result` | `std_msgs/String` JSON, RELIABLE depth 50 (`fleet_control_node` 와 같음). 작업 시험을 내고, 주문(`fleet_control_node`)이 낸 요청도 **듣기만** 해서 그 팔 카드 `work` 와 기록에 남김. 결과는 `request_id` 로 짝지음 |
 
 헤더 (`CommandHeader`): `command_id` 새 UUID, `tx_id` = `client_request_id`, `robot_id` = `omx_N`, `ttl_ms` 5000, `issued_by` `control_center`, `issued_at` 관제 PC 시계.
@@ -151,8 +153,10 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
 | `site` | 현장 팔 배치 `{station, role, host, serial, actions}` 또는 null (`config/site_arms.yaml`, 빈 칸은 미정). `actions` 말고는 표시용 |
 | `work_actions` | 그 팔에 작업 시험으로 보낼 수 있는 작업 (`site.actions`, 칸이 없으면 전체). 비면 `allowed` 에 `work` 가 없음 |
-| `work` | 마지막 작업 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data, source, requested_by, order_id, robot_id, stage}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT`. `source`: `test`(웹 작업 시험, `requested_by` 는 누른 곳 IP) / `order`(fleet_control 주문 작업, `order_id`·`robot_id`·`stage` 채움). 주문 작업이 진행 중이면 작업 시험은 409. 결과 기한은 요청의 `timeout_sec` + `work_result_margin_sec` (작업 시험은 `work_timeout_sec`). `stage: SAFETY`(release_hold 등) 요청은 `work` 를 바꾸지 않고 기록만 |
-
+| `work` | 마지막 작업 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data, source, requested_by, order_id, robot_id, stage}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT`. `source`: `test`(웹 작업 시험, `requested_by` 는 누른 곳 IP) / `order`(fleet_control 주문 작업, `order_id`·`robot_id`·`stage` 채움). 주문 작업이 진행 중이면 작업 시험은 409. 결과 기한은 요청의 `timeout_sec` + `work_result_margin_sec` (작업 시험은 `work_timeout_sec`). `stage: SAFETY`(release_hold 등) 요청은 `work` 를 바꾸지 않고 기록만. 실행기가 모델을 알려 주면 `data.model` (`omx_pick_za@v1`) |
+| `info` | 팔 노드 info 그대로 `{v, arm_id, interface_arm_id, boot_id, backend, detect: {state, reason, port}, power, worker: {ready, actions, models, rest_pose, safe_tol} 또는 {fake, ready}, dead, at}` 또는 null (예전 팔 노드). `worker.models` 는 작업별 `{bundle, version, model_name, path, init_pose, success_judge}` (`omx_fleet` 번들 규격), 끈 뒤에도 마지막 값 |
+| `start_block` | 켜기가 안 되는 이유 (`backend=none`, 보드 탐지 실패, 실행기 고장) 또는 `''`. 있으면 `OFF` 의 `allowed` 에서 `start` 를 뺌 (`arm_command_utils.start_block`). info 가 없으면 `''` |
+| `rest_check` | 지금 관절과 실행기 `rest_pose` 차이 `{configured, tol, diff: {관절: 지금-쉬는자세}, worst, at_rest}` 또는 null (info·실행기 정보 없음, fake). 그리퍼 제외. `configured=false` 면 끄기는 늘 거절. 관절 값이 없으면 `diff`·`at_rest` null (`arm_command_utils.rest_check`) |
 | `alarms` | 활성 알람 `[{code, level, since, text}]` (아래 [알람](#알람-활성-알람기록)) |
 
 스냅샷 맨 위의 `work_actions` 는 작업 시험에 쓸 수 있는 작업 목록입니다.
@@ -164,7 +168,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `STALE` | 상태가 안 들어옴 | hold, soft_latch |
 | `SOFT_LATCH` | `hold_reason == SOFT_LATCH` | reset, hold |
 | `HOLD` | `hold_active` | release_hold, reset, soft_latch |
-| `OFF` | 토크 꺼짐 | start, hold, soft_latch |
+| `OFF` | 토크 꺼짐 | start (`start_block` 이 있으면 뺌), hold, soft_latch |
 | `FAULT` | 토크 꺼짐이고 마지막 응답이 켜기 거절 `(지금 FAULT)` (팔 실행기가 멈춤). `ArmStatus` 에 전원 상태 칸이 없어 거절 사유로 판단하는 임시 방법. 끄기 수락 등 다음 응답이 오면 풀림 | reset, hold, soft_latch |
 | `READY` | 토크 켜짐, `work_step == IDLE` | work (작업 시험 진행 중이면 뺌), reset, hold, soft_latch |
 | `BUSY` | 토크 켜짐, 그 밖 (연결·작업·끄는 중) | hold, soft_latch |
@@ -179,6 +183,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 |---|---|---|---|
 | `offline` | bad | 한 번 받은 팔 상태가 `status_stale_sec` 넘게 끊김 | 상태가 다시 들어옴 |
 | `soft_latch` | bad | 소프트 정지 래치 | 끄기(RESET) |
+| `fault` | bad | 화면 상태 `FAULT` (켜기가 `(지금 FAULT)` 로 거절됨) | 끄기 수락 등 다음 응답 |
 | `hold` | warn | 정지 유지 | 정지 해제·끄기 |
 | `posture_unknown` | bad | 작업(작업 시험·주문)이 도중에 실패(`retry_safe` 아님)했거나 작업 시험 결과 없음 | 다음 작업 성공 또는 끄기 수락 |
 

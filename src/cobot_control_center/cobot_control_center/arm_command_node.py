@@ -101,6 +101,7 @@ class ArmCommandNode(Node):
             'command_topic_format': '/control_center/{arm}/command',
             'status_topic_format': '/manipulation/{arm}/status',
             'ack_topic_format': '/manipulation/{arm}/command_ack',
+            'info_topic_format': '/manipulation/{arm}/info',
             'request_topic': '/control_center/arm_request',
             'events_topic': '/control_center/arm_events',
             'arms_topic': '/control_center/arms',
@@ -135,6 +136,10 @@ class ArmCommandNode(Node):
             self.create_subscription(
                 CommandAck, value['ack_topic_format'].format(arm=arm_id), self._on_ack,
                 EVENT_QOS)
+            # 팔 노드 설정·실행기 정보 (String JSON, transient_local: 늦게 켜져도 마지막 값을 받는다)
+            self.create_subscription(
+                String, value['info_topic_format'].format(arm=arm_id),
+                lambda msg, arm_id=arm_id: self._on_info(arm_id, msg), SNAPSHOT_QOS)
         self.work_pub = self.create_publisher(String, value['work_request_topic'], WORK_QOS)
         self.create_subscription(String, value['work_result_topic'], self._on_work_result,
                                  WORK_QOS)
@@ -168,6 +173,14 @@ class ArmCommandNode(Node):
 
     def _on_status(self, arm_id, msg):
         self.commander.put_status(arm_id, status_to_dict(msg), time.monotonic(), time.time())
+
+    def _on_info(self, arm_id, msg):
+        try:
+            info = json.loads(msg.data)
+        except ValueError as error:
+            self.get_logger().warning(f'{arm_id} info 무시 (JSON 아님): {error}')
+            return
+        self.commander.put_info(arm_id, info, time.monotonic())
 
     def _on_ack(self, msg):
         ack = ack_to_dict(msg)
