@@ -4,3 +4,13 @@ python train.py \
   --device 0 \
   --epochs 40 \
   --output ./runs_top_strict_sweep
+
+
+git clone --filter=blob:none --sparse --single-branch \
+  --branch feature/shoebox-lid-classifier \
+  https://github.com/kernel-robot-8th/kernel-robot-repo-4.git \
+  shoebox-lid
+
+cd shoebox-lid
+git sparse-checkout set classification/shoebox_lid
+cd classification/shoebox_lid
