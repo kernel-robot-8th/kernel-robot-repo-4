@@ -44,7 +44,7 @@ STOP_COMMANDS = frozenset({'hold', 'soft_latch'})
 START = 'start'
 # 작업 시험 (팔 노드 work_contract_utils.WORK_ACTIONS 와 같다). hold·release_hold 는 위 정지 명령을 쓴다.
 WORK = 'work'
-WORK_ACTIONS = ('pick', 'load', 'unload', 'warehouse_store')
+WORK_ACTIONS = ('pick', 'load', 'unload', 'warehouse_store', 'arrange_shoe')
 # 작업 기록 상태
 WORK_RUNNING = 'RUNNING'
 WORK_SUCCEEDED = 'SUCCEEDED'

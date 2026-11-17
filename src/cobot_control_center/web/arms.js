@@ -48,7 +48,7 @@ const ARM_COMMAND = {
 const ARM_STOPS = new Set(["hold", "soft_latch"]);
 // 작업 시험 (arm_command_utils.WORK_ACTIONS). 화면 글만 여기서 정한다.
 const ARM_WORK_TEXT = { pick: "집기 (pick)", load: "싣기 (load)", unload: "내리기 (unload)",
-  warehouse_store: "창고 보관 (warehouse_store)" };
+  warehouse_store: "창고 보관 (warehouse_store)", arrange_shoe: "신발 정리 (arrange_shoe)" };
 const ARM_WORK_STATE = { RUNNING: "진행 중", SUCCEEDED: "성공", FAILED: "실패", NO_RESULT: "결과 없음" };
 // 현장 팔 배치(config/site_arms.yaml)의 역할 → 화면 글
 const SITE_ROLE_TEXT = { pickup: "상차", dropoff: "하차", warehouse: "창고" };
