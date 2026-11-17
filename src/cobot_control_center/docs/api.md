@@ -38,7 +38,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/network/check` | 자세히 확인 (10 s 동안 1 s 마다 핑 + 상태 토픽 주기). `202 {"duration_sec"}` / `503` 측정 노드 없음. 로봇에는 아무것도 보내지 않아 읽기 전용 백엔드에서도 된다 |
 | `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
 | `GET /api/arms/events?after=0&arm=&limit=100` | 로봇팔 알람 기록, 오래된 것부터 `[{"id", "time", "arm", "kind", "level", "text", "data"?}]`. `after` 로 이어 받기. 아래 [알람](#알람-활성-알람기록) |
-| `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·그 자리 팔이 하지 않는 작업(`site_arms.yaml` `actions`)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
+| `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store"\|"arrange_shoe", "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·그 자리 팔이 하지 않는 작업(`site_arms.yaml` `actions`)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
 | `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
 
@@ -204,7 +204,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `order_id`, `robot_id` | `""` (주문 아님) |
 | `stage` | `work_stage` (`MANUAL_TEST`) |
 | `target` | 시나리오 팔 이름 `omx1` |
-| `action` | `pick`·`load`·`unload`·`warehouse_store` |
+| `action` | `pick`·`load`·`unload`·`warehouse_store`·`arrange_shoe` |
 | `session_id`, `seq` | 노드 실행마다 새 session, seq 는 팔마다 1부터 |
 | `issued_at`, `ttl_sec` | 관제 PC 시각 [s], `ttl_ms`/1000 (5 s) |
 | `timeout_sec`, `attempt` | `work_timeout_sec` (120 s, 팔 노드는 자기 `worker_timeout_sec` 와 작은 값), 1 |

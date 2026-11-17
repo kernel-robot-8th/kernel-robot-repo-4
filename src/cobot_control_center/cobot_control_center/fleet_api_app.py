@@ -397,7 +397,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/arms/{arm_id}/work')
     def arm_work(arm_id: str, request: Request, body: dict = Body(default={})):
-        # 작업 시험 한 건 (pick·load·unload·warehouse_store). 실제 팔이 움직인다.
+        # 작업 시험 한 건 (pick·load·unload·warehouse_store·arrange_shoe). 실제 팔이 움직인다.
         # 주행 명령처럼 상단 '작업 명령 켜기'(commands_armed)가 켜져 있어야 한다.
         # 202 보냄 (결과는 /api/arms 의 arm.work), 409 스위치 꺼짐·팔이 대기 아님·앞 작업 진행 중.
         return call_arm_node({
