@@ -129,7 +129,7 @@ ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake  # 팔 3대 
 ```
 
 - `run_arm_adapter.sh`: 도메인 10·12, 중복 노드, 단독 실행기, 보드, 실행기 파일을 확인하고 띄운다. 기본 경로가 다르면 `OMX_FLEET_DIR`·`OMX_VENV_PY`.
-- `arm_console.py`: `start` `pick` `load` `hold` `unhold` `latch` `reset` `s` `saverest [경로]` `wait N` `q`. `saverest` 는 지금 관절을 쉬는 자세 파일(기본 `<omx_fleet>/rest_pose_omx1.json`)로 저장한다.
+- `arm_console.py`: `start` `pick` `load` `hold` `unhold` `latch` `reset` `s` `saverest [경로]` `wait N` `q`. `saverest` 는 지금 관절을 쉬는 자세 파일(기본 `~/il_ws/poses/rest_pose_<팔>.json`, 실행기 README '모델 번들 규격')로 저장한다.
 - `worker` 는 START 를 받으면 실제 팔이 움직인다. 사람이 팔 옆에 있을 때만 띄운다. 꺼짐(DISARMED) 동안은 연결·토크가 없어 켜 두어도 된다. 파라미터는 `config/arm_adapter.yaml`.
 
 ## 5. 관제 켜기·끄기 (`ArmCommand` → `CommandAck`·`ArmStatus`)

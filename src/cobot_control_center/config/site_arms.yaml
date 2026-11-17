@@ -28,12 +28,15 @@ arms:
     role: dropoff
     host: OMEN-11
     serial: 6D96FA0450323952582E3120FF052A1E   # 2026-11-16 OMEN-11 에서 확인
-    # 신발 정리 같은 하차 쪽 동작. 팔 노드·실행기에 작업 이름과 모델이 생기면 채운다.
-    actions: []
+    # unload = 신발 정리 (번들 omx_unload_zc), load = 싣기 (번들 omx_load_zc). 2026-11-17 사용자 지정
+    actions: [unload, load]
 
 # 배치 변경 기록 (새것이 위). 팔이나 보드·PC 를 옮기면 여기에 한 줄 남긴다.
 # 팔(과 그 보드)은 자리에 붙어 있고, 노트북(PC)이 팔 사이를 옮겨 다닌다. 학습 모델은 그 팔·그 자리 것이다.
 #
+# 2026-11-17  ZC(omx3) 작업: 신발 정리(unload) · 싣기(load). OMEN-11 의 shoebox_d·move_in 모델을
+#             ZC 팔에 쓴다 (사용자 확인, 대시보드 v2 로 이 팔에서 돌림). 아래 11-16 'ZC 에는 쓰지 않는다' 를 대신함.
+#             모델은 번들 규격 v0.1 로 ~/il_ws/bundles/omx_unload_zc·omx_load_zc/v1 에 둠.
 # 2026-11-16  자리별 작업 명시: ZA·ZB 창고 상차(pick → load), ZC 는 신발 정리 동작 준비 중(비움).
 # 2026-11-16  OMEN-11 노트북: ZB 팔 학습에 쓰다가(몇 주 전까지, 날짜 미상) ZC 팔로 옮겨 붙음.
 #             지금 OMEN-11 에 붙은 보드 6D96FA04… 는 ZC 팔(omx3) 것.
