@@ -482,7 +482,7 @@ def local_info(rmw, domain_id, env, node_names, station_patterns=()):
 # 팔 화면 상태(arm_command_utils) → 헬스 판정
 _ARM_STATE = {'STALE': (BAD, '미연결'), 'OFF': (OK, '꺼짐 (켜기 전)'), 'READY': (OK, '대기'),
               'BUSY': (OK, '작업·연결 중'), 'HOLD': (WARN, '정지 중'),
-              'SOFT_LATCH': (WARN, '정지 잠금')}
+              'SOFT_LATCH': (WARN, '비상정지')}
 
 
 def _check(name, state, value):

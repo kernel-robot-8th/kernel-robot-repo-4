@@ -402,6 +402,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         # 202 보냄 (결과는 /api/arms 의 arm.work), 409 스위치 꺼짐·팔이 대기 아님·앞 작업 진행 중.
         return call_arm_node({
             'type': 'work', 'arm_id': arm_id, 'action': body.get('action'),
+            'shelf_row': body.get('shelf_row'),
             'client_request_id': body.get('client_request_id'), 'source': source(request)},
             needs_armed=True)
 

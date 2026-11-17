@@ -20,11 +20,13 @@ const ARM_STATE = {
   FAULT: { text: "고장", level: "bad", hint: "팔 실행기가 멈춤 (켜기 거절 사유로 판단). 끄기(RESET)로 꺼짐에 되돌린 뒤 다시 켜기" },
   READY: { text: "대기", level: "good", hint: "켜짐, 작업을 받을 수 있음" },
   BUSY: { text: "작업·연결 중", level: "active", hint: "연결 중이거나 작업 중이거나 끄는 중" },
-  HOLD: { text: "정지", level: "warn", hint: "정지 유지 중. 정지 해제 또는 끄기" },
-  SOFT_LATCH: { text: "소프트 정지", level: "bad", hint: "소프트 정지 래치. 끄기(RESET)로만 풀림" },
+  HOLD: { text: "정지", level: "warn", hint: "정지 유지 중. 정지 해제를 누르면 바로 다시 씀" },
+  SOFT_LATCH: { text: "비상정지", level: "bad", hint: "비상정지 잠김. 정지 해제로는 안 풀림: 끄기 → 켜기" },
 };
 
-// 웹 명령 이름 → 버튼 글·확인 창 (정지 계열은 확인 창 없이 바로 보낸다)
+// 웹 명령 이름 → 버튼 글·확인 창·도움말 (정지 계열은 확인 창 없이 바로 보낸다)
+// 정지(hold) = 잠깐 멈춤, 정지 해제로 풂. 비상정지(soft_latch) = 잠금, 끄기 → 켜기로만 풂.
+// 둘 다 소프트웨어 정지다 (전원 차단 아님). 팔 노드 명령 이름은 그대로 두고 화면 글만 정한다.
 const ARM_COMMAND = {
   start: {
     text: "켜기",
@@ -42,8 +44,8 @@ const ARM_COMMAND = {
     text: "정지 해제",
     confirm: (armId) => `${armId} 정지를 풀까요?\n\n팔이 바로 움직이지는 않습니다. 다음 작업 요청부터 받습니다.`,
   },
-  hold: { text: "정지" },
-  soft_latch: { text: "소프트 정지" },
+  hold: { text: "정지", hint: "잠깐 멈춤 (토크 유지). 정지 해제로 바로 풀림. 확인 창 없음" },
+  soft_latch: { text: "비상정지", hint: "멈추고 잠금 (토크 유지, 전원 차단 아님). 끄기 → 켜기로만 풀림. 확인 창 없음" },
 };
 const ARM_STOPS = new Set(["hold", "soft_latch"]);
 // 작업 시험 (arm_command_utils.WORK_ACTIONS). 화면 글만 여기서 정한다.
@@ -52,7 +54,7 @@ const ARM_WORK_TEXT = { pick: "집기 (pick)", load: "싣기 (load)", unload: "�
 const ARM_WORK_STATE = { RUNNING: "진행 중", SUCCEEDED: "성공", FAILED: "실패", NO_RESULT: "결과 없음" };
 // 현장 팔 배치(config/site_arms.yaml)의 역할 → 화면 글
 const SITE_ROLE_TEXT = { pickup: "상차", dropoff: "하차", warehouse: "창고" };
-const HOLD_REASON_TEXT = { HOLD: "정지 유지", SOFT_LATCH: "소프트 정지" };
+const HOLD_REASON_TEXT = { HOLD: "정지 유지", SOFT_LATCH: "비상정지" };
 const ARM_RESULT_TEXT = {
   ACCEPTED: "수락", REJECTED_EPOCH: "세션 번호 거절", REJECTED_SEQ: "순번 거절",
   REJECTED_TTL: "기한 지남 (두 PC 시계 확인)", REJECTED_STATE: "지금 상태에서 안 됨",
@@ -79,7 +81,8 @@ function ensureArmCard(armId) {
     button.addEventListener("click", () => sendArmCommand(armId, button.dataset.armCmd));
   });
   card.querySelector(".arm-work-btn").addEventListener("click",
-    () => sendArmWork(armId, card.querySelector(".arm-work-action").value));
+    () => sendArmWork(armId, card.querySelector(".arm-work-action").value,
+      card.querySelector(".arm-work-row-no").value));
   $("arms").appendChild(card);
   armsView.cards.set(armId, card);
   return card;
@@ -159,6 +162,20 @@ function ackText(ack) {
 }
 
 // 팔마다 그 자리에서 하는 작업만 (스냅샷 arm.work_actions, 없으면 전체). 비면 '작업 없음'.
+// 상자 번호(선반 행 shelf_row). 그 작업 모델이 상자 번호를 받으면(info.worker.models.<작업>.box_required)
+// 골라야 보낼 수 있다. 주문에서는 fleet_control 이 재고 칸의 행을 싣는다.
+const WORK_ROWS = [1, 2, 3, 4];
+function boxRequired(arm, action) {
+  const models = arm.info && arm.info.worker && arm.info.worker.models;
+  return Boolean(models && models[action] && models[action].box_required);
+}
+
+function fillWorkRows(select) {
+  if (select.options.length) return;
+  select.replaceChildren(makeOption("", "상자 —"),
+    ...WORK_ROWS.map((row) => makeOption(String(row), `상자 ${row}`)));
+}
+
 function fillWorkActions(select, actions) {
   const key = actions.join(",") || "-";
   if (select.dataset.actions === key) return;
@@ -178,7 +195,7 @@ function workLabel(work) {
 
 function workText(work) {
   if (!work) return "";
-  const what = ARM_WORK_TEXT[work.action] || work.action;
+  const what = (ARM_WORK_TEXT[work.action] || work.action) + (work.shelf_row ? ` · 상자 ${work.shelf_row}` : "");
   const state = ARM_WORK_STATE[work.state] || work.state;
   const label = workLabel(work);
   if (work.state === "RUNNING") {
@@ -290,7 +307,8 @@ function renderArmCard(arm, canCommand) {
     button.title = !canCommand ? armsBlockedReason()
       : cmd === "start" && arm.start_block && arm.state === "OFF" ? arm.start_block
       : !allowed.has(cmd) ? `지금 상태(${meta.text})에서는 쓰지 않음`
-      : waiting && !ARM_STOPS.has(cmd) ? "앞 명령의 응답을 기다리는 중" : "";
+      : waiting && !ARM_STOPS.has(cmd) ? "앞 명령의 응답을 기다리는 중"
+      : ARM_COMMAND[cmd].hint || "";
   });
 
   // 작업 시험: 스위치 켜짐 + 대기(서버가 allowed 에 work 를 넣음) + 앞 작업·명령 없음
@@ -300,10 +318,20 @@ function renderArmCard(arm, canCommand) {
   const running = Boolean(arm.work && arm.work.state === "RUNNING");
   const workOk = canCommand && view.commandsArmed && allowed.has("work") && !running && !waiting
     && actions.length > 0;
+  const rowSelect = card.querySelector(".arm-work-row-no");
+  fillWorkRows(rowSelect);
+  const needRow = boxRequired(arm, select.value);
+  // 상자 번호를 안 받는 작업이면 숨기고 비운다 (안 쓰는 값을 같이 보내지 않게).
+  if (!needRow) rowSelect.value = "";
+  rowSelect.hidden = !needRow;
+  rowSelect.disabled = !workOk;
+  rowSelect.title = needRow ? "이 작업 모델은 상자 번호(선반 행 1..4, 위에서부터)가 있어야 움직입니다"
+    : "이 작업 모델은 상자 번호를 쓰지 않습니다";
   const workBtn = card.querySelector(".arm-work-btn");
-  workBtn.disabled = !workOk || !select.value;
+  workBtn.disabled = !workOk || !select.value || (needRow && !rowSelect.value);
   select.disabled = !workOk;
-  workBtn.title = workBlockedReason(canCommand, allowed.has("work"), running, waiting, meta, actions);
+  workBtn.title = workOk && needRow && !rowSelect.value ? "상자 번호를 고르세요 (이 작업 모델은 상자 번호가 있어야 움직임)"
+    : workBlockedReason(canCommand, allowed.has("work"), running, waiting, meta, actions);
 }
 
 function armsBlockedReason() {
@@ -362,8 +390,9 @@ async function sendArmCommand(armId, cmd) {
   pollArms();
 }
 
-async function sendArmWork(armId, action) {
-  const what = ARM_WORK_TEXT[action] || action;
+async function sendArmWork(armId, action, row) {
+  const shelfRow = row ? Number(row) : null;
+  const what = (ARM_WORK_TEXT[action] || action) + (shelfRow ? ` · 상자 ${shelfRow}` : "");
   const question = `${armId} 에 작업 시험 '${what}' 을 시킬까요? (도메인 ${view.healthDomain ?? "?"})\n\n`
     + "실제 팔이 움직입니다. 팔 옆에 사람이 있고 작업 자리에 물건이 놓여 있을 때만 하세요.\n"
     + "주문이 진행 중이면 쓰지 마세요 (주문 작업과 같은 팔에서 부딪힙니다).";
@@ -371,7 +400,7 @@ async function sendArmWork(armId, action) {
   armsView.busy.add(armId);
   showArmMessage(armId, `작업 시험 ${what} 보내는 중…`, false);
   const result = await postJson(`/api/arms/${encodeURIComponent(armId)}/work`,
-    { client_request_id: newRequestId(), action });
+    { client_request_id: newRequestId(), action, shelf_row: shelfRow });
   armsView.busy.delete(armId);
   if (result.ok) {
     showArmMessage(armId, `작업 시험 ${what} 보냄. 결과는 카드의 작업 시험 줄에 나옵니다`, false);

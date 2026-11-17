@@ -14,14 +14,14 @@ arms:
   omx1:
     station: ZA
     role: pickup
-    host: 8-OMEN
-    serial: 77AABA9150323952582E3120FF06102E   # 2026-11-16 이 PC 에서 확인
+    host: 8-OMEN        # omx2 와 같은 PC 에 붙일 예정
+    serial: ''          # 다시 학습 중이라 지금 연결 안 함. 보드 시리얼 미확인
     actions: [pick, load]   # 창고에서 신발상자 집기 → 로봇에 싣기
   omx2:
     station: ZB
     role: pickup        # 창고 상차 (2026-11-16 확정)
-    host: ''            # ZB 팔을 돌릴 PC 미정 (몇 주 전까지 OMEN-11 노트북으로 학습했음)
-    serial: ''          # ZB 팔 보드 시리얼 미확인
+    host: 8-OMEN
+    serial: 77AABA9150323952582E3120FF06102E   # 2026-11-17 사용자 확인 (전에 omx1 로 잘못 적음)
     actions: [pick, load]   # ZA 와 같음: 집기 → 싣기
   omx3:
     station: ZC
@@ -37,6 +37,8 @@ arms:
 # 2026-11-17  ZC(omx3) 작업: 신발 정리(arrange_shoe, 새 작업 이름) · 싣기(load). OMEN-11 의 shoebox_d·move_in 모델을
 #             ZC 팔에 쓴다 (사용자 확인, 대시보드 v2 로 이 팔에서 돌림). 아래 11-16 'ZC 에는 쓰지 않는다' 를 대신함.
 #             모델은 번들 규격 v0.1 로 ~/il_ws/bundles/omx_arrange_shoe_zc·omx_load_zc/v1 에 둠.
+# 2026-11-17  8-OMEN 에 꽂힌 보드 77AABA91… 는 ZB 팔(omx2) 것으로 바로잡음 (사용자 확인).
+#             omx1(ZA)은 다시 학습 중이라 연결 빼고 시리얼 비움. omx1·omx2 모두 8-OMEN 에 붙일 예정.
 # 2026-11-16  자리별 작업 명시: ZA·ZB 창고 상차(pick → load), ZC 는 신발 정리 동작 준비 중(비움).
 # 2026-11-16  OMEN-11 노트북: ZB 팔 학습에 쓰다가(몇 주 전까지, 날짜 미상) ZC 팔로 옮겨 붙음.
 #             지금 OMEN-11 에 붙은 보드 6D96FA04… 는 ZC 팔(omx3) 것.

@@ -595,6 +595,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-work-row select { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px; padding: 4px 6px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
 .arm-work-row select:disabled { opacity: 0.45; }
+.arm-work-row .arm-work-row-no { flex: 0 0 auto; }
 .card .arm-work-row button { flex: 0 0 auto; white-space: nowrap; }
 .arm-alarm { font-size: 12px; font-weight: 600; color: var(--warn); }
 /* 실행기 줄: 작업별 모델·버전, 또는 켜기가 안 되는 이유 (팔 노드 info) */
