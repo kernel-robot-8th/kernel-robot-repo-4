@@ -142,6 +142,7 @@ def test_build_only_builds_and_labels_source(runner):
     staged = runner.staged_dir / 'src'
     assert (staged / 'cobot_control_center/original.txt').read_text() == 'working tree edit\n'
     assert (staged / 'cobot_patrol_interfaces/original.txt').read_text() == 'committed source\n'
+    assert (staged / 'cobot_interfaces/original.txt').read_text() == 'committed source\n'
     assert (staged / 'cobot_gui/original.txt').read_text() == 'committed source\n'
     # 고객 화면 웹은 이미지 안에서 새로 빌드하므로 호스트 설치물·빌드 결과를 넘기지 않는다.
     assert not (staged / 'cobot_gui/web/node_modules').exists()
