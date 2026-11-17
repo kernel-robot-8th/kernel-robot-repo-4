@@ -1,0 +1,1 @@
+This is the episode-disjoint 9:1 labeled-image holdout used for hyperparameter and checkpoint selection. It is not an Ultralytics validation split. The separate test_classification.mp4 at this dataset's root is reserved for later human review and is not read by training.
