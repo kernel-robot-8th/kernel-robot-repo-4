@@ -9,7 +9,7 @@ usage() {
 사용법: bash cobot_fleet_control/config/docker/fleet_docker.sh <명령> [Compose 옵션]
   build         고정 의존성과 현재 코드를 이미지로 빌드
   config        해석된 Compose 구성 확인
-  up            웹·중앙 제어기·구역 매니저·브릿지 실행
+  up            웹·고객 주문 화면·중앙 제어기·구역 매니저·브릿지 실행
   check         이미지의 의존성·웹 기동 계획 확인 (ROS 노드·웹 서버 실행 안 함)
   smoke         격리 컨테이너에서 웹·중앙 실행기·HTTP·WebSocket 확인 후 종료
   ps            컨테이너와 웹 상태 확인
@@ -40,12 +40,14 @@ case "$operation" in
     repo_root="$(cd -- "${nav_root}/../.." && pwd)"
     # sudo 기동도 사용자가 지정한 이 저장소 하나만 신뢰한다.
     git_repo=(git -c "safe.directory=${repo_root}" -C "$repo_root")
-    web_packages=(src/cobot_control_center src/cobot_patrol_interfaces src/cobot_interfaces)
+    web_packages=(src/cobot_control_center src/cobot_patrol_interfaces src/cobot_interfaces src/cobot_gui)
     context_root="${nav_root}/.docker-context"
     mkdir -p "$context_root"
     control_center_stage="$(mktemp -d "${context_root}/control-center.XXXXXX")"
     trap 'rm -rf -- "$control_center_stage"' EXIT
-    tar -C "$repo_root" --exclude='__pycache__' --exclude='*.pyc' -cf - "${web_packages[@]}" \
+    # 고객 화면 웹은 이미지 안 Node 단계에서 새로 빌드한다. 호스트 설치물·옛 빌드는 넣지 않는다.
+    tar -C "$repo_root" --exclude='__pycache__' --exclude='*.pyc' \
+      --exclude='node_modules' --exclude='src/cobot_gui/web/dist' -cf - "${web_packages[@]}" \
       | tar -x -C "$control_center_stage"
     rm -rf -- "${context_root}/control-center"
     mv -- "$control_center_stage" "${context_root}/control-center"
@@ -58,7 +60,7 @@ case "$operation" in
     "${compose[@]}" build "$@" fleet
     ;;
   config) "${compose[@]}" config "$@" ;;
-  up) "${compose[@]}" up -d "$@" bridge zone-manager fleet web ;;
+  up) "${compose[@]}" up -d "$@" bridge zone-manager fleet web customer ;;
   check)
     if [[ $# -ne 0 ]]; then usage >&2; exit 2; fi
     "${compose[@]}" run --rm --no-deps web /opt/cobot/entrypoint.sh bash -c \

@@ -1,6 +1,6 @@
 # 새 관제 PC의 Docker 설치·기동
 
-Ubuntu 24.04 Linux 관제 PC에서 기존 웹, fleet, bridge, zone-manager를 같은 이미지로 실행합니다.
+Ubuntu 24.04 Linux 관제 PC에서 기존 웹, 고객 주문 화면(customer), fleet, bridge, zone-manager를 같은 이미지로 실행합니다.
 호스트에는 ROS·py_trees·FastAPI 설치나 workspace source가 필요 없습니다.
 핑키의 드라이버·Nav2·patrol은 각 로봇에서 실행합니다.
 
@@ -22,8 +22,9 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh smoke
 Docker 소켓 접근 권한이 이미 있으면 fleet_docker.sh의 sudo는 생략할 수 있습니다.
 설치기는 기존 Docker·containerd 패키지를 자동 제거하지 않습니다.
 Docker와 Compose가 이미 있으면 설치 대신 버전·데몬 접근을 확인합니다.
-이미지 빌드에는 Ubuntu/ROS 패키지 저장소와 PyPI 접근이 필요합니다.
-웹 패키지(cobot_control_center·cobot_patrol_interfaces)도 주행 코드와 같은 지금 체크아웃에서 빌드합니다.
+이미지 빌드에는 Ubuntu/ROS 패키지 저장소, PyPI, npm 저장소 접근이 필요합니다.
+웹 패키지(cobot_control_center·cobot_patrol_interfaces·cobot_interfaces·cobot_gui)도 주행 코드와 같은 지금 체크아웃에서 빌드합니다.
+고객 화면 웹(cobot_gui/web)은 이미지 빌드 첫 단계(Node, versions.env 의 `NODE_BUILD_IMAGE`)에서 `npm ci && npm run build` 하고, 결과 파일만 최종 이미지로 옮깁니다. 호스트의 node_modules·web/dist 는 넘기지 않습니다.
 build 경로 밖에 있어서 .docker-context/control-center로 복사해 넘기며, 고친 채 커밋하지 않은 웹도 dirty로 기록합니다.
 
 `build`, `config`, `check`는 웹 서버나 로봇 통신 노드를 시작하지 않습니다.
@@ -31,7 +32,8 @@ build 경로 밖에 있어서 .docker-context/control-center로 복사해 넘기
 
 `smoke`는 외부 네트워크가 없는 임시 컨테이너(`--network none`)에서 도메인 77·localhost로
 중앙 실행기·상태 수집기·웹 서버를 시작합니다. 웹 화면·지도·작업 목록의 HTTP 응답과
-`/ws/fleet`·`/ws/tasks`의 실제 WebSocket 연결, 작업 명령 꺼짐 상태를 확인한 뒤 종료합니다.
+`/ws/fleet`·`/ws/tasks`의 실제 WebSocket 연결, 작업 명령 꺼짐 상태를 확인합니다.
+고객 게이트웨이도 띄워 `customer.html` 200, 관제 화면 `index.html` 404, `BENCH_1` 신발 목록 응답을 확인한 뒤 종료합니다.
 운영 DB 볼륨과 호스트 포트를 연결하지 않으며, 테스트 DB는 컨테이너 종료 시 제거됩니다.
 
 ## Python 가상환경
@@ -56,8 +58,10 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 ```
 
 관제 PC 브라우저: **http://127.0.0.1:8080**. 다른 PC 에서는 **http://<관제 PC IP>:8080** (예: http://192.168.45.9:8080).
+고객 주문 화면(핸드폰, 자리 QR): **http://<관제 PC IP>:8081/?loc=BENCH_1**. 포트는 `COBOT_CUSTOMER_PORT` 로 바꿉니다.
+고객 화면 포트에서는 관제 화면이 열리지 않습니다. 설명: `src/cobot_gui/docs/customer_app.md`.
 웹은 기본으로 내부망에 공개(0.0.0.0)합니다. 로그인 기능이 없어 같은 망의 누구나 명령 화면을 쓸 수 있으니, 이 PC 에서만 보려면 `COBOT_WEB_HOST=127.0.0.1` 을 줍니다.
-`up`은 bridge → zone-manager/fleet → web의 의존 관계에 따라 네 서비스를 실행합니다.
+`up`은 bridge → zone-manager/fleet → web·customer의 의존 관계에 따라 다섯 서비스를 실행합니다.
 프로세스 기동 순서이며 로봇 준비 완료를 보장하는 검사는 아닙니다.
 웹은 기존 fleet_api_node·fleet_status_node만 시작하고 `fleet:=existing`으로 fleet에 연결합니다.
 작업 명령은 시작 시 꺼져 있습니다.
@@ -101,6 +105,7 @@ sudo env COBOT_WEB_HOST=127.0.0.1 COBOT_WEB_PORT=8080 bash cobot_fleet_control/c
 ## 포함되는 코드와 의존성
 
 - 기존 웹: 주행 코드와 같은 체크아웃의 cobot_control_center·cobot_patrol_interfaces를 수정 없이 빌드
+- 고객 주문 화면: cobot_gui (게이트웨이 노드 + Node 단계에서 빌드한 web/dist). Node 는 최종 이미지에 없습니다
 - ROS Jazzy·C++ 브릿지 의존성, FastAPI·Uvicorn: 이미지 빌드 시 apt 설치
 - py_trees·pydot·pyparsing·설치 도구: requirements.lock의 버전·해시로 venv에 설치
 - 지도: map_view_pc/maps/cobot_map_v9.yaml·pgm
