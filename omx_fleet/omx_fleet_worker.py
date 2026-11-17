@@ -35,7 +35,7 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
     관절을 다시 읽어 그리퍼 외 모든 관절 오차가 safe_tol 이하일 때만 true. hold 로 끝나면 이동하지 않으므로 false.
 
 팔별 설정은 --arms-file (YAML) 에서 ARM_ID 환경변수로 고른다. 포트는 ROBOT_PORT 환경변수 (어댑터가 넘김).
-모델은 action 마다 bundle·version (README "모델 번들 규격") 이나 model 경로로 적는다.
+모델은 action 마다 bundle·version (README "모델 지정과 번들") 이나 model 경로로 적는다.
 
   ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/... ~/venv/il/bin/python omx_fleet_worker.py --arms-file fleet_arms.yaml
 """
