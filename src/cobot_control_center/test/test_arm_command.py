@@ -596,7 +596,8 @@ def test_installed_site_actions():
     import yaml
     path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
     site = site_arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
-    assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'], []]
+    assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'],
+                                                           ['unload', 'load']]
 
 
 # ---------- 꺼짐 / 고장(FAULT) 구분 ----------
