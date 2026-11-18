@@ -21,7 +21,7 @@ const DIAG_OK_SEC = 8;
 const DIAG_WARN_SEC = 30;
 // 확대 지도에 보이는 가로 폭 [m]. null 은 지도 전체.
 const ZOOM_SPANS_M = [0.8, 1.4, null];
-const ZOOM_DEFAULT = 1;
+const ZOOM_DEFAULT = 2;   // 기본은 지도 전체 (2026-11-18 사용자 요청). ＋ 로 1.4 m · 0.8 m
 const TIMELINE_MAX = 50;
 const ROUTE_PREFIX = "#/robot/";
 
@@ -90,6 +90,7 @@ function renderDetail() {
   renderDiag(robotId, robot);
   drawDetailMap();
   renderTeleop();
+  renderGroupRun();
 }
 
 // ---------- 상태줄 ----------
@@ -427,6 +428,8 @@ function drawDetailMap() {
   const color = css(robotColorVar(Math.max(0, index)));
   if (picking) drawPick(ctx, info, scale, robots);
   else if (robot) drawRoute(ctx, info, scale, robotId, robot, color);
+  drawGroup(ctx, info, scale);
+  drawRecord(ctx, info, scale, robotId);
   const posing = Boolean(detail.posePick && detail.posePick.robotId === robotId);
   canvas.classList.toggle("posing", posing);
   // 구역·지점 이름표는 고정 자리(로봇 아래), 로봇 이름표는 맨 위 (map.js placeStaticLabels)

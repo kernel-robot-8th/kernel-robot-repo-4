@@ -11,6 +11,7 @@
 "use strict";
 
 const TELEOP_SEND_MS = 100;
+
 // 방향 → [vx, wz] 비율. 각속도 +는 왼쪽 회전 (REP-103).
 const TELEOP_DIRS = { up: [1, 0], down: [-1, 0], left: [0, 1], right: [0, -1] };
 const TELEOP_KEYS = {
@@ -88,6 +89,8 @@ function startTeleop() {
       teleop.limits = msg.limits || null;
       teleop.timer = setInterval(sendTeleop, TELEOP_SEND_MS);
       sendTeleop();
+      // [조종 시작]에 포커스가 남으면 Space·Enter 가 그 버튼(조종 끝)을 눌러 버린다.
+      if (document.activeElement) document.activeElement.blur();
     } else if (msg.type === "refused" || msg.type === "ended") {
       teleop.note = { robotId, text: `${msg.type === "refused" ? "시작 안 됨" : "조종 끝남"}: ${msg.detail}` };
     }
@@ -152,6 +155,7 @@ function renderTeleop() {
     status.textContent = note || (why ? `조종 불가: ${why}` : "조종 가능 · 실제 로봇이 움직입니다");
   }
   status.dataset.level = driving ? "busy" : note ? "bad" : why ? "warn" : "ok";
+  renderRecord();
   const limits = teleop.limits || view.teleopLimits;
   $("teleop-limit").textContent = limits && limits.max_linear
     ? `최대 ${limits.max_linear} m/s · ${limits.max_angular} rad/s` : "";
@@ -193,7 +197,14 @@ function setupTeleop() {
     button.addEventListener("contextmenu", (event) => event.preventDefault());
   });
   window.addEventListener("keydown", (event) => {
-    if (!teleop.started || typingTarget(event.target)) return;
+    if (typingTarget(event.target)) return;
+    // 웨이포인트 기록 중이면 R 로 지금 자리를 추가 (조종하지 않을 때도, record.js)
+    if (event.code === "KeyR" && recording(view.detailRobot)) {
+      event.preventDefault();
+      if (!event.repeat) addRecordPoint();
+      return;
+    }
+    if (!teleop.started) return;
     if (event.code === "Escape") {
       stopTeleop("조종 끝남: 운영자 끝냄 (Esc)");
       event.preventDefault();

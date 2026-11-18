@@ -41,6 +41,7 @@ from cobot_control_center.net_status_utils import (
     collect_network, HostStore, local_info, NetAlertTracker, NetStore, network_alerts)
 from cobot_control_center.route_utils import RouteRunner
 from cobot_control_center.teleop_utils import TeleopStore
+from cobot_control_center.waypoint_utils import WaypointStore
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
@@ -131,6 +132,20 @@ class FleetApiNode(Node):
             String, '/control_center/teleop_state', self._on_teleop,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        # 관제 웨이포인트·묶음 (관제 PC 파일). 비우면 ~/.ros/cobot_control_center/waypoints_<site>_d<도메인>.json
+        # 도메인을 이름에 넣어 가짜 핑키(101)·시뮬(140)에서 저장한 점이 실물(100) 파일에 섞이지 않게 한다.
+        self.declare_parameter('waypoints_file', '')
+        self.declare_parameter('zone_keepout_m', 0.0)   # 0 = 검사 안 함
+        site = self.get_parameter('site').value
+        path = (self.get_parameter('waypoints_file').value
+                or f'~/.ros/cobot_control_center/waypoints_{site}'
+                   f'_d{self.context.get_domain_id()}.json')
+        self.waypoints = WaypointStore(path, site, self.layers,
+                                       self.get_parameter('zone_keepout_m').value)
+        if self.waypoints.load_error:
+            self.get_logger().error(self.waypoints.load_error + ' (저장은 막음)')
+        self.get_logger().info(
+            f'웨이포인트: {self.waypoints.path} ({len(self.waypoints.poses())}개)')
         self.cameras = self._subscribe_cameras()
         self._setup_network()
         self.get_logger().info(
@@ -317,7 +332,8 @@ def main(args=None):
                          network_ids=node.network_ids,
                          request_net_check=node.request_net_check, hosts=node.hosts,
                          routes=node.routes, teleop=node.teleop,
-                         publish_teleop=None if node.read_only else node.publish_teleop)
+                         publish_teleop=None if node.read_only else node.publish_teleop,
+                         waypoints=node.waypoints)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

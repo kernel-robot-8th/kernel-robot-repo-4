@@ -26,6 +26,15 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/routes` | 경로 (여러 지점 섞어 연결 주행). `{"client_request_id", "robot_id", "points": ["P1", "ZA", "P3", "I1"]}`. 백엔드가 구간으로 나눔 (이어지는 일반 지점·자기 홈은 `goto` 하나, 구역 지점은 하나씩 `zone`) → 첫 구간을 바로 보내고 `202` 경로 / `400` 모르는 지점·구역 출구·다른 로봇 홈·지점 없음·20개 넘음 / `404` 없는 로봇 / `409` 진행 중인 경로가 있음, 또는 첫 구간 거절 (`{"detail", "route"}`) / `423` 작업 명령 꺼짐 / `503` 작업 노드·지점 설정 없음. 앞 구간이 `SUCCEEDED` 면 다음 구간, `FAILED`·`STOPPED`·`REJECTED`·`UNKNOWN` 이면 경로 `FAILED`. 작업이 안 만들어진 `409`·`503`·응답 없음은 `route_retry_sec` 동안 같은 `client_request_id`(`<route_id>-<구간 번호>`)로 다시 보냄. 정지·비상정지·전체 비상정지는 남은 구간을 버림 (`CANCELED`). 시작·구간 성공·완료·취소·중단은 이벤트 로그에 `kind: "route"` 로 남김 (`data`: `route_id`, `index`, `total`, `state`) |
 | `GET /api/routes` | `{"robots": {"pinky1": 마지막 경로}, "recent": [끝난 경로, 최신순 20개]}`. 경로 = `{"route_id", "robot_id", "points", "legs": [{"operation", "points", "task_id", "state": WAITING·작업 상태}], "index": 지금 구간, "state": RUNNING·SUCCEEDED·FAILED·CANCELED, "detail", "created_at", "updated_at"}`. 백엔드 메모리라 다시 켜면 사라짐 |
 | `POST /api/routes/{robot_id}/cancel` | 남은 구간만 버림 → `{"canceled": [route_id]}`. 지금 가는 구간은 멈추지 않음 (멈추려면 정지) |
+| `GET /api/waypoints` | 관제 웨이포인트·묶음 (2026-11-18). `{"waypoints": [{"name", "x", "y", "yaw", "robot_id", "captured_at", "warnings", "note"}], "groups": [{"name", "points", "note", "updated_at"}], "keepout_m", "load_error"}` |
+| `POST /api/waypoints` | `{"robot_id", "name"?, "note"?}` → 그 로봇의 **지금 위치**(이 서버가 받은 마지막 fleet_status)로 저장, `201`. 이름을 비우면 `W1, W2 …`. `400` 이름 형식 / `404` 없는 로봇 / `409` 위치 모름·로봇 설정과 같은 이름·이미 있는 이름·구역 지점·출구에서 `zone_keepout_m` 안 (기본 0 = 검사 안 함) / `503` 읽기 전용·파일 못 씀 |
+| `PATCH /api/waypoints/{name}` | `{"name"?, "note"?}` 이름 바꾸기(묶음 안 이름도 바뀜)·메모 |
+| `DELETE /api/waypoints/{name}` | 지움 → `{"deleted", "groups_changed": [이 이름을 빼낸 묶음]}` |
+| `GET /api/waypoints/export?names=W1,W2` | 로봇 설정 `points:` 에 붙일 YAML 줄 (text/plain). names 를 비우면 전체 |
+| `PUT /api/waypoint_groups/{name}` | `{"points": [...], "note"?}` 묶음 만들기·바꾸기. 지점은 로봇 설정 지점 또는 관제 웨이포인트, 1~20개 |
+| `DELETE /api/waypoint_groups/{name}` | 묶음 지움 (지점은 남음) |
+
+**관제 웨이포인트를 이동·경로에 쓰면**: `POST /api/tasks`(goto)·`POST /api/routes` 의 지점 이름 중 관제 웨이포인트는 좌표를 `poses: {"W1": [x, y, yaw]}` 로 붙여 작업 노드에 넘긴다. 작업 노드(`fleet_control`)가 이름 충돌·구역 거리를 다시 검사하고 순찰 노드 봉투에 `poses` 를 실어 보낸다. 순찰 노드는 로봇 설정에 없는 이름이면 그 좌표로 간다 (goto 만). `poses` 를 모르는 예전 순찰 노드는 `unknown point` 로 거절한다.
 | `POST /api/commands/arm` | `{"client_request_id", "armed": true\|false}` → `200 {"armed", "changed", "source": 요청한 IP, "client_request_id"}` / `400` armed 가 bool 이 아님. 작업 노드 사건 `operator_arm` 으로 남김 |
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
 | `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지 (로봇·팔 모두) |

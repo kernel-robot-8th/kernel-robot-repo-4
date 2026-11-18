@@ -436,6 +436,8 @@ function pointChoices(robotId, cmd) {
     for (const [name, pose] of Object.entries(layers.points || {})) choices.set(name, pose);
     const home = layers.homes && layers.homes[robotId];
     if (home) choices.set(home.name, home.pose);
+    // 관제 웨이포인트: 관제가 좌표를 실어 보낸다 (goto·경로만, waypoints.js)
+    for (const [name, pose] of waypointPoses()) choices.set(name, pose);
   } else if (cmd === "zone") {
     for (const zone of Object.values(layers.zones || {})) {
       for (const [name, pose] of Object.entries(zone.points || {})) choices.set(name, pose);
@@ -497,6 +499,8 @@ function choosePoints(robotId, cmd) {
   $("cmd-clear").hidden = !MULTI_POINT.has(cmd);
   $("cmd-undo").hidden = !chipMode;
   box.classList.toggle("route-mode", chipMode);
+  $("cmd-group").hidden = !chipMode;
+  renderGroupSelect();
   $("cmd-warn").textContent = view.snapshot && view.snapshot.infra
     && view.snapshot.infra.mode === "real" ? "⚠ 실물 로봇이 움직입니다. 주변을 확인하세요." : "";
   if (needsPoints && choices === null) {

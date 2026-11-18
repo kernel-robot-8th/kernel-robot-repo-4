@@ -118,6 +118,8 @@ setupRaw();
 setupLoad();
 setupDetail();
 setupTeleop();
+setupWaypoints();
+setupRecord();
 setupArms();
 setupNetwork();
 loadMap();

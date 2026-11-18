@@ -23,6 +23,7 @@
   --robot-1: #2f6fdb;
   --robot-2: #12a38a;
   --robot-3: #8a4fd8;
+  --group: #c2378f;          /* 지도에 고른 웨이포인트 묶음 (waypoints.js drawGroup) */
   --offline: #9aa1ab;
   color-scheme: light;
 }
@@ -42,6 +43,7 @@
     --robot-1: #5b93f0;
     --robot-2: #2fc4a8;
     --robot-3: #a77ef0;
+    --group: #e86ab3;
     --offline: #5d646e;
     color-scheme: dark;
   }
@@ -792,7 +794,7 @@ body.detail-mode .layout { display: none; }
 .camera-age[hidden] { display: none; }
 
 /* 영상 | 조종 칸. 조종 칸 폭은 패드(44px x 3)와 버튼이 들어가는 만큼만 */
-.camera-body { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 12px; align-items: start; }
+.camera-body { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: start; }
 .camera-body .camera-wrap { width: min(100%, calc(48vh * 4 / 3)); margin: 0 auto; }
 
 /* 직접 조종 칸 (카메라 옆, teleop.js). 조종 중이면 테두리를 파랗게 해 지금 키가 로봇으로 간다는 걸 보인다. */
@@ -833,6 +835,26 @@ body.detail-mode .layout { display: none; }
 .teleop-pad [data-dir="down"] { grid-area: 3 / 2; }
 .teleop-pad button.held { background: var(--active); border-color: var(--active); color: #fff; }
 .teleop-help { margin: 0; font-size: 11px; line-height: 1.5; text-align: center; }
+/* 웨이포인트 기록 (record.js) */
+.rec-start { width: 100%; padding: 5px 10px; font-weight: 600; color: var(--warn) !important; border-color: var(--warn) !important; }
+.rec-start[hidden], .rec-card[hidden] { display: none; }
+.rec-card { width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--warn); border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 6%, var(--panel)); }
+.rec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12px; }
+.rec-card input { font: inherit; font-size: 12px; padding: 3px 6px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; min-width: 0; }
+.rec-add { padding: 6px 10px; font-weight: 700; background: var(--warn) !important; color: #fff !important; border-color: var(--warn) !important; }
+.rec-list { margin: 0; padding-left: 0; list-style: none; max-height: 160px; overflow-y: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.rec-list li { display: flex; justify-content: space-between; align-items: center; gap: 4px; padding: 1px 0; }
+.rec-list li.muted { display: list-item; }
+.rec-list li button { padding: 0 6px; font-size: 12px; }
+.rec-buttons { display: flex; gap: 6px; }
+.rec-buttons button { flex: 1; padding: 4px 6px; }
+.rec-buttons .primary { font-weight: 700; background: var(--active); color: #fff; border-color: var(--active); }
+.rec-msg { font-size: 11px; line-height: 1.4; text-align: center; word-break: keep-all; overflow-wrap: break-word; }
+.rec-msg:empty { display: none; }
+.rec-msg[data-level="ok"] { color: var(--good); }
+.rec-msg[data-level="bad"] { color: var(--bad); }
+.teleop[data-recording="1"] .teleop-help { display: none; }
 
 .dt-map-wrap { position: relative; flex: 1; min-height: 240px; border-radius: 6px; overflow: hidden; background: var(--bg); }
 #dt-map { display: block; width: 100%; height: 100%; }
@@ -932,6 +954,7 @@ body.detail-mode .layout { display: none; }
 .net-btn[data-state="bad"] i { background: var(--bad); }
 
 body.network-mode .layout { display: none; }
+body.waypoints-mode .layout { display: none; }
 .network-page[hidden] { display: none; }
 .network-page { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .net-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -1034,3 +1057,50 @@ body.network-mode .layout { display: none; }
 .net-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .net-legend i { width: 14px; height: 3px; border-radius: 2px; }
 .net-foot { font-size: 12px; margin: 0; }
+
+/* ---------- 관제 웨이포인트·묶음 (#/waypoints, waypoints.js) ---------- */
+.waypoints-page[hidden] { display: none; }
+.waypoints-page { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.wp-note { font-size: 12px; }
+.wp-note[data-level="ok"] { color: var(--good); }
+.wp-note[data-level="bad"] { color: var(--bad); }
+.wp-file:empty { display: none; }
+.wp-file { margin: 0; color: var(--bad); font-size: 13px; }
+.wp-table-wrap { overflow-x: auto; }
+.wp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wp-table th, .wp-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.wp-table th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.wp-table .num { font-variant-numeric: tabular-nums; }
+.wp-table .wp-warn { color: var(--warn); font-size: 12px; white-space: normal; }
+.wp-table button, .wp-groups button, .wp-editor button, .waypoints-page .panel-head button, .cmd-group {
+  font: inherit; font-size: 12px; padding: 2px 8px; color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+}
+.wp-table button:disabled, .wp-groups button:disabled, .wp-editor button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wp-table .wp-name button { font-weight: 700; color: var(--warn); border-color: var(--warn); }
+.wp-table button.linkish { border-style: dashed; color: var(--muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.waypoints-page button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); }
+.wp-export { margin: 8px 0 0; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; overflow-x: auto; }
+.wp-groups { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.wp-groups li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
+.wp-path { font-size: 13px; font-variant-numeric: tabular-nums; }
+.wp-editor[hidden] { display: none; }
+.wp-editor { margin-top: 10px; padding: 10px; border: 1px dashed var(--active); border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+.wp-editor label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.wp-editor input, #wp-group-add { font: inherit; font-size: 13px; padding: 3px 6px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
+.wp-editor input { flex: 1; min-width: 0; }
+.wp-chips .route-chip button { margin-left: 2px; padding: 0 4px; }
+.cmd-group { margin: 4px 0; max-width: 100%; }
+.cmd-group[hidden] { display: none; }
+
+/* 지도 머리의 '묶음 보기' (waypoints.js) */
+.map-group { font: inherit; font-size: 12px; padding: 2px 6px; max-width: 220px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; margin-left: auto; }
+.map-group:disabled { opacity: 0.55; }
+/* 전체 화면 지도 칸은 좁아서 '묶음 보기'를 머리 아래 한 줄로 */
+.map-panel .panel-head { flex-wrap: wrap; }
+.map-panel .panel-head h2 { white-space: nowrap; }
+.map-panel .map-group { order: 3; flex-basis: 100%; max-width: none; margin-left: 0; }
+.group-run { font: inherit; font-size: 12px; font-weight: 700; padding: 2px 10px; color: #fff; background: var(--group);
+  border: 1px solid var(--group); border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.group-run:disabled { opacity: 0.4; cursor: not-allowed; }

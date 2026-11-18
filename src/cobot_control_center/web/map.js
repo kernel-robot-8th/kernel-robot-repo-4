@@ -179,6 +179,7 @@ function drawMap() {
   if (view.layers && (show.layers || show.points)) {
     drawLayers(ctx, info, view.layers, scale, show, labels);
   }
+  drawGroup(ctx, info, scale);
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   if (picking) drawPick(ctx, info, scale, robots);
@@ -384,6 +385,17 @@ function drawMarks(ctx, info, marks, scale, labels) {
       ctx.moveTo(px, py);
       ctx.lineTo(px + Math.cos(heading) * r * 2.6, py + Math.sin(heading) * r * 2.6);
       ctx.stroke();
+    } else if (mark.kind === "waypoint") { // 관제 웨이포인트: 빈 마름모 + 도착 방향
+      ctx.moveTo(px, py - r * 1.2); ctx.lineTo(px + r * 1.2, py);
+      ctx.lineTo(px, py + r * 1.2); ctx.lineTo(px - r * 1.2, py);
+      ctx.closePath();
+      ctx.lineWidth = 2 / scale;
+      ctx.stroke();
+      const heading = -mark.pose[2];
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.cos(heading) * r * 2.6, py + Math.sin(heading) * r * 2.6);
+      ctx.stroke();
     } else if (mark.kind === "home") { // 홈: 마름모
       ctx.moveTo(px, py - r); ctx.lineTo(px + r, py);
       ctx.lineTo(px, py + r); ctx.lineTo(px - r, py);
@@ -405,6 +417,10 @@ function drawLayers(ctx, info, layers, scale, show, labels) {
   if (show.points) {
     for (const [name, pose] of Object.entries(layers.points || {})) {
       marks.push({ kind: "point", pose, label: name, color: css("--active") });
+    }
+    // 관제 웨이포인트 (waypoints.js): 주황 빈 마름모 + 방향
+    for (const [name, pose] of waypointPoses()) {
+      marks.push({ kind: "waypoint", pose, label: name, color: css("--warn") });
     }
   }
   if (show.layers) {

@@ -39,9 +39,10 @@ from cobot_control_center.net_status_utils import collect_network, network_alert
 from cobot_control_center.route_utils import FAILED, RouteError, RUNNING, split_route
 from cobot_control_center.teleop_utils import (
     active_task, robot_order, teleop_block_reason)
+from cobot_control_center.waypoint_utils import WaypointError
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 # WebSocket 이 새 스냅샷을 기다리는 한 번의 최대 시간 [s]. 끊긴 연결을 이 주기로 알아챈다.
@@ -72,7 +73,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                tasks=None, publish_request=None, cameras=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
-               hosts=None, routes=None, teleop=None, publish_teleop=None):
+               hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -93,6 +94,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     None 이면 /api/routes 는 503 이다.
     teleop 은 TeleopStore, publish_teleop 은 조종 입력 JSON 을 teleop_cmd 토픽에 내는 함수다.
     둘 중 하나라도 None 이면 직접 조종은 받지 않는다.
+    waypoints 는 WaypointStore (관제 웨이포인트·묶음) 또는 None 이다. 이동·경로의 지점 이름 중
+    관제 웨이포인트는 좌표를 poses 로 실어 작업 노드에 넘긴다 (순찰 노드가 좌표로 간다).
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -359,13 +362,24 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                                 content={'detail': body.get('detail'), 'task': body})
         return JSONResponse(status_code=status, content=body)
 
+    def waypoint_poses(points):
+        if waypoints is None or not isinstance(points, list):
+            return {}
+        return waypoints.poses_for([p.strip().upper() for p in points if isinstance(p, str)])
+
     @app.post('/api/tasks')
     def create_task(body: dict = Body(...)):
         refuse_if_driving(body.get('robot_id'))
-        return call_controller({
+        points = body.get('points') or []
+        payload = {
             'type': 'create', 'client_request_id': body.get('client_request_id'),
             'robot_id': body.get('robot_id'), 'operation': body.get('operation'),
-            'points': body.get('points') or []})
+            'points': points}
+        poses = waypoint_poses(points)
+        if poses:
+            payload['points'] = [p.strip().upper() for p in points if isinstance(p, str)]
+            payload['poses'] = poses
+        return call_controller(payload)
 
     # ---------- 경로 (여러 지점을 섞은 연결 주행, route_utils) ----------
     # 순찰 노드는 명령 하나만 받으므로 구간(goto 묶음·zone 하나씩)으로 나눠 이 백엔드가 차례로 보낸다.
@@ -391,7 +405,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             raise HTTPException(status_code=404, detail=f'등록되지 않은 로봇: {robot_id}')
         try:
             names = [p.strip().upper() for p in body.get('points') or [] if isinstance(p, str)]
-            legs = split_route(body.get('points') or [], layers, robot_id)
+            legs = split_route(body.get('points') or [], layers, robot_id,
+                               waypoints.poses() if waypoints is not None else None)
             runner.create(robot_id, legs, [n for n in names if n],
                           body.get('client_request_id'))
         except RouteError as error:
@@ -569,6 +584,59 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'shelf_row': body.get('shelf_row'),
             'client_request_id': body.get('client_request_id'), 'source': source(request)},
             needs_armed=True)
+
+    # ---------- 관제 웨이포인트·묶음 (waypoint_utils, 관제 PC 파일) ----------
+
+    def waypoint_store(write=False):
+        if waypoints is None:
+            raise HTTPException(status_code=503, detail='웨이포인트 저장소가 설정되지 않음')
+        if write and publish_request is None:
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
+        return waypoints
+
+    def waypoint_call(func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except WaypointError as error:
+            raise HTTPException(status_code=error.status, detail=error.detail) from None
+
+    @app.get('/api/waypoints')
+    def list_waypoints():
+        return waypoint_store().snapshot()
+
+    @app.post('/api/waypoints')
+    def capture_waypoint(body: dict = Body(...)):
+        # 로봇의 지금 위치로 저장. 위치는 화면 값이 아니라 이 서버가 받은 마지막 fleet_status 에서 읽는다.
+        store_ = waypoint_store(write=True)
+        robot_id = body.get('robot_id')
+        robot = ((store.get()[1] or {}).get('robots') or {}).get(robot_id)
+        if robot is not None and not store.health()['source_online']:
+            robot = dict(robot, online=False)
+        item = waypoint_call(store_.capture, robot_id, robot, body.get('name'), body.get('note'))
+        return JSONResponse(status_code=201, content=item)
+
+    @app.patch('/api/waypoints/{name}')
+    def update_waypoint(name: str, body: dict = Body(...)):
+        return waypoint_call(waypoint_store(write=True).update, name,
+                             body.get('name'), body.get('note'))
+
+    @app.delete('/api/waypoints/{name}')
+    def delete_waypoint(name: str):
+        return waypoint_call(waypoint_store(write=True).delete, name)
+
+    @app.get('/api/waypoints/export')
+    def export_waypoints(names: str = ''):
+        chosen = [n.strip().upper() for n in names.split(',') if n.strip()]
+        return PlainTextResponse(waypoint_store().export_yaml(chosen or None))
+
+    @app.put('/api/waypoint_groups/{name}')
+    def set_waypoint_group(name: str, body: dict = Body(...)):
+        return waypoint_call(waypoint_store(write=True).set_group, name,
+                             body.get('points'), body.get('note'))
+
+    @app.delete('/api/waypoint_groups/{name}')
+    def delete_waypoint_group(name: str):
+        return waypoint_call(waypoint_store(write=True).delete_group, name)
 
     def task_store():
         if tasks is None:
