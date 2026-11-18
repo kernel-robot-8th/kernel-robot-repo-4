@@ -14,7 +14,6 @@
   <arg name="judge_gap_sec" default="1.0"/>
   <arg name="judge_min_frames" default="3"/>
   <arg name="judge_drop_reach" default="1.0"/>
-  <arg name="judge_allow_fixed_marker" default="false"/>
   <arg name="judge_drop_tray_iou_max" default="-1.0"/>
   <arg name="judge_require_tray_marker_absent" default="false"/>
   <arg name="judge_min_tray_box_frames" default="0"/>
@@ -42,7 +41,6 @@
     <param name="judge_gap_sec" value="$(var judge_gap_sec)" type="float"/>
     <param name="judge_min_frames" value="$(var judge_min_frames)" type="int"/>
     <param name="judge_drop_reach" value="$(var judge_drop_reach)" type="float"/>
-    <param name="judge_allow_fixed_marker" value="$(var judge_allow_fixed_marker)" type="bool"/>
     <param name="judge_drop_tray_iou_max" value="$(var judge_drop_tray_iou_max)" type="float"/>
     <param name="judge_require_tray_marker_absent" value="$(var judge_require_tray_marker_absent)" type="bool"/>
     <param name="judge_min_tray_box_frames" value="$(var judge_min_tray_box_frames)" type="int"/>

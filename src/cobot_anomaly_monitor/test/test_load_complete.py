@@ -319,37 +319,13 @@ def test_fake_arm_result_cannot_authorize_loaded(feed, stage):
 @pytest.mark.parametrize('params', [
     {'hold_sec': 0}, {'fresh_sec': float('nan')}, {'gap_sec': -1},
     {'min_frames': 0}, {'drop_frames': True}, {'drop_reach': float('inf')},
-    {'allow_fixed_marker': 'yes'}, {'drop_tray_iou_max': 0.0}, {'drop_tray_iou_max': 1.5},
+    {'drop_tray_iou_max': 0.0}, {'drop_tray_iou_max': 1.5},
     {'require_tray_marker_absent': 1}, {'min_tray_box_frames': -1},
     {'min_tray_box_frames': True},
 ])
 def test_invalid_judge_parameters_fail_closed(params):
     with pytest.raises(ValueError):
         LoadComplete('ceiling', 'pinky-v1', 'ceil-1', **params)
-
-
-def test_fixed_marker_restores_zone_state_from_boxes_in_both_orders():
-    for boxes_first in (False, True):
-        judge = LoadComplete('ceiling', 'pinky-v1', 'ceil-1', allow_fixed_marker=True)
-        feed = Feed(judge)
-        feed.released()
-        for seq in range(5):
-            feed.now += 1 / 3
-            base = {'source_kind': 'model_output', 'stream_id': 'ceiling', 'stream_epoch': 'e1',
-                    'model_id': 'pinky-v1', 'calibration_id': 'ceil-1', 'frame_seq': seq,
-                    'capture_time': feed.now - .05, 'clock_error_sec': .05,
-                    'marker_state': 'FIXED'}
-            zmsg = dict(base, zones={'ZB': 'NO_ROBOT', 'ZA': 'NO_ROBOT'})
-            bmsg = dict(base, zones_frame_seq=seq, truncated=0, boxes=[],
-                        pinky=[{'name': 'pinky_loaded', 'confidence': 0.95,
-                                'bbox': PINKY, 'zones': ['ZB']}])
-            if boxes_first:
-                judge.on_boxes(bmsg, feed.now)
-                judge.on_zones(zmsg, feed.now)
-            else:
-                judge.on_zones(zmsg, feed.now)
-                judge.on_boxes(bmsg, feed.now)
-        assert feed.verdict()['verdict'] == 'pass'
 
 
 def test_d2_filters_floor_overlapping_tray_inside_anchor_and_preserves_run_over():

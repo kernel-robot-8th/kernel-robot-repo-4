@@ -12,7 +12,6 @@ RULE_VERSION = 'lc-1'
 JUDGED_DECISION = 'vision_judged'
 DROP_NAMES = ('box_on_floor', 'box_run_over')
 PERCHED = 'box_perched_on_rim'
-PINKY_NAMES = ('pinky_loaded', 'pinky_empty')
 SOURCE_KINDS = ('sim_fixture', 'model_output')
 CLOCK_ERROR_MAX = 0.25
 TRAY_MARKERS = {'ZA': 31, 'ZB': 30, 'ZC': 32}
@@ -66,7 +65,7 @@ class LoadComplete:
 
     def __init__(self, stream_id, model_id, calibration_id, hold_sec=1.0, still_ratio=0.15,
                  drop_frames=3, fresh_sec=2.0, gap_sec=1.0, min_frames=3, drop_reach=1.0,
-                 gripper_closed_max=None, gripper_open_min=None, allow_fixed_marker=False,
+                 gripper_closed_max=None, gripper_open_min=None,
                  drop_tray_iou_max=None, require_tray_marker_absent=False,
                  min_tray_box_frames=0, latch_drop=False):
         for name, value in {'hold_sec': hold_sec, 'still_ratio': still_ratio,
@@ -77,8 +76,7 @@ class LoadComplete:
         for name, value in {'drop_frames': drop_frames, 'min_frames': min_frames}.items():
             if type(value) is not int or value < 1:
                 raise ValueError(f'{name} must be a positive integer')
-        for name, value in {'allow_fixed_marker': allow_fixed_marker,
-                            'require_tray_marker_absent': require_tray_marker_absent,
+        for name, value in {'require_tray_marker_absent': require_tray_marker_absent,
                             'latch_drop': latch_drop}.items():
             if type(value) is not bool:
                 raise ValueError(f'{name} must be a bool')
@@ -91,7 +89,6 @@ class LoadComplete:
         self.hold_sec, self.still_ratio, self.drop_frames = hold_sec, still_ratio, drop_frames
         self.fresh_sec, self.gap_sec, self.min_frames = fresh_sec, gap_sec, min_frames
         self.drop_reach = drop_reach
-        self.allow_fixed_marker = allow_fixed_marker
         self.drop_tray_iou_max = drop_tray_iou_max
         self.require_tray_marker_absent = require_tray_marker_absent
         self.min_tray_box_frames = min_tray_box_frames
@@ -102,7 +99,6 @@ class LoadComplete:
                         else None)
         self.zones = deque(maxlen=120)
         self.boxes = deque(maxlen=120)
-        self._fixed_zones = {}
         self.arm = {}
         self.problem = {'zones': '구역 프레임 없음', 'boxes': '상자 프레임 없음'}
 
@@ -116,8 +112,6 @@ class LoadComplete:
                 or ts - error > now or now - ts + error > 3
                 or type(seq) is not int or seq < 0 or not isinstance(epoch, str) or not epoch):
             history.clear()
-            if kind == 'boxes':
-                self._fixed_zones.clear()
             self.problem[kind] = '시각·스트림·모델·보정 불일치'
             return False
         if history:
@@ -127,33 +121,8 @@ class LoadComplete:
                 return False
             if epoch != last['stream_epoch']:
                 history.clear()
-                if kind == 'boxes':
-                    self._fixed_zones.clear()
         self.problem[kind] = ''
         return True
-
-    @staticmethod
-    def _zones_from_pinky(pinky):
-        """상자 메시지의 핑키 목록에서 구역별 상태를 복원한다(D1)."""
-        zone_names = {'ZA', 'ZB', 'ZC'}
-        for item in pinky:
-            zone_names.update(z for z in item.get('zones', ()) if isinstance(z, str))
-        out = {}
-        for zone in sorted(zone_names):
-            matched = [p for p in pinky if zone in p.get('zones', ())]
-            if not matched:
-                out[zone] = 'NO_ROBOT'
-            elif len(matched) > 1:
-                out[zone] = 'MULTI'
-            else:
-                robot = matched[0]
-                conf = robot.get('confidence')
-                if (robot.get('name') not in PINKY_NAMES
-                        or (conf is not None and (not finite(conf) or conf < 0.5))):
-                    out[zone] = 'UNKNOWN'
-                else:
-                    out[zone] = 'LOADED' if robot['name'] == 'pinky_loaded' else 'EMPTY'
-        return out
 
     def on_zones(self, frame, now):
         """구역 근거 프레임을 받는다."""
@@ -163,13 +132,6 @@ class LoadComplete:
         marker = frame.get('marker_state')
         ok = marker == 'OK' and isinstance(zones, dict)
         zone_map = zones if isinstance(zones, dict) else {}
-        if self.allow_fixed_marker and marker == 'FIXED':
-            key = (frame['stream_epoch'], frame['frame_seq'], frame['capture_time'])
-            restored = (self._fixed_zones.pop(key, None)
-                        or self._fixed_zones.pop(
-                            (frame['stream_epoch'], None, frame['capture_time']), None))
-            if restored is not None:
-                ok, zone_map = True, restored
         self.zones.append({
             'capture_time': frame['capture_time'], 'clock_error_sec': frame['clock_error_sec'],
             'stream_epoch': frame['stream_epoch'], 'frame_seq': frame['frame_seq'],
@@ -181,8 +143,7 @@ class LoadComplete:
             return
         pinky, boxes = frame.get('pinky'), frame.get('boxes')
         marker = frame.get('marker_state')
-        allowed_markers = ('OK', 'FIXED') if self.allow_fixed_marker else ('OK',)
-        usable = (marker in allowed_markers and isinstance(pinky, list)
+        usable = (marker == 'OK' and isinstance(pinky, list)
                   and isinstance(boxes, list) and not frame.get('truncated'))
         clean_pinky = ([p for p in pinky if isinstance(p, dict) and valid_bbox(p.get('bbox'))
                         and isinstance(p.get('zones'), list)] if usable else [])
@@ -195,23 +156,6 @@ class LoadComplete:
             'marker_state': marker, 'ok': usable, 'pinky': clean_pinky, 'boxes': clean_boxes,
             'tray_markers': ([m for m in markers if type(m) is int]
                              if isinstance(markers, list) else None)})
-        if usable and self.allow_fixed_marker and marker == 'FIXED':
-            restored = self._zones_from_pinky(clean_pinky)
-            zseq = frame.get('zones_frame_seq')
-            matched = False
-            for zframe in reversed(self.zones):
-                if (zframe['stream_epoch'] == frame['stream_epoch']
-                        and zframe.get('marker_state') == 'FIXED'
-                        and (zframe['frame_seq'] == zseq
-                             or abs(zframe['capture_time'] - frame['capture_time']) < 1e-6)):
-                    zframe['ok'] = True
-                    zframe['zones'] = restored
-                    matched = True
-                    break
-            if not matched:
-                self._fixed_zones[(frame['stream_epoch'], zseq, frame['capture_time'])] = restored
-                for k in list(self._fixed_zones)[:-60]:
-                    del self._fixed_zones[k]
 
     def on_arm_result(self, result, now):
         """팔 단계 결과를 주문·로봇·단계별로 기억한다. 팔 단계가 아니면 버린다."""

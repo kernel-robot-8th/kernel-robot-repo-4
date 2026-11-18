@@ -257,7 +257,6 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml \
 | `judge_hold_sec`, `judge_still_ratio` | 1.0, 0.15 |
 | `judge_drop_frames`, `judge_min_frames` | 3, 3 |
 | `judge_fresh_sec`, `judge_gap_sec`, `judge_drop_reach` | 2.0, 1.0, 1.0 |
-| `judge_allow_fixed_marker` | `false` (`true`면 마커 상태 `FIXED`일 때 상자 메시지로 구역을 복원) |
 | `judge_drop_tray_iou_max` | `-1.0` (`> 0`이면 핑키 안 tray와 겹치는 floor를 추락에서 제외, 예: `0.5`) |
 | `judge_require_tray_marker_absent` | `false` (`true`면 트레이 마커가 안 보여야 적재로 인정. 상자 메시지에 `tray_markers` 또는 핑키 항목의 `tray_marker_seen`이 없으면 보류) |
 | `judge_min_tray_box_frames` | `0` (`> 0`이면 유지 구간 안 `box_on_tray` 최소 장수 요구) |
@@ -278,10 +277,9 @@ pinky1을 ZC에 세우고 omx3로 `load`, `arrange_shoe`를 수동 시험(`MANUA
   카메라 상자 토픽에는 같은 구간에 `box_on_floor`가 약 40초 동안 여러 번 잡혔습니다. 팔 결과만으로는 적재를 확정할 수 없습니다.
 - 그래도 판정 답은 나가지 않았습니다. 이유:
   - 수동 시험은 `VERIFY_LOAD` 단계가 아니라 판정 대상이 아닙니다.
-  - 모서리 마커가 3개만 잡혀 `marker_state`가 `FIXED`였고, 이때 발행 앱은 세 구역을 모두 `NO_ROBOT`으로 보냅니다.
-    `judge_allow_fixed_marker`가 꺼진 기본값에서는 적재도 추락도 판정하지 않고 보류합니다.
+  - 당시 모서리 마커가 3개만 잡혀 `marker_state`가 `FIXED`였고, 이때 발행 앱은 세 구역을 모두 `NO_ROBOT`으로 보내므로 판정은 보류합니다(현재 모서리 마커 4개 정상 검출로 `OK`).
 - 빈 핑키가 처음부터 `pinky_loaded`로 분류됐고 트레이 마커는 계속 보였습니다.
-  `judge_allow_fixed_marker`만 켜면 빈 차가 적재로 읽힐 수 있으므로 `judge_require_tray_marker_absent`와 함께 써야 합니다.
+  빈 차가 적재로 읽히지 않게 하려면 `judge_require_tray_marker_absent`를 켜야 합니다.
 - 배포된 `scenario.yaml`은 상차 구역이 ZA·ZB, 상차 팔이 `omx1`, 하차 팔이 `omx2`입니다. 조건 1은 팔 결과의 `source`가
   경로의 `pickup_arm`과 같아야 통과하므로 경로의 팔 지정이 실제 팔과 맞아야 합니다. ZC를 상차 구역으로 쓰는 주문은
   귀속 검사에서 보류됩니다(위 "세 조건" 참고).
