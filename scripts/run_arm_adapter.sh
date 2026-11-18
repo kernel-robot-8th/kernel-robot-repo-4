@@ -60,16 +60,33 @@ fi
     || fail "빌드가 없음: $REPO 에서 colcon build --symlink-install --packages-up-to cobot_manipulation"
 
 # ---- 사전 검사 ----
-# 같은 팔 어댑터가 이미 떠 있으면 같은 토픽에 두 노드가 답한다
-if pgrep -f "arm_adapter_node.*arm_id:=$ARM_ID" >/dev/null; then
-    fail "$ARM_ID 어댑터가 이미 떠 있음: $(pgrep -af "arm_adapter_node.*arm_id:=$ARM_ID" | head -1)"
+# 같은 팔 어댑터가 이미 떠 있으면 같은 토픽에 두 노드가 답한다.
+# 끝 경계를 둬서 omx1 검사가 omx10 어댑터에 걸리지 않게 한다
+ADAPTER_PAT="arm_adapter_node.*arm_id:=$ARM_ID( |\$)"
+if pgrep -f "$ADAPTER_PAT" >/dev/null; then
+    fail "$ARM_ID 어댑터가 이미 떠 있음: $(pgrep -af "$ADAPTER_PAT" | head -1)"
 fi
+
+# 이 팔 포트를 잡고 있을 수 있는 실행기 pid. 한 PC 에 팔이 둘이면 다른 팔 어댑터가 띄운 실행기
+# (환경변수 ARM_ID=다른 팔, arm_backend_utils.py)는 다른 포트를 쓰므로 빼고,
+# ARM_ID 가 이 팔이거나 없는(어느 팔인지 모르는) 실행기만 고른다
+workers_on_this_arm() {
+    local pid id
+    # 파이썬이 실행기 파일을 바로 돌리는 프로세스만 (그 글자가 들어간 셸·편집기 명령은 빼려고)
+    for pid in $(pgrep -f '^[^ ]*python[0-9.]* [^ ]*omx_fleet_worker\.py( |$)'); do
+        id=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^ARM_ID=//p' | head -1) || true
+        if [ -z "$id" ] || [ "$id" = "$ARM_ID" ]; then
+            echo "$pid"
+        fi
+    done
+}
 
 if [ "$BACKEND" = worker ]; then
     # 단독 실행기가 시리얼 포트를 잡고 있으면 어댑터가 띄운 실행기가 연결하지 못한다
-    if pgrep -f omx_fleet_worker.py >/dev/null; then
-        echo "✗ 단독으로 띄운 실행기가 팔을 잡고 있음:" >&2
-        pgrep -af omx_fleet_worker.py | sed 's/^/    /' >&2
+    BUSY=$(workers_on_this_arm)
+    if [ -n "$BUSY" ]; then
+        echo "✗ 단독으로 띄운 실행기가 $ARM_ID 팔을 잡고 있음 (또는 어느 팔인지 모름):" >&2
+        for pid in $BUSY; do ps -o pid=,args= -p "$pid" | sed 's/^/    /' >&2; done
         fail "그 터미널에서 {\"cmd\":\"release\"} (거절되면 팔을 받치고 {\"cmd\":\"quit\"}) 로 먼저 끈다"
     fi
     [ -x "$VENV_PY" ] || fail "lerobot 0.4.4 파이썬이 없음: $VENV_PY (OMX_VENV_PY 로 지정)"

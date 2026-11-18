@@ -1,16 +1,18 @@
 # Copyright 2026 Pinky_Team4
 # Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 #
-# Station PC: 이 PC 자리 팔의 어댑터 노드를 계속 띄워 둔다. 사용자 서비스 (sudo 없음).
-# 팔 이름·backend 는 station.env 의 COBOT_ARM_ID·COBOT_ARM_BACKEND 로 정한다.
+# Station PC: 팔 한 대의 어댑터 노드를 계속 띄워 둔다. 사용자 서비스 (sudo 없음).
+# 템플릿이다. @ 뒤가 팔 이름(%i)이 된다: cobot-arm-adapter@omx2 → run_arm_adapter.sh --arm omx2
+# 한 PC 에 팔이 둘이면 팔마다 하나씩 켠다 (예: 8-OMEN = omx1·omx2).
+# 공통 값(도메인·RMW·실행기)과 기본 backend 는 station.env, 팔별 backend 는 arm-<팔>.env(없어도 됨)가 덮어쓴다.
 # 노드는 꺼짐(DISARMED)으로 시작한다. worker 면 관제 '켜기'(START)를 받아야 실제 팔에 토크가 켜진다.
 # none 이면 켜기·작업을 모두 거절한다 (토크가 켜지지 않음).
-# 팔 옆에 사람이 없으면 끈다: systemctl --user stop cobot-arm-adapter
+# 팔 옆에 사람이 없으면 끈다: systemctl --user stop 'cobot-arm-adapter@*'
 # 설치: scripts/systemd/install_station_services.sh (@REPO@ 를 저장소 경로로 바꿔 복사한다)
 # 설명서: docs/station_pc_services.md
 
 [Unit]
-Description=cobot Station PC arm adapter
+Description=cobot Station PC arm adapter (%i)
 After=network-online.target
 # 실행기가 포트를 잡고 있는 등 사전 검사 실패가 반복되면 재시작을 멈춘다
 StartLimitIntervalSec=120
@@ -19,7 +21,9 @@ StartLimitBurst=5
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/cobot/station.env
-ExecStart=@REPO@/scripts/run_arm_adapter.sh --arm ${COBOT_ARM_ID} --domain ${ROS_DOMAIN_ID} --backend ${COBOT_ARM_BACKEND}
+# 앞 파일보다 뒤 파일이 이긴다. '-' 는 파일이 없으면 넘어간다는 뜻
+EnvironmentFile=-%h/.config/cobot/arm-%i.env
+ExecStart=@REPO@/scripts/run_arm_adapter.sh --arm %i --domain ${ROS_DOMAIN_ID} --backend ${COBOT_ARM_BACKEND}
 Restart=on-failure
 RestartSec=5
 # 터미널 Ctrl+C 와 같은 경로로 끈다 (켜져 있던 팔은 토크 해제, release_timeout 5 s)
