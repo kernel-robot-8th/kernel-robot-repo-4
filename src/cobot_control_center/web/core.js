@@ -70,6 +70,9 @@ const view = {
   routeTotals: new Map(), // route_id → 구간 수 (작업 목록 '경로 n/N' 꼬리표용, /api/routes·health 로 채움)
   routes: {},       // /api/health 의 routes: 로봇별 마지막 경로 (state RUNNING 이면 진행 중, route_utils)
   netAlerts: [],    // /api/network 의 alerts: 경고 띠에 더할 네트워크·PC 경고 (network.js)
+  teleopOnline: false, // /api/health 의 teleop_online: 직접 조종 노드(teleop_node)가 살아 있는지
+  teleop: [],       // /api/health 의 teleop: 직접 조종 중인 로봇 (그 로봇의 다른 명령 버튼을 잠근다)
+  teleopLimits: null, // /api/health 의 teleop_limits: 최대 속도 {max_linear, max_angular}
 };
 
 // 화면의 시각은 모두 24시간 HH:MM:SS 로 쓴다. sec 는 UNIX 시각 [s], 없으면 지금.

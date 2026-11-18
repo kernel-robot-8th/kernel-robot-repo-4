@@ -59,9 +59,14 @@ async function pollHealth() {
     const holds = health.holds || {};
     const orders = health.orders || [];
     const routes = health.routes || {};
+    const driving = health.teleop || [];
+    view.teleopOnline = Boolean(health.teleop_online) && !view.readOnly;
+    view.teleopLimits = health.teleop_limits || null;
     if (JSON.stringify(view.holds) !== JSON.stringify(holds)
         || JSON.stringify(view.orders) !== JSON.stringify(orders)
-        || JSON.stringify(view.routes) !== JSON.stringify(routes)) {
+        || JSON.stringify(view.routes) !== JSON.stringify(routes)
+        || JSON.stringify(view.teleop) !== JSON.stringify(driving)) {
+      view.teleop = driving;
       view.holds = holds;
       view.orders = orders;
       view.routes = routes;
@@ -70,6 +75,7 @@ async function pollHealth() {
       renderTasks(); // 작업 목록의 해제/복구 버튼 글이 보류 여부를 따른다
     }
     updateCamera();
+    renderTeleop();
     const infra = view.snapshot ? view.snapshot.infra : null;
     if (!infra) renderMode(null);
     renderInfra(infra, Boolean(health.source_online));
@@ -91,7 +97,9 @@ async function pollHealth() {
     view.holds = {};
     view.orders = [];
     view.cameras = {};
+    view.teleopOnline = false;
     updateCamera();
+    renderTeleop();
     renderInfra(view.snapshot ? view.snapshot.infra : null, false);
   }
 }
@@ -109,6 +117,7 @@ setupPick();
 setupRaw();
 setupLoad();
 setupDetail();
+setupTeleop();
 setupArms();
 setupNetwork();
 loadMap();

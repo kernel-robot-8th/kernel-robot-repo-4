@@ -181,6 +181,7 @@ function busyReason(robot, active, route = null) {
 // (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
 function poseBlockReason(robotId, robot) {
   return linkBlockReason(robot)
+    || (isDriving(robotId) ? "직접 조종 중" : "")
     || busyReason(robot, robotTask(robotId, ACTIVE_TASK), runningRoute(robotId));
 }
 
@@ -206,6 +207,7 @@ function renderCommands(card, robotId, robot) {
   const reason = linkBlockReason(robot)
     || (blocker ? blocker.reason : "")
     || (!view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요" : "")
+    || (isDriving(robotId) ? "직접 조종 중 (상세 화면에서 조종 끝)" : "")
     || busyReason(robot, active, runningRoute(robotId));
   // 나가기는 보유 구역이 있을 때만 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
   // 구역을 잡고 있어도 이동·구역 명령은 켠다: 로봇이 먼저 구역을 나간다 (2026-11-09).
@@ -238,6 +240,9 @@ function renderCommands(card, robotId, robot) {
   } else if (!view.commandsArmed) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
+  } else if (isDriving(robotId)) {
+    text = "직접 조종 중 (상세 화면)";
+    level = "busy";
   } else if (runningRoute(robotId)) {
     text = routeText(runningRoute(robotId));
     level = "busy";

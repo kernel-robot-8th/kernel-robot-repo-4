@@ -5,7 +5,8 @@
 // 전체 화면(.layout)을 숨기고 한 로봇 전용 배치(#detail-page)를 보인다:
 //   상태줄(명령 포함) → 카메라 | 확대 지도 → 요약 칸 → 타임라인 | 진단.
 // 연결·작업 목록·명령 함수는 전체 화면과 같은 것을 쓴다 (renderCommands, onCommand, drawLayers ...).
-// 로봇 직접 조종(cmd_vel)은 두지 않는다. 명령은 작업 노드(fleet_control_node)를 거치는 버튼만 쓴다.
+// 명령 버튼은 작업 노드(fleet_control_node)를 거친다. 직접 조종(cmd_vel)은 카메라 칸 아래 조종 칸(teleop.js)이
+// teleop_node 를 거쳐 낸다.
 // 로봇이 보낸 문자열은 textContent 로만 넣는다.
 // 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
 // 파일끼리 함수·상수를 전역 이름으로 함께 쓴다 (빌드 단계 없이 브라우저가 바로 읽게).
@@ -88,6 +89,7 @@ function renderDetail() {
   renderTimeline(robotId);
   renderDiag(robotId, robot);
   drawDetailMap();
+  renderTeleop();
 }
 
 // ---------- 상태줄 ----------

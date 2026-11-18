@@ -171,10 +171,32 @@
     <div class="detail-hero">
       <section class="panel" aria-label="카메라">
         <div class="panel-head"><h2>카메라</h2><span class="muted" id="camera-meta"></span></div>
+        <!-- 영상 | 조종 칸을 나란히 둔다 (좁은 화면에서는 위아래) -->
+        <div class="camera-body">
         <div class="camera-wrap">
           <img id="camera-img" alt="카메라 영상" hidden>
           <p class="camera-empty" id="camera-empty">영상 없음</p>
           <span class="camera-age" id="camera-age" hidden></span>
+        </div>
+        <!-- 직접 조종 (teleop.js). [조종 시작] 뒤에만 버튼·키보드가 먹는다. 실제 로봇이 움직인다. -->
+        <div class="teleop" id="teleop">
+          <div class="teleop-head">
+            <button type="button" id="teleop-toggle">조종 시작</button>
+            <span class="teleop-status" id="teleop-status"></span>
+          </div>
+          <div class="teleop-body">
+            <div class="teleop-pad" id="teleop-pad">
+              <button type="button" data-dir="up" title="앞으로 (W · ↑)">▲</button>
+              <button type="button" data-dir="left" title="왼쪽으로 돌기 (A · ←)">◀</button>
+              <button type="button" data-dir="stop" title="멈춤 (Space)">■</button>
+              <button type="button" data-dir="right" title="오른쪽으로 돌기 (D · →)">▶</button>
+              <button type="button" data-dir="down" title="뒤로 (S · ↓)">▼</button>
+            </div>
+            <p class="teleop-help muted"
+               title="창을 벗어나거나 다른 탭으로 가도 끝남 · 연결이 0.3초 끊기면 조종 노드가 세움">누르고 있는 동안만 움직임<br>
+              W A S D · 방향키<br>Space 멈춤 · Esc 끝<br>연결 0.3초 끊기면 멈춤<br><span id="teleop-limit"></span></p>
+          </div>
+        </div>
         </div>
       </section>
       <section class="panel" aria-label="확대 지도">
@@ -441,6 +463,7 @@
   <script src="map.js"></script>
   <script src="raw.js"></script>
   <script src="detail.js"></script>
+  <script src="teleop.js"></script>
   <script src="pose.js"></script>
   <script src="arms.js"></script>
   <script src="network.js"></script>

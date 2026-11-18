@@ -791,6 +791,49 @@ body.detail-mode .layout { display: none; }
 }
 .camera-age[hidden] { display: none; }
 
+/* 영상 | 조종 칸. 조종 칸 폭은 패드(44px x 3)와 버튼이 들어가는 만큼만 */
+.camera-body { display: grid; grid-template-columns: minmax(0, 1fr) 176px; gap: 12px; align-items: start; }
+.camera-body .camera-wrap { width: min(100%, calc(48vh * 4 / 3)); margin: 0 auto; }
+
+/* 직접 조종 칸 (카메라 옆, teleop.js). 조종 중이면 테두리를 파랗게 해 지금 키가 로봇으로 간다는 걸 보인다. */
+.teleop { padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.teleop[data-state="driving"] { border-color: var(--active); box-shadow: 0 0 0 2px color-mix(in srgb, var(--active) 25%, transparent); }
+.teleop-head { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.teleop button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.teleop button:disabled { opacity: 0.45; cursor: not-allowed; }
+#teleop-toggle { padding: 6px 12px; font-weight: 600; border-color: var(--active); color: var(--active); }
+#teleop-toggle.on { background: var(--active); color: #fff; }
+.teleop-status { font-size: 12px; min-width: 0; line-height: 1.4; overflow-wrap: break-word; word-break: keep-all; }
+.teleop-status[data-level="ok"] { color: var(--good); }
+.teleop-status[data-level="warn"] { color: var(--warn); }
+.teleop-status[data-level="busy"] { color: var(--active); font-weight: 600; }
+.teleop-status[data-level="bad"] { color: var(--bad); }
+.teleop-body { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 10px; }
+.teleop-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  grid-template-rows: repeat(3, 44px);
+  gap: 4px;
+  flex: none;
+  touch-action: none;   /* 터치로 누르고 있을 때 화면이 끌리지 않게 */
+  user-select: none;
+}
+.teleop-pad button { font-size: 16px; padding: 0; }
+.teleop-pad [data-dir="up"] { grid-area: 1 / 2; }
+.teleop-pad [data-dir="left"] { grid-area: 2 / 1; }
+.teleop-pad [data-dir="stop"] { grid-area: 2 / 2; color: var(--bad); }
+.teleop-pad [data-dir="right"] { grid-area: 2 / 3; }
+.teleop-pad [data-dir="down"] { grid-area: 3 / 2; }
+.teleop-pad button.held { background: var(--active); border-color: var(--active); color: #fff; }
+.teleop-help { margin: 0; font-size: 11px; line-height: 1.5; text-align: center; }
+
 .dt-map-wrap { position: relative; flex: 1; min-height: 240px; border-radius: 6px; overflow: hidden; background: var(--bg); }
 #dt-map { display: block; width: 100%; height: 100%; }
 #dt-map.picking { cursor: crosshair; }
@@ -863,6 +906,10 @@ body.detail-mode .layout { display: none; }
   /* minmax(0, …) 여야 canvas 너비가 칸을 밀어 넓히지 않는다 */
   .layout { grid-template-columns: minmax(0, 1fr); }
   .detail-hero, .detail-lower { grid-template-columns: minmax(0, 1fr); }
+  /* 좁으면 조종 칸은 영상 아래로, 칸 안은 [패드 | 도움말] 가로 */
+  .camera-body { grid-template-columns: minmax(0, 1fr); }
+  .teleop-body { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .teleop-help { flex: 1; min-width: 160px; text-align: left; }
   .detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detail-cmds { margin-left: 0; width: 100%; grid-template-columns: minmax(0, 1fr); }
   .detail-cmds .cmd-row button, .detail-cmds .stop-row button { min-width: 0; }

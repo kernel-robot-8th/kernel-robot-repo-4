@@ -15,7 +15,8 @@
 """
 관제 백엔드 노드: /control_center/fleet_status 를 받아 웹 API(HTTP·WebSocket)로 내보낸다.
 
-로봇 토픽에는 발행하지 않는다. 구독하는 로봇 토픽은 카메라 영상(sensor_msgs/CompressedImage)뿐이다.
+로봇 토픽에는 발행하지 않는다. 상세 화면 직접 조종도 /control_center/teleop_cmd 로 teleop_node 에 넘기고,
+cmd_vel 은 그 노드가 낸다. 구독하는 로봇 토픽은 카메라 영상(sensor_msgs/CompressedImage)뿐이다.
 영상은 커서 fleet_status JSON 에 싣지 않고, 받은 JPEG 를 풀지 않은 채 웹으로 바로 넘긴다.
 그 밖에 받는 것은 fleet_status_node 가 낸 스냅샷과 작업 노드(cobot_fleet_control 의 fleet_control_node)의
 작업 목록·응답이다. 명령은 /control_center/task_request 로 작업 노드에 넘길 뿐이고,
@@ -39,6 +40,7 @@ from cobot_control_center.fleet_api_utils import (
 from cobot_control_center.net_status_utils import (
     collect_network, HostStore, local_info, NetAlertTracker, NetStore, network_alerts)
 from cobot_control_center.route_utils import RouteRunner
+from cobot_control_center.teleop_utils import TeleopStore
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
@@ -120,6 +122,15 @@ class FleetApiNode(Node):
             lambda payload: self.tasks.request(payload, self.publish_request), self.tasks.task,
             retry_sec=self.get_parameter('route_retry_sec').value,
             on_event=self.store.add_events)
+        # 상세 화면 직접 조종 (teleop_node). 읽기 전용이면 입력 발행자를 만들지 않는다.
+        self.declare_parameter('teleop_stale_sec', 2.0)
+        self.teleop = TeleopStore(self.get_parameter('teleop_stale_sec').value)
+        self.teleop_pub = None if self.read_only else self.create_publisher(
+            String, '/control_center/teleop_cmd', command_qos)
+        self.create_subscription(
+            String, '/control_center/teleop_state', self._on_teleop,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                       durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.cameras = self._subscribe_cameras()
         self._setup_network()
         self.get_logger().info(
@@ -271,6 +282,14 @@ class FleetApiNode(Node):
         """웹 서버 스레드에서 부른다. 요청 JSON 을 작업 노드에 넘긴다."""
         self.request_pub.publish(String(data=text))
 
+    def _on_teleop(self, msg):
+        if not self.teleop.put_state(msg.data):
+            self.get_logger().warning('조종 노드 상태(/control_center/teleop_state)를 읽지 못함')
+
+    def publish_teleop(self, text):
+        """웹 서버 스레드에서 부른다. 조종 입력 JSON 을 teleop_node 에 넘긴다."""
+        self.teleop_pub.publish(String(data=text))
+
     def publish_arm_request(self, text):
         """웹 서버 스레드에서 부른다. 요청 JSON 을 로봇팔 명령 노드에 넘긴다."""
         self.arm_request_pub.publish(String(data=text))
@@ -297,7 +316,8 @@ def main(args=None):
                          net=node.net, local_network=node.local_network,
                          network_ids=node.network_ids,
                          request_net_check=node.request_net_check, hosts=node.hosts,
-                         routes=node.routes)
+                         routes=node.routes, teleop=node.teleop,
+                         publish_teleop=None if node.read_only else node.publish_teleop)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):
