@@ -76,15 +76,27 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 0
 fi
 
-# 이 PC 팔 목록. 옛 station.env 는 COBOT_ARM_ID 하나만 있으므로 그 값을 쓴다
-ARMS=$(
+# 이 PC 팔 목록과 실제로 돌릴 팔. 옛 station.env 는 COBOT_ARM_ID 하나와 COBOT_ARM_BACKEND 만 있다
+read_env() (
     # shellcheck disable=SC1090
-    set -a; . "$ENV_FILE"; echo "${COBOT_ARMS:-${COBOT_ARM_ID:-}}"
+    set -a; . "$ENV_FILE"; eval "echo \"$1\""
 )
-for a in $ARMS; do
+ARMS=$(read_env '${COBOT_ARMS:-${COBOT_ARM_ID:-}}')
+WORKERS=$(read_env '${COBOT_WORKER_ARMS:-}')
+DEFAULT_BACKEND=$(read_env '${COBOT_ARM_BACKEND:-none}')
+for a in $ARMS $WORKERS; do
     case "$a" in omx[0-9]|omx[0-9][0-9]) ;; *)
-        echo "✗ $ENV_FILE 의 COBOT_ARMS 에 팔 이름이 아닌 값: $a (omxN 형태)" >&2; exit 1 ;;
+        echo "✗ $ENV_FILE 의 팔 목록에 팔 이름이 아닌 값: $a (omxN 형태)" >&2; exit 1 ;;
     esac
+done
+for w in $WORKERS; do
+    case " $ARMS " in *" $w "*) ;; *)
+        echo "✗ COBOT_WORKER_ARMS 의 $w 가 COBOT_ARMS($ARMS)에 없음" >&2; exit 1 ;;
+    esac
+done
+# 7edc9bf 에서 잠깐 쓰던 팔별 파일. 이제 서비스가 읽지 않는다
+for f in "$ENV_DIR"/arm-*.env; do
+    [ -e "$f" ] && echo "! $f 은 이제 안 읽는다. 내용을 $ENV_FILE 의 COBOT_WORKER_ARMS·OMX_FLEET_DIR 로 옮긴다"
 done
 
 mkdir -p "$UNIT_DIR"
@@ -105,7 +117,12 @@ echo
 if [ ${#ARM_UNITS[@]} -eq 0 ]; then
     echo "! $ENV_FILE 의 COBOT_ARMS 가 비어 있음. 팔 서비스는 등록하지 않았다"
 fi
-echo "  이 PC 팔: ${ARMS:-(없음)}"
+echo "  이 PC 팔:"
+for a in $ARMS; do
+    b=$DEFAULT_BACKEND
+    for w in $WORKERS; do [ "$w" = "$a" ] && b=worker; done
+    echo "    $a: $b"
+done
 echo "  켜기:  systemctl --user start cobot-host-status ${ARM_UNITS[*]:-$ARM_UNIT@<팔>}"
 echo "  상태:  systemctl --user status '$ARM_UNIT@*'"
 echo "  로그:  journalctl --user -u $ARM_UNIT@<팔> -f"

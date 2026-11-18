@@ -4,17 +4,17 @@ Station PC 에서 아래 노드를 계속 띄워 둔다. 노드가 죽으면 다
 
 | 서비스 | 띄우는 것 | 다시 켜기 |
 |---|---|---|
-| `cobot-arm-adapter@<팔>` (팔마다 하나) | [`scripts/run_arm_adapter.sh`](../scripts/run_arm_adapter.sh) `--arm <팔>` → `arm_adapter_node` (backend `COBOT_ARM_BACKEND`) | 실패로 끝났을 때만. 2분 안에 5번 실패하면 멈춘다 |
+| `cobot-arm-adapter@<팔>` (팔마다 하나) | [`scripts/run_arm_adapter.sh`](../scripts/run_arm_adapter.sh) `--arm <팔>` → `arm_adapter_node` (`COBOT_WORKER_ARMS` 에 있으면 worker, 없으면 none) | 실패로 끝났을 때만. 2분 안에 5번 실패하면 멈춘다 |
 | `cobot-host-status` | [`host_status.launch.xml`](../src/cobot_control_center/launch/host_status.launch.xml) → `host_status_node` (host=station) | 항상 |
 
 팔 이름은 PC 가 아니라 자리에 붙는다 (ZA = omx1, ZB = omx2, ZC = omx3). 어떤 PC 가 어떤 팔인지는 [`site_arms.yaml`](../src/cobot_control_center/config/site_arms.yaml) 의 `host` 를 보고 `~/.config/cobot/station.env` 의 `COBOT_ARMS` 에 적는다 (공백으로 구분).
 
 팔 어댑터 서비스는 **템플릿**(`cobot-arm-adapter@.service`)이다. 서비스 파일은 하나이고 `@` 뒤 이름이 팔 이름이 된다. 한 PC 에 팔이 둘이면 `cobot-arm-adapter@omx1`, `cobot-arm-adapter@omx2` 를 따로 켜고 끈다. 한쪽이 죽어도 다른 쪽은 그대로 돈다.
 
-| PC | `COBOT_ARMS` | `COBOT_ARM_BACKEND` | 이유 | 적용 상태 |
+| PC | `COBOT_ARMS` | `COBOT_WORKER_ARMS` | 이유 | 적용 상태 |
 |---|---|---|---|---|
-| OMEN-11 | `omx3` (ZC 하차) | `none` | ZC 팔 모델이 아직 없다. 이 PC 에 있는 모델은 ZB 팔 것이다 | 2026-11-16 두 서비스 켬, 부팅 자동 시작 등록. 재부팅 확인 전. 템플릿 전 단일 서비스(`cobot-arm-adapter`)로 등록됨 → 설치 스크립트를 다시 돌리면 `@omx3` 로 옮겨진다 |
-| 8-OMEN | `omx1 omx2` (ZA·ZB 상차) | `none` | omx1 은 다시 학습 중이라 보드 시리얼 미확인(지금은 `omx2` 만). 이 PC 용 실행기 `fleet_arms.yaml` 없음 | 아직 설치 안 함 |
+| OMEN-11 | `omx3` (ZC 하차) | (없음, 옛 `COBOT_ARM_BACKEND=none`) | ZC 팔 모델이 아직 없다. 이 PC 에 있는 모델은 ZB 팔 것이다 | 2026-11-16 두 서비스 켬, 부팅 자동 시작 등록. 재부팅 확인 전. 템플릿 전 단일 서비스(`cobot-arm-adapter`)로 등록됨 → 설치 스크립트를 다시 돌리면 `@omx3` 로 옮겨진다 |
+| 8-OMEN | `omx2` (ZB 상차. omx1 은 다시 학습 중이라 뺌) | (없음) | 실행기는 개발 동안 `OMX_FLEET_DIR=…-sakim/omx_fleet` (팔 팀원 수정본) | 2026-11-18 `@omx2` 켬 (none), 부팅 자동 시작 등록 안 함 |
 
 2026-11-16 OMEN-11 시험 결과:
 - host-status: `/control_center/host_status` 에 `station (11Ubuntu)` 가 3 s 마다 나옴. 노드를 kill 하면 5 s 뒤 다시 뜸.
@@ -25,13 +25,17 @@ backend 는 이렇게 고른다.
 - `none`: 상태와 보드 연결만 관제에 보인다. 켜기(START)와 작업은 모두 거절하므로 토크가 켜지지 않는다.
 - `worker`: 실행기 `fleet_arms.yaml` 의 `arms.<팔 이름>` 에 **그 팔의** 모델이 있을 때만 쓴다.
 
-`station.env` 의 `COBOT_ARM_BACKEND` 는 팔 공통 기본값이다. 팔 하나만 바꾸려면 `~/.config/cobot/arm-<팔>.env` 에 한 줄을 적고 그 팔만 다시 켠다. 이 파일이 `station.env` 값을 덮어쓰고, 없으면 기본값을 쓴다.
-```bash
-echo COBOT_ARM_BACKEND=worker > ~/.config/cobot/arm-omx2.env
+이 PC 팔 설정은 `~/.config/cobot/station.env` 한 파일에서 본다. 팔 상세(카메라·모델)만 실행기 `fleet_arms.yaml` 에 있다.
 ```
+COBOT_ARMS="omx1 omx2"     # 이 PC 팔 (팔마다 서비스 하나)
+COBOT_WORKER_ARMS="omx2"   # 그중 실제로 돌릴 팔. 나머지는 none
+OMX_FLEET_DIR=/절대/경로/omx_fleet   # 실행기 폴더. 비우면 저장소 옆 -omx-dashboard/omx_fleet
+```
+`COBOT_WORKER_ARMS` 를 고친 뒤에는 그 팔만 다시 켠다.
 ```bash
 systemctl --user restart cobot-arm-adapter@omx2
 ```
+옛 `station.env`(`COBOT_ARM_ID`·`COBOT_ARM_BACKEND`, OMEN-11)도 그대로 읽는다. `COBOT_ARM_BACKEND` 는 `COBOT_WORKER_ARMS` 에 없는 팔의 기본값이 된다.
 
 한 PC 에 팔이 둘일 때 실행기 `fleet_arms.yaml` 에서 주의한다.
 - 카메라: 같은 모델 카메라를 두 팔에 꽂으면 `/dev/v4l/by-id` 이름이 같아진다. 그때는 꽂은 USB 포트 기준인 `/dev/v4l/by-path/…` 로 적는다.
@@ -56,7 +60,7 @@ colcon build --symlink-install --packages-up-to cobot_manipulation cobot_control
 ```bash
 scripts/systemd/install_station_services.sh
 ```
-처음 실행하면 `~/.config/cobot/station.env` 만 만들고 멈춘다. 이 파일의 값(`ROS_DOMAIN_ID`, `RMW_IMPLEMENTATION`, `CYCLONEDDS_URI`, `OMX_VENV_PY`)이 `~/.bashrc` 와 같은지, `COBOT_ARMS`·`COBOT_ARM_BACKEND` 가 이 PC 자리에 맞는지 확인한 뒤 같은 명령을 다시 실행한다. systemd 는 `~/.bashrc` 를 읽지 않기 때문이다. 이 파일은 커밋하지 않는다.
+처음 실행하면 `~/.config/cobot/station.env` 만 만들고 멈춘다. 이 파일의 값(`ROS_DOMAIN_ID`, `RMW_IMPLEMENTATION`, `CYCLONEDDS_URI`, `OMX_VENV_PY`)이 `~/.bashrc` 와 같은지, `COBOT_ARMS`·`COBOT_WORKER_ARMS` 가 이 PC 자리에 맞는지 확인한 뒤 같은 명령을 다시 실행한다. systemd 는 `~/.bashrc` 를 읽지 않기 때문이다. 이 파일은 커밋하지 않는다.
 
 부팅 때 자동 시작까지 등록하려면 아래처럼 한다. `COBOT_ARMS` 의 팔마다 `cobot-arm-adapter@<팔>` 이 등록된다.
 ```bash
@@ -105,4 +109,4 @@ systemctl --user stop 'cobot-arm-adapter@*'
 ```bash
 scripts/systemd/install_station_services.sh --uninstall
 ```
-팔 서비스(`cobot-arm-adapter@*`, 옛 `cobot-arm-adapter` 포함)와 PC 상태 서비스를 끄고 서비스 파일을 지운다. `~/.config/cobot/station.env`·`arm-<팔>.env` 는 남는다.
+팔 서비스(`cobot-arm-adapter@*`, 옛 `cobot-arm-adapter` 포함)와 PC 상태 서비스를 끄고 서비스 파일을 지운다. `~/.config/cobot/station.env` 는 남는다.

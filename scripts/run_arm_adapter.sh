@@ -7,6 +7,7 @@
 #
 #   scripts/run_arm_adapter.sh                    # 관제와 연결: 도메인 100, 같은 망 공개, backend=worker
 #   scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake   # 혼자 시험 (팔 안 씀)
+#   --backend auto: COBOT_WORKER_ARMS 에 이 팔이 있으면 worker, 없으면 COBOT_ARM_BACKEND(기본 none). 서비스가 쓴다
 #
 # 끝내기: Ctrl+C. 팔이 켜져 있었으면 토크가 꺼지므로 팔을 받친다.
 # 자세한 흐름: src/cobot_manipulation/docs/prd.md 4·5절.
@@ -28,9 +29,9 @@ BACKEND=worker
 AUTO_START=false
 
 usage() {
-    sed -n '5,17p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '5,18p' "$0" | sed 's/^# \{0,1\}//'
     echo
-    echo "옵션: --arm omxN (기본 omx1)  --domain N  --localhost  --backend worker|fake|none  --auto-start"
+    echo "옵션: --arm omxN (기본 omx1)  --domain N  --localhost  --backend worker|fake|none|auto  --auto-start"
     exit "${1:-0}"
 }
 
@@ -50,7 +51,13 @@ fail() { echo "✗ $*" >&2; exit 1; }
 ok() { echo "✓ $*"; }
 
 case "$ARM_ID" in omx[0-9]|omx[0-9][0-9]) ;; *) fail "팔 이름은 omxN 형태 ($ARM_ID)" ;; esac
-case "$BACKEND" in worker|fake|none) ;; *) fail "backend 는 worker·fake·none 중 하나 ($BACKEND)" ;; esac
+if [ "$BACKEND" = auto ]; then
+    # station.env 의 COBOT_WORKER_ARMS(실제로 돌릴 팔 목록)로 정한다. COBOT_ARM_BACKEND 는 옛 station.env 호환
+    BACKEND=${COBOT_ARM_BACKEND:-none}
+    for a in ${COBOT_WORKER_ARMS:-}; do [ "$a" = "$ARM_ID" ] && BACKEND=worker; done
+    echo "  backend auto → $BACKEND (COBOT_WORKER_ARMS=\"${COBOT_WORKER_ARMS:-}\")"
+fi
+case "$BACKEND" in worker|fake|none) ;; *) fail "backend 는 worker·fake·none·auto 중 하나 ($BACKEND)" ;; esac
 case "$DOMAIN" in ''|*[!0-9]*) fail "도메인은 숫자 ($DOMAIN)" ;; esac
 if [ "$DOMAIN" = 10 ] || [ "$DOMAIN" = 12 ]; then
     # CLAUDE.md 7절: 10·12 는 실물 구동용 설계 제안(D2). 확정 전에는 이 스크립트로 쓰지 않는다
