@@ -241,6 +241,9 @@ class ControlAPI:
         points = [p.strip().upper() for p in points if p.strip()]
         payload = dict(command_id=crid, robot_id=robot, operation=request.get('operation'),
                        points=points)
+        if request.get('poses'):
+            # 관제 웨이포인트 좌표 (goto 만). 형식은 Command.parse, 이름·구역 거리는 point_rules 가 본다.
+            payload['poses'] = request['poses']
         command = Command.parse(payload, self.fleet.robots)
         previous = repository.get(crid)
         if previous:
@@ -254,7 +257,8 @@ class ControlAPI:
         if not scenario._available(robot, manual=True):
             raise ApiError(409, '로봇 이동·배터리·중앙 제어 모드·정지 래치를 확인하세요')
         if self.point_rules is not None:
-            self.point_rules.validate(robot, command.operation, command.points)
+            self.point_rules.validate(robot, command.operation, command.points,
+                                      dict(command.poses))
         ready = getattr(self.gateway, 'ready', None)
         if ready is not None and not ready(robot):
             raise ApiError(503, '명령 실행기 중복 또는 로봇 명령 연결 미확인')
@@ -374,7 +378,8 @@ class ControlAPI:
             command += ':' + ','.join(payload['points'])
         return dict(task_id=row['command_id'], client_request_id=row['command_id'],
                     robot_id=row['robot_id'], operation=payload['operation'],
-                    points=payload['points'], command=command, state=row['state'],
+                    points=payload['points'], poses=payload.get('poses') or {},
+                    command=command, state=row['state'],
                     detail=row['detail'], spec='v1', created_at=row['created_at'],
                     updated_at=row['updated_at'])
 

@@ -220,3 +220,27 @@ def test_quarantined_stop_stays_unknown_after_restart_and_late_terminal_result(t
         assert not repo.busy('pinky1')
     finally:
         repo.close()
+
+
+# ---------- 관제 웨이포인트 좌표 (poses, goto 만) ----------
+
+def test_wire_carries_poses_only_when_given():
+    command = Command.parse(request(points=['P1', 'W1'], poses={'W1': [1, 2]}), ['pinky1'])
+    assert command.wire() == {'command_id': 'job1', 'command': 'goto:P1,W1',
+                              'poses': {'W1': [1.0, 2.0, 0.0]}}
+    assert command.payload()['poses'] == {'W1': [1.0, 2.0, 0.0]}
+    plain = Command.parse(request(points=['P1']), ['pinky1'])
+    assert 'poses' not in plain.wire() and 'poses' not in plain.payload()
+
+
+@pytest.mark.parametrize('changes', [
+    {'poses': {'W1': [0, 0]}, 'operation': 'zone', 'points': ['ZA']},
+    {'poses': {'W9': [0, 0]}, 'points': ['W1']},
+    {'poses': {'w1': [0, 0]}, 'points': ['P1']},
+    {'poses': {'W1': [0]}, 'points': ['W1']},
+    {'poses': {'W1': [float('nan'), 0]}, 'points': ['W1']},
+    {'poses': ['W1'], 'points': ['W1']},
+])
+def test_invalid_poses(changes):
+    with pytest.raises(ValueError):
+        Command.parse(request(**changes), ['pinky1'])
