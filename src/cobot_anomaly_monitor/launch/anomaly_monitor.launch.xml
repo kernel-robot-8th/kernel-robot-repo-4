@@ -5,6 +5,22 @@
   <arg name="manual_adapter" default="true"/>
   <arg name="verify_load_join" default="false"/>
   <arg name="calibration_id" default="replay-v1"/>
+  <!-- 비전 판정: off(자동 응답 그대로), shadow(판정을 참고값으로만), enforce(판정이 통과해야 답) -->
+  <arg name="auto_targets" default="['']"/>
+  <arg name="judge_hold_sec" default="1.0"/>
+  <arg name="judge_still_ratio" default="0.15"/>
+  <arg name="judge_drop_frames" default="3"/>
+  <arg name="judge_fresh_sec" default="2.0"/>
+  <arg name="judge_gap_sec" default="1.0"/>
+  <arg name="judge_min_frames" default="3"/>
+  <arg name="judge_drop_reach" default="1.0"/>
+  <arg name="judge_allow_fixed_marker" default="false"/>
+  <arg name="judge_drop_tray_iou_max" default="-1.0"/>
+  <arg name="judge_require_tray_marker_absent" default="false"/>
+  <arg name="judge_min_tray_box_frames" default="0"/>
+  <arg name="judge_latch_drop" default="false"/>
+  <arg name="judge_max_wait_sec" default="30.0"/>
+  <arg name="judge_mode" default="off"/>
   <arg name="scenario_config" default="$(find-pkg-share cobot_anomaly_monitor)/config/scenario_relay_dev.yaml"/>
   <arg name="site_config" default="$(find-pkg-share cobot_pinky_patrol)/config/sites/lab.yaml"/>
   <arg name="camera_policy" default="field"/>
@@ -18,6 +34,21 @@
     <param name="cctv_control_mode" value="$(var mode)" type="str"/>
     <param name="verify_load_join" value="$(var verify_load_join)" type="bool"/>
     <param name="calibration_id" value="$(var calibration_id)" type="str"/>
+    <param name="auto_targets" value="$(var auto_targets)"/>
+    <param name="judge_hold_sec" value="$(var judge_hold_sec)" type="float"/>
+    <param name="judge_still_ratio" value="$(var judge_still_ratio)" type="float"/>
+    <param name="judge_drop_frames" value="$(var judge_drop_frames)" type="int"/>
+    <param name="judge_fresh_sec" value="$(var judge_fresh_sec)" type="float"/>
+    <param name="judge_gap_sec" value="$(var judge_gap_sec)" type="float"/>
+    <param name="judge_min_frames" value="$(var judge_min_frames)" type="int"/>
+    <param name="judge_drop_reach" value="$(var judge_drop_reach)" type="float"/>
+    <param name="judge_allow_fixed_marker" value="$(var judge_allow_fixed_marker)" type="bool"/>
+    <param name="judge_drop_tray_iou_max" value="$(var judge_drop_tray_iou_max)" type="float"/>
+    <param name="judge_require_tray_marker_absent" value="$(var judge_require_tray_marker_absent)" type="bool"/>
+    <param name="judge_min_tray_box_frames" value="$(var judge_min_tray_box_frames)" type="int"/>
+    <param name="judge_latch_drop" value="$(var judge_latch_drop)" type="bool"/>
+    <param name="judge_max_wait_sec" value="$(var judge_max_wait_sec)" type="float"/>
+    <param name="judge_mode" value="$(var judge_mode)" type="str"/>
     <param name="scenario_config" value="$(var scenario_config)"/>
     <param name="observation_only" value="$(var observation_only)" type="bool"/>
     <param name="manual_adapter" value="$(var manual_adapter)" type="bool"/>

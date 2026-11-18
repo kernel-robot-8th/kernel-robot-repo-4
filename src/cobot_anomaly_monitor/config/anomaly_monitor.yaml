@@ -8,7 +8,8 @@ anomaly_monitor:
     # 시뮬 어댑터와 같은 도메인에서 동시에 쓰지 않는다
     manual_adapter: true
     manual_targets: [vision, navigation, omx1, omx2, omx3]
-    # 판정 없이 바로 성공으로 답할 대상(통신 연결용). 끄려면 ['']. 켜려면 [vision, navigation]
+    # 판정 없이 바로 성공으로 답할 대상(통신 연결용). anomaly_monitor.launch.xml 로 띄우면
+    # launch 인자 auto_targets 가 이 값을 덮어쓴다(기본 ['']). 켜려면 auto_targets:='[vision, navigation]'
     auto_targets: ['']
     # 팀 팔 노드가 같은 도메인에 있으면 팔 대상은 그쪽에 맡긴다 (arm_station.launch.xml 의 노드 이름)
     peer_result_nodes: [arm_adapter, omx1_adapter, omx2_adapter, omx3_adapter]
