@@ -14,6 +14,9 @@ EVIDENCE = {
     'CORRECT_PICKUP': {'no_motion': True}, 'CORRECT_DROPOFF': {'no_motion': True},
 }
 DOCK_SIDE = {'DOCK_PICKUP': 'pickup', 'DOCK_DROPOFF': 'dropoff'}
+# 판정 기준 없이 통신만 잇는 자동 응답의 표시. 결과 data 에 그대로 싣는다.
+AUTO_DECISION = 'auto_unjudged'
+AUTO_OPERATOR = 'auto'
 
 
 def yaw_error_deg(actual, target):
@@ -25,7 +28,7 @@ class ManualAdapter:
     """target이 자기 담당인 요청을 대기열에 올리고 운영자 판단만 결과로 낸다."""
 
     def __init__(self, store, publish, targets, points, robot_state, clock=time.time, join=None,
-                 exclusive=None):
+                 exclusive=None, auto_targets=()):
         self.store, self.publish, self.targets = store, publish, set(targets)
         self.points, self.robot_state, self.clock = points, robot_state, clock
         self.session_id = None
@@ -33,6 +36,8 @@ class ManualAdapter:
         self.blocked = ''
         self.join = join
         self.exclusive = exclusive
+        self.auto = set(auto_targets) & self.targets
+        self.yielded = set()  # 다른 결과 발행자(팀 팔 노드)가 맡은 대상. 여기에는 답하지 않는다
 
     def on_heartbeat(self, heartbeat):
         """현재 관제 세션을 기억한다. 세션이 바뀌면 순번도 새로 시작한다."""
@@ -51,7 +56,8 @@ class ManualAdapter:
     def on_request(self, request):
         """계약 검사를 통과한 요청만 받는다. 답할 수 없는 요청은 결과를 내지 않는다."""
         target, request_id = request.get('target'), request.get('request_id')
-        if target not in self.targets or not request_id or self.blocked:
+        if (target not in self.targets or target in self.yielded or not request_id
+                or self.blocked):
             return False
         if self.store.work(request_id):
             return False
@@ -79,7 +85,37 @@ class ManualAdapter:
         if state in ('PENDING', 'SAFETY_NOTED'):
             self.sequences[target] = request['seq']
         self.store.add_work(request_id, state, request, now)
+        if state == 'PENDING' and target in self.auto:
+            self._auto(request)
         return state == 'PENDING'
+
+    def _auto(self, request):
+        """자동 대상 요청에 판정 없이 성공으로 답한다. 지금 답할 수 없으면 대기에 둔다."""
+        if self.join and request.get('stage') == 'VERIFY_LOAD':
+            return None  # 적재 결합 시험은 근거 3장과 팔 확인으로만 답한다
+        try:
+            data = dict(self._evidence(request, None), decision=AUTO_DECISION, unjudged=True)
+            if data.get('stopped') is False:
+                return None  # /odom 이 없어 정지를 모른다. 이대로 답하면 관제가 받지 않고 단계가 멈춘다
+            return self._finish(request, 'APPROVED', True, '자동 응답(판정 기준 미적용)', data,
+                                AUTO_OPERATOR)
+        except (KeyError, ValueError):
+            return None  # 정차 전·자세 없음·발행 차단. 다음 주기에 다시 본다
+
+    def retry_auto(self):
+        """대기에 남은 자동 대상 요청을 다시 시도한다. 단계 제한 시간이 지난 요청은 건드리지 않는다."""
+        sent = []
+        for row in self.store.works('PENDING'):
+            request = json.loads(row['request_json'])
+            timeout = request.get('timeout_sec')
+            if (request.get('target') not in self.auto or request.get('target') in self.yielded
+                    or type(timeout) not in (int, float)
+                    or self.clock() >= request.get('issued_at', 0) + timeout):
+                continue
+            result = self._auto(request)
+            if result:
+                sent.append(result)
+        return sent
 
     def pending(self):
         """승인 대기 요청을 웹에 넘긴다."""
@@ -218,11 +254,13 @@ class ManualAdapter:
                   'robot_id': request['robot_id'], 'stage': request['stage'],
                   'source': request['target'], 'measured': True, 'finished': True,
                   'success': success, 'detail': detail,
-                  # 카메라 3프레임 + 운영자 팔 확인 결합은 수동 판정이 아니다.
-                  'data': dict(data, manual=data.get('decision') != 'camera_and_operator',
+                  # 카메라 3프레임 + 운영자 팔 확인 결합과 자동 응답은 수동 판정이 아니다.
+                  'data': dict(data, manual=data.get('decision') not in ('camera_and_operator',
+                                                                         AUTO_DECISION),
                                operator=operator)}
         rid = request['request_id']
-        if (self.blocked or request['session_id'] != self.session_id
+        if (self.blocked or request['target'] in self.yielded
+                or request['session_id'] != self.session_id
                 or (self.exclusive and not self.exclusive())):
             raise ValueError('결과 발행 차단 또는 세션 변경')
         if not self.store.claim_work(rid, 'PUBLISH_UNCONFIRMED', result, self.clock()):

@@ -459,8 +459,8 @@ class MonitorCore:
         for row in self.store.open_events():
             if row['linked_mission_id'] != mission_id:
                 continue
-            # 전체 정지는 주문 하나의 복구로 풀리지 않는다. 확인만 남기고 스냅샷이 풀릴 때 닫는다.
-            waiting = row['stop_scope'] == 'ALL' and row['control_action'] in STOP_OPEN
+            # 정지 사건은 복구 요청을 확인한 운영자를 남기고 관제의 해제 반향을 기다린다.
+            waiting = row['control_action'] in STOP_OPEN
             self.store.set_ack(row['event_id'], 'ACKNOWLEDGED' if waiting else 'RESOLVED',
                                operator, note, self.clock())
 
@@ -484,15 +484,17 @@ class MonitorCore:
         if row['stop_scope'] == 'ALL':
             # 전체 정지는 armed가 켜지고, 보류가 비고, 보류 주문이 없어야 풀린 것이다.
             held = (self.armed is not True or bool(self.holds)
-                    or any(order['state'] in BLOCKED for order in self.orders.values()))
+                    or any(order['state'] in BLOCKED or order.get('reset_pending')
+                           for order in self.orders.values()))
             # armed만 꺼진 스냅샷은 다른 사유일 수 있다. 관제 응답이나 전 로봇 보류까지 본다.
             seen = self.armed is False and (
                 row['control_action'].endswith('_ACCEPTED') or self._all_stopped())
             return seen, held
         order = self.orders.get(row['linked_mission_id'])
         if order:
-            held = order['state'] in BLOCKED
-            return held, held
+            seen = order['state'] in BLOCKED
+            held = seen or order.get('reset_pending') or order.get('robot_id') in self.holds
+            return seen, held
         held = any(robot in self.holds for robot in json.loads(row['stop_targets_json']))
         # 연결 주문이 스냅샷에서 사라졌으면 남은 보류가 이 사건의 것인지 알 수 없다.
         # 정지를 새로 확인한 것으로 치지 않는다. 이미 확인한 사건은 보류가 풀릴 때 닫는다.
