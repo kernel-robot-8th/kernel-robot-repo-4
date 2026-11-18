@@ -465,6 +465,15 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'evidence': body.get('evidence'),
             'source': source(request)})
 
+    @app.post('/api/zones/{zone}/release')
+    def release_zone(zone: str, request: Request, body: dict = Body(default={})):
+        # 구역 강제 해제: 토큰을 쥔 채 꺼졌거나 다시 켜져 토큰을 잊은 로봇의 구역을 푼다.
+        # 현장 확인은 화면 확인 창 한 번. 점유자·로봇 상태 검사와 이탈 통보 발행은 fleet_control 이 한다.
+        return call_controller({
+            'type': 'zone_release', 'zone': zone, 'robot_id': body.get('robot_id'),
+            'client_request_id': body.get('client_request_id'),
+            'note': body.get('note'), 'source': source(request)})
+
     @app.post('/api/robots/{robot_id}/initial_pose')
     def initial_pose(robot_id: str, request: Request, body: dict = Body(default={})):
         # AMCL 위치를 다시 잡는다. pose 가 없으면 홈 (좌표는 fleet_control 이 순찰 설정에서 읽음),

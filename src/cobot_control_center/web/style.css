@@ -596,6 +596,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 /* 대기열: 앞 순번부터 (대기 없음은 흐리게) */
 .zone-queue { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .zone-queue[data-waiting="1"] { color: var(--text); font-weight: 600; }
+.zone-release { margin-top: 4px; font-size: 11px; padding: 2px 6px; border-color: var(--bad); color: var(--bad); }
 
 /* ---------- 로봇팔 ---------- */
 

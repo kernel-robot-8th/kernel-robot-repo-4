@@ -298,6 +298,42 @@ def judge_alerts(robots, zones, zone_since, now, battery_warn_percent, stuck_sec
             alerts.append({'robot': value[len('occupied_by:'):], 'code': 'zone_hold',
                            'level': 'warn', 'zone': zone,
                            'text': f'구역 {zone} 을 {now - since:.0f}초째 점유'})
+    alerts += zone_token_alerts(robots, zones, zone_since, now)
+    return alerts
+
+
+# 구역 상태가 바뀐 뒤 로봇 상태가 따라올 때까지 기다리는 시간 [s]. 순찰 상태는 1초마다 온다.
+ZONE_TOKEN_SETTLE_SEC = 5.0
+
+
+def zone_token_alerts(robots, zones, zone_since, now, settle_sec=ZONE_TOKEN_SETTLE_SEC):
+    """
+    로봇이 아는 구역 토큰(extra.held_zone)과 zone_manager 점유가 어긋난 경우.
+
+    zone_forgotten: zone_manager 는 이 로봇이 점유 중인데 로봇은 잊음 (토큰을 쥔 채 다시 켜짐).
+                    나가기가 거절되므로 현장 확인 뒤 구역 칸의 '강제 해제'로 푼다.
+    zone_mismatch:  로봇은 잡았다고 아는데 zone_manager 는 아님 (강제 해제 뒤 순찰 노드가 그대로 살아 있음).
+    방금 바뀐 구역은 로봇 상태가 따라올 시간을 준다 (settle_sec).
+    """
+    alerts = []
+    for name, robot in robots.items():
+        extra = robot.get('extra') or {}
+        if not robot['online'] or 'held_zone' not in extra:
+            continue
+        held = extra.get('held_zone') or None
+        for zone, value in zones.items():
+            since = zone_since.get(zone)
+            if since is None or now - since < settle_sec:
+                continue
+            if value == f'occupied_by:{name}' and held != zone and extra.get('busy') is False:
+                alerts.append({'robot': name, 'code': 'zone_forgotten', 'level': 'bad',
+                               'zone': zone,
+                               'text': f'구역 {zone} 점유 중인데 로봇은 토큰을 잊음 (다시 켜짐?) '
+                                       '· 현장 확인 후 구역 칸에서 강제 해제'})
+            elif zone == held and value != f'occupied_by:{name}':
+                alerts.append({'robot': name, 'code': 'zone_mismatch', 'level': 'warn',
+                               'zone': zone,
+                               'text': f'로봇은 구역 {zone} 을 잡았다고 아나 zone_manager 는 {value}'})
     return alerts
 
 

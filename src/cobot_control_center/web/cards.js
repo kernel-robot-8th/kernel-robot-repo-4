@@ -202,6 +202,17 @@ function renderZones(zones, queues) {
     queue.textContent = waiting.length ? `대기 ${waiting.join(" → ")}` : "대기 없음";
     queue.dataset.waiting = waiting.length ? "1" : "";
     el.append(title, label, queue);
+    // 점유자가 꺼졌거나 다시 켜져 토큰을 잊었을 때만 강제 해제 버튼 (release.js, 최종 검사는 fleet)
+    const owner = value.startsWith("occupied_by:") ? value.slice("occupied_by:".length) : null;
+    if (owner && zoneReleaseAllowed(name, owner)) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "zone-release";
+      btn.textContent = "강제 해제";
+      btn.title = zoneReleaseHint(owner);
+      btn.addEventListener("click", () => openZoneRelease(name, owner));
+      el.appendChild(btn);
+    }
     box.appendChild(el);
   }
 }

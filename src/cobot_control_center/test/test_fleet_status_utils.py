@@ -325,6 +325,30 @@ def test_alert_zone_hold():
     assert fleet.snapshot(200.0)['alerts'][0]['code'] == 'zone_hold'
 
 
+def test_alert_zone_token_forgotten_and_mismatch():
+    fleet = FleetState(['pinky1', 'pinky2'], 30.0, zone_hold_warn_sec=1000.0)
+    fleet.update_zone('A:occupied_by:pinky1', 0.0)
+    fleet.update_zone('B:free', 0.0)
+    for robot in ('pinky1', 'pinky2'):
+        fleet.update_battery(robot, 80.0, 9.0)     # 연결됨 (위치·배터리로 판단)
+    # 다시 켜져 토큰을 잊은 pinky1, 아직 B 를 잡았다고 아는 pinky2 (zone_manager 는 B 비어 있음)
+    fleet.update_status('pinky1', '{"state": "IDLE", "held_zone": null, "busy": false}', 1.0)
+    fleet.update_status('pinky2', '{"state": "IDLE", "held_zone": "B", "busy": false}', 1.0)
+    # 구역이 방금 바뀌었으면 로봇 상태가 따라올 시간을 준다
+    assert alert_codes(fleet.snapshot(3.0)) == set()
+    fleet.update_status('pinky1', '{"state": "IDLE", "held_zone": null, "busy": false}', 9.0)
+    fleet.update_status('pinky2', '{"state": "IDLE", "held_zone": "B", "busy": false}', 9.0)
+    codes = alert_codes(fleet.snapshot(10.0))
+    assert ('pinky1', 'zone_forgotten') in codes and ('pinky2', 'zone_mismatch') in codes
+    # 로봇이 맞게 알면 경고 없음
+    fleet.update_status(
+        'pinky1', '{"state": "HOLDING_ZONE", "held_zone": "A", "busy": false}', 10.0)
+    assert ('pinky1', 'zone_forgotten') not in alert_codes(fleet.snapshot(10.0))
+    # held_zone 을 보고하지 않는 순찰 노드는 판단하지 않는다
+    fleet.update_status('pinky1', '{"state": "IDLE"}', 11.0)
+    assert ('pinky1', 'zone_forgotten') not in alert_codes(fleet.snapshot(11.0))
+
+
 def snap(time, robots=None, zones=None, alerts=None):
     base = {'online': True, 'never_seen': False, 'state': None, 'detail': None,
             'waypoint': None, 'extra': {}}
