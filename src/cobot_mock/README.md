@@ -98,6 +98,12 @@ v2 로 거절된 명령은 v1 `FAILED` 상태를 내지 않습니다 (ack 가 �
 - 중앙 모드(`central_controlled: true`, 기본)는 실물 `central_guard.py` 와 같은 규칙입니다: 하트비트가 살아 있을 때 현재 세션·늘어나는 순번의 봉투 명령만 받고, 정지는 늘 받으며(잠금은 비상정지와, 움직이던 중의 하트비트 단절·관제 재시작 때만), 잠긴 동안은 `control_reset` 만 받습니다.
 - 구역 목표에 실제로 도착하면 `arrived_zone` 이 생기고 다음 이동을 시작하면 비웁니다 (`held_zone` 은 예약 토큰).
 - `dropout_robot`(기본 없음)을 주면 60초마다 12초씩 아무것도 보내지 않습니다. 화면의 '끊김' 표시 시험용입니다.
+- 구역 장부는 실물 zone_manager 처럼 시간이 지나도 점유를 풀지 않고, `/zone_manager/notify_exit` (점유자 이름이 맞을 때만)로 풉니다 (2026-11-18, 그 전에는 `max_hold_sec` 뒤 저절로 풀었음).
+- **전원 끔 흉내** `power_off` (쉼표로 여러 대, 실행 중에 바꿈): 꺼진 동안 아무것도 내지 않고 명령도 받지 않습니다. 목록에서 빼면 다시 켜진 것처럼 작업과 `held_zone` 을 잊습니다 (구역 장부는 그대로). 관제 '구역 강제 해제' 시험용입니다.
+  ```bash
+  ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 param set /mock_pinky_node power_off pinky1
+  ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 param set /mock_pinky_node power_off ''
+  ```
 
 ## 명령 보내 보기
 

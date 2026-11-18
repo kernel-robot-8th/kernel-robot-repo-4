@@ -416,10 +416,12 @@ class ZoneBook:
             self.queue[zone].remove(robot)
 
     def tick(self, now):
-        """max_hold_sec 를 넘긴 점유는 강제로 푼다 (점유자가 반납하지 못한 경우 대비)."""
-        for zone, owner in self.owner.items():
-            if owner and now - self.granted_at[zone] > self.params['max_hold_sec']:
-                self._promote(zone, now)
+        """
+        점유는 시간이 지나도 풀지 않는다 (실물 zone_manager 와 같음, 이탈 통보로만 풂).
+
+        시간이 지났다고 로봇이 실제로 나갔다는 증거는 아니다. 토큰을 쥔 채 꺼진 로봇의 구역은
+        관제 '구역 강제 해제'(/zone_manager/notify_exit)로 푼다.
+        """
 
     def _promote(self, zone, now):
         q = self.queue[zone]
@@ -479,6 +481,21 @@ class RobotSim:
         # 직접 조종 (관제 teleop_node 의 /<robot>/cmd_vel). 작업 중이 아닐 때만 위치를 적분한다.
         self.cmd_vel = (0.0, 0.0)     # (선속도 [m/s], 각속도 [rad/s])
         self.cmd_vel_at = None        # 마지막으로 받은 시각 (monotonic)
+
+    def reboot(self):
+        """
+        전원을 껐다 켠 것처럼 작업·구역 토큰 기억을 잊는다. 몸(위치·배터리)은 그 자리에 있다.
+
+        실물 순찰 노드도 held_zone 을 메모리에만 두므로 다시 켜지면 None 이다. 구역 장부(ZoneBook)는
+        zone_manager 처럼 그대로 점유로 남는다 (관제 '구역 강제 해제' 시험용).
+        """
+        self.steps.clear()
+        self.running = self.moving = False
+        self.held_zone = self.arrived_zone = None
+        self.command_id = None
+        self.idle_deadline = None
+        self.cmd_vel, self.cmd_vel_at = (0.0, 0.0), None
+        self.last_event = {'state': 'IDLE', 'waypoint': -1, 'detail': 'rebooted'}
 
     # ---------- 직접 조종 ----------
 

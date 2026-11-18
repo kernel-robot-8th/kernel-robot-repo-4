@@ -142,6 +142,26 @@ def test_zone_hold_queue_and_leave(fleet):
     assert book.slot_lines() == []
 
 
+def test_rebooted_owner_keeps_zone_until_notify_exit(fleet):
+    # 토큰을 쥔 채 꺼졌다 켜진 로봇: 장부는 점유로 남고 로봇은 잊어서 나가기를 못 한다
+    sims, book = fleet
+    sims['pinky1'].command('zone:ZA', 0.0)
+    _, t = run(sims, 10)
+    sims['pinky2'].command('zone:ZA', t)
+    _, t = run(sims, 5, t)
+    sims['pinky1'].reboot()
+    book.tick(t + 10_000.0)          # 시간이 지나도 풀지 않는다 (실물 zone_manager 와 같음)
+    assert book.owner['A'] == 'pinky1'
+    assert sims['pinky1'].held_zone is None and not sims['pinky1'].running
+    assert sims['pinky1'].status()['held_zone'] is None
+    assert ('FAILED', 'no zone held') in states(sims['pinky1'].command('leave', t))
+    # 관제 강제 해제(이탈 통보)로 풀면 대기자가 들어간다
+    book.release('A', 'pinky1', t)
+    ev, t = run(sims, 10, t)
+    assert book.owner['A'] == 'pinky2'
+    assert ('HOLDING_ZONE', 'A') in states(ev['pinky2'])
+
+
 def test_queue_full(fleet):
     sims, book = fleet
     for i, r in enumerate(['a', 'b', 'c']):
