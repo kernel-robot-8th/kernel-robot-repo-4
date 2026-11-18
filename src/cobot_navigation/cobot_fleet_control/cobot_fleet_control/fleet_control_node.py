@@ -11,11 +11,12 @@ from rcl_interfaces.msg import SetParametersResult
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float32, String
 import yaml
 
-from .control_api import ControlAPI, initial_pose_fields, manual_load_request
+from .control_api import (
+    ControlAPI, initial_pose_fields, manual_load_request, parse_zone_status)
 from .repository import encode, SqliteRepository
 from .scenario import ScenarioService
 from .service import FleetService
@@ -71,6 +72,13 @@ class FleetControlNode(Node):
             String, config['tasks_topic'],
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.work_pub = self.create_publisher(String, config['work_request_topic'], 50)
+        # 구역 강제 해제용. zone_manager 와 같은 QoS 여야 상태를 놓치지 않고 통보가 닿는다.
+        # zones: 구역 -> (상태 'free' | 'occupied_by:<로봇>', 받은 monotonic 시각)
+        zone_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
+                              history=HistoryPolicy.KEEP_LAST)
+        self.zones = {}
+        self.zone_exit_pub = self.create_publisher(String, '/zone_manager/notify_exit', zone_qos)
+        self.create_subscription(String, '/zone_manager/status', self._zone_status, zone_qos)
         db_path = Path(config['db_path']).expanduser()
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.repository = SqliteRepository(str(db_path))
@@ -158,6 +166,24 @@ class FleetControlNode(Node):
         # 정지는 발행자 중복 검사(ready) 없이 늘 보낸다. 비상정지는 halt() 를 쓴다.
         self.publishers_by_robot[robot_id].publish(String(data=encode(
             {'command_id': uuid.uuid4().hex, 'command': 'stop'})))
+
+    def zone_state(self, zone):
+        """구역의 최신 상태와 받은 지 몇 초인지. 받은 적 없으면 (None, None)."""
+        value = self.zones.get(zone)
+        if value is None:
+            return None, None
+        return value[0], time.monotonic() - value[1]
+
+    def release_zone(self, zone, robot_id):
+        """그 로봇 이름으로 이탈 통보를 한 번 낸다. zone_manager 는 점유자 이름이 맞을 때만 푼다."""
+        self.zone_exit_pub.publish(String(data=f'{zone}:{robot_id}'))
+
+    def _zone_status(self, message):
+        parsed = parse_zone_status(message.data)
+        if parsed is None:
+            self.get_logger().warning(f'zone_manager/status 를 읽지 못함: {message.data!r}')
+            return
+        self.zones[parsed[0]] = (parsed[1], time.monotonic())
 
     def set_initial_pose(self, robot_id, x, y, yaw):
         """AMCL 위치 추정만 바꾼다. 로봇은 움직이지 않는다."""
