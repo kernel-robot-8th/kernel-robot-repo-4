@@ -58,6 +58,37 @@ def parse_points(raw):
     return {name: parse_point(name, value) for name, value in raw.items()}
 
 
+# 명령에 실려 오는 좌표 지점 (관제 웨이포인트, 2026-11-18).
+# 관제가 지점 원본을 갖고 goto 봉투의 poses 로 좌표를 보낸다: {"W1": [x, y, yaw]}.
+# 이름은 이 로봇 설정에 없는 것만 받는다 (P3 을 좌표로 덮어쓰면 같은 이름에 좌표가 둘이 된다).
+MAX_COMMAND_POSES = 50
+_POSE_NAME_CHARS = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_')
+
+
+def parse_poses(data, config_points):
+    """
+    봉투의 ``poses`` 를 ``({이름: 튜플}, '')`` 로 바꾼다. 잘못되면 ``({}, 이유)``.
+
+    없으면(None) 빈 dict. 이름은 대문자로 시작하는 대문자·숫자·밑줄 32자 이내.
+    """
+    if data is None:
+        return {}, ''
+    if not isinstance(data, dict) or len(data) > MAX_COMMAND_POSES:
+        return {}, f'poses must be an object of at most {MAX_COMMAND_POSES}'
+    poses = {}
+    for name, value in data.items():
+        if (not isinstance(name, str) or not 1 <= len(name) <= 32 or not name[0].isalpha()
+                or not set(name) <= _POSE_NAME_CHARS):
+            return {}, f'bad pose name: {name!r}'
+        if name in config_points:
+            return {}, f'pose name already in config: {name}'
+        try:
+            poses[name] = parse_point(name, value)
+        except PointsConfigError as error:
+            return {}, f'bad pose: {error}'
+    return poses, ''
+
+
 def validate_points(points, required, home_name):
     """
     필수 지점과 홈 지점이 모두 있는지 확인한다.

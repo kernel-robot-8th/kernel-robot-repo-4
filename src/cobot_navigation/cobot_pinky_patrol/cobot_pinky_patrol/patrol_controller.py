@@ -4,7 +4,7 @@ from collections import deque
 from dataclasses import dataclass
 import time
 
-from .patrol_points_utils import exit_name, general_names, parse_command, zone_of
+from .patrol_points_utils import exit_name, general_names, parse_command, parse_poses, zone_of
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,8 @@ class PatrolController:
         self.idle_deadline = None
         self.steps = deque()
         self.step = None
+        # 이번 goto 명령에 실려 온 좌표 지점 (관제 웨이포인트). 명령이 끝나면 비운다.
+        self.extra_points = {}
         self._attempts = 0
         self._gate_zone = None
         self._slot_target = None
@@ -66,8 +68,12 @@ class PatrolController:
             payload.update(command_id=command_id, task_finished=True)
         self.emit(payload)
 
-    def submit(self, raw, command_id=None):
-        """입력 검증과 상태 등록만 하고 Nav2 완료를 기다리지 않는다."""
+    def submit(self, raw, command_id=None, poses=None):
+        """
+        입력 검증과 상태 등록만 하고 Nav2 완료를 기다리지 않는다.
+
+        poses 는 goto 봉투에 실려 온 좌표 지점 ``{이름: [x, y, yaw]}`` (없으면 None).
+        """
         kind, names = parse_command(raw)
         if kind in ('stop', 'emergency_stop'):
             self.stop(kind == 'emergency_stop')
@@ -76,10 +82,14 @@ class PatrolController:
             if command_id and command_id != self.command_id:
                 self._reject(command_id, 'robot busy')
             return
-        reason = self._validate(kind, names)
+        extra, reason = parse_poses(poses, self.points)
+        if not reason and extra and kind != 'goto':
+            reason = 'poses only for goto'
+        reason = reason or self._validate(kind, names, extra)
         if reason:
             self._reject(command_id, reason)
             return
+        self.extra_points = extra
         self.command_id, self.operation, self.names = command_id, kind, names
         self._stop = self._emergency = False
         self._gate_zone = None
@@ -104,7 +114,7 @@ class PatrolController:
         self._report('STARTING', ','.join(names) or kind)
         self.prepare()
 
-    def _validate(self, kind, names):
+    def _validate(self, kind, names, extra=None):
         if kind == 'start':
             return 'start disabled'
         if kind not in ('goto', 'zone', 'leave', 'home'):
@@ -114,7 +124,8 @@ class PatrolController:
         if kind in ('goto', 'zone'):
             if not names:
                 return 'no point given'
-            unknown = [n for n in names if n not in self.points]
+            extra = extra or {}
+            unknown = [n for n in names if n not in self.points and n not in extra]
             if unknown:
                 return f'unknown point: {unknown}'
             zones = {p for members in self.zone_points.values() for p in members}
@@ -123,7 +134,8 @@ class PatrolController:
             if kind == 'goto':
                 if any(n in zones for n in names):
                     return 'use zone'
-                if any(n not in set(general_names(self.points)) | {self.home_name} for n in names):
+                allowed = set(general_names(self.points)) | {self.home_name} | set(extra)
+                if any(n not in allowed for n in names):
                     return 'not allowed'
         return ''
 
@@ -203,7 +215,8 @@ class PatrolController:
         state = ('RETREATING' if self._stop else 'LEAVING_ZONE') if self.step.kind == 'exit' else (
             'RETURNING' if self.step.kind == 'home' else 'MOVING')
         self._report(state, name, self.step.index)
-        self.navigation.start(self.points[name])
+        self.navigation.start(self.points[name] if name in self.points
+                              else self.extra_points[name])
         self._attempts += 1
         self.phase = 'NAVIGATING'
 
@@ -303,6 +316,7 @@ class PatrolController:
     def _finish(self, state, detail):
         self.phase = 'IDLE'
         self.steps.clear()
+        self.extra_points = {}
         self._report(state, detail, finished=True)
         self.command_id = None
         # 실패·정지 결과를 토큰 보유 표시로 덮어쓰지 않는다.
