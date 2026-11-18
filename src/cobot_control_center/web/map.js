@@ -173,6 +173,8 @@ function drawMap() {
   const show = {
     points: view.showPoints || (picking && (view.pick.cmd === "goto" || view.pick.cmd === "route")),
     layers: view.showLayers || picking,
+    // 관제 웨이포인트: 이동·경로를 고를 때는 모두, 평소엔 묶음에 안 든 점 + '묶음 보기'로 고른 묶음의 점 (2026-11-18)
+    allWaypoints: picking && (view.pick.cmd === "goto" || view.pick.cmd === "route"),
   };
   // 구역·지점 이름표는 모양 위, 로봇 아래에 고정 자리로 놓는다. 로봇 이름표는 맨 위 (placeStaticLabels).
   const labels = [];
@@ -418,8 +420,14 @@ function drawLayers(ctx, info, layers, scale, show, labels) {
     for (const [name, pose] of Object.entries(layers.points || {})) {
       marks.push({ kind: "point", pose, label: name, color: css("--active") });
     }
-    // 관제 웨이포인트 (waypoints.js): 주황 빈 마름모 + 방향
+    // 관제 웨이포인트 (waypoints.js): 주황 빈 마름모 + 방향.
+    // 묶음에 안 든 점은 늘 보이고, 묶음에 든 점은 그 묶음을 '묶음 보기'로 골랐을 때만 (다른 묶음 점이 쌓여 보이지 않게).
+    // 이동·경로를 고를 때는 모두 보인다.
+    const group = shownGroup();
+    const shown = new Set(group ? group.points : []);
+    const grouped = new Set(((view.waypoints && view.waypoints.groups) || []).flatMap((g) => g.points));
     for (const [name, pose] of waypointPoses()) {
+      if (!show.allWaypoints && grouped.has(name) && !shown.has(name)) continue;
       marks.push({ kind: "waypoint", pose, label: name, color: css("--warn") });
     }
   }

@@ -420,6 +420,8 @@ function drawDetailMap() {
   const show = {
     points: view.showPoints || (picking && (view.pick.cmd === "goto" || view.pick.cmd === "route")),
     layers: view.showLayers || picking,
+    // 관제 웨이포인트: 이동·경로를 고를 때는 모두, 평소엔 묶음에 안 든 점 + '묶음 보기'로 고른 묶음의 점 (2026-11-18)
+    allWaypoints: picking && (view.pick.cmd === "goto" || view.pick.cmd === "route"),
   };
   if (view.layers && (show.layers || show.points)) {
     drawLayers(ctx, info, view.layers, scale, show, labels);
