@@ -443,3 +443,43 @@ def test_central_guard_plain_stop_does_not_latch(guard):
     assert central_command(g, '{"command_id": "x", "command": "stop"}')[1] == 'stop'
     assert not g.latched
     assert central_command(g, envelope(clock, 1))[1] == 'accepted'
+
+
+def test_goto_with_poses_moves_to_given_coordinates():
+    # 관제 웨이포인트: 봉투의 poses 좌표로 간다 (실제 순찰 노드와 같은 규칙)
+    from cobot_mock.mock_pinky_sim import envelope_poses
+    assert envelope_poses('{"command_id": "a", "command": "goto:W1", "poses": {"W1": [1, 2]}}',
+                          {'P1': (0, 0, 0)}) == ({'W1': (1.0, 2.0, 0.0)}, '')
+    assert envelope_poses('{"command_id": "a", "command": "goto:P1", "poses": {"P1": [1, 2]}}',
+                          {'P1': (0, 0, 0)})[1].startswith('bad pose name')
+    assert envelope_poses('goto:P1', {}) == ({}, '')
+
+
+def test_drive_integrates_cmd_vel_and_stops_on_timeout(fleet):
+    # 관제 직접 조종(cmd_vel): 작업 중이 아니면 위치를 적분하고, 명령이 끊기면 선다.
+    sims, _ = fleet
+    sim = sims['pinky1']
+    x0, y0 = sim.pose[0], sim.pose[1]
+    sim.pose = (x0, y0, 0.0)
+    t = 0.0
+    for _ in range(10):                  # 1초 동안 0.1 s 마다 0.2 m/s 앞으로
+        t += 0.1
+        sim.drive(0.2, 0.0, t)
+        sim.step(t, 0.1)
+    assert sim.pose[0] - x0 == pytest.approx(0.2, abs=1e-6)
+    assert sim.moving is True
+    sim.step(t + 1.0, 1.0)               # 0.5 s 넘게 명령이 없으면 선다
+    assert sim.moving is False
+    x1 = sim.pose[0]
+    sim.drive(float('nan'), 0.0, t + 1.1)   # 이상한 값은 무시
+    sim.step(t + 1.2, 0.1)
+    assert sim.pose[0] == x1
+
+
+def test_drive_ignored_while_running_a_task(fleet):
+    sims, _ = fleet
+    sim = sims['pinky1']
+    sim.command('goto:P1', 0.0)
+    assert sim.running
+    sim.drive(0.2, 0.0, 0.0)
+    assert sim.cmd_vel == (0.0, 0.0)

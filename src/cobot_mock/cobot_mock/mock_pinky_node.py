@@ -17,7 +17,7 @@
 
 관제 PC 에서 브릿지를 지난 뒤의 이름(/pinkyN/..., /zone_manager/status)을 쓰므로 관제 코드는
 진짜와 구분하지 못한다. 그래서 실물 도메인(0·10·12·20·30·100)에서는 시작을 거부한다.
-장치·Nav2·cmd_vel 은 쓰지 않는다. 로직은 mock_pinky_sim 에 있고 여기서는 발행·구독만 한다.
+장치·Nav2 는 쓰지 않는다. cmd_vel 은 관제 직접 조종 시험용으로 받아 위치만 적분한다. 로직은 mock_pinky_sim 에 있고 여기서는 발행·구독만 한다.
 """
 
 import contextlib
@@ -34,7 +34,7 @@ from cobot_mock.mock_pinky_sim import (ack_for, central_command, CentralGuard, c
                                        load_zone_params, MockConfigError, reset_event, RobotSim,
                                        v2_to_v1, ZoneBook)
 from cobot_patrol_interfaces.msg import PatrolCommand, PatrolCommandAck, PatrolState
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.logging import get_logger
@@ -115,6 +115,10 @@ class MockPinkyNode(Node):
             # 관제 화면 '초기위치' 버튼 (fleet_control 이 발행). 실물 AMCL 처럼 위치 추정만 옮긴다.
             self.create_subscription(PoseWithCovarianceStamped, f'/{name}/initialpose',
                                      lambda msg, r=name: self._on_initial_pose(r, msg), 10)
+            # 관제 상세 화면 직접 조종 (teleop_node). 작업 중이 아니면 위치를 적분한다.
+            self.create_subscription(Twist, f'/{name}/cmd_vel',
+                                     lambda msg, r=name: self.sims[r].drive(
+                                         msg.linear.x, msg.angular.z, time.monotonic()), 10)
             # 규격 v1: String 명령·JSON 상태 (지금 주행 코드)
             if self.v1:
                 self.pub[name]['status'] = self.create_publisher(
