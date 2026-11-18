@@ -212,7 +212,7 @@ function renderStats(robotId, robot) {
 
 function renderTimeline(robotId) {
   const items = view.events.filter((e) => e.robot === robotId).map((e) => ({
-    time: e.time, kind: "상태", level: e.level, text: e.text,
+    time: e.time, kind: e.kind === "route" ? "경로" : "상태", level: e.level, text: e.text,
   }));
   for (const task of view.tasks.values()) {
     if (task.robot_id !== robotId) continue;
@@ -333,16 +333,18 @@ function updateCamera() {
 // ---------- 확대 지도 ----------
 
 // 진행 중인 작업의 지점 이름 → [x, y, yaw]. 이동·구역 지점 목록을 합쳐 찾는다.
+// 경로가 진행 중이면 지금 구간부터 남은 구간의 지점을 모두 잇는다.
 function routePoses(robotId, task) {
-  const lookup = new Map([...(pointChoices(robotId, "goto") || []),
-    ...(pointChoices(robotId, "zone") || [])]);
-  return (task.points || []).map((name) => lookup.get(name)).filter(Boolean);
+  const lookup = pointChoices(robotId, "route") || new Map();
+  const route = runningRoute(robotId);
+  const names = route ? route.legs.slice(route.index).flatMap((leg) => leg.points) : task.points;
+  return (names || []).map((name) => lookup.get(name)).filter(Boolean);
 }
 
 // 진행 중인 작업 경로: 로봇 위치에서 지점까지 점선과 순번.
 function drawRoute(ctx, info, scale, robotId, robot, color) {
   const task = robotTask(robotId, ACTIVE_TASK);
-  if (!task || !robot.pose) return;
+  if ((!task && !runningRoute(robotId)) || !robot.pose) return;
   const path = routePoses(robotId, task).map((pose) => toPixel(info, pose[0], pose[1]));
   if (path.length === 0) return;
   const line = [toPixel(info, robot.pose.x, robot.pose.y), ...path];
@@ -413,7 +415,7 @@ function drawDetailMap() {
   canvas.classList.toggle("picking", picking);
   const labels = [];
   const show = {
-    points: view.showPoints || (picking && view.pick.cmd === "goto"),
+    points: view.showPoints || (picking && (view.pick.cmd === "goto" || view.pick.cmd === "route")),
     layers: view.showLayers || picking,
   };
   if (view.layers && (show.layers || show.points)) {

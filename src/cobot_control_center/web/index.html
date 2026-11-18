@@ -154,6 +154,7 @@
           <button type="button" data-cmd="zone">구역</button>
           <button type="button" data-cmd="leave">나가기</button>
           <button type="button" data-cmd="home">홈</button>
+          <button type="button" data-cmd="route" title="일반 지점·구역 지점·홈을 섞어 순서대로 (구간마다 이동·구역 명령을 차례로 보냄)">경로</button>
         </div>
         <!-- 초기위치는 로봇을 움직이지 않아 명령 줄에 두지 않는다. 아래 '위치' 칸의 [홈] [좌표 지정] (detail.js renderStats) -->
         <div class="stop-row">
@@ -267,6 +268,7 @@
     <div class="cmd-pick" id="cmd-pick"></div>
     <p class="cmd-warn" id="cmd-warn"></p>
     <div class="cmd-buttons">
+      <button type="button" id="cmd-undo" title="마지막에 고른 지점 하나 빼기">되돌리기</button>
       <button type="button" id="cmd-clear">지우기</button>
       <button type="button" id="cmd-cancel" title="Esc 로도 닫힌다">취소</button>
       <button type="button" id="cmd-ok" class="primary">보내기</button>
@@ -361,6 +363,7 @@
           <button type="button" data-cmd="zone">구역</button>
           <button type="button" data-cmd="leave">나가기</button>
           <button type="button" data-cmd="home">홈</button>
+          <button type="button" data-cmd="route" title="일반 지점·구역 지점·홈을 섞어 순서대로 (구간마다 이동·구역 명령을 차례로 보냄)">경로</button>
         </div>
       </div>
       </div>
@@ -379,6 +382,7 @@
       <time class="task-time"></time>
       <strong class="task-robot"></strong>
       <span class="task-command"></span>
+      <span class="task-route" hidden></span>
       <span class="task-state"></span>
       <span class="task-detail muted"></span>
       <button type="button" class="resolve-btn" hidden>현장 확인 후 해제</button>

@@ -31,7 +31,9 @@ const TASK_TEXT = {
   ACCEPTED: "받음", SENT: "보냄", RUNNING: "진행", SUCCEEDED: "성공", FAILED: "실패",
   STOPPED: "중단", REJECTED: "거절", UNKNOWN: "결과 모름",
 };
-const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈" };
+const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈", route: "경로" };
+// 지점을 여러 개 순서대로 고르는 명령 (고른 순번을 붙이고 '지우기'를 보인다)
+const MULTI_POINT = new Set(["goto", "route"]);
 // fleet_control 보류 사유: 운영자 정지(STOP·ESTOP·PAUSE·MANUAL), 시나리오 중단(PAUSED·ESTOP·MANUAL),
 // 상태·배터리 수신 만료(LINK_LOST). 모르는 사유는 그대로 보인다.
 const HOLD_TEXT = {
@@ -44,6 +46,74 @@ const MSG_MS = 6000;
 
 const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID()
   : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+// 이 로봇의 진행 중 경로 (/api/health 의 routes, 백엔드 route_utils). 없으면 null.
+function runningRoute(robotId) {
+  const route = view.routes && view.routes[robotId];
+  return route && route.state === "RUNNING" ? route : null;
+}
+
+// 경로 진행 한 줄. 예: "경로 2/3 · zone:ZA1 · 진행"
+function routeText(route) {
+  const leg = route.legs[route.index];
+  const total = route.legs.length;
+  if (!leg) return `경로 ${total}/${total}`;
+  return `경로 ${route.index + 1}/${total} · ${leg.operation}:${leg.points.join(",")}`
+    + ` · ${TASK_TEXT[leg.state] || (leg.state === "WAITING" ? "보낼 차례" : leg.state)}`;
+}
+
+// 경로를 구간으로 미리 나눠 본다 (백엔드 route_utils.split_route 와 같은 규칙, 화면 미리보기용).
+// 이어지는 일반 지점·홈은 goto 하나, 구역 지점은 하나씩 zone. 최종 판단은 백엔드가 한다.
+function routeLegs(names) {
+  const zonePoints = new Set(Object.values((view.layers && view.layers.zones) || {})
+    .flatMap((zone) => Object.keys(zone.points || {})));
+  const legs = [];
+  for (const name of names) {
+    const last = legs[legs.length - 1];
+    if (zonePoints.has(name)) legs.push({ operation: "zone", points: [name] });
+    else if (last && last.operation === "goto") last.points.push(name);
+    else legs.push({ operation: "goto", points: [name] });
+  }
+  return legs;
+}
+
+// 경로 고르기 띠 가운데: 고른 지점을 화살표로 이은 칩 (× 로 그 지점만 빼기). 순서는 화살표로 보인다.
+// 구간 미리보기는 띠 머리 마우스 글에만 둔다 (화면을 단순하게, 2026-11-18).
+// 지점은 지도에서 고른다 (이름 버튼을 깔지 않는다: 40개 가까이 되어 고른 순서가 묻히므로).
+function renderRouteChips(box, pick) {
+  const names = pick.names();
+  box.replaceChildren();
+  if (names.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "route-hint";
+    hint.textContent = "지도에서 차례로 누르세요";
+    box.appendChild(hint);
+    return;
+  }
+  const chips = document.createElement("div");
+  chips.className = "route-chips";
+  names.forEach((name, i) => {
+    if (i > 0) {
+      const arrow = document.createElement("span");
+      arrow.className = "route-arrow";
+      arrow.textContent = "→";
+      chips.appendChild(arrow);
+    }
+    const chip = document.createElement("span");
+    chip.className = "route-chip";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.title = `${name} 빼기`;
+    remove.addEventListener("click", () => {
+      pick.route.splice(i, 1);
+      pick.update();
+    });
+    chip.append(document.createTextNode(name), remove);
+    chips.appendChild(chip);
+  });
+  box.append(chips);
+}
 
 // 이 로봇의 진행 중·결과 모름 작업 (최신 하나)
 function robotTask(robotId, states) {
@@ -100,15 +170,18 @@ function linkBlockReason(robot) {
 }
 
 // 움직이는 중: 관제 작업이 진행 중이거나, 작업이 없어도 로봇이 움직이는 상태 (유휴 복귀 등)
-function busyReason(robot, active) {
-  return active ? `작업 중 ${active.task_id}`
+function busyReason(robot, active, route = null) {
+  // 경로는 구간 사이에 관제 작업이 잠깐 없으므로 따로 본다 (그 사이에 다른 명령을 끼우지 않게).
+  return route ? `경로 진행 중 ${route.route_id}`
+    : active ? `작업 중 ${active.task_id}`
     : BUSY_ROBOT.has(robot.state) ? `로봇 작업 중 (${robot.state})` : "";
 }
 
 // 초기위치: 연결·멈춤만 본다. 작업 명령 켜기와 정지 잠금은 막지 않는다
 // (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
 function poseBlockReason(robotId, robot) {
-  return linkBlockReason(robot) || busyReason(robot, robotTask(robotId, ACTIVE_TASK));
+  return linkBlockReason(robot)
+    || busyReason(robot, robotTask(robotId, ACTIVE_TASK), runningRoute(robotId));
 }
 
 // 초기위치 버튼 마우스 글 (버튼 data-pose 로 고른다)
@@ -133,7 +206,7 @@ function renderCommands(card, robotId, robot) {
   const reason = linkBlockReason(robot)
     || (blocker ? blocker.reason : "")
     || (!view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요" : "")
-    || busyReason(robot, active);
+    || busyReason(robot, active, runningRoute(robotId));
   // 나가기는 보유 구역이 있을 때만 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
   // 구역을 잡고 있어도 이동·구역 명령은 켠다: 로봇이 먼저 구역을 나간다 (2026-11-09).
   const held = heldZones(robotId);
@@ -165,6 +238,9 @@ function renderCommands(card, robotId, robot) {
   } else if (!view.commandsArmed) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
+  } else if (runningRoute(robotId)) {
+    text = routeText(runningRoute(robotId));
+    level = "busy";
   } else if (active) {
     text = `작업 중: ${active.command} · ${TASK_TEXT[active.state] || active.state}`
       + (active.detail ? ` · ${active.detail}` : "");
@@ -283,6 +359,10 @@ async function onCommand(robotId, cmd) {
   }
   const points = await choosePoints(robotId, cmd);
   if (points === null) return;
+  if (cmd === "route") {
+    await sendRoute(robotId, points);
+    return;
+  }
   const result = await postJson("/api/tasks", {
     client_request_id: newRequestId(), robot_id: robotId, operation: cmd, points,
   });
@@ -292,6 +372,24 @@ async function onCommand(robotId, cmd) {
     showMessage(robotId, `보냄: ${result.data.command} (${result.data.task_id})`, false);
   } else {
     showMessage(robotId, `${OP_TEXT[cmd]} 거절 (${result.status}): ${errorText(result)}`, true);
+  }
+}
+
+// 경로: 백엔드가 구간(이어지는 일반 지점은 이동 하나, 구역 지점은 하나씩)으로 나눠 차례로 보낸다.
+// 첫 구간은 바로 보내고 결과를 돌려준다. 진행은 /api/health 의 routes 로 본다.
+async function sendRoute(robotId, points) {
+  const result = await postJson("/api/routes", {
+    client_request_id: newRequestId(), robot_id: robotId, points,
+  });
+  const route = result.ok ? result.data : result.data && result.data.route;
+  if (route) {
+    view.routes = { ...view.routes, [robotId]: route };
+  }
+  if (result.ok) {
+    const legs = route.legs.map((leg) => `${leg.operation}:${leg.points.join(",")}`).join(" → ");
+    showMessage(robotId, `경로 보냄 (${route.legs.length}구간): ${legs}`, false);
+  } else {
+    showMessage(robotId, `경로 거절 (${result.status}): ${errorText(result)}`, true);
   }
 }
 
@@ -337,6 +435,10 @@ function pointChoices(robotId, cmd) {
     for (const zone of Object.values(layers.zones || {})) {
       for (const [name, pose] of Object.entries(zone.points || {})) choices.set(name, pose);
     }
+  } else if (cmd === "route") {
+    // 경로는 이동·구역 지점을 모두 고를 수 있다 (구역 출구는 빼고, 순찰 노드가 알아서 지난다).
+    for (const [name, pose] of pointChoices(robotId, "goto")) choices.set(name, pose);
+    for (const [name, pose] of pointChoices(robotId, "zone")) choices.set(name, pose);
   }
   return choices;
 }
@@ -346,25 +448,33 @@ function pointChoices(robotId, cmd) {
 // 고른 지점 목록을 돌려주고, 취소하면 null.
 function choosePoints(robotId, cmd) {
   closeBars();
-  const needsPoints = cmd === "goto" || cmd === "zone";
+  const needsPoints = cmd === "goto" || cmd === "zone" || cmd === "route";
   const choices = needsPoints ? pointChoices(robotId, cmd) : null;
   const box = $("cmd-pick");
   const pick = { robotId, cmd, choices, route: [], input: null };
+  // 경로는 이름 버튼 대신 고른 순서 칩을 보인다 (지점 목록이 없으면 직접 적는 칸).
+  const chipMode = cmd === "route" && choices !== null;
   pick.names = () => (pick.input
     ? pick.input.value.toUpperCase().split(/[\s,]+/).filter(Boolean) : pick.route);
   pick.update = () => {
     const names = pick.names();
     const route = $("cmd-route");
-    route.textContent = cmd === "goto" ? (names.length ? names.join(" → ") : "지점 선택")
+    // 경로는 칩이 순서를 보이므로 머리에는 개수와 구간 수만 (구간 내용은 마우스 글·칩 아래 줄).
+    route.textContent = chipMode
+      ? (names.length ? `${names.length}곳` : "지점 선택")
+      : MULTI_POINT.has(cmd) ? (names.length ? names.join(" → ") : "지점 선택")
       : cmd === "zone" ? (names[0] || "구역 지점 선택")
       : cmd === "home" ? "홈으로 복귀" : "구역 출구로 나가기";
-    route.title = route.textContent;
+    route.title = chipMode && names.length ? routeLegs(names)
+      .map((leg) => `${OP_TEXT[leg.operation]} ${leg.points.join(",")}`).join(" → ") : route.textContent;
     route.dataset.empty = needsPoints && names.length === 0 ? "1" : "";
+    if (chipMode) renderRouteChips(box, pick);
     // 고른 지점 버튼은 채우고, 이동은 순번을 붙인다.
-    box.querySelectorAll("button").forEach((button) => {
-      const order = names.indexOf(button.textContent);
-      button.classList.toggle("chosen", order >= 0);
-      button.dataset.order = order >= 0 && cmd === "goto" ? String(order + 1) : "";
+    if (!chipMode) box.querySelectorAll("button").forEach((button) => {
+      // 경로는 같은 지점을 두 번 고를 수 있으므로 순번을 모두 적는다 (예: 1·3).
+      const orders = names.map((name, i) => (name === button.textContent ? i + 1 : 0)).filter(Boolean);
+      button.classList.toggle("chosen", orders.length > 0);
+      button.dataset.order = orders.length && MULTI_POINT.has(cmd) ? orders.join("·") : "";
     });
     $("cmd-ok").disabled = needsPoints && names.length === 0;
     drawMap();
@@ -379,16 +489,18 @@ function choosePoints(robotId, cmd) {
   // 막대가 카드 머리(로봇 이름)를 덮으므로 제목에 로봇 이름을 다시 쓴다.
   $("cmd-title").textContent = `${robotId} · ${OP_TEXT[cmd]}`;
   box.replaceChildren();
-  $("cmd-clear").hidden = cmd !== "goto";
+  $("cmd-clear").hidden = !MULTI_POINT.has(cmd);
+  $("cmd-undo").hidden = !chipMode;
+  box.classList.toggle("route-mode", chipMode);
   $("cmd-warn").textContent = view.snapshot && view.snapshot.infra
     && view.snapshot.infra.mode === "real" ? "⚠ 실물 로봇이 움직입니다. 주변을 확인하세요." : "";
   if (needsPoints && choices === null) {
     // 지점 목록이 없으면 직접 적는다. 로봇·작업 노드가 다시 검사한다.
     pick.input = document.createElement("input");
-    pick.input.placeholder = cmd === "goto" ? "P1, P2" : "ZA";
+    pick.input.placeholder = cmd === "goto" ? "P1, P2" : cmd === "route" ? "P1, ZA1, P3" : "ZA";
     pick.input.addEventListener("input", pick.update);
     box.appendChild(pick.input);
-  } else if (needsPoints) {
+  } else if (needsPoints && !chipMode) {
     for (const name of choices.keys()) {
       const button = document.createElement("button");
       button.type = "button";
@@ -458,6 +570,11 @@ function setupPick() {
   });
   $("cmd-ok").addEventListener("click", () => finishPick(true));
   $("cmd-cancel").addEventListener("click", cancelPick);
+  $("cmd-undo").addEventListener("click", () => {
+    if (!view.pick) return;
+    view.pick.route.pop();
+    view.pick.update();
+  });
   $("cmd-clear").addEventListener("click", () => {
     if (!view.pick) return;
     view.pick.route.length = 0;

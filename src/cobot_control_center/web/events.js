@@ -92,9 +92,9 @@ function addEvents(events) {
 }
 
 // 이벤트 칸 '보기' 고르기 값: "" 전체, "@robots" 로봇 전체, "@arms" 팔 전체, "@zones" 구역,
-// "@commands" 명령·주문 (관제가 낸 주행 명령 cmd, 주문 단계 order, 팔 작업 work),
+// "@commands" 명령·주문 (관제가 낸 주행 명령 cmd, 경로 route, 주문 단계 order, 팔 작업 work),
 // "robot:pinky1" 로봇 하나, "arm:omx_1" 팔 하나.
-const COMMAND_KINDS = new Set(["cmd", "order", "work"]);
+const COMMAND_KINDS = new Set(["cmd", "order", "work", "route"]);
 function addOption(parent, value, text) {
   parent.appendChild(makeOption(value, text));
 }

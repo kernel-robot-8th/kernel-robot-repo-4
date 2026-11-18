@@ -11,7 +11,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | 경로 | 응답 |
 |---|---|
 | `GET /` | 관제 화면 |
-| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}, "arm_controller_online": 로봇팔 명령 노드(arm_command_node)가 켜져 있는지}` |
+| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "routes": {"pinky1": 마지막 경로 (`GET /api/routes` 의 robots)}, "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}, "arm_controller_online": 로봇팔 명령 노드(arm_command_node)가 켜져 있는지}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
@@ -23,6 +23,9 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/events?after=&robot=&limit=` | 이벤트 로그 (오래된 것부터, `id` 오름차순). `after` 보다 큰 `id` 만, `robot` 을 주면 그 로봇만, `limit` 1~1000 (기본 200) |
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
 | `POST /api/tasks` | `{"client_request_id", "robot_id", "operation": "goto"\|"zone"\|"leave"\|"home", "points": [..]}` → `202` 작업 / `200` 같은 요청 재전송 / `400` 형식·지점 / `404` 없는 로봇 / `409` 작업 중·결과 모름 / `423` 작업 명령 꺼짐 (기록하지 않음) / `503` 끊김·작업 노드 없음. 거절은 `{"detail", "task"}` |
+| `POST /api/routes` | 경로 (여러 지점 섞어 연결 주행). `{"client_request_id", "robot_id", "points": ["P1", "ZA", "P3", "I1"]}`. 백엔드가 구간으로 나눔 (이어지는 일반 지점·자기 홈은 `goto` 하나, 구역 지점은 하나씩 `zone`) → 첫 구간을 바로 보내고 `202` 경로 / `400` 모르는 지점·구역 출구·다른 로봇 홈·지점 없음·20개 넘음 / `404` 없는 로봇 / `409` 진행 중인 경로가 있음, 또는 첫 구간 거절 (`{"detail", "route"}`) / `423` 작업 명령 꺼짐 / `503` 작업 노드·지점 설정 없음. 앞 구간이 `SUCCEEDED` 면 다음 구간, `FAILED`·`STOPPED`·`REJECTED`·`UNKNOWN` 이면 경로 `FAILED`. 작업이 안 만들어진 `409`·`503`·응답 없음은 `route_retry_sec` 동안 같은 `client_request_id`(`<route_id>-<구간 번호>`)로 다시 보냄. 정지·비상정지·전체 비상정지는 남은 구간을 버림 (`CANCELED`). 시작·구간 성공·완료·취소·중단은 이벤트 로그에 `kind: "route"` 로 남김 (`data`: `route_id`, `index`, `total`, `state`) |
+| `GET /api/routes` | `{"robots": {"pinky1": 마지막 경로}, "recent": [끝난 경로, 최신순 20개]}`. 경로 = `{"route_id", "robot_id", "points", "legs": [{"operation", "points", "task_id", "state": WAITING·작업 상태}], "index": 지금 구간, "state": RUNNING·SUCCEEDED·FAILED·CANCELED, "detail", "created_at", "updated_at"}`. 백엔드 메모리라 다시 켜면 사라짐 |
+| `POST /api/routes/{robot_id}/cancel` | 남은 구간만 버림 → `{"canceled": [route_id]}`. 지금 가는 구간은 멈추지 않음 (멈추려면 정지) |
 | `POST /api/commands/arm` | `{"client_request_id", "armed": true\|false}` → `200 {"armed", "changed", "source": 요청한 IP, "client_request_id"}` / `400` armed 가 bool 이 아님. 작업 노드 사건 `operator_arm` 으로 남김 |
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
 | `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지 (로봇·팔 모두) |
@@ -370,6 +373,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 `host_status_node` (`config/host_status_node.yaml`, 관제 PC 가 아닌 PC 에서): `host`(`station`, launch 인자), `label`,
 `router_host`(로봇망으로 볼 연결), `publish_period_sec`(3.0), `nmcli_period_sec`, `interface_skip_prefixes`,
 `cpu_warn_pct`·`mem_warn_pct`·`disk_warn_pct`(90), `temp_warn_c`(80), `wifi_warn_dbm`·`wifi_warn_pct`.
+
+`fleet_api_node` 경로: `route_retry_sec`(8.0, 작업이 안 만들어진 일시 거절을 다시 보내 보는 시간 [s]), `route_period_sec`(0.5, 구간 결과를 보는 주기 [s]). 읽기 전용 백엔드에는 경로가 없음.
 
 `fleet_api_node` 쪽: `host_status_topic`, `host_stale_sec`(10.0), `net_stale_sec`(3.0), `network_robots`, `network_arms`(구조도에 그릴 목록), `net_status_topic`, `net_check_topic`,
 `station_node_patterns`(`['omx*_adapter']`, Station PC 노드로 볼 이름. ROS 그래프는 노드가 어느 PC 에 있는지 모르므로 이름으로 고른다 → `local.station_nodes`, `station.nodes`).

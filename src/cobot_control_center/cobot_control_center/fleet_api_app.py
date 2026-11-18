@@ -32,6 +32,7 @@ import asyncio
 
 from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose
 from cobot_control_center.net_status_utils import collect_network, network_alerts
+from cobot_control_center.route_utils import FAILED, RouteError, split_route
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -59,7 +60,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                tasks=None, publish_request=None, cameras=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
-               hosts=None):
+               hosts=None, routes=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -76,6 +77,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     network_ids 는 구조도에 그릴 (로봇 목록, 팔 목록) 이다. 없으면 /api/network 는 있는 값만 쓴다.
     request_net_check(source) 는 측정 노드에 '자세히 확인'을 요청하는 함수다 (없으면 503).
     hosts 는 HostStore (다른 PC 의 상태 보고) 또는 None 이다.
+    routes 는 RouteRunner (경로: 여러 지점을 구간으로 나눠 차례로 보냄) 또는 None 이다.
+    None 이면 /api/routes 는 503 이다.
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -117,6 +120,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         return {'ok': True, 'domain_id': domain_id, 'read_only': publish_request is None,
                 **store.health(), **task_health,
                 'cameras': camera_health,
+                # routes: 로봇별 마지막 경로 (진행 중이면 state RUNNING). 화면 카드의 경로 진행 표시용.
+                'routes': routes.routes()['robots'] if routes is not None else {},
                 'arm_controller_online': arms is not None and arms.online()}
 
     @app.get('/api/network')
@@ -259,9 +264,59 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'robot_id': body.get('robot_id'), 'operation': body.get('operation'),
             'points': body.get('points') or []})
 
+    # ---------- 경로 (여러 지점을 섞은 연결 주행, route_utils) ----------
+    # 순찰 노드는 명령 하나만 받으므로 구간(goto 묶음·zone 하나씩)으로 나눠 이 백엔드가 차례로 보낸다.
+    # 앞 구간이 성공해야 다음 구간을 보내고, 실패·거절·정지면 나머지는 보내지 않는다.
+
+    def route_runner():
+        if routes is None or tasks is None or publish_request is None:
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
+        return routes
+
+    @app.post('/api/routes')
+    def create_route(body: dict = Body(...)):
+        runner = route_runner()
+        if not tasks.online():
+            raise HTTPException(status_code=503,
+                                detail='작업 노드 응답 없음 (fleet_control_node 를 켜 주세요)')
+        if not tasks.health()['commands_armed']:
+            raise HTTPException(status_code=423, detail='작업 명령 꺼짐: 화면에서 작업 명령을 켜세요')
+        robot_id = body.get('robot_id')
+        snapshot = store.get()[1] or {}
+        if not isinstance(robot_id, str) or robot_id not in (snapshot.get('robots') or {}):
+            raise HTTPException(status_code=404, detail=f'등록되지 않은 로봇: {robot_id}')
+        try:
+            names = [p.strip().upper() for p in body.get('points') or [] if isinstance(p, str)]
+            legs = split_route(body.get('points') or [], layers, robot_id)
+            runner.create(robot_id, legs, [n for n in names if n],
+                          body.get('client_request_id'))
+        except RouteError as error:
+            raise HTTPException(status_code=error.status, detail=error.detail) from None
+        # 첫 구간은 바로 보내 결과를 돌려준다 (로봇이 작업 중이면 여기서 바로 알 수 있게).
+        route = runner.kick(robot_id)
+        if route['state'] == FAILED:
+            return JSONResponse(status_code=409, content={'detail': route['detail'],
+                                                          'route': route})
+        return JSONResponse(status_code=202, content=route)
+
+    @app.get('/api/routes')
+    def list_routes():
+        return route_runner().routes()
+
+    @app.post('/api/routes/{robot_id}/cancel')
+    def cancel_route(robot_id: str):
+        # 남은 구간만 버린다. 지금 가는 구간은 멈추지 않는다 (멈추려면 정지).
+        return {'canceled': route_runner().cancel(robot_id, '운영자 경로 취소')}
+
+    def cancel_routes(robot_id=None, why='운영자 정지'):
+        if routes is not None:
+            routes.cancel(robot_id, why)
+
     @app.post('/api/robots/{robot_id}/stop')
     def stop_robot(robot_id: str, body: dict = Body(default={})):
         emergency = bool(body.get('emergency', False))
+        # 정지는 남은 경로 구간도 버린다 (정지 뒤 다음 구간이 나가면 안 된다).
+        cancel_routes(robot_id, '운영자 비상정지' if emergency else '운영자 정지')
         if emergency:
             # fleet_control 은 stop 의 emergency 를 보지 않는다. 비상정지는 estop 요청이다.
             return call_controller({
@@ -274,6 +329,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.post('/api/commands/estop')
     def estop_all(body: dict = Body(default={})):
         # 전체 비상정지: 로봇 지정 없이 한 번 내면 fleet 이 전 로봇·팔을 세운다.
+        cancel_routes(None, '전체 비상정지')
         return call_controller({
             'type': 'estop', 'client_request_id': body.get('client_request_id')})
 

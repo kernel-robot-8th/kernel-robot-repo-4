@@ -58,10 +58,14 @@ async function pollHealth() {
     view.spec = health.spec ?? null;
     const holds = health.holds || {};
     const orders = health.orders || [];
+    const routes = health.routes || {};
     if (JSON.stringify(view.holds) !== JSON.stringify(holds)
-        || JSON.stringify(view.orders) !== JSON.stringify(orders)) {
+        || JSON.stringify(view.orders) !== JSON.stringify(orders)
+        || JSON.stringify(view.routes) !== JSON.stringify(routes)) {
       view.holds = holds;
       view.orders = orders;
+      view.routes = routes;
+      rememberRoutes(Object.values(routes));
       render();
       renderTasks(); // 작업 목록의 해제/복구 버튼 글이 보류 여부를 따른다
     }
@@ -111,5 +115,6 @@ loadMap();
 loadLayers();
 connect();
 connectTasks();
+loadRoutes();
 pollHealth();
 setInterval(pollHealth, HEALTH_POLL_MS);
