@@ -21,6 +21,7 @@ from std_msgs.msg import Float32, String
 import yaml
 
 from .console_api import ConsoleApi, serve
+from .load_complete import LoadComplete
 from .load_evidence import LoadEvidence
 from .manual_adapter import ManualAdapter
 from .monitor_core import camera_allowed, MonitorCore
@@ -61,6 +62,26 @@ class AnomalyMonitorNode(Node):
             'evidence_stream': 'ceiling', 'calibration_id': 'replay-v1',
             'load_model': 'pinky-v1', 'evidence_topic': '/anomaly_monitor/zone_evidence',
             'manual_targets': ['vision', 'navigation', 'omx1', 'omx2', 'omx3'],
+            # 판정 없이 바로 성공으로 답할 대상. 빈 문자열만 있으면 끔(ROS 는 빈 목록 타입을 못 정한다)
+            'auto_targets': [''],
+            # 비전 판정(세 조건). off: 지금처럼 자동 응답, shadow: 판정을 참고값으로만 싣는다,
+            # enforce: 판정이 통과해야 답한다. 대상이 auto_targets 에 있어야 쓰인다.
+            'judge_mode': 'off', 'judge_stages': ['VERIFY_LOAD'],
+            'box_evidence_topic': '/anomaly_monitor/box_evidence',
+            'judge_hold_sec': 1.0, 'judge_still_ratio': 0.15, 'judge_drop_frames': 3,
+            'judge_shadow_wait_sec': 5.0,
+            'judge_fresh_sec': 2.0, 'judge_gap_sec': 1.0,
+            'judge_min_frames': 3, 'judge_drop_reach': 1.0,
+            'judge_drop_tray_iou_max': -1.0,
+            'judge_require_tray_marker_absent': False,
+            'judge_min_tray_box_frames': 0,
+            'judge_latch_drop': False,
+            'judge_max_wait_sec': 30.0,
+            # 그리퍼 닫힘 상한·열림 하한. 음수면 그리퍼 값을 보지 않고 arm_safe 만 본다
+            'gripper_closed_max': -1.0, 'gripper_open_min': -1.0,
+            # 같은 결과 토픽에 함께 있어도 되는 노드와, 그 노드가 맡는 대상
+            'peer_result_nodes': ['arm_adapter', 'omx1_adapter', 'omx2_adapter', 'omx3_adapter'],
+            'peer_targets': ['omx1', 'omx2', 'omx3'],
             'allow_mock_events': True,
             'console_commands': False, 'observation_only': False,
             'camera_policy': 'field',
@@ -90,7 +111,8 @@ class AnomalyMonitorNode(Node):
         self.core = MonitorCore(self.store, routes, config['robot_ids'], self._send_request,
                                 config['cctv_control_mode'], points=self.points)
         if config['camera_policy'] == 'sim':
-            self.create_subscription(String, '/anomaly_monitor/sim_diagnostics', self._diagnostics, 5)
+            self.create_subscription(
+                String, '/anomaly_monitor/sim_diagnostics', self._diagnostics, 5)
         self.core.ros = {'domain_id': os.environ.get('ROS_DOMAIN_ID', '0'),
                          'rmw': get_rmw_implementation_identifier(),
                          'monitor_site': Path(config['site_config']).name,
@@ -104,11 +126,40 @@ class AnomalyMonitorNode(Node):
             self.join = LoadEvidence(self.core, self.points, config['evidence_stream'],
                                      config['calibration_id'], config['load_model'])
             self.create_subscription(String, config['evidence_topic'], self._zone_frame, 10)
+        self._judge_warning_at = {}
+        self.judge = None
+        if config['judge_mode'] != 'off':
+            if not config['manual_adapter'] or self.join:
+                raise ValueError('비전 판정은 수동 어댑터가 켜져 있고 적재 결합 시험이 꺼져 있을 때만 씁니다')
+            if 'vision' not in config['auto_targets']:
+                self.get_logger().warning(
+                    'judge_mode가 켜져 있지만 auto_targets에 vision이 없어 판정 응답이 실행되지 않습니다')
+            grip = (config['gripper_closed_max'], config['gripper_open_min'])
+            tray_iou = config['judge_drop_tray_iou_max']
+            self.judge = LoadComplete(
+                config['evidence_stream'], config['load_model'], config['calibration_id'],
+                hold_sec=config['judge_hold_sec'], still_ratio=config['judge_still_ratio'],
+                drop_frames=config['judge_drop_frames'],
+                fresh_sec=config['judge_fresh_sec'], gap_sec=config['judge_gap_sec'],
+                min_frames=config['judge_min_frames'], drop_reach=config['judge_drop_reach'],
+                gripper_closed_max=grip[0] if min(grip) >= 0 else None,
+                gripper_open_min=grip[1] if min(grip) >= 0 else None,
+                drop_tray_iou_max=tray_iou if tray_iou > 0 else None,
+                require_tray_marker_absent=config['judge_require_tray_marker_absent'],
+                min_tray_box_frames=config['judge_min_tray_box_frames'],
+                latch_drop=config['judge_latch_drop'])
+            self.create_subscription(
+                String, config['evidence_topic'],
+                lambda m: self._judge_frame(m, self.judge.on_zones, '구역 근거'), 10)
+            self.create_subscription(
+                String, config['box_evidence_topic'],
+                lambda m: self._judge_frame(m, self.judge.on_boxes, '상자 근거'), 10)
         self.adapter = self._create_adapter() if config['manual_adapter'] else None
         self.jobs = queue.Queue()
-        self.console = ConsoleApi(self.core, self.adapter, self._run, self._wait_reply,
-                                  config['allow_mock_events'],
-                                  commands=config['console_commands'], observation_only=config['observation_only'])
+        self.console = ConsoleApi(
+            self.core, self.adapter, self._run, self._wait_reply,
+            config['allow_mock_events'], commands=config['console_commands'],
+            observation_only=config['observation_only'])
         for robot in config['robot_ids']:
             self.create_subscription(Float32, f'/{robot}/battery/percent',
                                      lambda m, r=robot: self.core.on_battery(r, m.data), 10)
@@ -143,7 +194,15 @@ class AnomalyMonitorNode(Node):
         self.result_pub = self.create_publisher(String, config['work_result_topic'], 50)
         adapter = ManualAdapter(self.store, self._publish_result, config['manual_targets'],
                                 self.points, self.core._robot_view, join=self.join,
-                                exclusive=lambda: self.count_publishers(config['work_result_topic']) == 1)
+                                exclusive=lambda: not self._foreign_publishers()[0],
+                                auto_targets=[t for t in config['auto_targets'] if t],
+                                judge=self.judge, judge_mode=config['judge_mode'],
+                                judge_stages=config['judge_stages'],
+                                # 프레임을 이 주문의 로봇에 잇는 검사는 적재 결합과 같은 것을 쓴다.
+                                attribute=(LoadEvidence(self.core, self.points, '', '', '')
+                                           .attribution if self.judge else None),
+                                shadow_wait_sec=config['judge_shadow_wait_sec'],
+                                max_wait_sec=config['judge_max_wait_sec'])
         adapter.blocked = '기동 검사 전'
         self.create_subscription(String, config['heartbeat_topic'], self._heartbeat, 10)
         self.adapter_check = self.create_timer(ADAPTER_CHECK_SEC, self._check_adapter)
@@ -155,12 +214,24 @@ class AnomalyMonitorNode(Node):
         우리가 먼저 떠도 뒤늦게 올라온 어댑터를 잡아야 하므로 계속 확인한다.
         """
         before = self.adapter.blocked
-        count = self.count_publishers(self.config['work_result_topic'])
-        self.adapter.blocked = f'work_result 발행자 {count}개' if count > 1 else ''
+        foreign, peers = self._foreign_publishers()
+        # 팀 팔 노드가 있으면 팔 대상은 그쪽에 맡기고 나머지 대상에만 답한다.
+        self.adapter.yielded = set(self.config['peer_targets']) if peers else set()
+        self.adapter.blocked = ('work_result 다른 발행자 ' + ', '.join(foreign)) if foreign else ''
         if self.adapter.blocked and self.adapter.blocked != before:
             self.get_logger().error('수동 어댑터 꺼짐: ' + self.adapter.blocked)
         elif before and not self.adapter.blocked:
             self.get_logger().info('수동 어댑터 다시 켜짐: 다른 발행자가 사라졌습니다')
+
+    def _foreign_publishers(self):
+        """결과 토픽의 다른 발행자를 (모르는 노드, 허용한 팔 노드)로 나눈다."""
+        names = [info.node_name for info in
+                 self.get_publishers_info_by_topic(self.config['work_result_topic'])]
+        if self.get_name() in names:
+            names.remove(self.get_name())  # 자기 발행자 하나. 같은 이름이 더 있으면 남겨서 막는다
+        allowed = set(self.config['peer_result_nodes'])
+        return (sorted(n for n in names if n not in allowed),
+                sorted(n for n in names if n in allowed))
 
     def _send_request(self, payload):
         if self.request_pub is None:
@@ -197,9 +268,11 @@ class AnomalyMonitorNode(Node):
         return None
 
     def _link(self, topic):
+        pubs = self.get_publishers_info_by_topic(topic)
+        subs = self.get_subscriptions_info_by_topic(topic)
         return {'publishers': self.count_publishers(topic),
-                'publisher_nodes': sorted(i.node_name for i in self.get_publishers_info_by_topic(topic)),
-                'subscriber_nodes': sorted(i.node_name for i in self.get_subscriptions_info_by_topic(topic)),
+                'publisher_nodes': sorted(i.node_name for i in pubs),
+                'subscriber_nodes': sorted(i.node_name for i in subs),
                 'subscribers': self.count_subscribers(topic)}
 
     def _read_graph(self):
@@ -217,6 +290,8 @@ class AnomalyMonitorNode(Node):
 
     def _refresh(self):
         self.core.graph = self._read_graph()
+        if self.adapter and self.adapter.auto:
+            self.adapter.retry_auto()
         self.core.flush()
         self.console.refresh()
 
@@ -281,6 +356,24 @@ class AnomalyMonitorNode(Node):
         if self.adapter and frame is not None:
             self.adapter.on_evidence(frame)
 
+    def _judge_frame(self, message, intake, label):
+        frame = self._decode(message, label)
+        if frame is not None:
+            try:
+                intake(frame, time.time())
+            except (TypeError, OverflowError) as error:
+                self.get_logger().warning(f'{label} 무시: {error}')
+                return
+            kind = 'zones' if label == '구역 근거' else 'boxes'
+            problem = self.judge.problem[kind]
+            now = time.monotonic()
+            if problem == '시각·스트림·모델·보정 불일치':
+                if now - self._judge_warning_at.get(kind, float('-inf')) >= 30.0:
+                    self.get_logger().warning(f'{label} 전부 폐기: {problem}')
+                    self._judge_warning_at[kind] = now
+            else:
+                self._judge_warning_at.pop(kind, None)
+
     def _work_request(self, message):
         request = self._decode(message, '작업 요청')
         if request is not None:
@@ -292,6 +385,11 @@ class AnomalyMonitorNode(Node):
         result = self._decode(message, '작업 결과')
         if result is not None:
             self.store.observe_work('result', result, time.time())
+            if self.judge:
+                try:
+                    self.judge.on_arm_result(result, time.time())
+                except (TypeError, OverflowError) as error:
+                    self.get_logger().warning(f'작업 결과 판정 입력 무시: {error}')
 
     def destroy_node(self):
         """HTTP를 먼저 멈춘 뒤 저장소를 닫는다."""

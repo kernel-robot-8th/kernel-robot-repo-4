@@ -38,6 +38,7 @@ from cobot_control_center.fleet_api_utils import (
     TaskStore)
 from cobot_control_center.net_status_utils import (
     collect_network, HostStore, local_info, NetAlertTracker, NetStore, network_alerts)
+from cobot_control_center.route_utils import RouteRunner
 import rclpy
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
@@ -111,6 +112,14 @@ class FleetApiNode(Node):
             String, '/control_center/arms', self._on_arms,
             QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                        durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        # 경로(여러 지점 연결 주행): 앞 구간이 끝나면 다음 구간을 작업 노드에 낸다.
+        # 요청 응답을 기다리며 막히므로 ROS executor 가 아닌 따로 된 스레드에서 돈다 (main 에서 start).
+        self.declare_parameter('route_retry_sec', 8.0)
+        self.declare_parameter('route_period_sec', 0.5)
+        self.routes = None if self.read_only else RouteRunner(
+            lambda payload: self.tasks.request(payload, self.publish_request), self.tasks.task,
+            retry_sec=self.get_parameter('route_retry_sec').value,
+            on_event=self.store.add_events)
         self.cameras = self._subscribe_cameras()
         self._setup_network()
         self.get_logger().info(
@@ -275,6 +284,8 @@ def main(args=None):
     executor.add_node(node)
     spinner = threading.Thread(target=executor.spin, daemon=True)
     spinner.start()
+    if node.routes is not None:
+        node.routes.start(float(node.get_parameter('route_period_sec').value))
     try:
         # 시작·종료 이벤트를 쓰지 않는다. lifespan 을 켜 두면 uvicorn 이 종료 뒤 Ctrl+C 를 다시
         # 일으킬 때 남은 lifespan 작업이 CancelledError 트레이스백을 남긴다.
@@ -285,13 +296,16 @@ def main(args=None):
                          None if node.read_only else node.publish_arm_request,
                          net=node.net, local_network=node.local_network,
                          network_ids=node.network_ids,
-                         request_net_check=node.request_net_check, hosts=node.hosts)
+                         request_net_check=node.request_net_check, hosts=node.hosts,
+                         routes=node.routes)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         with contextlib.suppress(KeyboardInterrupt):
+            if node.routes is not None:
+                node.routes.shutdown()
             executor.shutdown()
             node.destroy_node()
             rclpy.try_shutdown()

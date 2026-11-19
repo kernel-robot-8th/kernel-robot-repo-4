@@ -240,6 +240,22 @@ def test_work_payload_matches_arm_node_contract():
     json.dumps(payload, allow_nan=False)
 
 
+def test_work_shelf_row_goes_to_payload_and_card():
+    """상자 번호 모델(omx_1031 E)용 선반 행: 있으면 싣고, 없으면 칸을 만들지 않는다."""
+    commander = ready_commander()
+    payload = commander.make_work(dict(work_request(), shelf_row=3), 100.0, 10.5)
+    assert payload['shelf_row'] == 3
+    assert commander.snapshot(10.5, 100.0)['arms'][0]['work']['shelf_row'] == 3
+    commander = ready_commander()
+    payload = commander.make_work(dict(work_request(), shelf_row=None), 100.0, 10.5)
+    assert 'shelf_row' not in payload
+    for bad in (0, 10, '2', 2.0, True):
+        commander = ready_commander()
+        with pytest.raises(arms.CommandError) as error:
+            commander.make_work(dict(work_request(), shelf_row=bad), 100.0, 10.5)
+        assert error.value.status == 400, bad
+
+
 def test_work_rejects_unknown_arm_action_and_not_ready():
     commander = ready_commander()
     for request, status in [(work_request(arm_id='omx_9'), 404),
@@ -338,12 +354,12 @@ def test_link_state_and_boot_events():
     commander.put_status('omx_1', dict(STATUS, robot_boot_id='b1', hold_active=True,
                                        hold_reason='SOFT_LATCH'), 0.4, 100.4)
     assert kinds(commander) == [('omx_1', 'state', 'warn', '대기 → 정지'),
-                                ('omx_1', 'state', 'bad', '정지 → 소프트 정지')]
+                                ('omx_1', 'state', 'bad', '정지 → 비상정지')]
     commander.put_status('omx_1', dict(STATUS, robot_boot_id='b2', torque_enabled=False),
                          0.5, 100.5)
     out = kinds(commander)
     assert out[0][1:3] == ('boot', 'warn') and out[1] == ('omx_1', 'state', 'info',
-                                                          '소프트 정지 → 꺼짐')
+                                                          '비상정지 → 꺼짐')
 
 
 def test_link_lost_once_and_offline_alarm():
@@ -596,7 +612,8 @@ def test_installed_site_actions():
     import yaml
     path = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'site_arms.yaml'
     site = site_arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
-    assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'], []]
+    assert [info['actions'] for info in site.values()] == [['pick', 'load'], ['pick', 'load'],
+                                                           ['arrange_shoe', 'load']]
 
 
 # ---------- 꺼짐 / 고장(FAULT) 구분 ----------

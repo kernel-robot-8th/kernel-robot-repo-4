@@ -28,7 +28,7 @@ from collections import deque
 import json
 import math
 
-WORK_ACTIONS = frozenset({'pick', 'load', 'unload', 'warehouse_store'})
+WORK_ACTIONS = frozenset({'pick', 'load', 'unload', 'warehouse_store', 'arrange_shoe'})
 SAFETY_ACTIONS = frozenset({'hold', 'release_hold'})
 # 정지는 만료·순번 역행이어도 실행한다. 멈춤을 거절하는 쪽이 더 위험하기 때문이다 (D4 추천안).
 STOP_ACTIONS = frozenset({'hold'})

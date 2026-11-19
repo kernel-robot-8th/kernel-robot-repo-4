@@ -7,6 +7,7 @@ x-runtime: &runtime
     dockerfile: cobot_fleet_control/config/docker/Dockerfile
     args:
       ROS_BASE_IMAGE: ${ROS_BASE_IMAGE:?versions.env를 지정하세요}
+      NODE_BUILD_IMAGE: ${NODE_BUILD_IMAGE:?versions.env를 지정하세요}
       SOURCE_REVISION: ${COBOT_SOURCE_REVISION:-unknown}
       SOURCE_DIRTY: ${COBOT_SOURCE_DIRTY:-unknown}
   # Linux 관제 PC의 DDS multicast와 DDS 공유 메모리 경로를 맞춘다.
@@ -86,6 +87,34 @@ services:
         - /opt/cobot/venv/bin/python
         - -c
         - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${COBOT_WEB_PORT:-8080}/api/health', timeout=2).close()"
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+
+  customer:
+    <<: *runtime
+    # 고객 핸드폰용 주문 화면. 관제 화면(web)과 포트를 나눠 고객이 관제 화면에 닿지 않게 한다.
+    # 주문은 저장하지 않고 fleet 에 요청만 하므로 DB 볼륨이 없다.
+    depends_on:
+      fleet:
+        condition: service_started
+    command:
+      - ros2
+      - run
+      - cobot_gui
+      - customer_gateway_node
+      - --ros-args
+      - --params-file
+      - /opt/cobot_ws/install/share/cobot_gui/config/customer_gateway.yaml
+      - -p
+      - port:=${COBOT_CUSTOMER_PORT:-8081}
+    healthcheck:
+      test:
+        - CMD
+        - /opt/cobot/venv/bin/python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${COBOT_CUSTOMER_PORT:-8081}/customer.html', timeout=2).close()"
       interval: 10s
       timeout: 3s
       start_period: 20s

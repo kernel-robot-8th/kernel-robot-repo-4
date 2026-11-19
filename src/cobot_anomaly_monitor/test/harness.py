@@ -46,11 +46,13 @@ class Gateway:
 
     def halt(self, robot, route, order_id):
         self.halts.append(robot)
-        self.stack.status[robot]['central_latched'] = True  # 로봇은 풀어 줄 때까지 래치를 든다.
+        self.stack.status[robot].update(central_latched=True, busy=False)  # 로봇은 풀어 줄 때까지 래치를 든다.
 
     def release(self, robot, route=None):
         self.releases.append(robot)
-        self.stack.status[robot]['central_latched'] = False
+        reset_id = f'reset-{len(self.releases)}'
+        self.stack.status[robot].update(central_latched=False, control_reset_id=reset_id)
+        return reset_id
 
     def stop(self, robot):
         self.stops.append(robot)
@@ -84,7 +86,8 @@ class Stack:
         self.adapter.on_heartbeat({'session_id': 's1'})
         self.console = ConsoleApi(self.core, self.adapter, lambda job: job(),
                                   self.core.replies.get, clock=self.wall, commands=True)
-        self.status = {r: {'state': 'IDLE', 'central_controlled': True} for r in ROBOTS}
+        self.status = {r: {'state': 'IDLE', 'central_controlled': True, 'central_latched': False,
+                           'busy': False, 'boot_id': r + '-boot'} for r in ROBOTS}
         self.scenario.armed = True
         self.scenario.store.set_stock('SHOE42', 10)
         self.event_count = 0
@@ -111,7 +114,7 @@ class Stack:
     def tick(self, seconds=0.1):
         self.now += seconds
         for robot in ROBOTS:
-            self.scenario.telemetry(robot, self.status[robot], 80.0)
+            self.scenario.telemetry(robot, dict(self.status[robot]), 80.0)
             self.core.on_status(robot, self.status[robot])
         self.scenario.tick()
         self.fleet.tick(allow_dispatch=self.scenario.armed)

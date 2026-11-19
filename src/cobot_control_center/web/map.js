@@ -171,7 +171,7 @@ function drawMap() {
   // 지점을 고르는 동안은 꺼 둔 표시도 켠다 (고를 지점이 보여야 한다).
   const picking = Boolean(view.pick && view.pick.choices);
   const show = {
-    points: view.showPoints || (picking && view.pick.cmd === "goto"),
+    points: view.showPoints || (picking && (view.pick.cmd === "goto" || view.pick.cmd === "route")),
     layers: view.showLayers || picking,
   };
   // 구역·지점 이름표는 모양 위, 로봇 아래에 고정 자리로 놓는다. 로봇 이름표는 맨 위 (placeStaticLabels).

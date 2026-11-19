@@ -37,7 +37,7 @@ flowchart LR
 | `request_id` | 요청 고유 번호. 같은 번호는 한 번만 실행 |
 | `order_id`, `robot_id`, `stage` | 결과에 그대로 돌려준다 |
 | `target` | 받을 팔 (`omx1` 등) |
-| `action` | `pick`, `load`, `unload`, `warehouse_store`(반품 하차), `hold`, `release_hold` |
+| `action` | `pick`, `load`, `unload`, `warehouse_store`(반품 하차), `arrange_shoe`(신발 정리), `hold`, `release_hold` |
 | `session_id`, `seq` | 관제 노드 실행마다 새 session. seq 는 target 별 증가 |
 | `issued_at`, `ttl_sec` | [s] 관제 PC 시각, 유효 시간 (5 s) |
 | `sku`, `quantity`, `attempt`, `route`, `timeout_sec` | 작업 정보 |
@@ -129,7 +129,7 @@ ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake  # 팔 3대 
 ```
 
 - `run_arm_adapter.sh`: 도메인 10·12, 중복 노드, 단독 실행기, 보드, 실행기 파일을 확인하고 띄운다. 기본 경로가 다르면 `OMX_FLEET_DIR`·`OMX_VENV_PY`.
-- `arm_console.py`: `start` `pick` `load` `hold` `unhold` `latch` `reset` `s` `saverest [경로]` `wait N` `q`. `saverest` 는 지금 관절을 쉬는 자세 파일(기본 `<omx_fleet>/rest_pose_omx1.json`)로 저장한다.
+- `arm_console.py`: `start` `pick` `load` `hold` `unhold` `latch` `reset` `s` `saverest [경로]` `wait N` `q`. `saverest` 는 지금 관절을 쉬는 자세 파일(기본 `~/il_ws/poses/rest_pose_<팔>.json`, 실행기 README '모델 번들 규격')로 저장한다.
 - `worker` 는 START 를 받으면 실제 팔이 움직인다. 사람이 팔 옆에 있을 때만 띄운다. 꺼짐(DISARMED) 동안은 연결·토크가 없어 켜 두어도 된다. 파라미터는 `config/arm_adapter.yaml`.
 
 ## 5. 관제 켜기·끄기 (`ArmCommand` → `CommandAck`·`ArmStatus`)

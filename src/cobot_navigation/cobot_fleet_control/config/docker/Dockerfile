@@ -1,5 +1,15 @@
 # 관제 PC 전용 이미지. 실제 Pinky의 드라이버·Nav2 bringup은 로봇에 유지한다.
 ARG ROS_BASE_IMAGE=ros:jazzy-ros-base@sha256:8eed0a4669bbf43ee331878a4c39bd8ebddea8e3312a58b4fae8edb14526b617
+# 고객 주문 화면(cobot_gui/web) 빌드 전용. 결과 dist 파일만 아래 이미지로 옮기고 Node 는 남기지 않는다.
+ARG NODE_BUILD_IMAGE=node:22-bookworm@sha256:e13726ca604184d7a91fcacab1fc09eefd642dc28e79ac34e85540dd93b78cfb
+
+FROM ${NODE_BUILD_IMAGE} AS customer-web
+WORKDIR /web
+COPY .docker-context/control-center/src/cobot_gui/web/package.json .docker-context/control-center/src/cobot_gui/web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY .docker-context/control-center/src/cobot_gui/web ./
+RUN npm run build && test -f dist/customer.html
+
 FROM ${ROS_BASE_IMAGE}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -42,6 +52,9 @@ COPY .docker-context/control-center/src/cobot_control_center src/cobot_control_c
 COPY .docker-context/control-center/src/cobot_patrol_interfaces src/cobot_patrol_interfaces
 # 로봇팔 명령 노드(arm_command_node)가 쓰는 ArmCommand·ArmStatus·CommandAck.
 COPY .docker-context/control-center/src/cobot_interfaces src/cobot_interfaces
+# 고객 주문 화면 게이트웨이. setup.py 가 web/dist 를 install 하므로 colcon 전에 넣는다.
+COPY .docker-context/control-center/src/cobot_gui src/cobot_gui
+COPY --from=customer-web /web/dist src/cobot_gui/web/dist
 # 로봇 노드는 빌드하지 않고 웹 지도·지점 검증에 필요한 데이터만 포함한다.
 COPY cobot_pinky_patrol/config src/cobot_pinky_patrol/config
 COPY map_view_pc/maps/cobot_map_v9.yaml map_view_pc/maps/cobot_map_v9.pgm src/map_view_pc/maps/
@@ -50,9 +63,10 @@ RUN source /opt/ros/jazzy/setup.bash \
     && CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS}" MAKEFLAGS="-j${BUILD_JOBS}" \
        python -m colcon build --merge-install --parallel-workers "${BUILD_JOBS}" --cmake-args -DBUILD_TESTING=OFF \
          --packages-select cobot_interfaces cobot_patrol_interfaces cobot_control_center \
-                           cobot_fleet_control cobot_zone_traffic_control cobot_domain_bridge \
+                           cobot_fleet_control cobot_zone_traffic_control cobot_domain_bridge cobot_gui \
     && source install/setup.bash \
-    && python -c 'import py_trees, fastapi, uvicorn; import cobot_control_center.fleet_api_node; import cobot_control_center.fleet_status_node; import cobot_control_center.arm_command_node' \
+    && python -c 'import py_trees, fastapi, uvicorn; import cobot_control_center.fleet_api_node; import cobot_control_center.fleet_status_node; import cobot_control_center.arm_command_node; import cobot_gui.customer_gateway_node' \
+    && test -f install/share/cobot_gui/web/dist/customer.html \
     && ros2 launch cobot_fleet_control control_center_web.launch.xml --show-args \
     && ros2 run cobot_fleet_control control_center_web \
          --navigation-root /opt/cobot_ws/src --mode preview --fleet existing \

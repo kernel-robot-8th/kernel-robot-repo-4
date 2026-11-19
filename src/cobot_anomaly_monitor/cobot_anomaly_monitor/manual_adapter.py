@@ -4,6 +4,8 @@ import json
 import math
 import time
 
+from .load_complete import JUDGED_DECISION
+
 MOVING_SPEED_MPS = 0.03
 ARM_VALID_SEC = 60.0  # 요청에 timeout_sec 이 없을 때만 쓴다
 EVIDENCE = {
@@ -14,6 +16,9 @@ EVIDENCE = {
     'CORRECT_PICKUP': {'no_motion': True}, 'CORRECT_DROPOFF': {'no_motion': True},
 }
 DOCK_SIDE = {'DOCK_PICKUP': 'pickup', 'DOCK_DROPOFF': 'dropoff'}
+# 판정 기준 없이 통신만 잇는 자동 응답의 표시. 결과 data 에 그대로 싣는다.
+AUTO_DECISION = 'auto_unjudged'
+AUTO_OPERATOR = 'auto'
 
 
 def yaw_error_deg(actual, target):
@@ -25,7 +30,9 @@ class ManualAdapter:
     """target이 자기 담당인 요청을 대기열에 올리고 운영자 판단만 결과로 낸다."""
 
     def __init__(self, store, publish, targets, points, robot_state, clock=time.time, join=None,
-                 exclusive=None):
+                 exclusive=None, auto_targets=(), judge=None, judge_mode='off',
+                 judge_stages=('VERIFY_LOAD',), attribute=None, shadow_wait_sec=5.0,
+                 max_wait_sec=30.0):
         self.store, self.publish, self.targets = store, publish, set(targets)
         self.points, self.robot_state, self.clock = points, robot_state, clock
         self.session_id = None
@@ -33,6 +40,17 @@ class ManualAdapter:
         self.blocked = ''
         self.join = join
         self.exclusive = exclusive
+        self.auto = set(auto_targets) & self.targets
+        self.yielded = set()  # 다른 결과 발행자(팀 팔 노드)가 맡은 대상. 여기에는 답하지 않는다
+        # 비전 판정(load_complete). off 는 판정 없이 자동 응답, shadow 는 판정을 참고값으로만 싣고
+        # 자동 응답, enforce 는 판정이 통과해야 답한다. attribute 는 프레임을 이 주문의 로봇에 잇는 검사다.
+        if judge_mode not in ('off', 'shadow', 'enforce'):
+            raise ValueError('judge_mode 는 off·shadow·enforce 중 하나')
+        self.judge, self.judge_mode = judge, judge_mode if judge else 'off'
+        self.judge_stages, self.attribute = set(judge_stages), attribute
+        self.shadow_wait_sec = shadow_wait_sec
+        self.max_wait_sec = max_wait_sec
+        self.judged = {}  # 요청별 마지막 판정. 웹에 막힌 이유를 보인다
 
     def on_heartbeat(self, heartbeat):
         """현재 관제 세션을 기억한다. 세션이 바뀌면 순번도 새로 시작한다."""
@@ -44,14 +62,16 @@ class ManualAdapter:
                 for row in self.store.works('PENDING'):
                     req = json.loads(row['request_json'])
                     if req['stage'] == 'VERIFY_LOAD' and req['session_id'] != session:
-                        self.store.claim_work(req['request_id'], 'EXPIRED_SESSION', {}, self.clock())
+                        self.store.claim_work(
+                            req['request_id'], 'EXPIRED_SESSION', {}, self.clock())
                         self.join.clear(req['request_id'])
             self.session_id, self.sequences = session, {}
 
     def on_request(self, request):
         """계약 검사를 통과한 요청만 받는다. 답할 수 없는 요청은 결과를 내지 않는다."""
         target, request_id = request.get('target'), request.get('request_id')
-        if target not in self.targets or not request_id or self.blocked:
+        if (target not in self.targets or target in self.yielded or not request_id
+                or self.blocked):
             return False
         if self.store.work(request_id):
             return False
@@ -59,12 +79,14 @@ class ManualAdapter:
         if self.join and request.get('stage') == 'VERIFY_LOAD':
             from .load_evidence import finite
             times = ('issued_at', 'ttl_sec', 'timeout_sec')
+            route = request.get('route')
             if (not all(finite(request.get(k)) for k in times)
                     or not request.get('session_id') or request['issued_at'] > now + 1
                     or not 0 < request['ttl_sec'] <= 5 or not 0 < request['timeout_sec'] <= 300
-                    or type(request.get('seq')) is not int or not isinstance(request.get('route'), dict)
-                    or request['route'].get('pickup') not in self.points
-                    or request.get('target') != 'vision' or request.get('action') != 'verify_load'):
+                    or type(request.get('seq')) is not int or not isinstance(route, dict)
+                    or route.get('pickup') not in self.points
+                    or request.get('target') != 'vision'
+                    or request.get('action') != 'verify_load'):
                 return False
         state = 'PENDING'
         if request.get('session_id') != self.session_id:
@@ -79,17 +101,100 @@ class ManualAdapter:
         if state in ('PENDING', 'SAFETY_NOTED'):
             self.sequences[target] = request['seq']
         self.store.add_work(request_id, state, request, now)
+        if state == 'PENDING' and target in self.auto:
+            self._auto(request)
         return state == 'PENDING'
+
+    def _auto(self, request):
+        """자동 대상 요청에 판정 없이 성공으로 답한다. 지금 답할 수 없으면 대기에 둔다."""
+        if self.join and request.get('stage') == 'VERIFY_LOAD':
+            return None  # 적재 결합 시험은 근거 3장과 팔 확인으로만 답한다
+        try:
+            judged = self._judge(request)
+            if judged and self.judge_mode == 'enforce':
+                if judged['verdict'] == 'pass':
+                    return self._finish(request, 'APPROVED', True, '비전 판정 통과',
+                                        judged['data'], AUTO_OPERATOR)
+                if judged['verdict'] == 'drop':
+                    # 결과만 전한다. 다시 해도 되는지는 모르므로 retry_safe 를 붙이지 않는다.
+                    return self._finish(request, 'REJECTED', False, judged['reason'],
+                                        judged['data'], AUTO_OPERATOR)
+                return None
+            data = dict(self._evidence(request, None), decision=AUTO_DECISION, unjudged=True)
+            if judged:
+                if judged['verdict'] == 'wait' and judged['waited_sec'] < self.shadow_wait_sec:
+                    return None  # 판정이 설 시간을 준 뒤에 자동으로 답한다
+                data['judge'] = {key: judged[key] for key in
+                                 ('verdict', 'state', 'reason', 'conditions', 'waited_sec')}
+                if 'suppressed' in judged:
+                    data['judge']['suppressed'] = judged['suppressed']
+            if data.get('stopped') is False:
+                return None  # /odom 이 없어 정지를 모른다. 이대로 답하면 관제가 받지 않고 단계가 멈춘다
+            return self._finish(request, 'APPROVED', True, '자동 응답(판정 기준 미적용)', data,
+                                AUTO_OPERATOR)
+        except (KeyError, ValueError, TypeError):
+            return None  # 정차 전·자세 없음·발행 차단·형식 어긋남. 다음 주기에 다시 본다
+
+    def _judge(self, request):
+        """판정 대상 단계면 판정을 돌려준다. 판정을 쓰지 않으면 None 이다."""
+        if self.judge_mode == 'off' or request.get('stage') not in self.judge_stages:
+            return None
+        row, now = self.store.work(request['request_id']), self.clock()
+        judged = self.judge.judge(request, row['created_at'], now)
+        problem = self.attribute(request, now) if self.attribute else ''
+        if problem:
+            original = {key: judged[key] for key in ('verdict', 'state', 'reason', 'data')}
+            judged = dict(judged, verdict='wait', reason=problem, data=None)
+            if original['verdict'] == 'drop':
+                # 귀속 실패를 추락 응답으로 바꾸지 않고 원래 근거만 보존한다.
+                judged['suppressed'] = original
+                previous = self.judged.get(request['request_id'], {}).get('suppressed')
+                if previous != original:
+                    self.store.record_control(
+                        'judge_suppressed', request['order_id'], request['request_id'],
+                        {'reason': problem, 'original': original}, now)
+        judged['waited_sec'] = round(now - row['created_at'], 3)
+        prev_entry = self.judged.get(request['request_id'], {})
+        if (judged['verdict'] == 'wait' and self.max_wait_sec > 0
+                and judged['waited_sec'] >= self.max_wait_sec):
+            judged['operator_attention'] = True
+            if not prev_entry.get('operator_attention'):
+                self.store.record_control(
+                    'judge_hold_timeout', request['order_id'], request['request_id'],
+                    {'waited_sec': judged['waited_sec'], 'reason': judged['reason'],
+                     'state': judged['state']}, now)
+        self.judged.pop(request['request_id'], None)
+        self.judged[request['request_id']] = judged
+        for rid in list(self.judged)[:-50]:
+            del self.judged[rid]
+        return judged
+
+    def retry_auto(self):
+        """대기에 남은 자동 대상 요청을 다시 시도한다. 단계 제한 시간이 지난 요청은 건드리지 않는다."""
+        sent = []
+        for row in self.store.works('PENDING'):
+            request = json.loads(row['request_json'])
+            timeout = request.get('timeout_sec')
+            if (request.get('target') not in self.auto or request.get('target') in self.yielded
+                    or type(timeout) not in (int, float)
+                    or self.clock() >= request.get('issued_at', 0) + timeout):
+                continue
+            result = self._auto(request)
+            if result:
+                sent.append(result)
+        return sent
 
     def pending(self):
         """승인 대기 요청을 웹에 넘긴다."""
         if self.join:
             for row in self.store.works('PENDING'):
                 req = json.loads(row['request_json'])
-                if req['stage'] == 'VERIFY_LOAD' and self.clock() >= req['issued_at'] + req['timeout_sec']:
+                deadline = req['issued_at'] + req['timeout_sec']
+                if req['stage'] == 'VERIFY_LOAD' and self.clock() >= deadline:
                     self.store.claim_work(req['request_id'], 'EXPIRED_STAGE', {}, self.clock())
                     self.join.clear(req['request_id'])
-        return [dict(json.loads(row['request_json']), received_at=row['created_at'], **self._load_view(row))
+        return [dict(json.loads(row['request_json']), received_at=row['created_at'],
+                     **self._load_view(row))
                 for row in self.store.works('PENDING')]
 
     def order_work_history(self, order_id):
@@ -110,15 +215,24 @@ class ManualAdapter:
                  else ARM_VALID_SEC)
         if arm and not 0 <= now - arm[1] <= limit:
             arm = None
-        return dict(load_join=True, evidence_count=len(frames), arm_checked=arm is not None,
-                    wait_reason=self.join.reasons.get(rid, '적재 영상 대기'),
-                    pending_data=dict(evidence=frames, operator=arm[0] if arm else None,
-                                      arm_confirmed_at=arm[1] if arm else None))
+        return {'load_join': True, 'evidence_count': len(frames),
+                'arm_checked': arm is not None,
+                'wait_reason': self.join.reasons.get(rid, '적재 영상 대기'),
+                'pending_data': {'evidence': frames, 'operator': arm[0] if arm else None,
+                                 'arm_confirmed_at': arm[1] if arm else None}}
 
     def _load_view(self, row):
         req = json.loads(row['request_json'])
         if not self.join or req.get('stage') != 'VERIFY_LOAD':
-            return {}
+            judged = self.judged.get(row['request_id'])
+            return ({'judge_mode': self.judge_mode, 'wait_reason': judged['reason'],
+                     'arm_checked': judged['conditions'].get('arm') is True,
+                     'operator_attention': judged.get('operator_attention') is True,
+                     'judge': {key: judged[key] for key in
+                               ('verdict', 'state', 'conditions', 'suppressed',
+                                'operator_attention')
+                               if key in judged}}
+                    if judged else {})
         return self._load_progress(row['request_id'], req)
 
     def _load_request(self, rid):
@@ -157,7 +271,8 @@ class ManualAdapter:
         arm = self.join.arm.get(rid)
         # VERIFY_LOAD 는 ARM_LOAD 완료 뒤 단계라 같은 요청의 팔 퇴피 확인은 단계 제한 시간 동안 유효하다.
         # 세션 변경·단계 만료는 join.clear 가 지운다.
-        limit = req.get('timeout_sec') if type(req.get('timeout_sec')) in (int, float) else ARM_VALID_SEC
+        timeout = req.get('timeout_sec')
+        limit = timeout if type(timeout) in (int, float) else ARM_VALID_SEC
         if arm and not 0 <= now - arm[1] <= limit:
             self.join.arm.pop(rid, None)
             self.join.reasons[rid] = '팔 퇴피 확인 만료'
@@ -169,20 +284,22 @@ class ManualAdapter:
             frames.clear()
             self.join.reasons[rid] = problem or '적재 표본 만료'
             return None
-        data = dict(load_present=True, arm_safe=True, evidence=frames,
-                    arm_confirmed_at=arm[1], decision='camera_and_operator')
+        data = {'load_present': True, 'arm_safe': True, 'evidence': frames,
+                'arm_confirmed_at': arm[1], 'decision': 'camera_and_operator'}
         return self._finish(req, 'APPROVED', True, '', data, arm[0])
 
     def manual_load(self, rid, operator, note, load_present, arm_safe):
         req = self._load_request(rid)
         order = self.join.core.orders.get(req['order_id'], {})
+        tasks_at = self.join.core.tasks_at
         if (order.get('request_id') != rid or order.get('stage') != req['stage']
                 or order.get('state') != 'RUNNING' or order.get('robot_id') != req['robot_id']
-                or self.join.core.tasks_at is None or not 0 <= self.clock() - self.join.core.tasks_at <= 3):
+                or tasks_at is None or not 0 <= self.clock() - tasks_at <= 3):
             raise ValueError('현재 주문 확인 필요')
-        if not isinstance(note, str) or not note.strip() or load_present is not True or arm_safe is not True:
+        if (not isinstance(note, str) or not note.strip()
+                or load_present is not True or arm_safe is not True):
             raise ValueError('수동 전환 사유·실제 적재·팔 퇴피 확인 필요')
-        data = dict(load_present=True, arm_safe=True, decision='operator_override')
+        data = {'load_present': True, 'arm_safe': True, 'decision': 'operator_override'}
         return self._finish(req, 'APPROVED', True, note, data, self._operator(operator))
 
     def _request(self, request_id):
@@ -218,17 +335,19 @@ class ManualAdapter:
                   'robot_id': request['robot_id'], 'stage': request['stage'],
                   'source': request['target'], 'measured': True, 'finished': True,
                   'success': success, 'detail': detail,
-                  # 카메라 3프레임 + 운영자 팔 확인 결합은 수동 판정이 아니다.
-                  'data': dict(data, manual=data.get('decision') != 'camera_and_operator',
-                               operator=operator)}
+                  # 카메라 3프레임 + 운영자 팔 확인 결합과 자동 응답은 수동 판정이 아니다.
+                  'data': dict(data, manual=data.get('decision') not in (
+                      'camera_and_operator', AUTO_DECISION, JUDGED_DECISION), operator=operator)}
         rid = request['request_id']
-        if (self.blocked or request['session_id'] != self.session_id
+        if (self.blocked or request['target'] in self.yielded
+                or request['session_id'] != self.session_id
                 or (self.exclusive and not self.exclusive())):
             raise ValueError('결과 발행 차단 또는 세션 변경')
         if not self.store.claim_work(rid, 'PUBLISH_UNCONFIRMED', result, self.clock()):
             raise ValueError('이미 처리한 요청')
         if self.join:
             self.join.clear(rid)
+        self.judged.pop(rid, None)
         self.publish(result)
         self.store.finish_work(rid, state, result, self.clock())
         return result

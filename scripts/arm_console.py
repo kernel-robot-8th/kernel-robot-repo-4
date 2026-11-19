@@ -33,7 +33,7 @@
   reset          CMD_RESET                   → 쉬는 자세면 토크 끔, 아니면 거절
   status | s     최근 ArmStatus 한 번 출력
   saverest [경로] 지금 관절을 쉬는 자세 파일로 저장 (init_pose.json 형식, 녹화기 'Rest 저장' 과 같음)
-                 기본 경로: $OMX_FLEET_DIR/rest_pose_<target>.json (없으면 저장소 옆 omx_fleet)
+                 기본 경로: ~/il_ws/poses/rest_pose_<target>.json (모델 번들 규격)
                  그 뒤 fleet_arms.yaml 의 rest_pose 를 이 경로로 바꾸고 어댑터를 다시 켜면 적용된다
   wait N         N 초 기다림 (파이프로 넣을 때)
   quit | q       끝
@@ -64,10 +64,9 @@ BLOCKED_DOMAINS = {'10', '12'}
 RESULT_NAMES = {v: k for k, v in vars(CommandAck).items()
                 if k.startswith(('ACCEPTED', 'REJECTED')) and isinstance(v, int)}
 STALE_SEC = 3.0             # [s] 이보다 오래된 관절 값이면 저장할 때 경고
-REPO = Path(__file__).resolve().parent.parent
-# run_arm_adapter.sh 와 같은 기본 실행기 폴더
-FLEET_DIR = Path(os.environ.get('OMX_FLEET_DIR')
-                 or REPO.parent / f'{REPO.name}-omx-dashboard' / 'omx_fleet')
+# 쉬는 자세 파일 자리 (omx_fleet README '모델 번들 규격': ~/il_ws/poses/rest_pose_<팔>.json).
+# 쉬는 자세는 번들이 아니라 팔에 딸린 값이라 실행기 폴더(git worktree) 밖에 둔다.
+POSES_DIR = Path('~/il_ws/poses').expanduser()
 COMMANDS = {'start': ArmCommand.CMD_START, 'reset': ArmCommand.CMD_RESET,
             'hold': ArmCommand.CMD_HOLD, 'unhold': ArmCommand.CMD_RELEASE_HOLD,
             'latch': ArmCommand.CMD_SOFT_LATCH}
@@ -153,7 +152,7 @@ class Console:
         pose = {n: round(float(p), 2) for n, p in zip(m.joint_names, m.joint_positions)}
         if not math.isnan(m.gripper_position):
             pose['gripper'] = round(float(m.gripper_position), 2)
-        target = Path(path).expanduser() if path else FLEET_DIR / f'rest_pose_{TARGET}.json'
+        target = Path(path).expanduser() if path else POSES_DIR / f'rest_pose_{TARGET}.json'
         data = {'source': 'arm_console saverest', 'arm': TARGET,
                 'saved_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
                 'units': 'lerobot omx_follower (body -100..100, gripper 0..100)', 'pose': pose}

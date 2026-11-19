@@ -44,7 +44,7 @@ STOP_COMMANDS = frozenset({'hold', 'soft_latch'})
 START = 'start'
 # 작업 시험 (팔 노드 work_contract_utils.WORK_ACTIONS 와 같다). hold·release_hold 는 위 정지 명령을 쓴다.
 WORK = 'work'
-WORK_ACTIONS = ('pick', 'load', 'unload', 'warehouse_store')
+WORK_ACTIONS = ('pick', 'load', 'unload', 'warehouse_store', 'arrange_shoe')
 # 작업 기록 상태
 WORK_RUNNING = 'RUNNING'
 WORK_SUCCEEDED = 'SUCCEEDED'
@@ -52,6 +52,9 @@ WORK_FAILED = 'FAILED'
 WORK_NO_RESULT = 'NO_RESULT'
 # 작업 칸(work)을 채운 쪽: 웹의 작업 시험 / fleet_control 의 주문
 WORK_TEST = 'test'
+# 작업 시험의 선반 행(shelf_row). 주문은 fleet_control 이 재고 칸에서 싣고, 팔 노드가 실행기의 box(상자 번호)로
+# 넘긴다. 상자 번호를 받는 모델(omx_1031 E 등, info.worker.models.<작업>.box_required)은 이것이 있어야 움직인다.
+SHELF_ROW_MAX = 9
 WORK_ORDER = 'order'
 # 팔 동작이 아닌 fleet_control 요청 단계 (release_hold 등). 카드 작업 칸은 바꾸지 않고 기록만 한다.
 SAFETY_STAGE = 'SAFETY'
@@ -89,9 +92,9 @@ ALLOWED = {
 
 # 알람·기록 문구용 화면 상태 이름 (web/arms.js ARM_STATE 와 같은 말)
 STATE_TEXT = {STALE: '미연결', OFF: '꺼짐', FAULT: '고장', READY: '대기', BUSY: '작업·연결 중',
-              HOLD: '정지', SOFT_LATCH: '소프트 정지'}
+              HOLD: '정지', SOFT_LATCH: '비상정지'}
 COMMAND_TEXT = {'start': '켜기', 'reset': '끄기', 'hold': '정지', 'release_hold': '정지 해제',
-                'soft_latch': '소프트 정지'}
+                'soft_latch': '비상정지'}
 # 대기 ↔ 작업 중은 작업마다 바뀌어 기록이 넘친다. 작업 결과 기록으로 대신한다.
 QUIET_CHANGES = frozenset({(READY, BUSY), (BUSY, READY)})
 
@@ -371,6 +374,12 @@ class ArmCommander:
             where = f' ({station})' if station else ''
             raise CommandError(409, f'{arm_id}{where} 는 이 작업({action})을 하지 않음 '
                                     f'(가능: {", ".join(allowed) or "없음"}, site_arms.yaml)')
+        shelf_row = request.get('shelf_row')
+        if shelf_row in (None, ''):
+            shelf_row = None
+        elif (isinstance(shelf_row, bool) or not isinstance(shelf_row, int)
+              or not 1 <= shelf_row <= SHELF_ROW_MAX):
+            raise CommandError(400, f'선반 행(shelf_row)은 1..{SHELF_ROW_MAX} 정수: {shelf_row!r}')
         if self._running_work(arm_id):
             raise CommandError(409, f'{arm_id} 앞 작업이 아직 진행 중')
         state = self._state(arm, now_mono)
@@ -383,6 +392,8 @@ class ArmCommander:
             'target': scenario_arm_id(arm_id), 'action': action, 'session_id': self.session_id,
             'seq': arm['work_seq'], 'issued_at': now_wall, 'ttl_sec': self.ttl_ms / 1000.0,
             'timeout_sec': self.work_timeout_sec, 'attempt': 1}
+        if shelf_row is not None:
+            payload['shelf_row'] = shelf_row
         self._works[work_id] = {
             'arm_id': arm_id, 'timeout': self.work_timeout_sec,
             'deadline': now_mono + self.work_timeout_sec + self.work_margin_sec}
@@ -391,7 +402,7 @@ class ArmCommander:
             'sent_at': now_wall, 'finished_at': None, 'duration': None, 'detail': '',
             'retry_safe': None, 'data': {}, 'source': WORK_TEST,
             'requested_by': request.get('source') or '',
-            'order_id': '', 'robot_id': '', 'stage': self.work_stage,
+            'order_id': '', 'robot_id': '', 'stage': self.work_stage, 'shelf_row': shelf_row,
             'client_request_id': request.get('client_request_id')}
         return payload
 
@@ -429,7 +440,7 @@ class ArmCommander:
             'duration': None, 'detail': '', 'retry_safe': None, 'data': {},
             'source': WORK_ORDER, 'requested_by': 'fleet_control',
             'order_id': request.get('order_id') or '', 'robot_id': request.get('robot_id') or '',
-            'stage': stage, 'client_request_id': None}
+            'stage': stage, 'shelf_row': request.get('shelf_row'), 'client_request_id': None}
         self._add(now_wall, arm_id, 'work', 'info',
                   f'주문 작업 {stage} {action} 요청 ({order}, {robot})')
         return arm_id
@@ -616,7 +627,7 @@ class ArmCommander:
                            'text': '연결 끊김 (팔 노드·네트워크 확인)'})
         if online and state == SOFT_LATCH:
             alarms.append({'code': 'soft_latch', 'level': 'bad', 'since': arm['state_since'],
-                           'text': '소프트 정지 래치: 끄기(RESET)로만 풀림'})
+                           'text': '비상정지 잠김: 끄기 → 켜기로만 풀림'})
         if online and state == FAULT:
             alarms.append({'code': 'fault', 'level': 'bad',
                            'since': (arm['last_ack'] or {}).get('received_at'),
