@@ -37,6 +37,20 @@ def test_commands_use_real_vendor_launches_and_patrol_workspace_map(tmp_path):
     assert commands[2][-2:] == ['robot_id:=pinky2', 'site:=lab']
 
 
+def test_avoidance_navigation_replaces_only_the_nav2_launch(tmp_path):
+    """회피 모드는 Nav2 launch 만 cobot_obstacle_avoidance 로 바꾸고, 사람 정지는 그 모드에서만 켠다."""
+    plain = module.startup_commands('pinky2', tmp_path / 'm.yaml')
+    avoid = module.startup_commands('pinky2', tmp_path / 'm.yaml', navigation='avoidance')
+    person = module.startup_commands('pinky2', tmp_path / 'm.yaml', navigation='avoidance',
+                                     person=True)
+    assert avoid[0] == plain[0] and avoid[2] == plain[2]
+    assert avoid[1] == ['ros2', 'launch', 'cobot_obstacle_avoidance', 'bringup.launch.xml',
+                        f'map:={tmp_path / "m.yaml"}', 'use_person_detection:=false']
+    assert person[1][-1] == 'use_person_detection:=true'
+    with pytest.raises(ValueError, match='avoidance'):
+        module.startup_commands('pinky2', tmp_path / 'm.yaml', person=True)
+
+
 def test_map_symlink_uses_the_same_image_directory_as_nav2(tmp_path):
     """홈의 지도 링크도 Nav2에 전달하는 실제 YAML과 같은 기준으로 검사한다."""
     workspace = map_files(tmp_path)

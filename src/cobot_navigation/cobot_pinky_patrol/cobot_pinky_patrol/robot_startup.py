@@ -17,11 +17,26 @@ import yaml
 READY_PREFIX = 'COBOT_ROBOT_READY '
 
 
-def startup_commands(robot_id, map_path, site='lab'):
-    """장비에서 실제 사용하는 launch 명령을 구성한다."""
+NAVIGATION_MODES = ('pinky', 'avoidance')
+
+
+def startup_commands(robot_id, map_path, site='lab', navigation='pinky', person=False):
+    """
+    장비에서 실제 사용하는 launch 명령을 구성한다.
+
+    navigation='avoidance' 면 Nav2 를 cobot_obstacle_avoidance 로 띄운다 (Nav2 속도 → 장애물 정지·회피
+    노드 → cmd_vel). person=True 면 관제 PC YOLO 의 사람 bbox(person_detections)로 사람 앞에서 정지한다.
+    """
+    if navigation == 'avoidance':
+        nav = ['ros2', 'launch', 'cobot_obstacle_avoidance', 'bringup.launch.xml',
+               f'map:={map_path}', f'use_person_detection:={"true" if person else "false"}']
+    elif navigation == 'pinky' and not person:
+        nav = ['ros2', 'launch', 'pinky_navigation', 'bringup_launch.xml', f'map:={map_path}']
+    else:
+        raise ValueError('사람 정지는 navigation=avoidance 에서만 쓸 수 있습니다')
     return [
         ['ros2', 'launch', 'pinky_bringup', 'bringup_robot.launch.xml'],
-        ['ros2', 'launch', 'pinky_navigation', 'bringup_launch.xml', f'map:={map_path}'],
+        nav,
         ['ros2', 'launch', 'cobot_pinky_patrol', 'patrol.launch.xml',
          f'robot_id:={robot_id}', f'site:={site}'],
     ]
@@ -69,9 +84,12 @@ def validate_files(workspace, map_path):
     return workspace, map_path
 
 
-def validate_ros_packages():
+def validate_ros_packages(navigation='pinky'):
     """별도 vendor workspace가 필요한지 실제 프로세스 기동 전에 확인한다."""
-    for package in ('pinky_bringup', 'pinky_navigation', 'cobot_pinky_patrol'):
+    packages = ['pinky_bringup', 'pinky_navigation', 'cobot_pinky_patrol']
+    if navigation == 'avoidance':
+        packages.append('cobot_obstacle_avoidance')
+    for package in packages:
         try:
             result = subprocess.run(
                 ['ros2', 'pkg', 'prefix', package], stdout=subprocess.DEVNULL,
@@ -202,7 +220,13 @@ def main(args=None):
     parser.add_argument('--probe-timeout', type=float, default=15.0,
                         help='ROS CLI 조회 한 번의 제한 시간(초)')
     parser.add_argument('--topic', action='append', help='bringup 준비 확인 토픽; 반복 지정')
+    parser.add_argument('--navigation', choices=NAVIGATION_MODES, default='pinky',
+                        help='Nav2 기동: pinky(기본, pinky_navigation) / avoidance(장애물 정지·회피)')
+    parser.add_argument('--person-detection', action='store_true',
+                        help='사람 앞 정지 (--navigation avoidance 필요, 관제 PC 에서 YOLO 실행)')
     options = parser.parse_args(args)
+    if options.person_detection and options.navigation != 'avoidance':
+        parser.error('--person-detection 은 --navigation avoidance 와 함께 씁니다')
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', options.robot_id):
         parser.error('robot-id 형식 오류')
     if not re.fullmatch(r'[A-Za-z0-9_-]+', options.site):
@@ -219,7 +243,7 @@ def main(args=None):
         parser.error('probe-timeout은 유한한 양수여야 합니다')
     try:
         workspace, map_path = validate_files(options.workspace, options.map)
-        validate_ros_packages()
+        validate_ros_packages(options.navigation)
     except (OSError, ValueError, yaml.YAMLError) as error:
         parser.error(str(error))
     os.environ['ROS_DOMAIN_ID'] = str(options.domain_id)
@@ -234,7 +258,9 @@ def main(args=None):
     try:
         with startup_lock(options.robot_id):
             RobotStartup(options.stage_delay, options.stage_timeout, options.probe_timeout).run(
-                options.robot_id, startup_commands(options.robot_id, map_path, options.site),
+                options.robot_id,
+                startup_commands(options.robot_id, map_path, options.site,
+                                 options.navigation, options.person_detection),
                 readiness_checks(options.robot_id, options.topic or ['/scan', '/odom', '/tf']))
     except KeyboardInterrupt:
         pass
