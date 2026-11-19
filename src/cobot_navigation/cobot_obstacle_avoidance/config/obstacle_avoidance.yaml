@@ -63,6 +63,7 @@ obstacle_avoidance_node:
 
     # 사람 인식(YOLO, cobot_person_detector) 연동. 사람이면 피하지 않고 정지 후 재출발.
     use_person_detection: false
+    use_obstacle_avoidance: true           # false 면 장애물 정지·회피 없이 사람 정지만 (작업대 정차점용)
     person_topic: person_detections        # vision_msgs/Detection2DArray
     camera_info_topic: camera/camera_info
     camera_frame: front_camera_link        # pinky.urdf.xacro 의 정면 카메라

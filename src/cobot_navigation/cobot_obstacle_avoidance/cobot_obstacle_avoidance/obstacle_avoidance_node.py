@@ -83,6 +83,8 @@ class ObstacleAvoidanceNode(Node):
 
         # --- 사람 인식(YOLO) 연동 ---
         self.declare_parameter('use_person_detection', False)
+        # false 면 장애물 정지·회피를 하지 않고 사람 정지만 한다 (avoidance_utils 설명)
+        self.declare_parameter('use_obstacle_avoidance', True)
         self.declare_parameter('person_topic', 'person_detections')
         self.declare_parameter('camera_info_topic', 'camera/camera_info')
         self.declare_parameter('camera_frame', 'front_camera_link')
@@ -129,7 +131,8 @@ class ObstacleAvoidanceNode(Node):
 
         params = AvoidanceParams(**{n: gp(n).value
                                     for n in AvoidanceParams.__dataclass_fields__})
-        self.controller = AvoidanceController(params)
+        self.use_obstacles = gp('use_obstacle_avoidance').value
+        self.controller = AvoidanceController(params, obstacles=self.use_obstacles)
         self.tracker = ObstacleTracker(gp('track_match_dist').value, gp('track_max_age').value,
                                        gp('track_alpha').value, gp('track_min_hits').value)
 
@@ -175,7 +178,8 @@ class ObstacleAvoidanceNode(Node):
 
         self.get_logger().info(
             f'obstacle_avoidance 시작 (patrol_gate={self.use_patrol_gate}, '
-            f'ultrasonic={self.use_us}, person_detection={self.use_person})')
+            f'ultrasonic={self.use_us}, person_detection={self.use_person}, '
+            f'obstacle_avoidance={self.use_obstacles})')
 
     # ------------------------------------------------------------------ 입력
     def _now(self):

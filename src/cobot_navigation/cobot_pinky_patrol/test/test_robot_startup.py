@@ -49,6 +49,12 @@ def test_avoidance_navigation_replaces_only_the_nav2_launch(tmp_path):
     assert person[1][-1] == 'use_person_detection:=true'
     with pytest.raises(ValueError, match='avoidance'):
         module.startup_commands('pinky2', tmp_path / 'm.yaml', person=True)
+    people_only = module.startup_commands('pinky2', tmp_path / 'm.yaml', navigation='avoidance',
+                                          person=True, obstacles=False)
+    assert people_only[1][-2:] == ['use_person_detection:=true', 'use_obstacle_avoidance:=false']
+    assert 'use_obstacle_avoidance:=false' not in person[1]
+    with pytest.raises(ValueError, match='avoidance'):
+        module.startup_commands('pinky2', tmp_path / 'm.yaml', obstacles=False)
 
 
 def test_map_symlink_uses_the_same_image_directory_as_nav2(tmp_path):

@@ -23,6 +23,7 @@ obstacle_avoidance_node 를 함께 띄운다.
     <arg name="use_patrol_gate" default="true"/>
     <arg name="use_ultrasonic" default="false"/>
     <arg name="use_person_detection" default="false"/>
+    <arg name="use_obstacle_avoidance" default="true"/>
     <arg name="run_person_detector" default="false"/>
     <arg name="model_path" default=""/>
     <arg name="device" default="cpu"/>
@@ -80,6 +81,7 @@ obstacle_avoidance_node 를 함께 띄운다.
         <arg name="use_patrol_gate" value="$(var use_patrol_gate)"/>
         <arg name="use_ultrasonic" value="$(var use_ultrasonic)"/>
         <arg name="use_person_detection" value="$(var use_person_detection)"/>
+        <arg name="use_obstacle_avoidance" value="$(var use_obstacle_avoidance)"/>
     </include>
 
     <include file="$(find-pkg-share cobot_person_detector)/launch/person_detector.launch.xml" if="$(var run_person_detector)">

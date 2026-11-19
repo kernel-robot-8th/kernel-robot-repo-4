@@ -20,20 +20,24 @@ READY_PREFIX = 'COBOT_ROBOT_READY '
 NAVIGATION_MODES = ('pinky', 'avoidance')
 
 
-def startup_commands(robot_id, map_path, site='lab', navigation='pinky', person=False):
+def startup_commands(robot_id, map_path, site='lab', navigation='pinky', person=False,
+                     obstacles=True):
     """
     장비에서 실제 사용하는 launch 명령을 구성한다.
 
     navigation='avoidance' 면 Nav2 를 cobot_obstacle_avoidance 로 띄운다 (Nav2 속도 → 장애물 정지·회피
     노드 → cmd_vel). person=True 면 관제 PC YOLO 의 사람 bbox(person_detections)로 사람 앞에서 정지한다.
+    obstacles=False 면 장애물 정지·회피는 끄고 사람 정지만 한다 (작업대에 붙는 정차점에서 막히지 않게).
     """
     if navigation == 'avoidance':
         nav = ['ros2', 'launch', 'cobot_obstacle_avoidance', 'bringup.launch.xml',
                f'map:={map_path}', f'use_person_detection:={"true" if person else "false"}']
-    elif navigation == 'pinky' and not person:
+        if not obstacles:
+            nav.append('use_obstacle_avoidance:=false')
+    elif navigation == 'pinky' and not person and obstacles:
         nav = ['ros2', 'launch', 'pinky_navigation', 'bringup_launch.xml', f'map:={map_path}']
     else:
-        raise ValueError('사람 정지는 navigation=avoidance 에서만 쓸 수 있습니다')
+        raise ValueError('사람 정지·장애물 회피 끄기는 navigation=avoidance 에서만 쓸 수 있습니다')
     return [
         ['ros2', 'launch', 'pinky_bringup', 'bringup_robot.launch.xml'],
         nav,
@@ -224,9 +228,13 @@ def main(args=None):
                         help='Nav2 기동: pinky(기본, pinky_navigation) / avoidance(장애물 정지·회피)')
     parser.add_argument('--person-detection', action='store_true',
                         help='사람 앞 정지 (--navigation avoidance 필요, 관제 PC 에서 YOLO 실행)')
+    parser.add_argument('--no-obstacle-avoidance', dest='obstacles', action='store_false',
+                        help='장애물 정지·회피는 끄고 사람 정지만 (--navigation avoidance 필요)')
     options = parser.parse_args(args)
-    if options.person_detection and options.navigation != 'avoidance':
-        parser.error('--person-detection 은 --navigation avoidance 와 함께 씁니다')
+    if ((options.person_detection or not options.obstacles)
+            and options.navigation != 'avoidance'):
+        parser.error('--person-detection·--no-obstacle-avoidance 는 '
+                     '--navigation avoidance 와 함께 씁니다')
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', options.robot_id):
         parser.error('robot-id 형식 오류')
     if not re.fullmatch(r'[A-Za-z0-9_-]+', options.site):
@@ -260,7 +268,8 @@ def main(args=None):
             RobotStartup(options.stage_delay, options.stage_timeout, options.probe_timeout).run(
                 options.robot_id,
                 startup_commands(options.robot_id, map_path, options.site,
-                                 options.navigation, options.person_detection),
+                                 options.navigation, options.person_detection,
+                                 options.obstacles),
                 readiness_checks(options.robot_id, options.topic or ['/scan', '/odom', '/tf']))
     except KeyboardInterrupt:
         pass

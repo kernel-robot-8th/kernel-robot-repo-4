@@ -13,6 +13,9 @@ Nav2 가 낸 속도(nav_v, nav_w)와 센서 판단 결과를 받아 실제로 �
   BACKUP : 빈 방향이 없으면 뒤로 물러난 뒤 다시 AVOID
   PERSON_WAIT : 카메라(YOLO)로 사람이라고 판별된 물체가 앞 구역에 있음 -> 피하지 않고 정지.
                 사람이 구역을 벗어나 person_release_time 이 지나면 PASS 로 재출발 (다른 상태보다 우선)
+
+obstacles=False 면 사람 정지(PERSON_WAIT)만 하고 나머지(SLOW~BACKUP)는 하지 않는다. 작업대에 바짝 붙어
+서야 하는 정차점(팔 작업 구역)에서 작업대를 장애물로 보고 마지막 접근·제자리 회전을 막기 때문이다.
 """
 from dataclasses import dataclass, field
 import math
@@ -77,9 +80,10 @@ def _clamp(x, lo, hi):
 class AvoidanceController:
     """회피 상태 머신. step() 을 제어 주기마다 부른다."""
 
-    def __init__(self, params):
-        """params: AvoidanceParams."""
+    def __init__(self, params, obstacles=True):
+        """params: AvoidanceParams. obstacles=False 면 사람 정지만 한다."""
         self.p = params
+        self.obstacles = obstacles
         self.state = PASS
         self.state_t = 0.0
         self.maneuver_t = 0.0   # STOP/WAIT 에서 회피를 시작한 시각 (AVOID<->BACKUP 반복 포함)
@@ -122,6 +126,11 @@ class AvoidanceController:
                 return PERSON_WAIT, 0.0, 0.0
             self.person_clear_t = None
             self._enter(PASS, t)
+
+        if not self.obstacles:
+            # 장애물 정지·회피를 끈 모드: 사람이 아니면 Nav2 속도를 그대로 넘긴다.
+            self._enter(PASS, t)
+            return PASS, nav_v, nav_w
 
         # Nav2 가 직접 후진 중(복구 동작 등)이면 뒤만 본다.
         if nav_v < 0.0 and self.state not in (AVOID, BACKUP):

@@ -6,7 +6,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cobot_obstacle_avoidance.avoidance_utils import (  # noqa: E402
-    AVOID, AvoidanceController, AvoidanceParams, BACKUP, PASS, Perception, SLOW, STOP, WAIT)
+    AVOID, AvoidanceController, AvoidanceParams, BACKUP, PASS, Perception, PERSON_WAIT, SLOW,
+    STOP, WAIT)
 from cobot_obstacle_avoidance.scan_utils import sector_angle  # noqa: E402
 
 N = 72
@@ -165,3 +166,22 @@ def test_person_ignored_when_disabled():
     c = _ctrl()
     per = Perception(person_front=0.05)
     assert c.step(False, 0.1, 0.0, per, 0.0) == (PASS, 0.1, 0.0)
+
+
+def test_obstacles_off_passes_nav_command_even_when_blocked():
+    """장애물 정지·회피를 끄면 앞이 막혀도 Nav2 속도(제자리 회전 포함)를 그대로 넘긴다."""
+    c = AvoidanceController(AvoidanceParams(), obstacles=False)
+    blocked = Perception(front=0.05, rear=0.05, ttc=0.1, hist=_hist(value=0.1))
+    for t in (0.0, 1.0, 3.0, 9.0):
+        assert c.step(True, 0.1, 0.4, blocked, t) == (PASS, 0.1, 0.4)
+    assert c.step(True, 0.0, -0.8, blocked, 10.0) == (PASS, 0.0, -0.8)
+
+
+def test_obstacles_off_still_stops_for_person():
+    """장애물을 꺼도 사람 앞 정지와 재출발 대기는 그대로다."""
+    c = AvoidanceController(AvoidanceParams(), obstacles=False)
+    person = Perception(front=0.5, person_front=0.3)
+    assert c.step(True, 0.1, 0.0, person, 0.0) == (PERSON_WAIT, 0.0, 0.0)
+    clear = Perception(front=0.05)
+    assert c.step(True, 0.1, 0.0, clear, 0.5)[0] == PERSON_WAIT  # release_time 1 s 전
+    assert c.step(True, 0.1, 0.0, clear, 1.6) == (PASS, 0.1, 0.0)
