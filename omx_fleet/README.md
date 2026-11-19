@@ -103,7 +103,7 @@ omx_1031 번들(`Sungah/omx_1031_act_smolvla`)의 E 모델처럼 입력이 다�
 
 - depth 모델: `depth_info.json` 은 그 작업 모델 폴더에서 찾는다. 정책이 새로 예측하는 프레임(ACT 50 프레임마다)에서만 MoGe 를 돌린다 (번들의 `depth_sync` 와 같은 방식). 켤 때 한 번 미리 돌린다.
 - 박스 번호: 모델 폴더 `omx_info.json` 의 `box.mode` 가 `state` 면 그 작업은 `run` 에 `"box": 1..4` 가 있어야 한다. 없거나 범위 밖이면 팔을 움직이지 않고 `rejected`. 원핫을 `observation.state` 끝에 붙인다 (번들 `omx_box.py` 와 같은 값). 관제 팔 노드는 작업 요청의 `shelf_row` 를 `box` 로 넘긴다.
-- **성공 기준은 팔마다 다르다.** `success_motion` 은 `arms.<팔>.actions.<작업>` 마다 따로 적는다. 아래 기본값은 omx1(ZA 상차) 기준으로만 맞춰 둔 것이라, 다른 팔(omx2·omx3)은 그 팔 시연에서 다시 재서 값을 적거나 아직 기준이 없으면 칸을 비운다 (그러면 `success=false` 로 관제가 주문을 보류한다).
+- **성공 기준은 팔마다 다르다.** `success_motion` 은 `arms.<팔>.actions.<작업>` 마다 따로 적는다. 아래 기본값은 omx2(ZB 상차, omx_1031 E 모델) 기준으로만 맞춰 둔 것이라, 다른 팔(omx1·omx3)은 그 팔 시연에서 다시 재서 값을 적거나 아직 기준이 없으면 칸을 비운다 (그러면 `success=false` 로 관제가 주문을 보류한다).
 - `success_motion` 순서 (값은 omx_1031 시연 2번에서 잰 것, 칸으로 바꿀 수 있다):
   1. 잡음: 그리퍼 전류 ≤ `grip_closed_ma`(-150 mA) 가 `hold_s`(0.5 s) 이어짐 (잡는 동안 약 -330 mA)
   2. 놓음: 처음 회전값(`shoulder_pan`)에서 `pan_away`(20) 이상 돌아간 채 |전류| < `grip_open_ma`(80) 가 `hold_s` 이어짐
