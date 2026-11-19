@@ -19,74 +19,66 @@
 |---|---|
 | `omx_fleet_worker.py` | 실행기. 대화 방식은 파일 맨 위 설명 |
 | `omx_chain.py`, `success_judge.py` | `tool/omx-dashboard-v2` (a54637d) `omx_dashboard_v2/` 에서 **고치지 않고 복사**. 바꿀 일이 있으면 원본과 함께 바꾼다 |
-| `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 번들·버전) |
+| `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 경로 또는 번들·버전) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
 
-## 모델 번들 규격 (v0.1, 2026-11-16 제안)
+## 모델 지정과 번들 (v0.2, 2026-11-17)
 
-학습한 모델은 아래 구조로 올린다. **작업 하나 = 번들 하나 = Hugging Face 저장소 하나**.
+팔마다 모델·입력이 다르므로 공통으로 지킬 것만 정한다. 나머지(저장소 이름, 실행 코드, 입력 형식)는 각자 정한다.
 
-### 이름과 버전
-- 저장소 이름: `<HF 계정>/omx_<작업>_<구역>`. 작업은 관제 action 이름(`pick`, `load`, `unload`…), 구역은 `za`·`zb`·`zc`.
-  예: `Sungah/omx_pick_za`, `Sungah/omx_unload_zc`
-- 버전: 새로 학습할 때마다 git 태그 `v1`, `v2`, … 를 새로 붙인다. 한 번 붙인 태그는 옮기거나 덮어쓰지 않는다.
-  바꾼 이유는 모델 카드 맨 아래에 한 줄 (`v2: 에피소드 30 → 50`).
+### 모델을 적는 두 가지 방법 (`fleet_arms.yaml` 의 action 칸)
+```yaml
+actions:
+  # ① 경로를 그대로 (어디에 받았든 상관없음. 관제에는 폴더 이름만 보인다)
+  pick:
+    model: ~/outputs/train/omx_1031_act_smolvla/models/act_1031_E_all_5000step
+    seconds: 90
+  # ② 번들·버전 (<bundles_dir>/<bundle>/<version>/models/<model>. 관제에 omx_pick_za@v1 처럼 보인다)
+  load:
+    bundle: omx_pick_za
+    version: v1
+    model: act          # models/ 아래 폴더가 하나면 생략
+    seconds: 90
+    # safe_pose: ~/il_ws/poses/load_safe_omx1.json   (선택)
+```
+- ② 는 맨 위 `bundles_dir` (기본 `~/il_ws/bundles`) 아래에서 찾는다. 번들·버전 폴더가 없거나, `model` 을 안 적었는데 `models/` 아래 폴더가 하나가 아니면 켜기 전에 오류를 낸다.
+- 버전을 바꾸거나 되돌릴 때는 ① 경로 또는 ② `version` 만 고치고 팔을 다시 켠다.
 
-### 폴더
+### init_pose.json 을 찾는 곳
+두 방법 모두 **모델 폴더의 두 단계 위** (`<저장소>/models/<모델>` → `<저장소>/init_pose.json`) 를 본다.
+- 시작 자세: 있으면 작업 전에 이 자세로 천천히 이동, 없으면 이동 없이 시작.
+- 안전 자세 (작업 뒤 돌아올 자세): action 의 `safe_pose` → 없으면 위 `init_pose.json`. **둘 다 없으면 실행기가 켜지지 않는다** (`준비 실패`).
+- 형식: `{"pose": {"shoulder_pan": .., "shoulder_lift": .., "elbow_flex": .., "wrist_flex": .., "wrist_roll": .., "gripper": ..}}` (lerobot 캘리브레이션 단위, 보통 학습 데이터 첫 프레임).
+
+### 모델 저장소에 공통으로 둘 것
 ```text
-omx_pick_za/
-├── models/
-│   └── act/                 pretrained_model 폴더 내용 그대로 (config.json, model.safetensors, policy_*)
-├── init_pose.json           필수: 시작 자세 = 끝난 뒤 돌아오는 안전 자세 (학습 데이터 첫 프레임)
-├── success.json             선택: YOLO 성공 판단 (형식은 success_judge.py 기본값)
-├── yolo/<가중치>.pt          선택: success.json 의 model (번들 기준 상대 경로)
-└── README.md                필수: 모델 카드
+<아무 이름>/
+├── models/<모델 이름>/   lerobot pretrained_model 폴더 (config.json, model.safetensors, policy_*). 여러 개여도 됨
+├── init_pose.json        시작 = 안전 자세
+└── README.md             모델 카드: 하는 일, 데이터셋, 입력(카메라·추가 상태), 녹화한 팔·캘리브레이션
 ```
-- `models/` 아래 모델 폴더는 하나만 둔다 (여럿이면 설정에 `model:` 로 골라야 한다).
-- 모델: **lerobot 0.4.4 에서 읽히는 ACT**, 입력 `observation.state` [6] + `top`·`wrist` 카메라.
-  0.6.1 로 학습했으면 `config.json` 의 `pretrained_revision` 을 지우고 올린다 (`omx_train/ACT/README.md`).
-- `init_pose.json`: `{"pose": {"shoulder_pan": .., "shoulder_lift": .., "elbow_flex": .., "wrist_flex": .., "wrist_roll": .., "gripper": ..}}`
-  (lerobot 캘리브레이션 단위). 없으면 `safe_pose` 를 따로 적지 않는 한 실행기가 시작을 거부한다.
-- 쉬는 자세(`rest_pose`)는 번들에 넣지 않는다. 팔에 딸린 값이라 현장에서 팔마다 잰다.
+- 그 밖의 파일(실행 코드, 가중치, 평가 기록)은 자유롭게 둔다.
+- 버전은 Hugging Face 태그나 커밋으로 고정하고, 받을 때 `--revision` 을 준다 (PC 마다 같은 모델이 깔리게).
+- 입력이 관절 6 + `top`·`wrist` 가 아니면 (깊이 카메라, 그리퍼 전류 등) 모델 카드나 모델 폴더에 적는다.
+  이 실행기는 지금 관절 6 + `top`·`wrist` 를 받는 lerobot 0.4.4 ACT 만 돌린다 (`omx_chain.check_inputs`).
 
-### 모델 카드 (`README.md`)
-```markdown
-# omx_pick_za
-| 항목 | 값 |
-|---|---|
-| 작업 / 구역 / 팔 | pick / ZA / omx1 |
-| 하는 일 | 선반 2행에서 신발 상자 집기 |
-| 데이터셋 | Sungah/omx_box_merged (에피소드 50개) |
-| 학습 | ACT, 20k step, batch 8, lerobot 0.4.4 |
-| 입력 | 관절 6 + top·wrist 카메라 |
-| 녹화한 팔 / 캘리브레이션 | omx1 / omx_follower_arm |
-| 최대 시간 | 90 s |
-| 실물 시험 | 20회 중 17회 성공 (2026-11-20) |
-| 상태 | 후보 / 검증됨 |
-```
-
-### 올리기 (학습 담당)
+### 받기 예
 ```bash
-hf upload Sungah/omx_pick_za ./omx_pick_za .
-huggingface-cli tag Sungah/omx_pick_za v1      # 새 CLI 는 hf repo tag create Sungah/omx_pick_za v1
+hf download Sungah/omx_1031_act_smolvla --revision <태그나 커밋> \
+  --local-dir ~/il_ws/bundles/omx_1031_act_smolvla/v1     # ② 로 쓸 때. ① 이면 아무 곳
 ```
-올리기 전 확인: 이름 `omx_<작업>_<구역>` / `models/` 아래 모델 하나, 0.4.4 에서 열림 / `init_pose.json` 관절 6개 / 모델 카드 / 태그 `vN`.
 
-### 현장에 두기 (Station PC)
-```bash
-hf download Sungah/omx_pick_za --revision v1 --local-dir ~/il_ws/bundles/omx_pick_za/v1
-```
-```text
-~/il_ws/
-├── bundles/<번들>/<vN>/     받은 번들 (예전 버전은 되돌리기용으로 남긴다)
-└── poses/rest_pose_<팔>.json 쉬는 자세 (saverest 로 만듦)
-```
-`fleet_arms.yaml` 의 action 에 `bundle`·`version` 을 적는다 (`fleet_arms.example.yaml`). 관제 팔 카드에는
-`pick omx_pick_za@v1` 처럼 보이고, 작업 결과에도 `model` 로 남는다.
+### 팔에 딸린 값 (모델 저장소에 넣지 않음)
+카메라 경로, 캘리브레이션 이름(`robot_id`), 쉬는 자세(`rest_pose`, `~/il_ws/poses/rest_pose_<팔>.json`)는
+현장에서 팔마다 정해 `fleet_arms.yaml` 에 적는다.
+
+### 관제에 보이는 것
+`ready` 에 action 별 `models` (bundle·version·model_name·path·init_pose·success_judge 유무), `rest_pose`, `safe_tol` 이
+실린다. 팔 카드에 `pick omx_pick_za@v1` (① 이면 폴더 이름) 으로 보이고, 작업 결과 `done` 에도 `model` 로 남는다.
 
 ## 한 작업의 순서
 
-1. 그 모델 번들의 `init_pose.json` 으로 천천히 이동
+1. 그 모델의 `init_pose.json` 으로 천천히 이동 (없으면 생략)
 2. 정책 실행 (최대 `seconds`, 성공 판단이 있으면 더 일찍 끝남)
 3. 안전 자세로 이동 — **그리퍼는 그대로** (잡은 물건을 놓지 않게)
 4. 관절을 다시 읽어 결과 보고
