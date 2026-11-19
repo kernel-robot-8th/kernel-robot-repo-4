@@ -5,8 +5,11 @@
 - 입력: image_topic (sensor_msgs/Image 또는 use_compressed=True 면 CompressedImage)
 - 출력: output_topic (vision_msgs/Detection2DArray). header 는 입력 영상 header 를 그대로 쓴다.
 - 영상은 최신 것만 보관하고 max_rate 로 처리한다 (밀린 프레임은 버림).
+- 압축 영상은 OpenCV imdecode 로 푼다. cv_bridge 는 원본 영상일 때만 불러온다: ROS cv_bridge 는
+  NumPy 1.x 로 빌드돼 있어, ultralytics 가 깔린 NumPy 2 venv 에서는 불러오기만 해도 죽는다.
 """
-from cv_bridge import CvBridge
+import cv2
+import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -46,7 +49,11 @@ class PersonDetectorNode(Node):
 
         from ultralytics import YOLO   # 무거워서 노드 생성 시점에 불러온다
         self.model = YOLO(model_path)
-        self.bridge = CvBridge()
+        if self.compressed:
+            self.bridge = None
+        else:
+            from cv_bridge import CvBridge   # NumPy 1.x 빌드 (위 설명)
+            self.bridge = CvBridge()
         self.gate = RateGate(1.0 / gp('max_rate').value)
         self.latest = None
 
@@ -68,7 +75,11 @@ class PersonDetectorNode(Node):
             return
         self.latest = None
         if self.compressed:
-            frame = self.bridge.compressed_imgmsg_to_cv2(msg, 'bgr8')
+            frame = cv2.imdecode(np.frombuffer(bytes(msg.data), np.uint8), cv2.IMREAD_COLOR)
+            if frame is None:
+                self.get_logger().warn('압축 영상을 풀 수 없음 - 이 프레임은 건너뜀',
+                                       throttle_duration_sec=5.0)
+                return
         else:
             frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         result = self.model.predict(frame, imgsz=self.imgsz, device=self.device,

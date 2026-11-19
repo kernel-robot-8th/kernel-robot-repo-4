@@ -12,6 +12,7 @@
   <exec_depend>vision_msgs</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
   <!-- ultralytics 는 rosdep 키가 없어 pip 로 설치한다 (docs/prd.md 참고) -->
 
   <test_depend>python3-pytest</test_depend>
