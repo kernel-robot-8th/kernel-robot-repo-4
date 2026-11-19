@@ -5,7 +5,7 @@ import time
 import uuid
 
 from .bt_visualization import ScenarioTreeTrace
-from .scenario_contracts import BLOCKED, NAVIGATION, TERMINAL, WORK
+from .scenario_contracts import BLOCKED, MOVE_POINT, NAVIGATION, TERMINAL, WORK
 from .scenario_tree import build_scenario_tree
 
 
@@ -57,11 +57,16 @@ class ScenarioContext:
         service, order = self.service, self.order
         route = service._route(order)
         resources = []
+        customer = 'customer' in route
         if stage == 'MOVE_PICKUP':
             # 반대 방향 주문이 작업장을 하나씩 잡고 서로 기다리는 교착을 방지한다.
-            resources = service._station(order, 'pickup') + service._station(order, 'dropoff')
-        elif stage == 'MOVE_DROPOFF':
+            # 고객 자리 주문은 회수할지 모르므로 상차장만 잡고, 회수 구역은 갈 때 잡는다.
+            resources = service._station(order, 'pickup') + (
+                [] if customer else service._station(order, 'dropoff'))
+        elif stage in ('MOVE_DROPOFF', 'MOVE_ARRANGE'):
             resources = service._station(order, 'dropoff')
+        elif stage == 'MOVE_RESTOCK':
+            resources = service._station(order, 'restock')
         if stage in NAVIGATION:
             resources += ['lane_' + route['lane']]
         if not service.store.acquire(order['order_id'], resources):
@@ -72,11 +77,10 @@ class ScenarioContext:
             service.clock() + service.config['step_timeout_sec'])
         try:
             if stage in NAVIGATION:
-                point = route['pickup'] if stage == 'MOVE_PICKUP' else route['dropoff']
                 service.fleet.submit(dict(
                     command_id=request_id, robot_id=order['robot_id'],
                     operation=NAVIGATION[stage],
-                    points=[point] if stage.startswith('MOVE_') else [],
+                    points=[route[MOVE_POINT[stage]]] if stage in MOVE_POINT else [],
                     timeout_sec=service.config['step_timeout_sec']))
             else:
                 actor, action = WORK[stage]
@@ -121,10 +125,13 @@ class ScenarioContext:
             return False
         order.update(state='FAILED' if order['failure'] else 'COMPLETED', request_id=None,
                      detail=order['failure'] or '필수 작업과 HOME 복귀 완료', updated_at=time.time())
+        customer = 'customer' in self.service._route(order)
+        # 고객 자리 주문은 회수한 신발을 ZA 선반에 다시 올린(RESTOCK) 뒤에만 재고를 돌려놓는다.
+        restocked = customer and 'RESTOCK' in confirmed
         self.service.store.close_order(
-            order, restock=order['kind'] == 'return' and not order['failure'])
+            order, restock=not order['failure'] and (order['kind'] == 'return' or restocked))
         if (order.get('customer_declined') and order['kind'] == 'delivery'
-                and not order['failure']):
+                and not order['failure'] and not customer):
             self.service.collect_declined(order)
         return True
 
