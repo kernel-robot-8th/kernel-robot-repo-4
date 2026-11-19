@@ -4,7 +4,7 @@
 사람이 버튼을 누르는 대신 어댑터가 stdin/stdout JSON 으로 "집어", "멈춰" 를 보내고 결과를 받는다.
 
 - LeRobot **0.4.4** (`~/venv/il`, Python 3.10). 이 브랜치의 `omx_recoder`(0.6.1)와 venv 가 다르다.
-- 모델은 0.4.4 로 학습한 ACT (관절 6 + top/wrist 카메라) 만 된다 (`omx_chain.check_inputs`).
+- 모델은 0.4.4 로 학습한 ACT. 기본은 관절 6 + top/wrist 카메라. 팔 설정 `robot_type` 으로 그리퍼 전류·MoGe depth 모델(omx_1031 E 등)도 된다 (아래 '로봇 타입·박스 번호').
 - 2026-11-15 팔 1대(omx1) 기준. 실제 팔로는 아직 시험하지 않았다 (가짜 로봇·모델 로드만 확인).
 
 ## 왜 따로 있나
@@ -18,6 +18,7 @@
 | 파일 | 내용 |
 |---|---|
 | `omx_fleet_worker.py` | 실행기. 대화 방식은 파일 맨 위 설명 |
+| `fleet_runtime.py` | 로봇 타입(전류·depth)·박스 원핫·동작 성공 판단(`success_motion`)·그 작업 실행 루프 |
 | `omx_chain.py`, `success_judge.py` | `tool/omx-dashboard-v2` (a54637d) `omx_dashboard_v2/` 에서 **고치지 않고 복사**. 바꿀 일이 있으면 원본과 함께 바꾼다 |
 | `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 경로 또는 번들·버전) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
@@ -85,8 +86,29 @@ hf download Sungah/omx_1031_act_smolvla --revision <태그나 커밋> \
 
 | 결과 | 기준 |
 |---|---|
-| `success` | 번들 `success.json` 의 YOLO 판단이 성공을 낸 경우만 true. 판단 모델이 없으면 항상 false (`success_basis=none`) |
+| `success` | 성공 판단이 성공을 낸 경우만 true: 번들 `success.json` YOLO (`success_basis=judge`) 또는 작업 설정 `success_motion` (`motion`). 둘 다 없으면 항상 false (`none`). `noop` 작업은 true (`noop`) |
 | `arm_safe` | 그리퍼를 뺀 모든 관절 오차가 `--safe-tol`(기본 3, 약 5°) 이하. `hold` 로 끝나면 false |
+
+## 로봇 타입·박스 번호·동작 성공 판단
+
+omx_1031 번들(`Sungah/omx_1031_act_smolvla`)의 E 모델처럼 입력이 다른 모델을 위한 팔·작업 설정이다.
+
+| 칸 | 어디 | 뜻 |
+|---|---|---|
+| `robot_type` | 팔 | `omx_follower`(기본) / `omx_follower_grip`(state + 그리퍼 전류) / `omx_follower_grip_depth`(+ MoGe `top_depth`) |
+| `robot_code_dir` | 팔 | 전류·depth 로봇 코드(`omx_grip_robot.py`·`omx_depth_robot.py`)가 있는 번들 폴더 |
+| `start_pose` | 팔 | 켜질 때(연결 직후, `ready` 전) 옮겨 둘 자세. 보통 학습 데이터 첫 자세. 없으면 옮기지 않는다 |
+| `success_motion` | 작업 | 그리퍼 전류·회전으로 성공 판단 (아래). 전류가 있는 `robot_type` 에서만 |
+| `noop: true` | 작업 | 팔을 움직이지 않고 바로 성공. 앞 작업 모델이 싣기까지 하는 경우의 `load` |
+
+- depth 모델: `depth_info.json` 은 그 작업 모델 폴더에서 찾는다. 정책이 새로 예측하는 프레임(ACT 50 프레임마다)에서만 MoGe 를 돌린다 (번들의 `depth_sync` 와 같은 방식). 켤 때 한 번 미리 돌린다.
+- 박스 번호: 모델 폴더 `omx_info.json` 의 `box.mode` 가 `state` 면 그 작업은 `run` 에 `"box": 1..4` 가 있어야 한다. 없거나 범위 밖이면 팔을 움직이지 않고 `rejected`. 원핫을 `observation.state` 끝에 붙인다 (번들 `omx_box.py` 와 같은 값). 관제 팔 노드는 작업 요청의 `shelf_row` 를 `box` 로 넘긴다.
+- **성공 기준은 팔마다 다르다.** `success_motion` 은 `arms.<팔>.actions.<작업>` 마다 따로 적는다. 아래 기본값은 omx1(ZA 상차) 기준으로만 맞춰 둔 것이라, 다른 팔(omx2·omx3)은 그 팔 시연에서 다시 재서 값을 적거나 아직 기준이 없으면 칸을 비운다 (그러면 `success=false` 로 관제가 주문을 보류한다).
+- `success_motion` 순서 (값은 omx_1031 시연 2번에서 잰 것, 칸으로 바꿀 수 있다):
+  1. 잡음: 그리퍼 전류 ≤ `grip_closed_ma`(-150 mA) 가 `hold_s`(0.5 s) 이어짐 (잡는 동안 약 -330 mA)
+  2. 놓음: 처음 회전값(`shoulder_pan`)에서 `pan_away`(20) 이상 돌아간 채 |전류| < `grip_open_ma`(80) 가 `hold_s` 이어짐
+  3. 돌아옴: 처음 회전값 ± `pan_home_tol`(5) 안에 `hold_s` 머묾 → 성공, 그 단계를 바로 끝낸다
+- 설정·모델·입력 모양만 확인 (팔·카메라 연결 없음): `ARM_ID=omx1 ROBOT_PORT=<포트> python omx_fleet_worker.py --arms-file fleet_arms.yaml --dry-check`
 
 ## 켜기·끄기 (관제)
 
@@ -120,7 +142,7 @@ source ~/venv/il/bin/activate
 cp fleet_arms.example.yaml fleet_arms.yaml   # 처음 한 번, 값 고치기
 ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00 \
   python omx_fleet_worker.py --arms-file fleet_arms.yaml
-# stdin 에 한 줄씩: {"cmd":"run","id":"t1","action":"pick"} / {"cmd":"hold"} / {"cmd":"state"}
+# stdin 에 한 줄씩: {"cmd":"run","id":"t1","action":"pick"} (박스 모델이면 "box": 1..4) / {"cmd":"hold"} / {"cmd":"state"}
 #                  {"cmd":"release"} / {"cmd":"quit"}
 ```
 

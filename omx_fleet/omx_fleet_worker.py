@@ -9,7 +9,8 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
 이 실행기는 켜질 때 한 번 연결하고 모든 모델을 미리 올린 뒤, 작업이 끝나도 토크를 유지한 채 다음 일을 기다린다.
 
 대화 방식 (한 줄 = JSON 하나)
-  stdin  {"cmd": "run", "id": "<request_id>", "action": "pick"}
+  stdin  {"cmd": "run", "id": "<request_id>", "action": "pick", "box": 3}
+                           box: 박스 원핫을 받는 모델(omx_info.json box.mode=state)만 필요 (1..N). 다른 작업은 무시
          {"cmd": "hold"}   지금 단계를 멈추고 토크 유지 (안전 자세 이동도 하지 않음)
          {"cmd": "state"}  대기 중 관절 값 보고 (작업 중이면 작업이 끝난 뒤 답함)
          {"cmd": "release"} 쉬는 자세(rest_pose)에 있을 때만 연결을 끊고 끝냄. 아니면 거절 (팔을 옮기지 않음).
@@ -17,7 +18,8 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
          {"cmd": "quit"}   무조건 연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
   stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
          @fleet {"event": "ready", "actions": [...], "joints": {...}, "models": {action: {...}},
-                 "rest_pose": {관절: 값} | null, "safe_tol": N}      models 칸은 model_meta() 참고
+                 "rest_pose": {관절: 값} | null, "safe_tol": N, "robot_type": "..."}
+                 models 칸은 model_meta() 참고 (+ box_required, success_motion, noop)
          @fleet {"event": "state", "joints": {...}}
          @fleet {"event": "release_moving", "seconds": N, ...}       release_move: 쉬는 자세로 이동 시작 (약 N 초)
          @fleet {"event": "released", "pose_error": {...}}             이어서 연결을 끊고 끝냄
@@ -25,12 +27,16 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
          @fleet {"event": "started", "id": ...}
          @fleet {"event": "done", "id": ..., "success": bool, "success_basis": "judge"|"none",
                  "arm_safe": bool, "end_reason": "success"|"timeout"|"hold", "pose_error": {...}, "joints": {...},
-                 "model": "<bundle>@<version>"}
+                 "model": "<bundle>@<version>", "box": N | null}
          @fleet {"event": "rejected", "id": ..., "detail": "..."}   팔을 움직이지 않은 거절
          @fleet {"event": "fatal", "detail": "..."}                 이후 일을 하지 않고 끝냄
 
 판단 규칙
-  - success: 성공 판단(success.json 의 YOLO)이 성공을 낸 경우만 true. 판단기가 없으면 항상 false (success_basis=none).
+  - success: 성공 판단이 성공을 낸 경우만 true. 판단기가 없으면 항상 false (success_basis=none).
+    판단기: success.json 의 YOLO (success_basis=judge) 또는 작업 설정 success_motion (success_basis=motion,
+    그리퍼 전류로 잡음 → 돌아간 곳에서 놓음 → 처음 회전값으로 돌아옴. fleet_runtime.py).
+  - noop 작업: 팔을 움직이지 않고 바로 success=true (success_basis=noop). arm_safe 는 지금 자세를 그 작업
+    safe_pose (없으면 다른 작업의 안전 자세) 와 비교해 정한다.
   - arm_safe: 단계가 끝난 뒤 그 action 의 safe_pose 로 이동하고 (그리퍼는 그대로 둠 — 잡은 물건을 놓지 않게)
     관절을 다시 읽어 그리퍼 외 모든 관절 오차가 safe_tol 이하일 때만 true. hold 로 끝나면 이동하지 않으므로 false.
 
@@ -51,6 +57,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import fleet_runtime  # noqa: E402
 import omx_chain  # noqa: E402
 
 PREFIX = "@fleet "
@@ -80,16 +87,35 @@ def load_arm_config(path, arm_id):
     actions = {}
     for name, spec in arm["actions"].items():
         where = f"arms.{arm_id}.actions.{name}"
+        if isinstance(spec, dict) and spec.get("noop") is True:
+            # 팔을 움직이지 않는 작업 (예: 앞 작업 모델이 싣기까지 하는 경우의 load)
+            actions[name] = {"noop": True, "safe_pose": spec.get("safe_pose"),
+                             "meta": {"noop": True, "model_name": "noop", "bundle": None, "version": None}}
+            continue
         if not isinstance(spec, dict) or not spec.get("seconds"):
-            raise ValueError(f"{where} 에 seconds 필요")
+            raise ValueError(f"{where} 에 seconds 필요 (팔을 안 움직이는 작업이면 noop: true)")
         model = resolve_model(spec, bundles_dir, where)
+        try:
+            motion = fleet_runtime.motion_config(spec.get("success_motion"))
+        except ValueError as error:
+            raise ValueError(f"{where}: {error}") from None
+        if motion and (arm.get("robot_type") or "omx_follower") == "omx_follower":
+            raise ValueError(f"{where}: success_motion 은 그리퍼 전류가 있는 robot_type 에서만 쓸 수 있음")
+        meta = model_meta(model)
+        meta.update(box_required=fleet_runtime.box_count(model) > 0, success_motion=bool(motion))
         actions[name] = {
             "model": model,
             "seconds": float(spec["seconds"]),
             "safe_pose": spec.get("safe_pose"),
-            "meta": model_meta(model),
+            "motion": motion,
+            "n_box": fleet_runtime.box_count(model),
+            "meta": meta,
         }
+    if all(spec.get("noop") for spec in actions.values()):
+        raise ValueError(f"arms.{arm_id}.actions 에 모델 작업이 하나도 없음")
     arm["actions"] = actions
+    # 켜질 때(연결 직후) 옮겨 둘 자세 (보통 학습 데이터 첫 자세). 없으면 옮기지 않는다.
+    arm["start_pose"] = str(Path(arm["start_pose"]).expanduser()) if arm.get("start_pose") else None
     # 쉬는 자세: 토크를 꺼도(release) 팔이 다치지 않는 자세. 없으면 release 는 늘 거절된다.
     arm["rest_pose"] = str(Path(arm["rest_pose"]).expanduser()) if arm.get("rest_pose") else None
     # 끄기 때 쉬는 자세로 옮긴 뒤 끌지 (녹화기 Servo OFF 방식). 기본 꺼짐: 관제는 팔 모션을
@@ -201,6 +227,8 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--arms-file", required=True)
     p.add_argument("--safe-tol", type=float, default=3.0, help="안전 자세 허용 오차 (관절 단위, 1 ≈ 1.8°)")
+    p.add_argument("--dry-check", action="store_true",
+                   help="설정·모델·입력 모양만 확인하고 끝냄 (팔·카메라에 연결하지 않음)")
     mine, extra = p.parse_known_args(argv)
     arm_id, port = os.environ.get("ARM_ID", ""), os.environ.get("ROBOT_PORT", "")
     if not arm_id or not port:
@@ -219,22 +247,41 @@ def main(argv=None):
 
     stages, safe_poses = {}, {}
     try:  # 로봇에 연결하기 전 준비. 여기서 실패하면 팔은 건드리지 않았다.
-        robot = omx_chain.make_robot(args)
+        robot = fleet_runtime.make_robot(arm, args, fleet_runtime.find_depth_info(arm["actions"]))
+        robot_type = arm.get("robot_type") or "omx_follower"  # robot.robot_type 은 캘리브레이션 이름이라 늘 omx_follower
         features = {
             **hw_to_dataset_features(robot.action_features, "action", True),
             **hw_to_dataset_features(robot.observation_features, "observation", True),
         }
-        print(f"[{arm_id}] 모델 {len(arm['actions'])}개를 불러오는 중… (로봇 연결 전)", flush=True)
-        for name, spec in arm["actions"].items():
+        models = {name: spec for name, spec in arm["actions"].items() if not spec.get("noop")}
+        print(f"[{arm_id}] 모델 {len(models)}개를 불러오는 중… (로봇 연결 전, {robot_type})", flush=True)
+        for name, spec in models.items():
             stages[name] = omx_chain.load_stage(spec["model"], spec["seconds"], args)
             omx_chain.check_inputs(stages[name], features)
+            fleet_runtime.check_state_size(stages[name], features, spec["n_box"])
             safe_poses[name] = safe_pose_for(spec)
             if not safe_poses[name]:
                 raise ValueError(f"{name}: safe_pose 도 init_pose.json 도 없음")
+        for name, spec in arm["actions"].items():
+            if spec.get("noop"):
+                stages[name] = {"noop": True, "name": name}
+                safe_poses[name] = (omx_chain.read_pose(Path(spec["safe_pose"]).expanduser())
+                                    if spec["safe_pose"] else next(iter(safe_poses.values())))
         rest_pose = omx_chain.read_pose(arm["rest_pose"]) if arm["rest_pose"] else None
+        start_pose = omx_chain.read_pose(arm["start_pose"]) if arm["start_pose"] else None
     except (Exception, SystemExit) as error:  # noqa: BLE001 — omx_chain 은 SystemExit 로 알린다
         emit(event="fatal", detail=f"준비 실패: {error}")
         return 2
+
+    if mine.dry_check:
+        summary = {name: {"noop": True} if spec.get("noop") else {
+            "model": spec["meta"]["model_name"], "box": spec["n_box"], "success_motion": bool(spec["motion"]),
+            "init_pose": stages[name]["init_pose"] is not None} for name, spec in arm["actions"].items()}
+        print(json.dumps({"dry_check": "ok", "robot_type": robot_type,
+                          "state": features["observation.state"]["shape"][0],
+                          "inputs": sorted(k for k in features if k.startswith("observation.")),
+                          "actions": summary, "start_pose": start_pose is not None}, ensure_ascii=False), flush=True)
+        return 0
 
     commands = queue.Queue()
     stop_evt = threading.Event()
@@ -257,9 +304,13 @@ def main(argv=None):
 
     robot.connect()
     try:
+        fleet_runtime.warm_depth(robot)
+        if start_pose:  # 켜질 때 학습 데이터 첫 자세로 옮겨 둔다 (팔 설정 start_pose)
+            omx_chain.move_to_pose(robot, start_pose, args, "켜기 시작 자세")
         emit(event="ready", actions=sorted(stages), joints=read_joints(robot),
              models={name: spec["meta"] for name, spec in arm["actions"].items()},
-             rest_pose=plain_pose(rest_pose) if rest_pose else None, safe_tol=mine.safe_tol)
+             rest_pose=plain_pose(rest_pose) if rest_pose else None, safe_tol=mine.safe_tol,
+             robot_type=robot_type)
         print(f"[{arm_id}] 준비 완료 — 토크 유지, 일을 기다림", flush=True)
         while True:
             msg = commands.get()
@@ -307,25 +358,47 @@ def main(argv=None):
             if action not in stages:
                 emit(event="rejected", id=job_id, detail=f"{action} 모델이 설정되지 않음 (arms.{arm_id}.actions)")
                 continue
-            stage = stages[action]
-            model = model_label(arm["actions"][action]["meta"])
+            stage, spec = stages[action], arm["actions"][action]
+            model = model_label(spec["meta"])
+            if stage.get("noop"):
+                # 팔을 움직이지 않는다. 지금 자세가 안전 자세인지만 재서 알린다.
+                emit(event="started", id=job_id)
+                joints = read_joints(robot)
+                error = body_error(joints, safe_poses[action])
+                emit(event="done", id=job_id, success=True, end_reason="success", success_basis="noop",
+                     arm_safe=all(abs(e) <= mine.safe_tol for e in error.values()), pose_error=error,
+                     joints=joints, model=model, box=None)
+                continue
+            box, one_hot = msg.get("box"), None
+            if spec["n_box"]:
+                try:
+                    one_hot = fleet_runtime.box_one_hot(box, spec["n_box"])
+                except ValueError as error:
+                    emit(event="rejected", id=job_id, detail=f"{action}: {error}")
+                    continue
+            else:
+                box = None
+            motion = fleet_runtime.MotionJudge(spec["motion"]) if spec["motion"] else None
+            basis = "motion" if motion else "judge" if stage.get("judge") else "none"
             emit(event="started", id=job_id)
             if stage["init_pose"] and not stop_evt.is_set():
                 omx_chain.move_to_pose(robot, stage["init_pose"], args, stage["name"])
             reason = "hold"
             if not stop_evt.is_set():
-                reason = omx_chain.run_stage(robot, stage, features, args, stop_evt, ramp=True)
+                if one_hot is not None or motion or hasattr(robot, "refresh_depth"):
+                    reason = fleet_runtime.run_job(robot, stage, features, args, stop_evt,
+                                                   one_hot=one_hot, motion=motion)
+                else:
+                    reason = omx_chain.run_stage(robot, stage, features, args, stop_evt, ramp=True)
                 reason = "hold" if reason == "next" else reason
             if reason == "hold":
                 # 멈춤: 더 움직이지 않는다. 토크는 유지돼 서보가 마지막 목표를 붙잡는다.
                 emit(event="done", id=job_id, success=False, end_reason="hold", arm_safe=False,
-                     success_basis="judge" if stage.get("judge") else "none", pose_error={}, joints=read_joints(robot),
-                     model=model)
+                     success_basis=basis, pose_error={}, joints=read_joints(robot), model=model, box=box)
                 continue
             arm_safe, error, joints = retreat(robot, safe_poses[action], args, stage["name"], mine.safe_tol)
             emit(event="done", id=job_id, success=reason == "success", end_reason=reason, arm_safe=arm_safe,
-                 success_basis="judge" if stage.get("judge") else "none", pose_error=error, joints=joints,
-                 model=model)
+                 success_basis=basis, pose_error=error, joints=joints, model=model, box=box)
     except Exception as error:  # noqa: BLE001 — 무슨 오류든 어댑터에 알리고 끝낸다
         emit(event="fatal", detail=f"{type(error).__name__}: {error}")
         raise

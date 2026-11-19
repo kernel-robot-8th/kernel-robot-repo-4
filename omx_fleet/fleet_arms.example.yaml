@@ -38,3 +38,22 @@ arms:
       # pick:
       #   model: ~/il_ws/omx_shoebox_d/models/act_shoebox_d_5000step
       #   seconds: 90
+
+  # omx_1031 E 모델 예 (그리퍼 전류 + MoGe depth + 박스 원핫). 위 omx1 대신 쓸 때 이름을 omx1 로 바꾼다.
+  omx1_e_example:
+    top: /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0
+    wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
+    mjpg: true
+    robot_id: omx_follower
+    robot_type: omx_follower_grip_depth
+    robot_code_dir: ~/outputs/train/omx_1031_act_smolvla   # omx_grip_robot.py·omx_depth_robot.py
+    start_pose: ~/outputs/train/omx_1031_act_smolvla/init_pose.json   # 켜질 때 학습 첫 자세로
+    release_move: false
+    actions:
+      pick:
+        # 시작 자세는 번들 폴더의 init_pose.json (<번들>/models/<모델> 의 두 단계 위)
+        model: ~/outputs/train/omx_1031_act_smolvla/models/act_1031_E_all_5000step
+        seconds: 90
+        success_motion: true    # 기본값 사용. 바꾸려면 {grip_closed_ma: -150, pan_away: 20, ...}
+      load:
+        noop: true              # E 가 꺼내서 올리기까지 한다
