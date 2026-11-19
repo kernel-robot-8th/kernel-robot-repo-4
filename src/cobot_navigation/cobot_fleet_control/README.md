@@ -79,7 +79,7 @@ BT와 중앙 하트비트는 계속 실행합니다. 명령 중복 검사는 발
 | `type=declined, order_id` | 고객이 구매하지 않습니다. `CUSTOMER` 단계에서만 받습니다. |
 
 - 선반과 자리는 `config/scenario.yaml`의 `shelf`, `destinations`에 적습니다. 열은 상차 구역과 상차 팔을, 자리는 하차 구역·하차 팔·통로를 정합니다.
-- 팔에 보내는 작업 요청(`/fleet/work_request`)에는 `shelf_row`, `shelf_col`이 함께 실립니다. 행은 팔이 집는 높이입니다.
+- 팔에 보내는 작업 요청(`/fleet/work_request`)에는 `shelf_row`, `shelf_col`이 함께 실립니다. 행은 상차 팔이 꺼낼 박스 번호(1~4)이고, 팔 노드가 실행기에 `box`로 넘깁니다 (`cobot_manipulation/docs/prd.md`).
 - 상품에 칸이 없거나 그 열에 상차 구역이 없으면 재고를 예약하기 전에 주문을 거절합니다. 지금 설정은 1열(ZA)·2열(ZB)만 있고 3열은 구역이 없습니다.
 - `/control_center/tasks` 스냅숏에 `stock`(SKU별 가용 수량과 칸)과 `destinations`(자리 ID와 이름)가 추가됩니다.
 

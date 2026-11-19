@@ -221,4 +221,5 @@ def test_packaged_scenario_config_builds_shelf_routes(tmp_path):
     assert scenario.routes['col2__BENCH_1']['pickup'] == 'ZB'
     assert 'col3__BENCH_1' not in scenario.routes
     assert scenario.routes['lab_delivery']['pickup'] == 'ZA'
+    assert scenario.shelf['rows'] == 4  # 팔 박스 번호 1~4
     repo.close()
