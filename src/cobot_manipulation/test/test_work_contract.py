@@ -92,8 +92,8 @@ def test_unknown_action_is_rejected_without_retry():
     assert (verdict, retry_safe) == (REJECT, False)
 
 
-@pytest.mark.parametrize('action', ['pick', 'load', 'unload', 'warehouse_store', 'hold',
-                                    'release_hold'])
+@pytest.mark.parametrize('action', ['pick', 'load', 'unload', 'warehouse_store',
+                                    'arrange_shoe', 'hold', 'release_hold'])
 def test_known_actions(action):
     assert RequestFilter('omx1').check(request(action=action), NOW)[0] == EXECUTE
 

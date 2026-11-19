@@ -15,10 +15,10 @@ CONFIG = Path(__file__).resolve().parents[1] / 'config/docker'
 
 
 def test_compose_uses_one_image_and_persistent_db():
-    """웹과 세 관제 서비스는 같은 코드 이미지와 기존 ROS 도메인을 사용한다."""
+    """웹·고객 화면과 세 관제 서비스는 같은 코드 이미지와 기존 ROS 도메인을 사용한다."""
     config = yaml.safe_load((CONFIG / 'compose.yaml').read_text())
     services = config['services']
-    for name in ('fleet', 'bridge', 'zone-manager', 'web'):
+    for name in ('fleet', 'bridge', 'zone-manager', 'web', 'customer'):
         assert services[name]['image'] == config['x-runtime']['image']
         assert services[name]['network_mode'] == 'host'
         assert services[name]['environment']['ROS_DOMAIN_ID'] == '100'
@@ -40,6 +40,13 @@ def test_compose_uses_one_image_and_persistent_db():
     assert 'fleet:=start' not in services['web']['command']
     assert services['web']['healthcheck']['test'][0] == 'CMD'
     assert '/api/health' in services['web']['healthcheck']['test'][-1]
+    # 고객 화면은 관제 화면과 다른 포트로 띄우고, 주문을 저장하지 않으므로 볼륨이 없다.
+    customer = services['customer']
+    assert customer['depends_on'] == {'fleet': {'condition': 'service_started'}}
+    assert customer['command'][:4] == ['ros2', 'run', 'cobot_gui', 'customer_gateway_node']
+    assert 'port:=${COBOT_CUSTOMER_PORT:-8081}' in customer['command']
+    assert 'volumes' not in customer
+    assert '/customer.html' in customer['healthcheck']['test'][-1]
 
 
 def test_python_and_base_versions_are_pinned():
@@ -57,10 +64,14 @@ def test_python_and_base_versions_are_pinned():
     lines = (CONFIG / 'versions.env').read_text().splitlines()
     versions = dict(line.split('=', 1) for line in lines
                     if line and not line.startswith('#'))
-    for name in ('ROS_BASE_IMAGE',):
+    for name in ('ROS_BASE_IMAGE', 'NODE_BUILD_IMAGE'):
         assert re.search(r'@sha256:[a-f0-9]{64}$', versions[name])
     dockerfile = (CONFIG / 'Dockerfile').read_text()
     assert 'ARG ROS_BASE_IMAGE=' + versions['ROS_BASE_IMAGE'] in dockerfile
+    assert 'ARG NODE_BUILD_IMAGE=' + versions['NODE_BUILD_IMAGE'] in dockerfile
+    # 고객 화면 웹은 lock 파일 그대로 설치하고, 최종 이미지에는 빌드 결과만 옮긴다.
+    assert 'npm ci' in dockerfile
+    assert 'COPY --from=customer-web /web/dist src/cobot_gui/web/dist' in dockerfile
     assert '--require-hashes' in dockerfile
     assert '--symlink-install' not in dockerfile
     assert 'USER cobot' in dockerfile
@@ -76,10 +87,16 @@ def runner(tmp_path):
     repo = tmp_path / 'repo'
     config = repo / 'src/cobot_navigation/cobot_fleet_control/config/docker'
     shutil.copytree(CONFIG, config)
-    for name in ('cobot_control_center', 'cobot_patrol_interfaces'):
+    for name in ('cobot_control_center', 'cobot_patrol_interfaces', 'cobot_interfaces',
+                 'cobot_gui'):
         package = repo / 'src' / name
         package.mkdir(parents=True)
         (package / 'original.txt').write_text('committed source\n')
+    # 호스트의 npm 설치물과 옛 빌드 결과 (커밋하지 않는 파일).
+    for leftover in ('web/node_modules/pkg/index.js', 'web/dist/customer.html'):
+        path = repo / 'src/cobot_gui' / leftover
+        path.parent.mkdir(parents=True)
+        path.write_text('host only\n')
     subprocess.run(['git', 'init', '-q', str(repo)], check=True)
     subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
     subprocess.run(
@@ -125,6 +142,11 @@ def test_build_only_builds_and_labels_source(runner):
     staged = runner.staged_dir / 'src'
     assert (staged / 'cobot_control_center/original.txt').read_text() == 'working tree edit\n'
     assert (staged / 'cobot_patrol_interfaces/original.txt').read_text() == 'committed source\n'
+    assert (staged / 'cobot_interfaces/original.txt').read_text() == 'committed source\n'
+    assert (staged / 'cobot_gui/original.txt').read_text() == 'committed source\n'
+    # 고객 화면 웹은 이미지 안에서 새로 빌드하므로 호스트 설치물·빌드 결과를 넘기지 않는다.
+    assert not (staged / 'cobot_gui/web/node_modules').exists()
+    assert not (staged / 'cobot_gui/web/dist').exists()
 
 
 def test_down_preserves_volumes_by_default(runner):
@@ -136,10 +158,10 @@ def test_down_preserves_volumes_by_default(runner):
 
 
 def test_up_starts_web_and_ros_execution_services(runner):
-    """통합 기동에 웹과 세 ROS 서비스를 함께 포함한다."""
+    """통합 기동에 웹·고객 화면과 세 ROS 서비스를 함께 포함한다."""
     result, calls = runner('up')
     assert result.returncode == 0
-    assert calls[-1]['args'][-5:] == ['-d', 'bridge', 'zone-manager', 'fleet', 'web']
+    assert calls[-1]['args'][-6:] == ['-d', 'bridge', 'zone-manager', 'fleet', 'web', 'customer']
     assert 'broker' not in calls[-1]['args']
 
 

@@ -108,7 +108,7 @@ def test_api_before_first_snapshot():
     assert client.get('/api/health').json() == {
         'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
         'source_age': None, 'controller_online': False, 'cameras': {},
-        'arm_controller_online': False}
+        'routes': {}, 'arm_controller_online': False}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 

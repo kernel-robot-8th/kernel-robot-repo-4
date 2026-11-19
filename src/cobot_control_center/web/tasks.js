@@ -47,6 +47,36 @@ function taskCommandText(task) {
 
 const TASK_FINAL_TIMED = new Set(["SUCCEEDED", "FAILED", "STOPPED"]);
 
+// 경로 구간 작업: 백엔드가 작업 ID 를 '<route_id>-<구간 번호>' 로 만든다 (route_utils). 아니면 null.
+const ROUTE_TASK_ID = /^(route_[0-9a-f]+)-(\d+)$/;
+
+function rememberRoutes(routes) {
+  for (const route of routes) {
+    if (route && route.route_id) view.routeTotals.set(route.route_id, route.legs.length);
+  }
+}
+
+// 처음 열 때 최근 경로(끝난 것 포함)의 구간 수를 받아 둔다. 백엔드를 다시 켜면 잊으므로 그때는 'n' 만.
+async function loadRoutes() {
+  try {
+    const res = await fetch("/api/routes");
+    if (!res.ok) return;
+    const data = await res.json();
+    rememberRoutes([...Object.values(data.robots || {}), ...(data.recent || [])]);
+    renderTasks();
+  } catch (err) {
+    // 읽기 전용 백엔드(503)·끊김: 꼬리표를 구간 번호만으로 단다
+  }
+}
+
+// "경로 2/3" (구간 수를 모르면 "경로 2")
+function taskRouteTag(task) {
+  const match = ROUTE_TASK_ID.exec(task.task_id || "");
+  if (!match) return "";
+  const total = view.routeTotals.get(match[1]);
+  return `경로 ${Number(match[2]) + 1}${total ? `/${total}` : ""}`;
+}
+
 function renderTasks() {
   // 상세 화면의 요약·타임라인도 작업 목록으로 그린다.
   renderDetail();
@@ -77,6 +107,9 @@ function renderTasks() {
     const index = robotIndex(task.robot_id);
     if (index >= 0) robot.style.setProperty("--robot-color", `var(${robotColorVar(index)})`);
     el.querySelector(".task-command").textContent = taskCommandText(task);
+    const routeTag = el.querySelector(".task-route");
+    routeTag.textContent = taskRouteTag(task);
+    routeTag.hidden = !routeTag.textContent;
     const state = el.querySelector(".task-state");
     state.textContent = TASK_TEXT[task.state] || task.state;
     state.style.setProperty("--state-color", `var(--${TASK_GROUP[task.state] || "idle"})`);

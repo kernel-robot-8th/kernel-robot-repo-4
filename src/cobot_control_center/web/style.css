@@ -492,12 +492,40 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
   background: rgb(255 255 255 / 0.3);
 }
 
+/* 경로: 고른 순서 칩 (① P1 × → ② ZA ×) 과 구간 미리보기 */
+.cmd-pick.route-mode { flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+.route-hint { margin: auto 0; color: var(--muted); text-align: center; }
+.route-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 3px; }
+.route-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 2px 1px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--active);
+  color: #fff;
+  font-weight: 700;
+}
+.pick-bar .cmd-pick .route-chip button {
+  min-width: 0;
+  padding: 0 3px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+}
+.pick-bar .cmd-pick .route-chip button:hover { background: rgb(255 255 255 / 0.25); }
+.route-arrow { color: var(--muted); font-size: 12px; }
+
 .cmd-warn { color: var(--bad); font-weight: 600; margin: 0; }
 .cmd-warn:empty { display: none; }
 
 /* 지점 목록이 없어도(홈·나가기) 버튼은 아래에 */
 .pick-bar .cmd-buttons { display: flex; gap: 6px; margin-top: auto; }
-.pick-bar .cmd-buttons button { flex: 1; padding: 6px 8px; font-size: 13px; font-weight: 600; }
+.pick-bar .cmd-buttons button { flex: 1; padding: 6px 8px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.pick-bar .cmd-buttons #cmd-undo, .pick-bar .cmd-buttons #cmd-clear { padding: 6px 4px; }
 .pick-bar .cmd-buttons #cmd-ok { flex: 2; }
 .pick-bar .primary { background: var(--active); border-color: var(--active); color: #fff; }
 .pick-bar .primary:hover:not(:disabled) { filter: brightness(1.1); }
@@ -523,6 +551,15 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .task-time { flex: none; width: 58px; color: var(--muted); }
 .task-robot { flex: none; width: 52px; color: var(--robot-color, var(--text)); }
 .task-command { flex: 0 1 auto; min-width: 0; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-route {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--active);
+  background: color-mix(in srgb, var(--active) 12%, transparent);
+}
+.task-route[hidden] { display: none; }
 .task-state { flex: none; font-weight: 600; color: var(--state-color, var(--idle)); }
 .task-detail { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 결과 모름·진행 중은 늘 맨 위에, 바탕색으로 */
@@ -595,6 +632,7 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-work-row select { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px; padding: 4px 6px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
 .arm-work-row select:disabled { opacity: 0.45; }
+.arm-work-row .arm-work-row-no { flex: 0 0 auto; }
 .card .arm-work-row button { flex: 0 0 auto; white-space: nowrap; }
 .arm-alarm { font-size: 12px; font-weight: 600; color: var(--warn); }
 /* 실행기 줄: 작업별 모델·버전, 또는 켜기가 안 되는 이유 (팔 노드 info) */

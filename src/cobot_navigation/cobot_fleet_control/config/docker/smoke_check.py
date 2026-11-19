@@ -1,4 +1,4 @@
-"""Start the installed fleet and web in isolation, check HTTP/WS, then stop them."""
+"""Start the installed fleet, web and customer gateway in isolation, check HTTP/WS, then stop."""
 
 import base64
 import hashlib
@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from ament_index_python.packages import get_package_share_directory
@@ -63,6 +64,36 @@ def websocket_snapshot(port, path):
         return json.loads(read_exact(stream, size))
 
 
+def http_status(url):
+    """Return the HTTP status, including error statuses, without raising."""
+    try:
+        with urlopen(url, timeout=3) as response:
+            return response.status
+    except HTTPError as error:
+        return error.code
+
+
+def check_customer(port, deadline_sec=15):
+    """Check the customer screen is served, the control screen is not, and the catalog opens."""
+    base = f'http://127.0.0.1:{port}'
+    deadline, catalog = time.monotonic() + deadline_sec, None
+    while time.monotonic() < deadline:
+        try:
+            # 503 = fleet 스냅숏을 아직 못 받음. 받으면 자리 BENCH_1 이 보여야 한다.
+            with urlopen(base + '/api/customer/catalog?loc=BENCH_1', timeout=1) as response:
+                catalog = json.load(response)
+            break
+        except OSError:
+            time.sleep(0.2)
+    if not catalog or not catalog.get('location'):
+        raise RuntimeError(f'Customer catalog did not open: {catalog}')
+    checks = {path: http_status(base + path) for path in ('/customer.html', '/index.html')}
+    if checks != {'/customer.html': 200, '/index.html': 404}:
+        raise RuntimeError(f'Unexpected customer gateway files: {checks}')
+    checks['/api/customer/catalog'] = 200
+    return checks
+
+
 def main():
     """Run only with explicit localhost discovery on the isolated test domain."""
     if (os.environ.get('ROS_DOMAIN_ID') != '77'
@@ -71,6 +102,7 @@ def main():
         raise RuntimeError('smoke requires domain 77 and localhost-only discovery')
     root = Path('/opt/cobot_ws/src')
     port = 8080
+    customer_port = 8081
     processes, logs = [], []
     with tempfile.TemporaryDirectory(prefix='cobot-smoke-') as scratch:
         profiles = Path(scratch) / 'profiles'
@@ -83,6 +115,12 @@ def main():
             '-p', f'db_path:={scratch}/fleet.sqlite3',
             '-p', f'patrol_config_dir:={config_dir}',
         ])
+        plan.append(('customer', [
+            'ros2', 'run', 'cobot_gui', 'customer_gateway_node', '--ros-args',
+            '--params-file',
+            str(Path(get_package_share_directory('cobot_gui')) / 'config/customer_gateway.yaml'),
+            '-p', f'port:={customer_port}',
+        ]))
         try:
             for name, command in plan:
                 log = (Path(scratch) / f'{name}.log').open('w+')
@@ -115,7 +153,8 @@ def main():
             if not fleet or tasks.get('type') != 'tasks':
                 raise RuntimeError('Missing initial fleet or tasks WebSocket snapshot')
             result = {'health': health, 'http': checks,
-                      'websocket': {'/ws/fleet': 101, '/ws/tasks': 101}}
+                      'websocket': {'/ws/fleet': 101, '/ws/tasks': 101},
+                      'customer': check_customer(customer_port)}
             print(json.dumps(result, ensure_ascii=False, indent=2))
         except Exception:
             for log in logs:

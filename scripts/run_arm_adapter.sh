@@ -7,6 +7,7 @@
 #
 #   scripts/run_arm_adapter.sh                    # 관제와 연결: 도메인 100, 같은 망 공개, backend=worker
 #   scripts/run_arm_adapter.sh --domain 101 --localhost --backend fake   # 혼자 시험 (팔 안 씀)
+#   --backend auto: COBOT_WORKER_ARMS 에 이 팔이 있으면 worker, 없으면 COBOT_ARM_BACKEND(기본 none). 서비스가 쓴다
 #
 # 끝내기: Ctrl+C. 팔이 켜져 있었으면 토크가 꺼지므로 팔을 받친다.
 # 자세한 흐름: src/cobot_manipulation/docs/prd.md 4·5절.
@@ -28,9 +29,9 @@ BACKEND=worker
 AUTO_START=false
 
 usage() {
-    sed -n '5,17p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '5,18p' "$0" | sed 's/^# \{0,1\}//'
     echo
-    echo "옵션: --arm omxN (기본 omx1)  --domain N  --localhost  --backend worker|fake|none  --auto-start"
+    echo "옵션: --arm omxN (기본 omx1)  --domain N  --localhost  --backend worker|fake|none|auto  --auto-start"
     exit "${1:-0}"
 }
 
@@ -50,7 +51,13 @@ fail() { echo "✗ $*" >&2; exit 1; }
 ok() { echo "✓ $*"; }
 
 case "$ARM_ID" in omx[0-9]|omx[0-9][0-9]) ;; *) fail "팔 이름은 omxN 형태 ($ARM_ID)" ;; esac
-case "$BACKEND" in worker|fake|none) ;; *) fail "backend 는 worker·fake·none 중 하나 ($BACKEND)" ;; esac
+if [ "$BACKEND" = auto ]; then
+    # station.env 의 COBOT_WORKER_ARMS(실제로 돌릴 팔 목록)로 정한다. COBOT_ARM_BACKEND 는 옛 station.env 호환
+    BACKEND=${COBOT_ARM_BACKEND:-none}
+    for a in ${COBOT_WORKER_ARMS:-}; do [ "$a" = "$ARM_ID" ] && BACKEND=worker; done
+    echo "  backend auto → $BACKEND (COBOT_WORKER_ARMS=\"${COBOT_WORKER_ARMS:-}\")"
+fi
+case "$BACKEND" in worker|fake|none) ;; *) fail "backend 는 worker·fake·none·auto 중 하나 ($BACKEND)" ;; esac
 case "$DOMAIN" in ''|*[!0-9]*) fail "도메인은 숫자 ($DOMAIN)" ;; esac
 if [ "$DOMAIN" = 10 ] || [ "$DOMAIN" = 12 ]; then
     # CLAUDE.md 7절: 10·12 는 실물 구동용 설계 제안(D2). 확정 전에는 이 스크립트로 쓰지 않는다
@@ -60,16 +67,33 @@ fi
     || fail "빌드가 없음: $REPO 에서 colcon build --symlink-install --packages-up-to cobot_manipulation"
 
 # ---- 사전 검사 ----
-# 같은 팔 어댑터가 이미 떠 있으면 같은 토픽에 두 노드가 답한다
-if pgrep -f "arm_adapter_node.*arm_id:=$ARM_ID" >/dev/null; then
-    fail "$ARM_ID 어댑터가 이미 떠 있음: $(pgrep -af "arm_adapter_node.*arm_id:=$ARM_ID" | head -1)"
+# 같은 팔 어댑터가 이미 떠 있으면 같은 토픽에 두 노드가 답한다.
+# 끝 경계를 둬서 omx1 검사가 omx10 어댑터에 걸리지 않게 한다
+ADAPTER_PAT="arm_adapter_node.*arm_id:=$ARM_ID( |\$)"
+if pgrep -f "$ADAPTER_PAT" >/dev/null; then
+    fail "$ARM_ID 어댑터가 이미 떠 있음: $(pgrep -af "$ADAPTER_PAT" | head -1)"
 fi
+
+# 이 팔 포트를 잡고 있을 수 있는 실행기 pid. 한 PC 에 팔이 둘이면 다른 팔 어댑터가 띄운 실행기
+# (환경변수 ARM_ID=다른 팔, arm_backend_utils.py)는 다른 포트를 쓰므로 빼고,
+# ARM_ID 가 이 팔이거나 없는(어느 팔인지 모르는) 실행기만 고른다
+workers_on_this_arm() {
+    local pid id
+    # 파이썬이 실행기 파일을 바로 돌리는 프로세스만 (그 글자가 들어간 셸·편집기 명령은 빼려고)
+    for pid in $(pgrep -f '^[^ ]*python[0-9.]* [^ ]*omx_fleet_worker\.py( |$)'); do
+        id=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^ARM_ID=//p' | head -1) || true
+        if [ -z "$id" ] || [ "$id" = "$ARM_ID" ]; then
+            echo "$pid"
+        fi
+    done
+}
 
 if [ "$BACKEND" = worker ]; then
     # 단독 실행기가 시리얼 포트를 잡고 있으면 어댑터가 띄운 실행기가 연결하지 못한다
-    if pgrep -f omx_fleet_worker.py >/dev/null; then
-        echo "✗ 단독으로 띄운 실행기가 팔을 잡고 있음:" >&2
-        pgrep -af omx_fleet_worker.py | sed 's/^/    /' >&2
+    BUSY=$(workers_on_this_arm)
+    if [ -n "$BUSY" ]; then
+        echo "✗ 단독으로 띄운 실행기가 $ARM_ID 팔을 잡고 있음 (또는 어느 팔인지 모름):" >&2
+        for pid in $BUSY; do ps -o pid=,args= -p "$pid" | sed 's/^/    /' >&2; done
         fail "그 터미널에서 {\"cmd\":\"release\"} (거절되면 팔을 받치고 {\"cmd\":\"quit\"}) 로 먼저 끈다"
     fi
     [ -x "$VENV_PY" ] || fail "lerobot 0.4.4 파이썬이 없음: $VENV_PY (OMX_VENV_PY 로 지정)"

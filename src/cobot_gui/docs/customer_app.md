@@ -92,9 +92,8 @@ ros2 launch cobot_gui customer_gateway.launch.xml          # 고객 화면
 
 - 두 노드는 같은 관제 PC, 같은 `ROS_DOMAIN_ID` 에서 돈다 (값은 `docs/fms_interfaces.md`, 임의로 바꾸지 않는다).
 - `--symlink-install` 빌드도 된다. 게이트웨이는 설치 폴더의 바로가기를 풀지 않고 경로로만 허용 범위를 본다.
-- fleet_control 을 도커(`cobot_fleet_control/config/docker`)로 켰다면 게이트웨이도 같은 DDS 설정으로 띄운다:
-  `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `CYCLONEDDS_URI=file://<저장소>/src/cobot_navigation/cobot_fleet_control/config/docker/cyclonedds.xml`.
-  도커 관제 web 이 8080 을 쓰므로 게이트웨이 포트(`config/customer_gateway.yaml` 의 `port`)는 겹치지 않게 바꾼 설정 파일을 `params_file:=` 로 준다.
+- **관제 도커(`cobot_fleet_control/config/docker`)의 `fleet_docker.sh up` 은 게이트웨이도 같이 켠다** (`customer` 서비스, 포트 8081, 웹 빌드는 이미지 안에서 한다). 이때 자리 QR 은 `http://<관제 PC IP>:8081/?loc=BENCH_1` 이다. 도커 관제 web 이 8080 을 쓰기 때문이다.
+- 위 `ros2 launch` 직접 실행은 개발용이다. 도커 fleet_control 에 붙일 때는 같은 DDS 설정(`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `CYCLONEDDS_URI=file://<저장소>/src/cobot_navigation/cobot_fleet_control/config/docker/cyclonedds.xml`)과 8080 이 아닌 포트를 준다. 도커 `customer` 와 같은 포트를 동시에 쓰지 않는다.
 - 주문하려면 fleet_control 에 재고와 선반 칸이 있어야 한다. 예 (1행 1열에 3켤레):
   ```bash
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \

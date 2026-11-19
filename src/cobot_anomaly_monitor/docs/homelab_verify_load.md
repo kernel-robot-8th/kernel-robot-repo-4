@@ -87,7 +87,7 @@ capture_time은 관제와 비교 가능한 Unix 초이다. 원천에서 측정�
 ros2 run cobot_anomaly_monitor audit_site_map --map "$MAP_YAML" --site "$PATROL_SITE_YAML" --queues "$QUEUE_YAML"
 ```
 
-11월 4일 인계서의 변환을 검산하려면 정본 gate67 맵, 변경 전 lab.yaml과 zone_params.yaml에만 `--offset 1.415 1.639`를 추가한다. 팀 파일 기준 중심 53개 중 12개가 점유 셀이다. P1·P2·P3·P4·P9·P10·P12·P13·ZC_EXIT와 C 슬롯 0·1·2다. 이 결과로 시뮬 좌표 프로필을 자동 생성하지 않는다.
+11월 4일 인계서의 변환을 검산하려면 정본 gate67 맵, 변경 전 lab.yaml과 zone_params.yaml에만 `--offset 1.415 1.639`를 추가한다. 팀 파일 기준 중심 53개 중 12개가 점유 셀이다. P1·P2·P3·P4·P9·P10·P12·P13·ZC_EXIT와 C 슬롯 0·1·2다. 통합본 256f701의 대기열 설정으로 같은 변환을 계산하면 점유 중심은 11개이며 대기 슬롯은 B1·C0이다. 두 결과 모두 ZC_EXIT가 점유 셀이다. 이 검산은 시뮬 지도 오프셋에 대한 결과이며 실제 장비의 통로 간격을 측정하지 않는다.
 
 4. 실사 추론 결과를 재생하려면 격리 도메인 77 또는 140, LOCALHOST와 루프백 시험 브로커를 사용한다. 다음 명령은 원본 녹화 하나·모드 하나만 골라 실제 표본 간격으로 MQTT에 보낸다. `capture_time`은 시뮬 재생 시각이고, `capture_time_rel`, `recorded_epoch` 및 원본 프레임 번호는 보존한다.
 

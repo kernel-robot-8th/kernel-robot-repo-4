@@ -154,6 +154,7 @@
           <button type="button" data-cmd="zone">구역</button>
           <button type="button" data-cmd="leave">나가기</button>
           <button type="button" data-cmd="home">홈</button>
+          <button type="button" data-cmd="route" title="일반 지점·구역 지점·홈을 섞어 순서대로 (구간마다 이동·구역 명령을 차례로 보냄)">경로</button>
         </div>
         <!-- 초기위치는 로봇을 움직이지 않아 명령 줄에 두지 않는다. 아래 '위치' 칸의 [홈] [좌표 지정] (detail.js renderStats) -->
         <div class="stop-row">
@@ -267,6 +268,7 @@
     <div class="cmd-pick" id="cmd-pick"></div>
     <p class="cmd-warn" id="cmd-warn"></p>
     <div class="cmd-buttons">
+      <button type="button" id="cmd-undo" title="마지막에 고른 지점 하나 빼기">되돌리기</button>
       <button type="button" id="cmd-clear">지우기</button>
       <button type="button" id="cmd-cancel" title="Esc 로도 닫힌다">취소</button>
       <button type="button" id="cmd-ok" class="primary">보내기</button>
@@ -361,6 +363,7 @@
           <button type="button" data-cmd="zone">구역</button>
           <button type="button" data-cmd="leave">나가기</button>
           <button type="button" data-cmd="home">홈</button>
+          <button type="button" data-cmd="route" title="일반 지점·구역 지점·홈을 섞어 순서대로 (구간마다 이동·구역 명령을 차례로 보냄)">경로</button>
         </div>
       </div>
       </div>
@@ -379,6 +382,7 @@
       <time class="task-time"></time>
       <strong class="task-robot"></strong>
       <span class="task-command"></span>
+      <span class="task-route" hidden></span>
       <span class="task-state"></span>
       <span class="task-detail muted"></span>
       <button type="button" class="resolve-btn" hidden>현장 확인 후 해제</button>
@@ -414,13 +418,12 @@
           <div class="cmd-row arm-work-row"
                title="개발용 작업 시험: 팔 하나에 작업 한 건. 실제 팔이 움직입니다. 주문 진행 중에는 쓰지 마세요">
             <select class="arm-work-action" aria-label="시험할 작업"></select>
+            <select class="arm-work-row-no" aria-label="상자 번호 (선반 행)"></select>
             <button type="button" class="arm-work-btn">작업 시험</button>
           </div>
           <div class="stop-row">
-            <button type="button" class="stop-btn" data-arm-cmd="hold"
-                    title="작업을 멈추고 정지 유지 (토크 유지, 확인 창 없음)"></button>
-            <button type="button" class="estop-btn" data-arm-cmd="soft_latch"
-                    title="소프트 정지 래치: 끄기(RESET)로만 풀림 (전원 차단 아님, 확인 창 없음)"></button>
+            <button type="button" class="stop-btn" data-arm-cmd="hold"></button>
+            <button type="button" class="estop-btn" data-arm-cmd="soft_latch"></button>
           </div>
         </div>
       </div>

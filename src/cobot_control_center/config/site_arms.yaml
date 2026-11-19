@@ -7,33 +7,38 @@
 # 여기를 바꾸면 그 둘도 맞는지 확인한다 (시나리오는 지혁 님 코드).
 #
 # role: pickup(상차) / dropoff(하차) / warehouse(창고). 빈 칸은 화면에 '미정' 으로 나온다.
-# actions: 그 자리 팔이 하는 작업 (팔 노드 작업 이름 pick·load·unload·warehouse_store 중).
+# actions: 그 자리 팔이 하는 작업 (팔 노드 작업 이름 pick·load·unload·warehouse_store·arrange_shoe 중).
 #          관제 작업 시험은 여기 적힌 작업만 보낸다. [] 이면 보내지 않고, 칸이 없으면 제한하지 않는다.
 # serial: OpenRB-150 보드 시리얼 (/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00).
 arms:
   omx1:
     station: ZA
     role: pickup
-    host: 8-OMEN
-    serial: 77AABA9150323952582E3120FF06102E   # 2026-11-16 이 PC 에서 확인
+    host: 8-OMEN        # omx2 와 같은 PC 에 붙일 예정
+    serial: ''          # 다시 학습 중이라 지금 연결 안 함. 보드 시리얼 미확인
     actions: [pick, load]   # 창고에서 신발상자 집기 → 로봇에 싣기
   omx2:
     station: ZB
     role: pickup        # 창고 상차 (2026-11-16 확정)
-    host: ''            # ZB 팔을 돌릴 PC 미정 (몇 주 전까지 OMEN-11 노트북으로 학습했음)
-    serial: ''          # ZB 팔 보드 시리얼 미확인
+    host: 8-OMEN
+    serial: 77AABA9150323952582E3120FF06102E   # 2026-11-17 사용자 확인 (전에 omx1 로 잘못 적음)
     actions: [pick, load]   # ZA 와 같음: 집기 → 싣기
   omx3:
     station: ZC
     role: dropoff
     host: OMEN-11
     serial: 6D96FA0450323952582E3120FF052A1E   # 2026-11-16 OMEN-11 에서 확인
-    # 신발 정리 같은 하차 쪽 동작. 팔 노드·실행기에 작업 이름과 모델이 생기면 채운다.
-    actions: []
+    # arrange_shoe = 신발 정리 (번들 omx_arrange_shoe_zc), load = 싣기 (번들 omx_load_zc). 2026-11-17 사용자 지정
+    actions: [arrange_shoe, load]
 
 # 배치 변경 기록 (새것이 위). 팔이나 보드·PC 를 옮기면 여기에 한 줄 남긴다.
 # 팔(과 그 보드)은 자리에 붙어 있고, 노트북(PC)이 팔 사이를 옮겨 다닌다. 학습 모델은 그 팔·그 자리 것이다.
 #
+# 2026-11-17  ZC(omx3) 작업: 신발 정리(arrange_shoe, 새 작업 이름) · 싣기(load). OMEN-11 의 shoebox_d·move_in 모델을
+#             ZC 팔에 쓴다 (사용자 확인, 대시보드 v2 로 이 팔에서 돌림). 아래 11-16 'ZC 에는 쓰지 않는다' 를 대신함.
+#             모델은 번들 규격 v0.1 로 ~/il_ws/bundles/omx_arrange_shoe_zc·omx_load_zc/v1 에 둠.
+# 2026-11-17  8-OMEN 에 꽂힌 보드 77AABA91… 는 ZB 팔(omx2) 것으로 바로잡음 (사용자 확인).
+#             omx1(ZA)은 다시 학습 중이라 연결 빼고 시리얼 비움. omx1·omx2 모두 8-OMEN 에 붙일 예정.
 # 2026-11-16  자리별 작업 명시: ZA·ZB 창고 상차(pick → load), ZC 는 신발 정리 동작 준비 중(비움).
 # 2026-11-16  OMEN-11 노트북: ZB 팔 학습에 쓰다가(몇 주 전까지, 날짜 미상) ZC 팔로 옮겨 붙음.
 #             지금 OMEN-11 에 붙은 보드 6D96FA04… 는 ZC 팔(omx3) 것.

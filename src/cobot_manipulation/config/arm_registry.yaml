@@ -6,11 +6,12 @@
 # 빈 칸이면 그 팔은 UNKNOWN 으로 두고 일을 하지 않는다.
 arms:
   omx1:
-    # ZA 상차 · 8-OMEN. 2026-11-16 이 PC /dev/serial/by-id 에서 확인.
-    serial: 77AABA9150323952582E3120FF06102E
-  omx2:
-    # ZB (상차 또는 창고) · PC 미정
+    # ZA 상차 · 8-OMEN 예정. 다시 학습 중이라 지금 연결 안 함, 보드 시리얼 미확인.
     serial: ""
+  omx2:
+    # ZB 상차 · 8-OMEN. 2026-11-17 사용자 확인: 이 PC 에 꽂힌 77AABA91… 보드는 ZB 팔 것
+    # (2026-11-16 에 omx1 로 적었던 것을 바로잡음).
+    serial: 77AABA9150323952582E3120FF06102E
   omx3:
     # ZC 하차 · OMEN-11. 2026-11-16 OMEN-11 /dev/serial/by-id 에서 확인 (전에 omx1 에 잘못 적혀 있던 보드).
     serial: 6D96FA0450323952582E3120FF052A1E
