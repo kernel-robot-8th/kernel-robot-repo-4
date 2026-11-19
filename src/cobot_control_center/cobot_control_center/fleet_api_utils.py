@@ -475,7 +475,8 @@ LOAD_CONFIRM_STAGES = {'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER',
 # 멈춘 주문(복구가 필요한) 상태와, 이어서 가기를 받는 이동 단계. fleet 의 scenario_contracts.BLOCKED·
 # RESUME_STAGES 를 복사한 값이다 (패키지끼리 import 하지 않음). 화면 표시용이고 최종 검사는 fleet 이 한다.
 ORDER_BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
-ORDER_RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER'}
+ORDER_RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER',
+                       'MOVE_CUSTOMER', 'MOVE_ARRANGE', 'MOVE_RESTOCK'}
 # 화면에 내는 주문 필드. 원장 사본(input 등)을 그대로 내지 않는다.
 ORDER_FIELDS = ('order_id', 'robot_id', 'state', 'stage', 'completed', 'sku', 'route', 'detail')
 

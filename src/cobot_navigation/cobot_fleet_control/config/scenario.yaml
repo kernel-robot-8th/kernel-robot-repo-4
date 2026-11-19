@@ -1,16 +1,18 @@
-# 현장 배송 경로: ZA 또는 ZB에서 omx1으로 상차하고 ZC에서 omx2로 하차한다.
+# 현장 구역 (2026-11-19 사용자 확인): ZB = 창고 → 핑키 상차 (omx2), ZC = 매장 신발 정리 (omx3),
+# ZA = 반환된 신발 상자를 선반에 다시 올림 (omx1). 팔 이름·자리는 cobot_control_center site_arms.yaml 과 같다.
+# routes: 관제 화면 주문이 직접 고르는 하차 구역 경로 (하차 팔이 내려놓는 기존 흐름).
 routes:
   lab_delivery:
     pickup: ZA
     dropoff: ZC
     pickup_arm: omx1
-    dropoff_arm: omx2
+    dropoff_arm: omx3
     lane: main
   lab_delivery_zb:
     pickup: ZB
     dropoff: ZC
-    pickup_arm: omx1
-    dropoff_arm: omx2
+    pickup_arm: omx2
+    dropoff_arm: omx3
     lane: main
 # 고객 주문 화면(cobot_gui customer_gateway)이 쓰는 선택 설정이다. 주문에 route 대신 destination(자리 ID)을
 # 주면 상품이 놓인 선반 열과 자리로 경로를 고른다 (경로 이름 col<열>__<자리>). route 를 직접 주는 주문은 그대로다.
@@ -18,15 +20,22 @@ shelf:
   # 행 = 상차 팔이 꺼낼 박스 번호 (팔 작업 요청 shelf_row → 실행기 box). omx_1031 E 모델 기준:
   # 1 맨 윗층 위, 2 맨 윗층 아래(1번 밑에 쌓인 것), 3 둘째 층, 4 셋째 층.
   rows: 4
-  columns:                     # 열 -> 핑키가 상차하러 갈 구역과 상차 팔
-    1: {pickup: ZA, pickup_arm: omx1}
-    2: {pickup: ZB, pickup_arm: omx1}
-    # 3열: 대응하는 상차 구역이 아직 없다. 구역을 추가한 뒤 적는다. 그 전에는 3열 상품 주문을 거절한다.
-destinations:                  # 자리 QR 의 위치 ID -> 하차 구역·하차 팔·통로
-  BENCH_1: {name: "고객 벤치 1", dropoff: ZC, dropoff_arm: omx2, lane: main}
+  columns:                     # 열 -> 핑키가 상차하러 갈 구역과 상차 팔. 창고 선반은 모두 ZB 에서 꺼낸다.
+    1: {pickup: ZB, pickup_arm: omx2}
+    2: {pickup: ZB, pickup_arm: omx2}
+    # 3열: 아직 쓰지 않는다. 적기 전에는 3열 상품 주문을 거절한다.
+# 고객이 회수(구매하지 않음)를 누르면: ZC 에서 정리(arrange_shoe, 핑키 위에 다시 올림) → ZA 에서 선반에 반환
+# (warehouse_store) → HOME. 반환이 끝나야 재고가 1 돌아온다. 지점 자리(point)를 쓰려면 꼭 적는다.
+customer_return: {arrange: ZC, arrange_arm: omx3, restock: ZA, restock_arm: omx1}
+# 자리 QR 의 위치 ID -> 로봇이 갈 곳. QR 주소: http://<관제 PC IP>:<포트>/?loc=<자리 ID>
+#   {point: <지점>, lane}: 로봇 순찰 설정(cobot_pinky_patrol config/sites/<현장>.yaml points)의 일반 지점(P1~P50).
+#     고객이 핑키에서 신발을 직접 꺼내고 그 자리에서 결제한다.
+#   {dropoff, dropoff_arm, lane}: 하차 구역에서 하차 팔이 내려놓는 기존 방식.
+destinations:
+  P22: {name: "P22 자리", point: P22, lane: main}
 max_retries: 3                 # initial attempt + at most three safe retries
 step_timeout_sec: 300.0
-customer_timeout_sec: 120.0
+customer_timeout_sec: 300.0   # 고객 자리 도착 뒤 결제·회수 대기 (5분). 넘으면 신발을 실은 채 HOME
 stale_sec: 3.0
 battery_stale_sec: 10.0       # control-center documents the real battery topic at 5 s intervals
 battery_min: 20.0             # assignment policy, not a fixed UML value

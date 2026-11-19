@@ -83,6 +83,31 @@ BT와 중앙 하트비트는 계속 실행합니다. 명령 중복 검사는 발
 - 상품에 칸이 없거나 그 열에 상차 구역이 없으면 재고를 예약하기 전에 주문을 거절합니다. 지금 설정은 1열(ZA)·2열(ZB)만 있고 3열은 구역이 없습니다.
 - `/control_center/tasks` 스냅숏에 `stock`(SKU별 가용 수량과 칸)과 `destinations`(자리 ID와 이름)가 추가됩니다.
 
+### 고객 자리(지점) 주문
+
+`destinations`의 자리를 `{point: P22, lane}`으로 적으면 로봇이 그 지점(순찰 설정의 일반 지점 P1~P50, 구역 아님)으로 갑니다.
+고객 자리에는 팔이 없고, 고객이 핑키에서 신발을 직접 꺼내 그 자리에서 결제합니다. `customer_return`이 꼭 있어야 합니다.
+
+```
+MOVE_PICKUP(zone ZB) → PICKUP_EXIT → DOCK_PICKUP → MARKER → PICK(omx2) → LOAD → VERIFY_LOAD
+→ LEAVE_PICKUP → MOVE_CUSTOMER(goto P22) → CUSTOMER (customer_timeout_sec, 기본 설정 300초)
+  ├ received (결제)      → RETURN_HOME → RETURN_EXIT → COMPLETED
+  ├ 시간 초과            → RETURN_HOME → RETURN_EXIT → COMPLETED (경보 CUSTOMER_TIMEOUT, 신발은 핑키 위, 재고 그대로)
+  └ declined (회수 버튼)  → MOVE_ARRANGE(zone ZC) → ARRANGE(omx3 arrange_shoe) → LEAVE_ARRANGE
+                          → MOVE_RESTOCK(zone ZA) → RESTOCK(omx1 warehouse_store) → LEAVE_RESTOCK
+                          → RETURN_HOME → RETURN_EXIT → COMPLETED, 재고 +1
+```
+
+- 경로 칸: `customer`=자리 지점, `dropoff`/`dropoff_arm`=정리 구역·팔(ZC·omx3), `restock`/`restock_arm`=반환 구역·팔(ZA·omx1).
+  정지·해제 때 `hold`/`release_hold`는 세 팔 모두에 보냅니다.
+- 상차장 이동 때는 상차장만 예약하고, 정리·반환 구역은 그곳으로 갈 때 예약합니다.
+- 회수 단계에서 팔이 `retry_safe` 없이 실패하면 주문을 보류(UNKNOWN)하고 복귀하지 않습니다.
+- 재고는 선반 반환(`RESTOCK`)이 끝나야 돌아옵니다. 별도 회수 주문(`-return`)은 만들지 않습니다.
+- 이어서 가기(복구)는 `MOVE_CUSTOMER`·`MOVE_ARRANGE`·`MOVE_RESTOCK`에서도 받습니다.
+- QR 주소: `http://<관제 PC IP>:<포트>/?loc=P22`.
+
+### 하차 구역 자리 주문 (기존)
+
 **구매 취소(`declined`)는 새 로봇 동작을 만들지 않습니다.** `customer_declined`와 경보 `CUSTOMER_DECLINED`를 기록하고,
 로봇은 수령 시간 초과 때와 같은 순서로 HOME에 복귀합니다. 자리에 내려놓은 상품은 다음과 같이 처리합니다.
 
