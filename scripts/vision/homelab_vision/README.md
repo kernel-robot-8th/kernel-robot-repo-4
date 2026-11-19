@@ -13,17 +13,9 @@ omen-8 에는 아무것도 보내지 않았고, 실제 브로커(1883)와 실제
     - pinky_v2_final.pt 58a8fe5f...3c0573
     - kneg_d_final.pt f7991cdc...8595bd
   - zone 모듈 11개 파일(수정 없이 복사)
-
-### 가중치 받는 방법
-
-가중치(`weights/*.pt`)는 저장소에 넣지 않는다(CLAUDE.md 3-1, `.gitignore` 등록).
-홈랩 묶음 `homelab-20261110-omen-yolo` 에서 두 파일을 받아 `weights/` 에 둔 뒤 빌드한다.
-빌드 때 `PACKET_SHA256SUMS` 로 대조하므로 다른 파일이면 빌드가 멈춘다.
-묶음 위치는 비전 담당(강건한)에게 묻는다.
 - 앱(`app/`): MJPEG 를 읽어 두 모델로 추론하고, 구역 판정 근거를 MQTT 로 내보낸다.
   - 주제: `relay/evidence/zones`, `relay/evidence/boxes` (QoS 1, retain 없음),
     `relay/status/vision` (1초 상태, QoS 0, 유언 "offline")
-  - 메시지 필드·수신 규칙·관제 연동(비전 어댑터 개발용): [MQTT_MESSAGE_SPEC.md](MQTT_MESSAGE_SPEC.md)
   - `PUBLISH=false`(기본)면 MQTT 라이브러리를 불러오지도 않는다. 연결 0.
   - 듣는 포트 없음. 프레임과 사진을 디스크에 쓰지 않는다. ROS 를 쓰지 않는다.
 - `compose.yaml`: omen-8 에서 나중에 쓸 구성. 여기서는 실행하지 않았다.
@@ -64,7 +56,8 @@ omen-8 에는 아무것도 보내지 않았고, 실제 브로커(1883)와 실제
 | 이름 | 기본 | 뜻 |
 |---|---|---|
 | PUBLISH | false | true 일 때만 브로커에 붙는다 |
-| MQTT_BROKER / MQTT_PORT | 192.168.0.3 / 1883 | 브로커 주소 |
+| MQTT_BROKER / MQTT_PORT | 192.168.0.8 / 1883 | 브로커 주소(중계 PC) |
+| INFER_IMGSZ | 960 | 모델 입력 크기(32의 배수, 160..1280). 천장 카메라는 960 그대로 둔다 |
 | CAMERA_SOURCE | http://192.168.0.7:18086/processed | MJPEG 주소 |
 | INFERENCE_FPS | 10 | 추론 상한 |
 | DEVICE | auto | cuda 가 보이면 cuda, 아니면 cpu |
@@ -81,7 +74,7 @@ omen-8 에는 아무것도 보내지 않았고, 실제 브로커(1883)와 실제
 3. 로그: `docker logs -f homelab-vision` (한 줄에 JSON 하나)
 4. 멈춤: `docker compose -f compose.yaml down`
 
-발행을 켜려면 compose.yaml 의 `PUBLISH` 를 "true" 로 바꾼다. 이 결정은 사용자가 한다.
+발행 여부는 `targets/<장비>.env` 의 `PUBLISH` 값이 정한다(손으로 띄울 때는 `--env-file` 로 넘긴다). 이 결정은 사용자가 한다.
 
 ## 이 노트북에서 다시 검증하는 법 (GPU 불필요)
 
@@ -124,6 +117,51 @@ rm -rf ~/homelab-vision
 `docker builder prune` 이나 `docker system prune` 은 다른 작업의 캐시까지 지우므로 쓰지 않는다.
 시험에 쓴 임시 브로커 이미지 `eclipse-mosquitto:latest` 는 기존 `mosquitto-broker` 컨테이너가
 같은 이미지를 쓰고 있을 수 있으니 지우지 않는다.
+
+## 얇은 이미지와 기반 이미지 (배포 파이프라인용, 11-13 추가)
+
+이미지는 두 층으로 나눈다.
+
+- 기반 `homelab-vision-base:t2.11.0-u8.4.193-20261110`: `Dockerfile` 의 `base` 단계(1~3: torch, ultralytics·opencv,
+  실행 사용자와 ultralytics 설정)와 같은 내용이다. 지금 있는 것은 11-10 `homelab-vision:20261110` 을 만들 때 생긴
+  중간 이미지 `2369cceae76f` 에 태그를 붙인 것이다(재빌드하지 않았다). `docker history` 로 보면 맨 위 층이
+  ultralytics 설정 RUN 이고 `WORKDIR /app` 이 없다. `base` 단계의 끝과 같다.
+- 얇은 이미지 `homelab-vision:<날짜>-m<해시>`: `Dockerfile.model`. 기반 위에 `PACKET_SHA256SUMS`, `weights/`, `zone/`, `app/` 만 굽는다.
+
+### 얇은 이미지 빌드
+
+가중치 해시 두 개를 build-arg 로 꼭 넘긴다. 빠지면 빌드가 멈춘다.
+Jenkins 는 태그를 inbox 패킷(`~/yolo_edge/inbox/<WEIGHTS_PACKET>`)의 가중치로 짓지만 이미지에 들어가는 것은 저장소의
+`weights/` 이므로, 패킷 쪽 해시를 넘겨 빌드 안에서 구운 파일과 대조한다(다르면 빌드 실패).
+
+```
+W=~/yolo_edge/inbox/homelab-20261110-omen-yolo
+docker build -f Dockerfile.model \
+  --build-arg PINKY_SHA256="$(sha256sum "$W/weights/pinky_v2_final.pt" | cut -d' ' -f1)" \
+  --build-arg KNEG_SHA256="$(sha256sum "$W/weights/kneg_d_final.pt" | cut -d' ' -f1)" \
+  -t homelab-vision:<태그> .
+```
+
+빌드 안의 검사: `PACKET_SHA256SUMS` 의 README 를 뺀 줄이 정확히 13개(가중치 2 + 구역 11)이고 모두 맞는지,
+가중치 두 개가 build-arg 해시와 같은지, 그 해시가 `PACKET_SHA256SUMS` 에도 같은 줄로 있는지, `weights/` 에 파일이 2개뿐인지.
+
+### 기반 이미지 다시 만들기 (수동, 사용자 승인 뒤에만)
+
+```
+docker build --target base -t homelab-vision-base:<torch판>-<ultralytics판>-<날짜> .
+```
+
+- 인터넷이 필요하다(pip, PyTorch cu128 휠). 11-10 기록으로 약 73분 걸렸다. 공용 장비로 보낼 때는 약 4.26 GB 를 다시 보낸다.
+- `numpy` 는 판을 고정하지 않았으므로 같은 명령이라도 다른 판이 깔릴 수 있다. 같은 내용으로 되돌리려면 지금 기반 이미지의
+  `/app/requirements.lock`(pip freeze)을 꺼내 판을 고정한 뒤 빌드한다. 판 목록을 파일로 빼는 것은 아직 하지 않았다.
+- 새 기반으로 바꾸면 `Dockerfile.model` 의 `FROM` 태그를 고치고 CPU·GPU 골든 대조를 다시 거친다.
+- 옛 기반 태그와 `homelab-vision:20261110`(최후 복귀점)은 지우지 않는다.
+
+### 골든 대조 종료 코드 (`verify/golden_check.py`)
+
+- `0` SAME, `1` DIFF, `2` 실행 오류(골든 폴더·`expected.json`·가중치 없음, 기준 사진 0개, 그 밖의 예외).
+- 판정은 두 모델의 엄격 판정 통과, 빈 회색 화면 검출 0개, 파이썬 수준 네트워크 시도 0번을 모두 만족해야 SAME 이다.
+- 마지막 줄은 항상 `GOLDEN_STRICT SAME` 또는 `GOLDEN_STRICT DIFF` 다(실행 오류도 DIFF 줄을 남기고, 그 앞 줄에 `GOLDEN_ERROR` 사유).
 
 ## 한계 (측정하지 않은 것)
 

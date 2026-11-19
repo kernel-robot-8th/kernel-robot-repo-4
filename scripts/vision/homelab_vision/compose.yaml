@@ -1,11 +1,17 @@
-# homelab-vision: omen-8 에서 나중에 쓸 구성. 2a 단계에서는 실행하지 않았다(GPU 항목은 2b).
-# 실행 전 조건: 이미지 homelab-vision:20261110 이 그 PC 에 있어야 하고(여기서는 빌드하지 않는다),
-# NVIDIA 드라이버와 nvidia-container-toolkit 이 있어야 한다.
+# homelab-vision: 비전 근거 컨테이너 구성 (장비별 값은 targets/<장비>.env, Jenkins vision-model-release 가 풀어 쓴다).
+# 실행 전 조건: IMAGE_TAG 이미지가 그 PC 에 있어야 하고(여기서는 빌드하지 않는다),
+# NVIDIA 드라이버와 nvidia-container-toolkit 이 있어야 한다. 컨테이너를 손으로 띄우지 않는다(운영 규칙).
+#
+# 변수 우선순위(docker compose 규칙): 실행하는 셸의 환경 변수 > --env-file(targets/*.env) > 아래 ${이름:-기본}.
+# 손으로 실행할 때는 셸에 같은 이름 변수가 남아 있지 않은지 확인한다. Jenkins 는 셸의 같은 이름 값을 지우고
+# targets/*.env 를 기준으로 쓴다(PUBLISH 매개변수가 env 파일과 다르면 빌드가 멈춘다).
+# PUBLISH 를 true 로 하는 것은 사용자 결정 뒤에만, 그리고 발행은 항상 한 장비에서만 한다(두 곳이면 같은 주제에
+# 발행자가 둘이 되고 수신기는 증상 없이 섞어 받는다). 기본값은 발행 안 함(false)이다.
 name: homelab-vision
 
 services:
   vision:
-    image: homelab-vision:20261110
+    image: ${IMAGE_TAG:?missing IMAGE_TAG}
     container_name: homelab-vision
     network_mode: host            # 듣는 포트 없음. 카메라(HTTP)와 브로커(MQTT)로 나가기만 한다.
     restart: "no"
@@ -19,13 +25,15 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      PUBLISH: "false"            # 기본은 발행 안 함. true 로 바꾸는 것은 사용자 결정 뒤에만.
-      MQTT_BROKER: "192.168.0.3"
-      MQTT_PORT: "1883"
-      CAMERA_SOURCE: "http://192.168.0.7:18086/processed"
-      INFERENCE_FPS: "10"
-      DEVICE: "auto"              # cuda 가 보이면 cuda, 아니면 cpu
-      STATUS_LOG_SEC: "10"
+      PUBLISH: "${PUBLISH:-false}"   # 기본은 발행 안 함. true 로 바꾸는 것은 사용자 결정 뒤에만.
+      MQTT_BROKER: "${MQTT_BROKER:-192.168.0.8}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      CAMERA_SOURCE: "${CAMERA_SOURCE:-http://192.168.0.7:18086/processed}"
+      INFERENCE_FPS: "${INFERENCE_FPS:-10}"
+      INFER_IMGSZ: "${INFER_IMGSZ:-960}"
+      DEVICE: "${DEVICE:-cuda}"      # auto 는 GPU 가 없으면 조용히 cpu 로 내려가므로 cuda 로 고정한다
+      STATUS_LOG_SEC: "${STATUS_LOG_SEC:-10}"
+      TARGET_HOST: "${TARGET_HOST:-unknown}"   # 상태 메시지에 넣는 장비 이름(호스트 이름에 기대지 않는다)
     deploy:
       resources:
         reservations:
