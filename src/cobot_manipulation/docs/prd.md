@@ -41,6 +41,7 @@ flowchart LR
 | `session_id`, `seq` | 관제 노드 실행마다 새 session. seq 는 target 별 증가 |
 | `issued_at`, `ttl_sec` | [s] 관제 PC 시각, 유효 시간 (5 s) |
 | `sku`, `quantity`, `attempt`, `route`, `timeout_sec` | 작업 정보 |
+| `shelf_row`, `shelf_col` | 고객 주문(자리 주문)의 재고 칸. 없을 수 있다. **행 = 꺼낼 박스 번호** → 실행기 `run` 의 `box` |
 
 | stage | 팔 | action |
 |---|---|---|
@@ -88,7 +89,7 @@ lerobot 은 연결·해제 때 토크를 꺼서 팔이 떨어지고 물건을 �
 실행기 쪽 자세한 동작은 `tool/omx-dashboard` 브랜치 `omx_fleet/README.md` 가 정본이다.
 
 - 실행: `worker_command`(셸 없이 공백으로 나눔), 환경변수 `ARM_ID`·`ROBOT_PORT`.
-- stdin (한 줄 = JSON): `run`(id, action) · `hold` · `state` · `release` · `quit`. stdout 은 `@fleet ` 로 시작하는 줄만 기계용이고 나머지는 노드 로그로 옮긴다.
+- stdin (한 줄 = JSON): `run`(id, action, box) · `hold` · `state` · `release` · `quit`. stdout 은 `@fleet ` 로 시작하는 줄만 기계용이고 나머지는 노드 로그로 옮긴다.
 
 | 실행기 event | 어댑터 처리 |
 |---|---|
