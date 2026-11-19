@@ -1,7 +1,7 @@
 # 관제용 팔 실행기(omx_fleet_worker.py) 팔별 설정 예시.
 # 복사해서 쓴다: cp fleet_arms.example.yaml fleet_arms.yaml  (fleet_arms.yaml 은 git 에서 제외)
 # 실행기는 ARM_ID 환경변수로 아래 칸을 고른다. 포트는 관제 어댑터가 ROBOT_PORT 로 넘기므로 적지 않는다.
-# 모델 번들을 받아 둔 곳 (README "모델 번들 규격"). <bundles_dir>/<번들>/<버전>/models/<모델>
+# 모델 번들을 받아 둔 곳 (README "모델 지정과 번들"). <bundles_dir>/<번들>/<버전>/models/<모델>
 bundles_dir: ~/il_ws/bundles
 arms:
   omx1:
@@ -34,7 +34,7 @@ arms:
         seconds: 90
         # model: act            # models/ 아래 폴더가 여럿일 때 고름
         # safe_pose: ~/il_ws/poses/load_safe_omx1.json
-      # 번들 규격 밖 모델은 예전처럼 경로로 적어도 된다 (관제에는 버전 없이 폴더 이름만 보인다):
+      # 경로로 적어도 된다 (받은 위치 상관없음. 관제에는 버전 없이 폴더 이름만 보인다):
       # pick:
       #   model: ~/il_ws/omx_shoebox_d/models/act_shoebox_d_5000step
       #   seconds: 90
