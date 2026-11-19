@@ -375,3 +375,37 @@ def test_idle_disabled_or_already_home(env, idle_sec, already_home):
         env.nav.finish()
         advance(env, 'IDLE')
     assert env.c.idle_deadline is None
+
+
+# ---------- 명령에 실려 온 좌표 지점 (관제 웨이포인트, poses) ----------
+
+def test_goto_with_poses_mixes_named_and_pose_points(env):
+    env.c.submit('goto:P1,W1', 'job_pose', {'W1': [5.0, 6.0, 1.5]})
+    advance(env, 'NAVIGATING')
+    assert env.nav.goals == [env.points['P1']]
+    env.nav.finish()
+    env.c.tick()
+    advance(env, 'NAVIGATING')
+    assert env.nav.goals[-1] == (5.0, 6.0, 1.5)
+    env.nav.finish()
+    advance(env, 'IDLE')
+    assert completed(env)[-1]['command_id'] == 'job_pose'
+    # 끝나면 좌표를 잊는다: 다음 명령에서 W1 은 모르는 지점
+    assert env.c.extra_points == {}
+    env.c.submit('goto:W1', 'job_again')
+    assert 'unknown point' in completed(env)[-1]['detail']
+
+
+@pytest.mark.parametrize('command,poses,detail', [
+    ('goto:P1', {'P2': [0.0, 0.0, 0.0]}, 'already in config'),
+    ('goto:W1', {'W1': [0.0]}, 'bad pose'),
+    ('goto:W1', {'W1': [float('nan'), 0.0]}, 'bad pose'),
+    ('goto:W1', {'w1': [0.0, 0.0]}, 'bad pose name'),
+    ('goto:W1', ['W1'], 'poses must be'),
+    ('zone:ZA', {'W1': [0.0, 0.0]}, 'poses only for goto'),
+    ('goto:W2', {'W1': [0.0, 0.0]}, 'unknown point'),
+])
+def test_bad_poses_never_move(env, command, poses, detail):
+    env.c.submit(command, 'bad_pose', poses)
+    assert not env.c.busy and not env.nav.goals
+    assert detail in completed(env)[-1]['detail']

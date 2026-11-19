@@ -83,8 +83,9 @@ COPY cobot_fleet_control/config/docker/cyclonedds.xml /opt/cobot/cyclonedds.xml
 RUN chmod 755 /opt/cobot/entrypoint.sh \
     && groupadd --gid 10001 cobot \
     && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash cobot \
-    && mkdir -p /var/lib/cobot \
-    && chown cobot:cobot /var/lib/cobot
+    && mkdir -p /var/lib/cobot /home/cobot/.ros/cobot_control_center \
+    && chown cobot:cobot /var/lib/cobot \
+    && chown -R cobot:cobot /home/cobot/.ros
 USER cobot
 ENTRYPOINT ["/opt/cobot/entrypoint.sh"]
 CMD ["ros2", "launch", "cobot_fleet_control", "fleet_control.launch.xml"]

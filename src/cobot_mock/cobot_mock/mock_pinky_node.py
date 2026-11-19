@@ -17,7 +17,7 @@
 
 관제 PC 에서 브릿지를 지난 뒤의 이름(/pinkyN/..., /zone_manager/status)을 쓰므로 관제 코드는
 진짜와 구분하지 못한다. 그래서 실물 도메인(0·10·12·20·30·100)에서는 시작을 거부한다.
-장치·Nav2·cmd_vel 은 쓰지 않는다. 로직은 mock_pinky_sim 에 있고 여기서는 발행·구독만 한다.
+장치·Nav2 는 쓰지 않는다. cmd_vel 은 관제 직접 조종 시험용으로 받아 위치만 적분한다. 로직은 mock_pinky_sim 에 있고 여기서는 발행·구독만 한다.
 """
 
 import contextlib
@@ -34,7 +34,7 @@ from cobot_mock.mock_pinky_sim import (ack_for, central_command, CentralGuard, c
                                        load_zone_params, MockConfigError, reset_event, RobotSim,
                                        v2_to_v1, ZoneBook)
 from cobot_patrol_interfaces.msg import PatrolCommand, PatrolCommandAck, PatrolState
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.logging import get_logger
@@ -70,6 +70,9 @@ class MockPinkyNode(Node):
             'seed': 0, 'spec_versions': ['v1'],
             # 중앙 관제(fleet_control) 규칙: 하트비트·세션·순번을 통과한 명령만 받는다 (시계 비교·TTL 없음).
             'central_controlled': True, 'heartbeat_timeout_sec': 3.0,
+            # 전원 끔 흉내 (쉼표로 여러 대, 실행 중 ros2 param set 으로 바꿈). 꺼진 동안 아무것도
+            # 내지 않고 명령도 못 받는다. 목록에서 빼면 다시 켜진 것처럼 작업·구역 토큰 기억을 잊는다.
+            'power_off': '',
         }
         for name, value in p.items():
             self.declare_parameter(name, value)
@@ -89,6 +92,7 @@ class MockPinkyNode(Node):
 
         configs = load_robot_configs(cfg['points_dir'], robots, cfg['site'])
         self.book = ZoneBook(load_zone_params(cfg['zone_params']))
+        self.powered_off = set()
         self.sims = {}
         for i, name in enumerate(robots):
             self.sims[name] = RobotSim(
@@ -115,6 +119,9 @@ class MockPinkyNode(Node):
             # 관제 화면 '초기위치' 버튼 (fleet_control 이 발행). 실물 AMCL 처럼 위치 추정만 옮긴다.
             self.create_subscription(PoseWithCovarianceStamped, f'/{name}/initialpose',
                                      lambda msg, r=name: self._on_initial_pose(r, msg), 10)
+            # 관제 상세 화면 직접 조종 (teleop_node). 작업 중이 아니면 위치를 적분한다.
+            self.create_subscription(Twist, f'/{name}/cmd_vel',
+                                     lambda msg, r=name: self._on_cmd_vel(r, msg), 10)
             # 규격 v1: String 명령·JSON 상태 (지금 주행 코드)
             if self.v1:
                 self.pub[name]['status'] = self.create_publisher(
@@ -135,6 +142,10 @@ class MockPinkyNode(Node):
                                          reliable)
         self.zone_pub = self.create_publisher(String, '/zone_manager/status', reliable)
         self.slot_pub = self.create_publisher(String, '/zone_manager/queue_slot', reliable)
+        # 이탈 통보: 실물 zone_manager 처럼 점유자 이름이 맞을 때만 푼다 (관제 '구역 강제 해제').
+        # 가짜 로봇은 장부를 직접 고치므로 이 토픽은 관제가 낼 때만 온다.
+        self.create_subscription(String, '/zone_manager/notify_exit', self._on_notify_exit,
+                                 reliable)
 
         self.start = time.monotonic()
         self.last = self.start
@@ -152,7 +163,36 @@ class MockPinkyNode(Node):
 
     # ---------- 입력 ----------
 
+    def _on_notify_exit(self, msg):
+        zone, _, robot = msg.data.partition(':')
+        robot = robot.strip()
+        if self.book.owner.get(zone) != robot:
+            self.get_logger().warning(
+                f'notify_exit {msg.data!r}: 현재 점유자는 {self.book.owner.get(zone)} (무시)')
+            return
+        self.book.release(zone, robot, time.monotonic())
+        self.get_logger().info(f'[{zone}][{robot}] 이탈 통보 -> 점유 해제 '
+                               f'(새 점유자 {self.book.owner[zone]})')
+
+    def _on_cmd_vel(self, robot, msg):
+        if robot not in self.powered_off:
+            self.sims[robot].drive(msg.linear.x, msg.angular.z, time.monotonic())
+
+    def _update_power(self):
+        """power_off 파라미터를 읽어 끄고 켠다. 다시 켜진 로봇은 기억을 잊고 하트비트도 새로 시작한다."""
+        text = self.get_parameter('power_off').value or ''
+        wanted = {r.strip() for r in text.split(',') if r.strip() in self.sims}
+        for robot in wanted - self.powered_off:
+            self.get_logger().warning(f'{robot}: 전원 끔 흉내 (구역 토큰은 장부에 그대로)')
+        for robot in self.powered_off - wanted:
+            self.sims[robot].reboot()
+            self.central_guards[robot] = CentralGuard(self.cfg['heartbeat_timeout_sec'])
+            self.get_logger().warning(f'{robot}: 다시 켜짐 흉내 (작업·held_zone 잊음)')
+        self.powered_off = wanted
+
     def _on_cmd(self, robot, msg):
+        if robot in self.powered_off:
+            return
         now = time.monotonic()
         self.manual_until[robot] = now + self.cfg['auto_pause_after_cmd_sec']
         raw = msg.data
@@ -174,6 +214,8 @@ class MockPinkyNode(Node):
     def _on_initial_pose(self, robot, msg):
         """움직이지 않는 로봇만 위치를 옮긴다. 이동 중이면 무시한다 (관제도 이동 중엔 막는다)."""
         sim = self.sims[robot]
+        if robot in self.powered_off:
+            return
         if sim.running:
             self.get_logger().warning(f'{robot}: 이동 중이라 initialpose 무시')
             return
@@ -185,6 +227,8 @@ class MockPinkyNode(Node):
 
     def _on_heartbeat(self, robot, msg):
         """서버 세션이 바뀌면 움직이던 로봇만 비상정지한다. 놀던 로봇은 잠그지 않는다."""
+        if robot in self.powered_off:
+            return
         try:
             changed = self.central_guards[robot].heartbeat(
                 json.loads(msg.data), self.sims[robot].running)
@@ -197,6 +241,8 @@ class MockPinkyNode(Node):
 
     def _on_command_v2(self, robot, msg):
         """v2 명령은 v1 명령으로 바꿔 같은 로봇을 움직이고, 받음/거절을 ack 로 알린다."""
+        if robot in self.powered_off:
+            return
         now = time.monotonic()
         self.manual_until[robot] = now + self.cfg['auto_pause_after_cmd_sec']
         raw, reason = v2_to_v1(msg.task_id, msg.operation, list(msg.points))
@@ -222,7 +268,10 @@ class MockPinkyNode(Node):
         now = time.monotonic()
         dt, self.last = now - self.last, now
         self.book.tick(now)
+        self._update_power()
         for name, sim in self.sims.items():
+            if name in self.powered_off:
+                continue        # 꺼진 로봇은 그 자리에 멈춰 있다
             if self.central and self.central_guards[name].expired(sim.running):
                 self.get_logger().warning(f'{name}: 관제 하트비트 끊김 -> 비상정지·잠금')
                 self._emit(name, sim.command('emergency_stop', now))
@@ -241,7 +290,9 @@ class MockPinkyNode(Node):
         self._publish_periodic(now)
 
     def _silent(self, robot, now):
-        """끊김 흉내 대상 로봇이 지금 끊긴 구간이면 True (화면의 '끊김' 시험용)."""
+        """끊김 흉내 대상 로봇이 지금 끊긴 구간이거나 전원 끔 흉내 중이면 True (화면의 '끊김' 시험용)."""
+        if robot in self.powered_off:
+            return True
         if robot != self.cfg['dropout_robot'] or self.cfg['dropout_period_sec'] <= 0:
             return False
         return (now - self.start) % self.cfg['dropout_period_sec'] >= (

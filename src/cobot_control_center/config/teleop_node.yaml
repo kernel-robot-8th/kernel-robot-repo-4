@@ -1,0 +1,13 @@
+# 상세 화면 직접 조종 노드 파라미터 (관제 PC). 화면 입력(-1~1)을 아래 최대값으로 바꿔 /<robot>/cmd_vel 로 낸다.
+# 브릿지(cobot_domain_bridge)가 /pinkyN/cmd_vel(도메인 100) 을 로봇의 /cmd_vel 로 넘긴다.
+/**:
+  ros__parameters:
+    robots: [pinky1, pinky2, pinky3]
+    cmd_vel_format: /{robot}/cmd_vel
+    max_linear: 0.15     # [m/s] 화면 ▲▼ 끝까지 눌렀을 때 선속도
+    max_angular: 0.6     # [rad/s] 화면 ◀▶ 끝까지 눌렀을 때 각속도
+    # [s] 화면 입력(100 ms 마다)이 이만큼 끊기면 0 속도를 내고 세션을 끝낸다. 와이파이 한두 번 지연은 넘기게 3주기.
+    timeout_sec: 0.3
+    rate_hz: 10.0        # [Hz] cmd_vel 발행 주기
+    stop_repeat: 5       # 끝낼 때 0 속도를 내는 횟수 (하나가 빠져도 서게)
+    state_period_sec: 0.5   # [s] /control_center/teleop_state 를 바뀌지 않아도 다시 내는 주기 (API 가 살아 있는지 봄)

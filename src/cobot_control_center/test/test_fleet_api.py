@@ -108,7 +108,8 @@ def test_api_before_first_snapshot():
     assert client.get('/api/health').json() == {
         'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
         'source_age': None, 'controller_online': False, 'cameras': {},
-        'routes': {}, 'arm_controller_online': False}
+        'routes': {}, 'arm_controller_online': False,
+        'teleop_online': False, 'teleop': [], 'teleop_limits': None}
     assert client.get('/api/fleet').status_code == 503
     assert client.get('/api/robots').status_code == 503
 
@@ -685,6 +686,27 @@ def test_fleet_estop_all_and_release_control_pass_through():
     # 화면은 확인 창 한 번 뒤 빈 body 로 보낸다. 누가는 접속 IP(source)로 넘긴다
     client.post('/api/robots/pinky1/release_control', json={'client_request_id': 'r2'})
     assert sent[2]['source'] == 'testclient' and sent[2]['operator'] is None
+
+
+def test_fleet_zone_release_passes_through_with_source():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 409, {'detail': '나가기를 쓰세요'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/zones/A/release',
+                      json={'robot_id': 'pinky1', 'client_request_id': 'z1'})
+    # fleet 의 거절 사유를 그대로 돌려준다
+    assert res.status_code == 409 and res.json()['detail'] == '나가기를 쓰세요'
+    assert sent[0] == dict(sent[0], type='zone_release', zone='A', robot_id='pinky1',
+                           client_request_id='z1', note=None, source='testclient')
+
+
+def test_zone_release_refused_on_read_only_backend():
+    store, _ = make_store()
+    client = TestClient(create_app(store))
+    res = client.post('/api/zones/A/release', json={'robot_id': 'pinky1'})
+    assert res.status_code == 503
 
 
 def test_fleet_initial_pose_passes_through_with_source():

@@ -33,6 +33,8 @@ import yaml
 # 실물이 쓰는 도메인. 0 은 '지정 안 함' 이라 실물과 섞일 수 있어 같이 막는다.
 FORBIDDEN_DOMAINS = {0, 10, 12, 20, 30, 100}
 ARRIVE_EPS_M = 1e-3
+# [s] 직접 조종 속도 명령이 이만큼 안 오면 선다 (관제 teleop_node 는 0.1 s 마다 낸다)
+TELEOP_TIMEOUT_SEC = 0.5
 # 구역 진입·대기 단계 처리 결과
 PROCEED, WAIT, REPLACED = 'proceed', 'wait', 'replaced'
 
@@ -159,6 +161,37 @@ def parse_command(raw):
     if kind not in ('goto', 'zone', 'leave', 'home', 'stop', 'emergency_stop', 'start'):
         return None, names, command_id
     return kind, names, command_id
+
+
+def envelope_poses(raw, config_points):
+    """
+    봉투의 poses (관제 웨이포인트 좌표, goto 만) → ({이름: (x, y, yaw)}, 오류 글).
+
+    실제 순찰 노드(patrol_points_utils.parse_poses)와 같은 규칙: 이름은 로봇 설정에 없어야 하고
+    값은 유한한 수 2~3개.
+    """
+    text = raw.strip() if isinstance(raw, str) else ''
+    if not text.startswith('{'):
+        return {}, ''
+    try:
+        data = json.loads(text).get('poses')
+    except (ValueError, AttributeError):
+        return {}, ''
+    if data is None:
+        return {}, ''
+    if not isinstance(data, dict) or len(data) > 50:
+        return {}, 'poses must be an object of at most 50'
+    poses = {}
+    for name, value in data.items():
+        if not isinstance(name, str) or not name[:1].isupper() or name in config_points:
+            return {}, f'bad pose name: {name!r}'
+        if (not isinstance(value, (list, tuple)) or len(value) not in (2, 3)
+                or any(isinstance(v, bool) or not isinstance(v, (int, float))
+                       or not math.isfinite(v) for v in value)):
+            return {}, f'bad pose: {name}'
+        x, y, yaw = (list(map(float, value)) + [0.0])[:3]
+        poses[name] = (x, y, yaw)
+    return poses, ''
 
 
 class CentralGuard:
@@ -383,10 +416,12 @@ class ZoneBook:
             self.queue[zone].remove(robot)
 
     def tick(self, now):
-        """max_hold_sec 를 넘긴 점유는 강제로 푼다 (점유자가 반납하지 못한 경우 대비)."""
-        for zone, owner in self.owner.items():
-            if owner and now - self.granted_at[zone] > self.params['max_hold_sec']:
-                self._promote(zone, now)
+        """
+        점유는 시간이 지나도 풀지 않는다 (실물 zone_manager 와 같음, 이탈 통보로만 풂).
+
+        시간이 지났다고 로봇이 실제로 나갔다는 증거는 아니다. 토큰을 쥔 채 꺼진 로봇의 구역은
+        관제 '구역 강제 해제'(/zone_manager/notify_exit)로 푼다.
+        """
 
     def _promote(self, zone, now):
         q = self.queue[zone]
@@ -443,6 +478,49 @@ class RobotSim:
         self.ctx = (-1, '')          # stop 때 낼 (waypoint, detail)
         self.idle_deadline = None
         self.finished_at = 0.0
+        # 직접 조종 (관제 teleop_node 의 /<robot>/cmd_vel). 작업 중이 아닐 때만 위치를 적분한다.
+        self.cmd_vel = (0.0, 0.0)     # (선속도 [m/s], 각속도 [rad/s])
+        self.cmd_vel_at = None        # 마지막으로 받은 시각 (monotonic)
+
+    def reboot(self):
+        """
+        전원을 껐다 켠 것처럼 작업·구역 토큰 기억을 잊는다. 몸(위치·배터리)은 그 자리에 있다.
+
+        실물 순찰 노드도 held_zone 을 메모리에만 두므로 다시 켜지면 None 이다. 구역 장부(ZoneBook)는
+        zone_manager 처럼 그대로 점유로 남는다 (관제 '구역 강제 해제' 시험용).
+        """
+        self.steps.clear()
+        self.running = self.moving = False
+        self.held_zone = self.arrived_zone = None
+        self.command_id = None
+        self.idle_deadline = None
+        self.cmd_vel, self.cmd_vel_at = (0.0, 0.0), None
+        self.last_event = {'state': 'IDLE', 'waypoint': -1, 'detail': 'rebooted'}
+
+    # ---------- 직접 조종 ----------
+
+    def drive(self, linear, angular, now):
+        """cmd_vel 한 건. 숫자가 아니면 무시. 작업 중이면 받지 않는다 (실물은 Nav2 와 겹치므로 관제가 막는다)."""
+        if self.running or not all(isinstance(v, (int, float)) and math.isfinite(v)
+                                   for v in (linear, angular)):
+            return
+        self.cmd_vel = (float(linear), float(angular))
+        self.cmd_vel_at = now
+
+    def _drive(self, now, dt):
+        # 실물 바퀴 드라이버처럼 명령이 TELEOP_TIMEOUT_SEC 동안 안 오면 선다.
+        linear, angular = self.cmd_vel
+        if (self.cmd_vel_at is None or now - self.cmd_vel_at > TELEOP_TIMEOUT_SEC
+                or (linear == 0.0 and angular == 0.0)):
+            self.cmd_vel = (0.0, 0.0)
+            self.moving = False
+            return
+        x, y, yaw = (tuple(self.pose) + (0.0,))[:3]
+        yaw = math.atan2(math.sin(yaw + angular * dt), math.cos(yaw + angular * dt))
+        self.pose = (x + linear * math.cos(yaw) * dt, y + linear * math.sin(yaw) * dt, yaw)
+        self.moving = True
+        # 몰고 간 자리는 홈이 아니므로 다음 명령 계획이 홈에 있다고 보지 않게 한다.
+        self.last_point = None
 
     # ---------- 지점 분류 (실제 노드의 zone_allowed / goto_allowed) ----------
 
@@ -511,21 +589,25 @@ class RobotSim:
 
         if not names:
             return [self._reject(command_id, 'no point given')]
-        unknown = [n for n in names if n not in self.points]
+        poses, bad = envelope_poses(raw, self.points)
+        if bad or (poses and kind != 'goto'):
+            return [self._reject(command_id, bad or 'poses only for goto')]
+        unknown = [n for n in names if n not in self.points and n not in poses]
         if unknown:
             return [self._reject(command_id, f'unknown point: {unknown}')]
         if kind == 'goto':
             in_zone = [n for n in names if self.zone_of(n) is not None]
             if in_zone:
                 return [self._reject(command_id, f'use zone: {in_zone}')]
-            denied = [n for n in names if not self._goto_allowed(n)]
+            denied = [n for n in names if n not in poses and not self._goto_allowed(n)]
             if denied:
                 return [self._reject(command_id, f'not allowed: {denied}')]
         elif len(names) != 1 or self.zone_of(names[0]) is None:
             return [self._reject(command_id, f'zone needs one zone point: {list(names)}')]
         if self.running:
             return []
-        plan = self._plan_goto(names) if kind == 'goto' else self._plan_zone(names[0])
+        plan = (self._plan_goto(names, poses) if kind == 'goto'
+                else self._plan_zone(names[0]))
         return self._start(plan, command_id, now)
 
     def _reject(self, command_id, detail):
@@ -553,12 +635,14 @@ class RobotSim:
         return [('status', 'LEAVING_ZONE', idx, ex), ('move', self.points[ex], idx, ex),
                 ('release', zone)]
 
-    def _plan_goto(self, names):
+    def _plan_goto(self, names, poses=None):
+        poses = poses or {}
         plan = [('status', 'STARTING', -1, ','.join(names))]
         if self.held_zone is not None:
             plan += self._plan_exit_held(-1)
         for idx, name in enumerate(names):
-            plan += [('status', 'MOVING', idx, name), ('move', self.points[name], idx, name),
+            target = self.points[name] if name in self.points else poses[name]
+            plan += [('status', 'MOVING', idx, name), ('move', target, idx, name),
                      ('arrive', name), ('status', 'ARRIVED', idx, name)]
         plan += [('end', 'DONE', -1, f'arrived {names[-1]}', True)]
         return plan
@@ -602,6 +686,8 @@ class RobotSim:
             return events
         if self.running:
             events += self._run(now, dt)
+        else:
+            self._drive(now, dt)
         return events
 
     def _battery(self, dt):

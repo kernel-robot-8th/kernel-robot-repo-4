@@ -52,12 +52,14 @@ class RouteError(ValueError):
         self.detail = detail
 
 
-def split_route(points, layers, robot_id):
+def split_route(points, layers, robot_id, waypoints=None):
     """
-    지점 이름 목록을 구간 [{'operation', 'points'}] 으로 나눈다.
+    지점 이름 목록을 구간 [{'operation', 'points'(, 'poses')}] 으로 나눈다.
 
     layers 는 load_map_layers() 결과다. 구역 지점(zones.*.points, 출구 제외)은 zone 구간 하나씩,
     일반 지점(points)과 이 로봇의 홈(homes[robot_id])은 이어지는 것끼리 goto 구간 하나로 묶는다.
+    waypoints 는 관제 웨이포인트 좌표 {이름: [x, y, yaw]} 다. 일반 지점처럼 goto 구간에 넣고,
+    그 구간의 poses 에 좌표를 실어 순찰 노드가 좌표로 가게 한다.
     모르는 지점·다른 로봇의 홈·구역 출구는 RouteError(400). 최종 검사는 작업 노드·순찰 노드가 다시 한다.
     """
     if layers is None:
@@ -72,16 +74,18 @@ def split_route(points, layers, robot_id):
     zone_points = {n for zone in (layers.get('zones') or {}).values()
                    for n in (zone.get('points') or {})}
     home = ((layers.get('homes') or {}).get(robot_id) or {}).get('name')
-    general = set(layers.get('points') or {}) | ({home} if home else set())
+    waypoints = waypoints or {}
+    general = set(layers.get('points') or {}) | ({home} if home else set()) | set(waypoints)
     legs = []
     for name in names:
         if name in zone_points:
             legs.append({'operation': 'zone', 'points': [name]})
         elif name in general:
-            if legs and legs[-1]['operation'] == 'goto':
-                legs[-1]['points'].append(name)
-            else:
-                legs.append({'operation': 'goto', 'points': [name]})
+            if not (legs and legs[-1]['operation'] == 'goto'):
+                legs.append({'operation': 'goto', 'points': []})
+            legs[-1]['points'].append(name)
+            if name in waypoints:
+                legs[-1].setdefault('poses', {})[name] = list(waypoints[name])
         else:
             raise RouteError(400, f'경로에 쓸 수 없는 지점: {name}')
     return legs
@@ -213,6 +217,8 @@ class RouteRunner:
         payload = {'type': 'create', 'robot_id': robot_id,
                    'client_request_id': f"{route['route_id']}-{index}",
                    'operation': leg['operation'], 'points': list(leg['points'])}
+        if leg.get('poses'):
+            payload['poses'] = dict(leg['poses'])
         try:
             result = self.submit(payload)
         except Exception as error:  # noqa: B902 (보내기 실패도 응답 없음처럼 다시 보내 본다)

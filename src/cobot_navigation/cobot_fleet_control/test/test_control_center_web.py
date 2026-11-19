@@ -286,3 +286,30 @@ def test_web_launcher_is_a_plain_process_and_package_installs_it(monkeypatch):
                for value in registered['entry_points']['console_scripts'])
     assert any('launch/control_center_web.launch.xml' in files
                for _, files in registered['data_files'])
+
+
+def test_point_rules_poses_name_and_zone_keepout():
+    rules = load_profiles(CONFIG, 'lab', ['pinky1'])
+    za = rules.configs['pinky1']['points']['ZA']
+    near = {'W1': (za[0] + 0.1, za[1], 0.0)}
+    rules.validate('pinky1', 'goto', ['W1'], near)   # 기본은 구역 거리 검사를 하지 않는다
+    rules.zone_keepout_m = 0.3
+    far = (za[0] + 5.0, za[1] + 5.0, 0.0)
+    rules.validate('pinky1', 'goto', ['P1', 'W1'], {'W1': far})
+    with pytest.raises(ValueError, match='겹칩니다'):
+        rules.validate('pinky1', 'goto', ['P1'], {'P1': far})
+    with pytest.raises(ValueError, match='너무 가깝'):
+        rules.validate('pinky1', 'goto', ['W1'], {'W1': (za[0] + 0.1, za[1], 0.0)})
+    with pytest.raises(ValueError, match='goto 에만'):
+        rules.validate('pinky1', 'zone', ['ZA'], {'W1': far})
+    with pytest.raises(ValueError, match='등록되지 않은'):
+        rules.validate('pinky1', 'goto', ['W2'], {'W1': far})
+
+
+def test_web_create_with_poses_dispatches_envelope(env):
+    env.api.point_rules = load_profiles(CONFIG, 'lab', env.fleet.robots)
+    za = env.api.point_rules.configs['pinky1']['points']['ZA']
+    pose = [za[0] + 5.0, za[1] + 5.0, 0.5]
+    reply = env.api.handle(create(points=['W1'], poses={'W1': pose}))
+    assert reply['status'] == 202, reply
+    assert reply['body']['poses'] == {'W1': pose}

@@ -173,12 +173,15 @@ function drawMap() {
   const show = {
     points: view.showPoints || (picking && (view.pick.cmd === "goto" || view.pick.cmd === "route")),
     layers: view.showLayers || picking,
+    // 관제 웨이포인트: 이동·경로를 고를 때는 모두, 평소엔 묶음에 안 든 점 + '묶음 보기'로 고른 묶음의 점 (2026-11-18)
+    allWaypoints: picking && (view.pick.cmd === "goto" || view.pick.cmd === "route"),
   };
   // 구역·지점 이름표는 모양 위, 로봇 아래에 고정 자리로 놓는다. 로봇 이름표는 맨 위 (placeStaticLabels).
   const labels = [];
   if (view.layers && (show.layers || show.points)) {
     drawLayers(ctx, info, view.layers, scale, show, labels);
   }
+  drawGroup(ctx, info, scale);
 
   const robots = view.snapshot ? view.snapshot.robots || {} : {};
   if (picking) drawPick(ctx, info, scale, robots);
@@ -384,6 +387,17 @@ function drawMarks(ctx, info, marks, scale, labels) {
       ctx.moveTo(px, py);
       ctx.lineTo(px + Math.cos(heading) * r * 2.6, py + Math.sin(heading) * r * 2.6);
       ctx.stroke();
+    } else if (mark.kind === "waypoint") { // 관제 웨이포인트: 빈 마름모 + 도착 방향
+      ctx.moveTo(px, py - r * 1.2); ctx.lineTo(px + r * 1.2, py);
+      ctx.lineTo(px, py + r * 1.2); ctx.lineTo(px - r * 1.2, py);
+      ctx.closePath();
+      ctx.lineWidth = 2 / scale;
+      ctx.stroke();
+      const heading = -mark.pose[2];
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.cos(heading) * r * 2.6, py + Math.sin(heading) * r * 2.6);
+      ctx.stroke();
     } else if (mark.kind === "home") { // 홈: 마름모
       ctx.moveTo(px, py - r); ctx.lineTo(px + r, py);
       ctx.lineTo(px, py + r); ctx.lineTo(px - r, py);
@@ -405,6 +419,16 @@ function drawLayers(ctx, info, layers, scale, show, labels) {
   if (show.points) {
     for (const [name, pose] of Object.entries(layers.points || {})) {
       marks.push({ kind: "point", pose, label: name, color: css("--active") });
+    }
+    // 관제 웨이포인트 (waypoints.js): 주황 빈 마름모 + 방향.
+    // 묶음에 안 든 점은 늘 보이고, 묶음에 든 점은 그 묶음을 '묶음 보기'로 골랐을 때만 (다른 묶음 점이 쌓여 보이지 않게).
+    // 이동·경로를 고를 때는 모두 보인다.
+    const group = shownGroup();
+    const shown = new Set(group ? group.points : []);
+    const grouped = new Set(((view.waypoints && view.waypoints.groups) || []).flatMap((g) => g.points));
+    for (const [name, pose] of waypointPoses()) {
+      if (!show.allWaypoints && grouped.has(name) && !shown.has(name)) continue;
+      marks.push({ kind: "waypoint", pose, label: name, color: css("--warn") });
     }
   }
   if (show.layers) {

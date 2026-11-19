@@ -56,6 +56,42 @@ async function openRelease(robotId) {
   }
 }
 
+// 구역 강제 해제: 로봇이 구역 토큰을 쥔 채 꺼지면 zone_manager 는 그 로봇의 이탈 통보 전까지
+// 점유를 놓지 않고, 다시 켜진 로봇은 토큰을 잊어 '나가기'를 거절한다 (no zone held).
+// 이때만 현장 확인 뒤 관제가 그 로봇 이름으로 이탈 통보를 낸다 (POST /api/zones/{zone}/release).
+// 버튼은 (a) 로봇 연결 끊김, 또는 (b) 연결됐고 멈춰 있고 그 구역을 잡고 있지 않다고 보고할 때만 보인다.
+// 살아 있고 아직 잡고 있다고 아는 로봇은 '나가기'로 뺀다. 최종 검사는 fleet_control 이 한다.
+function zoneReleaseAllowed(zone, robotId) {
+  if (view.readOnly || !view.controllerOnline) return false;
+  const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
+  if (!robot) return false;
+  if (!robot.online) return true;
+  const extra = robot.extra || {};
+  return extra.busy === false && "held_zone" in extra && extra.held_zone !== zone;
+}
+
+function zoneReleaseHint(robotId) {
+  const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
+  return robot && robot.online ? `${robotId} 가 다시 켜져 구역 토큰을 잊음 · 현장 확인 후 해제`
+    : `${robotId} 연결 끊김 · 현장 확인 후 해제`;
+}
+
+async function openZoneRelease(zone, robotId) {
+  closeBars();
+  const waiting = (view.snapshot && view.snapshot.queues && view.snapshot.queues[zone]) || [];
+  if (!confirm([`구역 ${zone} 을 강제로 풀까요? (점유: ${robotId})`, zoneReleaseHint(robotId),
+    `현장에서 ${robotId} 가 구역 ${zone} 밖에 있는지 확인했나요?`,
+    waiting.length ? `풀면 대기 중인 ${waiting[0]} 이(가) 바로 들어옵니다.`
+      : "풀면 다음에 요청한 로봇이 바로 들어옵니다."].join("\n"))) return;
+  const result = await postJson(`/api/zones/${encodeURIComponent(zone)}/release`,
+    { robot_id: robotId, client_request_id: newRequestId() });
+  if (result.ok) {
+    showMessage(robotId, `구역 ${zone} 강제 해제 요청 보냄 · zone_manager 상태가 바뀌면 비어 있음으로 보임`, false);
+  } else {
+    showMessage(robotId, `구역 ${zone} 강제 해제 거절 (${result.status}): ${errorText(result)}`, true);
+  }
+}
+
 // 지금 이 로봇에서 사람이 풀어야 할 문제 하나 (없으면 null). 카드 줄 글(text)·명령 버튼을 막는
 // 이유(reason)·눌렀을 때 여는 것(open)을 이 한 곳에서 정한다 (카드 줄·클릭·작업 목록 버튼이 함께 씀).
 // 순서: 수동 상차 확인 → 멈춘 주문 → 보류 중 결과 모름(제어권 복구) → 결과 모름 해제 → 정지 잠금.

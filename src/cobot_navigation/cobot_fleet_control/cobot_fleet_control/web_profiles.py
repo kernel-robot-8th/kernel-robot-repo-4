@@ -34,8 +34,12 @@ def merge_parameters(base, extra):
 class PointRules:
     """웹 수동 요청의 지점을 실제 주행 설정에서 검증한다."""
 
-    def __init__(self, configs):
+    def __init__(self, configs, zone_keepout_m=0.0):
         self.configs = configs
+        # 관제 웨이포인트(poses)가 구역 지점·출구에서 이만큼 [m] 안이면 거절 (구역 토큰 우회 방지).
+        # 구역이 다각형이 아니라 지점이라 거리로만 막는다. 관제(cobot_control_center)도 같은 값으로 저장을 막는다.
+        # 기본 0 = 검사 안 함 (2026-11-18, 관제 기록이 너무 자주 막혀 끔).
+        self.zone_keepout_m = float(zone_keepout_m)
 
     def home(self, robot):
         """로봇 홈 지점 이름과 (x, y, yaw). 순찰 노드가 쓰는 같은 설정이 정본이다."""
@@ -48,13 +52,28 @@ class PointRules:
         x, y, yaw = (pose + [0.0])[:3]
         return name, x, y, yaw
 
-    def validate(self, robot, operation, points):
+    def validate(self, robot, operation, points, poses=None):
+        """
+        수동 요청의 지점을 검사한다. poses 는 관제 웨이포인트 좌표 {이름: (x, y, yaw)} (goto 만).
+
+        poses 이름은 이 로봇 설정에 없어야 하고, 구역 지점·출구에서 zone_keepout_m 밖이어야 한다.
+        """
         if robot not in self.configs:
             raise ValueError('로봇 지점 설정이 없습니다')
         params = self.configs[robot]
         all_points = params['points']
         zones = {p for names in params['zone_points'].values() for p in names}
-        if any(point not in all_points for point in points):
+        poses = poses or {}
+        if poses and operation != 'goto':
+            raise ValueError('관제 웨이포인트 좌표는 goto 에만 쓸 수 있습니다')
+        for name, pose in poses.items():
+            if name in all_points:
+                raise ValueError(f'관제 웨이포인트 이름이 로봇 설정과 겹칩니다: {name}')
+            near = self.near_zone(robot, pose[0], pose[1])
+            if near:
+                raise ValueError(f'관제 웨이포인트 {name} 이 구역 지점 {near} 에 너무 가깝습니다 '
+                                 f'({self.zone_keepout_m:g} m 안, 구역은 zone 명령으로)')
+        if any(point not in all_points and point not in poses for point in points):
             raise ValueError('등록되지 않은 지점')
         if operation == 'zone' and any(point not in zones for point in points):
             raise ValueError('zone은 구역 지점만 허용합니다')
@@ -62,10 +81,23 @@ class PointRules:
             for point in points:
                 if point in zones:
                     raise ValueError('구역 지점은 zone 명령을 사용하세요')
+                if point in poses:
+                    continue
                 if point != params['home_name'] and not re.fullmatch(r'P[0-9]+', point):
                     raise ValueError('goto는 일반 지점과 자신의 홈만 허용합니다')
                 if point.startswith('P') and all(float(v) == 0 for v in all_points[point]):
                     raise ValueError('미실측 예비 지점은 사용할 수 없습니다')
+
+    def near_zone(self, robot, x, y):
+        """구역 지점·출구에서 zone_keepout_m 안이면 그 지점 이름, 아니면 '' 를 돌려준다."""
+        params = self.configs[robot]
+        names = [p for members in params['zone_points'].values() for p in members]
+        names += [f'Z{zone}_EXIT' for zone in params['zone_points']]   # 순찰 노드 exit_name 과 같은 규칙
+        for name in names:
+            pose = params['points'].get(name)
+            if pose and math.hypot(float(pose[0]) - x, float(pose[1]) - y) < self.zone_keepout_m:
+                return name
+        return ''
 
 
 def load_profiles(config_dir, site, robots):

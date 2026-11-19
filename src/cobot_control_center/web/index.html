@@ -31,6 +31,8 @@
       <span class="link bridges" id="link-bridges"><span class="label">브릿지</span></span>
       <!-- 네트워크 상태 화면(#/network, network.js). 점 = 전체 요약 (가장 나쁜 상자 색) -->
       <a class="link net-btn" id="net-btn" href="#/network" data-state="na"><i></i>네트워크 상태보기</a>
+      <!-- 관제 웨이포인트·묶음 화면 (#/waypoints, waypoints.js) -->
+      <a class="link net-btn wp-btn" href="#/waypoints" title="로봇 위치로 저장한 관제 웨이포인트와 묶음">웨이포인트</a>
       <span class="updated" id="updated">수신 대기</span>
       <button type="button" class="estop-all" id="stop-all" disabled
               title="모든 로봇을 그 자리에 세운다 (비상정지, 확인 창 없음)">전체 비상정지</button>
@@ -45,6 +47,8 @@
     <section class="panel map-panel" aria-label="지도">
       <div class="panel-head">
         <h2>지도</h2>
+        <!-- 저장해 둔 웨이포인트 묶음 하나를 지도에 순번·점선으로 (waypoints.js, 두 지도 함께) -->
+        <select class="map-group" id="map-group" aria-label="지도에 보일 묶음"></select>
         <span class="muted" id="map-meta"></span>
       </div>
       <div class="map-wrap" id="map-wrap">
@@ -171,15 +175,53 @@
     <div class="detail-hero">
       <section class="panel" aria-label="카메라">
         <div class="panel-head"><h2>카메라</h2><span class="muted" id="camera-meta"></span></div>
+        <!-- 영상 | 조종 칸을 나란히 둔다 (좁은 화면에서는 위아래) -->
+        <div class="camera-body">
         <div class="camera-wrap">
           <img id="camera-img" alt="카메라 영상" hidden>
           <p class="camera-empty" id="camera-empty">영상 없음</p>
           <span class="camera-age" id="camera-age" hidden></span>
         </div>
+        <!-- 직접 조종 (teleop.js). [조종 시작] 뒤에만 버튼·키보드가 먹는다. 실제 로봇이 움직인다. -->
+        <div class="teleop" id="teleop">
+          <div class="teleop-head">
+            <button type="button" id="teleop-toggle">조종 시작</button>
+            <span class="teleop-status" id="teleop-status"></span>
+          </div>
+          <div class="teleop-body">
+            <div class="teleop-pad" id="teleop-pad">
+              <button type="button" data-dir="up" title="앞으로 (W · ↑)">▲</button>
+              <button type="button" data-dir="left" title="왼쪽으로 돌기 (A · ←)">◀</button>
+              <button type="button" data-dir="stop" title="멈춤 (Space)">■</button>
+              <button type="button" data-dir="right" title="오른쪽으로 돌기 (D · →)">▶</button>
+              <button type="button" data-dir="down" title="뒤로 (S · ↓)">▼</button>
+            </div>
+            <!-- 웨이포인트 기록 (record.js): 시작 → [여기 추가 (R)] 로 차례로 저장 → [완료] 면 묶음 하나 -->
+            <button type="button" id="rec-start" class="rec-start">웨이포인트 기록 시작</button>
+            <div class="rec-card" id="rec-card" hidden>
+              <div class="rec-head"><strong>웨이포인트 기록 중</strong><span class="muted" id="rec-count"></span></div>
+              <input id="rec-name" maxlength="40" aria-label="묶음 이름" title="완료하면 이 이름으로 묶음이 생겨요">
+              <button type="button" id="rec-add" class="rec-add">여기 추가 (R)</button>
+              <ol class="rec-list" id="rec-list"></ol>
+              <div class="rec-buttons">
+                <button type="button" id="rec-cancel" title="기록을 그만두고 이번에 추가한 지점도 지움">취소</button>
+                <button type="button" id="rec-done" class="primary" title="목록 순서대로 묶음을 만든다">완료</button>
+              </div>
+            </div>
+            <span class="rec-msg" id="rec-msg"></span>
+            <p class="teleop-help muted"
+               title="창을 벗어나거나 다른 탭으로 가도 끝남 · 연결이 0.3초 끊기면 조종 노드가 세움">누르고 있는 동안만 움직임<br>
+              W A S D · 방향키<br>Space 멈춤 · Esc 끝<br>연결 0.3초 끊기면 멈춤<br><span id="teleop-limit"></span></p>
+          </div>
+        </div>
+        </div>
       </section>
       <section class="panel" aria-label="확대 지도">
         <div class="panel-head">
           <h2>지도</h2>
+          <select class="map-group" id="dt-map-group" aria-label="지도에 보일 묶음"></select>
+          <!-- 고른 묶음을 이 로봇 경로로: 경로 띠를 그 순서로 채워 열고, [보내기]는 운영자가 누른다 (waypoints.js runGroup) -->
+          <button type="button" class="group-run" id="dt-group-run">묶음 실행</button>
           <span class="zoom">
             <button type="button" id="dt-zoom-in" title="더 확대">＋</button>
             <button type="button" id="dt-zoom-out" title="더 넓게">－</button>
@@ -208,6 +250,49 @@
         </details>
       </section>
     </div>
+  </main>
+
+  <!-- 관제 웨이포인트·묶음 화면 (#/waypoints). waypoints.js 가 켜고 끄며, 켜져 있으면 전체 화면(.layout)을 숨긴다. -->
+  <main class="waypoints-page" id="waypoints-page" hidden>
+    <section class="net-head" aria-label="웨이포인트">
+      <a href="#" class="detail-back">← 전체</a>
+      <strong class="dt-name">웨이포인트</strong>
+      <span class="muted">로봇 상세 화면 조종 칸의 [웨이포인트 기록 시작]으로 지점을 차례로 모으고 [완료]하면 묶음이 됩니다. 이동·경로에서 P 처럼 고르면 좌표를 실어 보냅니다 (구역은 구역 명령으로만).</span>
+      <span class="wp-note" id="wp-note"></span>
+    </section>
+    <p class="wp-file" id="wp-file"></p>
+    <section class="panel" aria-label="웨이포인트 목록">
+      <div class="panel-head">
+        <h2>관제 웨이포인트 <span class="muted" id="wp-count"></span></h2>
+        <button type="button" id="wp-export-btn" title="체크한 것(없으면 전체)을 로봇 설정 points 형식 줄로">내보내기 (YAML)</button>
+      </div>
+      <div class="wp-table-wrap">
+        <table class="wp-table">
+          <thead><tr><th></th><th>이름</th><th>x [m]</th><th>y [m]</th><th>방향</th><th>로봇</th><th>저장 시각</th><th>주의</th><th>메모</th><th></th></tr></thead>
+          <tbody id="wp-rows"></tbody>
+        </table>
+      </div>
+      <p class="muted" id="wp-empty">아직 없음. 로봇을 세우고 카드의 [저장]을 누르세요.</p>
+      <pre class="wp-export" id="wp-export" hidden></pre>
+    </section>
+    <section class="panel" aria-label="묶음">
+      <div class="panel-head">
+        <h2>묶음</h2>
+        <button type="button" id="wp-new-group">새 묶음</button>
+      </div>
+      <ul class="wp-groups" id="wp-groups"></ul>
+      <p class="muted" id="wp-groups-empty">아직 없음. 경로 띠에서 '묶음 불러오기'로 한 번에 채울 수 있어요.</p>
+      <div class="wp-editor" id="wp-editor" hidden>
+        <label>이름 <input id="wp-group-name" maxlength="40" placeholder="예: 1층 순찰"></label>
+        <label>메모 <input id="wp-group-note" maxlength="200"></label>
+        <div class="route-chips wp-chips" id="wp-group-chips"></div>
+        <select id="wp-group-add" aria-label="지점 더하기"></select>
+        <div class="cmd-buttons">
+          <button type="button" id="wp-group-cancel">취소</button>
+          <button type="button" id="wp-group-save" class="primary">저장</button>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- 네트워크 상태 화면 (#/network). network.js 가 켜고 끄며, 켜져 있으면 전체 화면(.layout)을 숨긴다.
@@ -265,6 +350,8 @@
       <strong id="cmd-title"></strong>
       <span class="cmd-route" id="cmd-route"></span>
     </div>
+    <!-- 경로일 때만: 저장해 둔 묶음(#/waypoints)을 골라 순서대로 채운다 (waypoints.js) -->
+    <select class="cmd-group" id="cmd-group" hidden aria-label="묶음 불러오기"></select>
     <div class="cmd-pick" id="cmd-pick"></div>
     <p class="cmd-warn" id="cmd-warn"></p>
     <div class="cmd-buttons">
@@ -441,6 +528,9 @@
   <script src="map.js"></script>
   <script src="raw.js"></script>
   <script src="detail.js"></script>
+  <script src="teleop.js"></script>
+  <script src="waypoints.js"></script>
+  <script src="record.js"></script>
   <script src="pose.js"></script>
   <script src="arms.js"></script>
   <script src="network.js"></script>

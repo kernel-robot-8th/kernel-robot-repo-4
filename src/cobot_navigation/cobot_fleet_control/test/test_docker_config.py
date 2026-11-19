@@ -32,6 +32,9 @@ def test_compose_uses_one_image_and_persistent_db():
     assert 'db_path:=/var/lib/cobot/fleet_control.sqlite3' in services['fleet']['command']
     assert 'broker' not in services
     assert services['web']['depends_on'] == {'fleet': {'condition': 'service_started'}}
+    # 관제 웨이포인트·묶음은 컨테이너를 다시 만들어도 남는다.
+    assert services['web']['volumes'] == ['web-data:/home/cobot/.ros/cobot_control_center']
+    assert 'web-data' in config['volumes']
     assert 'fleet:=existing' in services['web']['command']
     assert 'mode:=execute' in services['web']['command']
     assert ('patrol_config_dir:=/opt/cobot_ws/src/cobot_pinky_patrol/config'

@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 import time
 import uuid
 
@@ -10,6 +11,22 @@ from .control_release import require_stopped
 from .scenario_contracts import identifier, operator_or_default, optional_text
 
 RAW_CMD_MAX_LEN = 200   # 개발용 수동 명령 최대 길이 [글자]
+# 구역 강제 해제 때 믿을 zone_manager 상태의 최대 나이 [s]. zone_manager 는 1초마다 다시 낸다.
+ZONE_STATUS_MAX_AGE_SEC = 3.0
+ZONE_NAME_RE = re.compile(r'[A-Za-z0-9_]{1,32}')
+
+
+def parse_zone_status(text):
+    """'A:free' -> ('A', 'free'), 'A:occupied_by:pinky1' -> ('A', 'occupied_by:pinky1'). 아니면 None."""
+    if not isinstance(text, str):
+        return None
+    zone, _, state = text.partition(':')
+    if not ZONE_NAME_RE.fullmatch(zone):
+        return None
+    if state == 'free' or (state.startswith('occupied_by:')
+                           and state[len('occupied_by:'):].strip()):
+        return zone, state
+    return None
 
 
 def manual_load_request(value):
@@ -155,7 +172,49 @@ class ControlAPI:
             return 202, self._raw(request)
         if kind == 'initial_pose':
             return 202, self._initial_pose(request)
+        if kind == 'zone_release':
+            return 202, self._zone_release(request)
         raise ValueError('알 수 없는 요청 type')
+
+    def _zone_release(self, request):
+        """구역 강제 해제: 토큰을 쥔 채 꺼졌거나 다시 켜져 토큰을 잊은 로봇의 구역을 푼다.
+
+        운영자가 현장에서 로봇이 구역 밖에 있는 것을 확인한 뒤 누른다 (화면 확인 창).
+        로봇이 살아 있고 아직 그 구역을 잡고 있다고 알면 거절한다 (그때는 나가기).
+        로봇을 움직이지 않으므로 '작업 명령 켜기'는 요구하지 않는다 (initial_pose 와 같음).
+        """
+        scenario = self.scenario
+        robot = request.get('robot_id')
+        if not isinstance(robot, str) or robot not in self.fleet.robots:
+            raise ApiError(404, '등록되지 않은 로봇')
+        zone = request.get('zone')
+        if not isinstance(zone, str) or not ZONE_NAME_RE.fullmatch(zone):
+            raise ValueError('zone 은 영문·숫자·밑줄 1~32자')
+        zone_state = getattr(self.gateway, 'zone_state', None)
+        state, age = zone_state(zone) if zone_state else (None, None)
+        if state is None or age > ZONE_STATUS_MAX_AGE_SEC:
+            raise ApiError(503, f'구역 {zone} 상태를 zone_manager 에서 받지 못했습니다')
+        if state != f'occupied_by:{robot}':
+            raise ApiError(409, f'구역 {zone} 점유자가 {robot} 이 아닙니다 ({state})')
+        if self._orders_for(robot):
+            raise ApiError(409, '진행 중인 주문이 있는 로봇: 주문 복구를 먼저 하세요')
+        online = scenario._fresh(robot)
+        if online:
+            status = scenario.health.get(robot, {}).get('status', {})
+            if status.get('busy') is not False:
+                raise ApiError(409, '로봇이 움직이는 중입니다 (busy=false 필요)')
+            if 'held_zone' not in status:
+                # 보고하지 않는 순찰 노드는 토큰을 잊었는지 알 수 없다 (잡고 있을 수 있음).
+                raise ApiError(409, '로봇 상태에 held_zone 이 없어 확인할 수 없습니다')
+            if status.get('held_zone') == zone:
+                raise ApiError(409, f'로봇이 아직 구역 {zone} 을 잡고 있다고 압니다: 나가기를 쓰세요')
+        note = optional_text(request.get('note'), 'note', '화면에서 현장 확인 후 구역 강제 해제')
+        scenario.store.event(dict(type='zone_release', zone=zone, robot_id=robot,
+                                  robot_online=online, note=note,
+                                  source=request.get('source', '')))
+        self.gateway.release_zone(zone, robot)
+        return dict(zone=zone, robot_id=robot, robot_online=online, released='sent',
+                    client_request_id=request.get('client_request_id'))
 
     def _initial_pose(self, request):
         """운영자가 확인한 자리로 AMCL 위치를 다시 잡는다. pose 가 없으면 홈, 있으면 그 좌표."""
@@ -241,6 +300,9 @@ class ControlAPI:
         points = [p.strip().upper() for p in points if p.strip()]
         payload = dict(command_id=crid, robot_id=robot, operation=request.get('operation'),
                        points=points)
+        if request.get('poses'):
+            # 관제 웨이포인트 좌표 (goto 만). 형식은 Command.parse, 이름·구역 거리는 point_rules 가 본다.
+            payload['poses'] = request['poses']
         command = Command.parse(payload, self.fleet.robots)
         previous = repository.get(crid)
         if previous:
@@ -254,7 +316,8 @@ class ControlAPI:
         if not scenario._available(robot, manual=True):
             raise ApiError(409, '로봇 이동·배터리·중앙 제어 모드·정지 래치를 확인하세요')
         if self.point_rules is not None:
-            self.point_rules.validate(robot, command.operation, command.points)
+            self.point_rules.validate(robot, command.operation, command.points,
+                                      dict(command.poses))
         ready = getattr(self.gateway, 'ready', None)
         if ready is not None and not ready(robot):
             raise ApiError(503, '명령 실행기 중복 또는 로봇 명령 연결 미확인')
@@ -374,7 +437,8 @@ class ControlAPI:
             command += ':' + ','.join(payload['points'])
         return dict(task_id=row['command_id'], client_request_id=row['command_id'],
                     robot_id=row['robot_id'], operation=payload['operation'],
-                    points=payload['points'], command=command, state=row['state'],
+                    points=payload['points'], poses=payload.get('poses') or {},
+                    command=command, state=row['state'],
                     detail=row['detail'], spec='v1', created_at=row['created_at'],
                     updated_at=row['updated_at'])
 

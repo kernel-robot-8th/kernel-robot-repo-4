@@ -26,16 +26,23 @@
 로봇팔 켜기·끄기·정지(/api/arms)는 로봇팔 명령 노드(arm_command_node)에 따로 넘긴다.
 작업 시험(/api/arms/<arm>/work)도 같은 노드가 /fleet/work_request 로 낸다 (작업 명령 켜기 필요).
 (/api/commands/arm 은 로봇팔이 아니라 '작업 명령 켜기/끄기' 다.)
+상세 화면 직접 조종(WS /ws/teleop/<robot>)은 입력을 teleop_node 에 넘기고, cmd_vel 은 그 노드가 낸다.
+조종 중인 로봇에는 작업·경로·초기위치·수동 명령을 409 로 막는다 (정지·비상정지는 조종도 끝내고 통과).
 """
 
 import asyncio
+import json
+import uuid
 
 from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose
 from cobot_control_center.net_status_utils import collect_network, network_alerts
-from cobot_control_center.route_utils import FAILED, RouteError, split_route
+from cobot_control_center.route_utils import FAILED, RouteError, RUNNING, split_route
+from cobot_control_center.teleop_utils import (
+    active_task, robot_order, teleop_block_reason)
+from cobot_control_center.waypoint_utils import WaypointError
 from fastapi import (Body, FastAPI, HTTPException, Query, Request, Response, WebSocket,
                      WebSocketDisconnect)
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 # WebSocket 이 새 스냅샷을 기다리는 한 번의 최대 시간 [s]. 끊긴 연결을 이 주기로 알아챈다.
@@ -43,6 +50,12 @@ WS_WAIT_SEC = 1.0
 
 
 READ_ONLY_DETAIL = '읽기 전용 백엔드: 명령은 실물 관제 화면(bringup, 8080)에서'
+# 직접 조종 WebSocket 닫는 코드: 시작 거절(막힌 이유), 다른 화면이 조종 중, 조종 노드가 끝냄.
+WS_TELEOP_REFUSED = 4409
+WS_TELEOP_TAKEN = 4423
+WS_TELEOP_ENDED = 4410
+# 직접 조종 입력을 기다리는 한 번의 최대 시간 [s]. 이 주기로 조종 노드가 세션을 끝냈는지 본다.
+TELEOP_WAIT_SEC = 0.2
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -60,7 +73,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                tasks=None, publish_request=None, cameras=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
-               hosts=None, routes=None):
+               hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -79,6 +92,10 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     hosts 는 HostStore (다른 PC 의 상태 보고) 또는 None 이다.
     routes 는 RouteRunner (경로: 여러 지점을 구간으로 나눠 차례로 보냄) 또는 None 이다.
     None 이면 /api/routes 는 503 이다.
+    teleop 은 TeleopStore, publish_teleop 은 조종 입력 JSON 을 teleop_cmd 토픽에 내는 함수다.
+    둘 중 하나라도 None 이면 직접 조종은 받지 않는다.
+    waypoints 는 WaypointStore (관제 웨이포인트·묶음) 또는 None 이다. 이동·경로의 지점 이름 중
+    관제 웨이포인트는 좌표를 poses 로 실어 작업 노드에 넘긴다 (순찰 노드가 좌표로 간다).
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -122,7 +139,9 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                 'cameras': camera_health,
                 # routes: 로봇별 마지막 경로 (진행 중이면 state RUNNING). 화면 카드의 경로 진행 표시용.
                 'routes': routes.routes()['robots'] if routes is not None else {},
-                'arm_controller_online': arms is not None and arms.online()}
+                'arm_controller_online': arms is not None and arms.online(),
+                **(teleop.health() if teleop is not None
+                   else {'teleop_online': False, 'teleop': [], 'teleop_limits': None})}
 
     @app.get('/api/network')
     def network(history: bool = False):
@@ -238,6 +257,92 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         finally:
             watcher.cancel()
 
+    # ---------- 직접 조종 (teleop_node 경유) ----------
+
+    def teleop_send(payload):
+        publish_teleop(json.dumps(payload, ensure_ascii=False))
+
+    def end_teleop(robot_id=None):
+        # 정지·비상정지: 조종 중이면 먼저 끝낸다 (조종 노드가 0 속도를 내고 세션을 닫는다).
+        if teleop is None or publish_teleop is None:
+            return
+        for robot, session in teleop.sessions().items():
+            if robot_id is None or robot == robot_id:
+                teleop_send({'robot_id': robot, 'session': session, 'stop': True})
+
+    def refuse_if_driving(robot_id):
+        if teleop is not None and isinstance(robot_id, str) and teleop.session(robot_id):
+            raise HTTPException(status_code=409,
+                                detail=f'{robot_id} 직접 조종 중 (상세 화면에서 조종을 끝낸 뒤)')
+
+    def teleop_reason(robot_id):
+        """직접 조종을 시작할 수 없는 이유 (되면 '')."""
+        if teleop is None or publish_teleop is None or tasks is None:
+            return READ_ONLY_DETAIL
+        if not teleop.online():
+            return '조종 노드 응답 없음 (teleop_node 를 켜 주세요)'
+        if not tasks.online():
+            return '작업 노드 응답 없음 (fleet_control_node 를 켜 주세요)'
+        _, snapshot = store.get()
+        robot = ((snapshot or {}).get('robots') or {}).get(robot_id)
+        if robot is not None and not store.health()['source_online']:
+            robot = dict(robot, online=False)
+        health = tasks.health()
+        route = routes.route(robot_id) if routes is not None else None
+        return teleop_block_reason(
+            robot, health['commands_armed'],
+            task=active_task(tasks.tasks(robot_id=robot_id, limit=20), robot_id),
+            order=robot_order(health['orders'], robot_id),
+            route=route if route and route.get('state') == RUNNING else None,
+            held=health['holds'].get(robot_id))
+
+    @app.websocket('/ws/teleop/{robot_id}')
+    async def ws_teleop(websocket: WebSocket, robot_id: str):
+        """
+        상세 화면 직접 조종. 화면은 누르고 있는 동안 100 ms 마다 {vx, wz} (-1~1 비율) 를 보낸다.
+
+        손을 떼도 {vx: 0, wz: 0} 를 계속 보내야 세션이 이어진다. 끊기면 조종 노드가 0.3초 뒤 세운다.
+        """
+        await websocket.accept()
+        reason = teleop_reason(robot_id)
+        if reason:
+            await websocket.send_json({'type': 'refused', 'detail': reason})
+            await websocket.close(code=WS_TELEOP_REFUSED)
+            return
+        session = uuid.uuid4().hex
+        if not teleop.claim(robot_id, session):
+            await websocket.send_json({'type': 'refused', 'detail': '다른 화면에서 조종 중'})
+            await websocket.close(code=WS_TELEOP_TAKEN)
+            return
+        ended = None
+        try:
+            teleop_send({'robot_id': robot_id, 'session': session, 'vx': 0, 'wz': 0})
+            await websocket.send_json({'type': 'started', 'session': session,
+                                       'limits': teleop.health()['teleop_limits']})
+            while True:
+                try:
+                    data = await asyncio.wait_for(websocket.receive_json(), TELEOP_WAIT_SEC)
+                except asyncio.TimeoutError:
+                    data = None
+                ended = teleop.ended(session) or (
+                    None if teleop.online() else '조종 노드 응답 없음')
+                if ended:
+                    break
+                if isinstance(data, dict):
+                    teleop_send({'robot_id': robot_id, 'session': session,
+                                 'vx': data.get('vx'), 'wz': data.get('wz')})
+        except (WebSocketDisconnect, RuntimeError, ValueError):
+            pass
+        finally:
+            teleop_send({'robot_id': robot_id, 'session': session, 'stop': True})
+            teleop.release(robot_id, session)
+        if ended:
+            try:
+                await websocket.send_json({'type': 'ended', 'detail': ended})
+                await websocket.close(code=WS_TELEOP_ENDED)
+            except (WebSocketDisconnect, RuntimeError):
+                pass
+
     # ---------- 명령 (작업 노드 fleet_control_node 경유) ----------
 
     def call_controller(payload):
@@ -257,12 +362,24 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                                 content={'detail': body.get('detail'), 'task': body})
         return JSONResponse(status_code=status, content=body)
 
+    def waypoint_poses(points):
+        if waypoints is None or not isinstance(points, list):
+            return {}
+        return waypoints.poses_for([p.strip().upper() for p in points if isinstance(p, str)])
+
     @app.post('/api/tasks')
     def create_task(body: dict = Body(...)):
-        return call_controller({
+        refuse_if_driving(body.get('robot_id'))
+        points = body.get('points') or []
+        payload = {
             'type': 'create', 'client_request_id': body.get('client_request_id'),
             'robot_id': body.get('robot_id'), 'operation': body.get('operation'),
-            'points': body.get('points') or []})
+            'points': points}
+        poses = waypoint_poses(points)
+        if poses:
+            payload['points'] = [p.strip().upper() for p in points if isinstance(p, str)]
+            payload['poses'] = poses
+        return call_controller(payload)
 
     # ---------- 경로 (여러 지점을 섞은 연결 주행, route_utils) ----------
     # 순찰 노드는 명령 하나만 받으므로 구간(goto 묶음·zone 하나씩)으로 나눠 이 백엔드가 차례로 보낸다.
@@ -275,6 +392,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/routes')
     def create_route(body: dict = Body(...)):
+        refuse_if_driving(body.get('robot_id'))
         runner = route_runner()
         if not tasks.online():
             raise HTTPException(status_code=503,
@@ -287,7 +405,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             raise HTTPException(status_code=404, detail=f'등록되지 않은 로봇: {robot_id}')
         try:
             names = [p.strip().upper() for p in body.get('points') or [] if isinstance(p, str)]
-            legs = split_route(body.get('points') or [], layers, robot_id)
+            legs = split_route(body.get('points') or [], layers, robot_id,
+                               waypoints.poses() if waypoints is not None else None)
             runner.create(robot_id, legs, [n for n in names if n],
                           body.get('client_request_id'))
         except RouteError as error:
@@ -315,6 +434,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.post('/api/robots/{robot_id}/stop')
     def stop_robot(robot_id: str, body: dict = Body(default={})):
         emergency = bool(body.get('emergency', False))
+        end_teleop(robot_id)
         # 정지는 남은 경로 구간도 버린다 (정지 뒤 다음 구간이 나가면 안 된다).
         cancel_routes(robot_id, '운영자 비상정지' if emergency else '운영자 정지')
         if emergency:
@@ -328,6 +448,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/commands/estop')
     def estop_all(body: dict = Body(default={})):
+        end_teleop()
         # 전체 비상정지: 로봇 지정 없이 한 번 내면 fleet 이 전 로봇·팔을 세운다.
         cancel_routes(None, '전체 비상정지')
         return call_controller({
@@ -344,12 +465,22 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'evidence': body.get('evidence'),
             'source': source(request)})
 
+    @app.post('/api/zones/{zone}/release')
+    def release_zone(zone: str, request: Request, body: dict = Body(default={})):
+        # 구역 강제 해제: 토큰을 쥔 채 꺼졌거나 다시 켜져 토큰을 잊은 로봇의 구역을 푼다.
+        # 현장 확인은 화면 확인 창 한 번. 점유자·로봇 상태 검사와 이탈 통보 발행은 fleet_control 이 한다.
+        return call_controller({
+            'type': 'zone_release', 'zone': zone, 'robot_id': body.get('robot_id'),
+            'client_request_id': body.get('client_request_id'),
+            'note': body.get('note'), 'source': source(request)})
+
     @app.post('/api/robots/{robot_id}/initial_pose')
     def initial_pose(robot_id: str, request: Request, body: dict = Body(default={})):
         # AMCL 위치를 다시 잡는다. pose 가 없으면 홈 (좌표는 fleet_control 이 순찰 설정에서 읽음),
         # 있으면 화면 지도에서 찍은 {x, y, yaw}. 검사·발행은 fleet_control 이 한다 (이 서버는 로봇
         # 토픽을 발행하지 않는다). 지도 범위만 지도를 가진 여기서 먼저 본다.
         # 누가 눌렀는지는 접속 IP(source)로 남긴다.
+        refuse_if_driving(robot_id)
         payload = {'type': 'initial_pose', 'robot_id': robot_id,
                    'client_request_id': body.get('client_request_id'),
                    'source': source(request)}
@@ -386,6 +517,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.post('/api/robots/{robot_id}/raw_cmd')
     def raw_command(robot_id: str, body: dict = Body(default={})):
         # 개발용 수동 명령. 검사·전달은 fleet_control_node 가 정한다 (allow_raw_cmd 꺼지면 403).
+        refuse_if_driving(robot_id)
         return call_controller({
             'type': 'raw', 'robot_id': robot_id,
             'client_request_id': body.get('client_request_id'),
@@ -461,6 +593,59 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'shelf_row': body.get('shelf_row'),
             'client_request_id': body.get('client_request_id'), 'source': source(request)},
             needs_armed=True)
+
+    # ---------- 관제 웨이포인트·묶음 (waypoint_utils, 관제 PC 파일) ----------
+
+    def waypoint_store(write=False):
+        if waypoints is None:
+            raise HTTPException(status_code=503, detail='웨이포인트 저장소가 설정되지 않음')
+        if write and publish_request is None:
+            raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
+        return waypoints
+
+    def waypoint_call(func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except WaypointError as error:
+            raise HTTPException(status_code=error.status, detail=error.detail) from None
+
+    @app.get('/api/waypoints')
+    def list_waypoints():
+        return waypoint_store().snapshot()
+
+    @app.post('/api/waypoints')
+    def capture_waypoint(body: dict = Body(...)):
+        # 로봇의 지금 위치로 저장. 위치는 화면 값이 아니라 이 서버가 받은 마지막 fleet_status 에서 읽는다.
+        store_ = waypoint_store(write=True)
+        robot_id = body.get('robot_id')
+        robot = ((store.get()[1] or {}).get('robots') or {}).get(robot_id)
+        if robot is not None and not store.health()['source_online']:
+            robot = dict(robot, online=False)
+        item = waypoint_call(store_.capture, robot_id, robot, body.get('name'), body.get('note'))
+        return JSONResponse(status_code=201, content=item)
+
+    @app.patch('/api/waypoints/{name}')
+    def update_waypoint(name: str, body: dict = Body(...)):
+        return waypoint_call(waypoint_store(write=True).update, name,
+                             body.get('name'), body.get('note'))
+
+    @app.delete('/api/waypoints/{name}')
+    def delete_waypoint(name: str):
+        return waypoint_call(waypoint_store(write=True).delete, name)
+
+    @app.get('/api/waypoints/export')
+    def export_waypoints(names: str = ''):
+        chosen = [n.strip().upper() for n in names.split(',') if n.strip()]
+        return PlainTextResponse(waypoint_store().export_yaml(chosen or None))
+
+    @app.put('/api/waypoint_groups/{name}')
+    def set_waypoint_group(name: str, body: dict = Body(...)):
+        return waypoint_call(waypoint_store(write=True).set_group, name,
+                             body.get('points'), body.get('note'))
+
+    @app.delete('/api/waypoint_groups/{name}')
+    def delete_waypoint_group(name: str):
+        return waypoint_call(waypoint_store(write=True).delete_group, name)
 
     def task_store():
         if tasks is None:

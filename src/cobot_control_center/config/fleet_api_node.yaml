@@ -24,5 +24,13 @@
     camera_topic_format: /{robot}/camera/image_raw/compressed
     # 네트워크 화면: Station PC 에서 도는 노드 이름 (팔 노드 arm_station.launch.xml 의 omx1~3_adapter)
     station_node_patterns: ['omx*_adapter']
+    # 관제 웨이포인트·묶음 파일 (화면 '저장'·#/waypoints). 비우면 ~/.ros/cobot_control_center/waypoints_<site>_d<ROS_DOMAIN_ID>.json
+    # 도커 web 컨테이너는 볼륨 경로로 바꿔야 컨테이너를 다시 만들어도 남는다.
+    waypoints_file: ''
+    # [m] 관제 웨이포인트가 구역 지점·출구에서 이만큼 안이면 저장 거절 (작업 노드 PointRules 와 같은 값).
+    # 0 이면 검사 안 함 (2026-11-18 사용자 결정: 0.3 m 는 기록이 너무 자주 막혀 끔).
+    # 끄면 구역 근처 좌표로 goto 할 때 구역 토큰 없이 들어갈 수 있으니 구역 근처에는 저장하지 않는다.
+    zone_keepout_m: 0.0
+    teleop_stale_sec: 2.0     # 직접 조종 노드(teleop_node) 상태(0.5 s 주기)가 이만큼 끊기면 조종을 받지 않음 [s]
     host_stale_sec: 10.0      # 다른 PC 상태 보고(host_status_node, 3 s 주기)가 이만큼 끊기면 끊김 [s]
     read_only: false          # true 면 명령 경로 503, task_request 를 내지 않음. fleet_api_dev.launch.xml 이 켠다

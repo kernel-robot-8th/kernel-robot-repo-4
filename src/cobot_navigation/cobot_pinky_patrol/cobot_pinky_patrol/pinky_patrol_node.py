@@ -190,11 +190,13 @@ class PinkyPatrolNode(Node):
 
     def _cmd_cb(self, message):
         """명령을 검증·등록하고 즉시 반환한다."""
-        raw, command_id, envelope = message.data, None, None
+        raw, command_id, envelope, poses = message.data, None, None, None
         try:
             if raw.lstrip().startswith('{'):
                 envelope = json.loads(raw)
                 command_id, raw = envelope['command_id'], envelope['command']
+                # 관제 웨이포인트 좌표 (goto 만, 검사는 controller.submit 이 한다)
+                poses = envelope.get('poses')
                 if not isinstance(command_id, str) or not command_id or not isinstance(raw, str):
                     raise ValueError('명령 봉투 형식 오류')
             kind = raw.strip().lower()
@@ -209,7 +211,7 @@ class PinkyPatrolNode(Node):
                     return
                 elif not self.central_guard.accept(envelope or {}):
                     raise ValueError('중앙 하트비트·세션·seq·정지 래치 확인 필요')
-            self.controller.submit(raw, command_id)
+            self.controller.submit(raw, command_id, poses)
         except (ValueError, KeyError, TypeError) as error:
             self.get_logger().warning(f'잘못된 명령: {error}')
 

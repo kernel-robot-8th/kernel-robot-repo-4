@@ -181,6 +181,7 @@ function busyReason(robot, active, route = null) {
 // (로봇을 켜자마자, 또는 잠금 복구 중에 위치를 다시 잡는 단계라서). 최종 검사는 작업 노드가 한다.
 function poseBlockReason(robotId, robot) {
   return linkBlockReason(robot)
+    || (isDriving(robotId) ? "직접 조종 중" : "")
     || busyReason(robot, robotTask(robotId, ACTIVE_TASK), runningRoute(robotId));
 }
 
@@ -206,6 +207,7 @@ function renderCommands(card, robotId, robot) {
   const reason = linkBlockReason(robot)
     || (blocker ? blocker.reason : "")
     || (!view.commandsArmed ? "상단 '작업 명령 켜기'를 누르세요" : "")
+    || (isDriving(robotId) ? "직접 조종 중 (상세 화면에서 조종 끝)" : "")
     || busyReason(robot, active, runningRoute(robotId));
   // 나가기는 보유 구역이 있을 때만 켠다. 구역 상태를 모르면 막지 않는다 (최종 판단은 작업 노드·로봇).
   // 구역을 잡고 있어도 이동·구역 명령은 켠다: 로봇이 먼저 구역을 나간다 (2026-11-09).
@@ -238,6 +240,9 @@ function renderCommands(card, robotId, robot) {
   } else if (!view.commandsArmed) {
     text = `명령 잠김: ${reason}`;
     level = "warn";
+  } else if (isDriving(robotId)) {
+    text = "직접 조종 중 (상세 화면)";
+    level = "busy";
   } else if (runningRoute(robotId)) {
     text = routeText(runningRoute(robotId));
     level = "busy";
@@ -431,6 +436,8 @@ function pointChoices(robotId, cmd) {
     for (const [name, pose] of Object.entries(layers.points || {})) choices.set(name, pose);
     const home = layers.homes && layers.homes[robotId];
     if (home) choices.set(home.name, home.pose);
+    // 관제 웨이포인트: 관제가 좌표를 실어 보낸다 (goto·경로만, waypoints.js)
+    for (const [name, pose] of waypointPoses()) choices.set(name, pose);
   } else if (cmd === "zone") {
     for (const zone of Object.values(layers.zones || {})) {
       for (const [name, pose] of Object.entries(zone.points || {})) choices.set(name, pose);
@@ -492,6 +499,8 @@ function choosePoints(robotId, cmd) {
   $("cmd-clear").hidden = !MULTI_POINT.has(cmd);
   $("cmd-undo").hidden = !chipMode;
   box.classList.toggle("route-mode", chipMode);
+  $("cmd-group").hidden = !chipMode;
+  renderGroupSelect();
   $("cmd-warn").textContent = view.snapshot && view.snapshot.infra
     && view.snapshot.infra.mode === "real" ? "⚠ 실물 로봇이 움직입니다. 주변을 확인하세요." : "";
   if (needsPoints && choices === null) {

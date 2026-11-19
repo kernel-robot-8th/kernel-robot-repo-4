@@ -55,3 +55,50 @@ test('order cancellation does not clear pending robot hold optimistically', asyn
   await context.sendOrderRecover(order, 'fail', {});
   assert.equal(context.view.holds.pinky1, 'ESTOP');
 });
+
+function zoneUi(robot, extra = {}) {
+  const context = ui('release.js', extra);
+  context.view.controllerOnline = true;
+  context.view.snapshot = { robots: { pinky1: robot }, queues: { A: ['pinky2'] } };
+  return context;
+}
+
+test('zone release only for offline robot or one that forgot its token', () => {
+  // 연결 끊김: 마지막 상태가 잡고 있다고 해도 보인다 (현장 확인에 맡김)
+  assert.equal(zoneUi({ online: false, extra: { held_zone: 'A', busy: true } })
+    .zoneReleaseAllowed('A', 'pinky1'), true);
+  // 다시 켜져 잊음
+  assert.equal(zoneUi({ online: true, extra: { held_zone: null, busy: false } })
+    .zoneReleaseAllowed('A', 'pinky1'), true);
+  // 살아 있고 아직 잡고 있음 → 나가기
+  assert.equal(zoneUi({ online: true, extra: { held_zone: 'A', busy: false } })
+    .zoneReleaseAllowed('A', 'pinky1'), false);
+  // 움직이는 중, held_zone 보고 없음, 읽기 전용
+  assert.equal(zoneUi({ online: true, extra: { held_zone: null, busy: true } })
+    .zoneReleaseAllowed('A', 'pinky1'), false);
+  assert.equal(zoneUi({ online: true, extra: { busy: false } })
+    .zoneReleaseAllowed('A', 'pinky1'), false);
+  const readOnly = zoneUi({ online: false, extra: {} });
+  readOnly.view.readOnly = true;
+  assert.equal(readOnly.zoneReleaseAllowed('A', 'pinky1'), false);
+});
+
+test('zone release asks on-site check and posts robot id', async () => {
+  const questions = [], posts = [], messages = [];
+  const context = zoneUi({ online: false, extra: {} }, {
+    confirm: (q) => { questions.push(q); return true; },
+    postJson: async (...args) => { posts.push(args); return { ok: true, status: 202, data: {} }; },
+    showMessage: (...args) => messages.push(args),
+  });
+  await context.openZoneRelease('A', 'pinky1');
+  assert.match(questions[0], /구역 A 밖에 있는지/);
+  assert.match(questions[0], /pinky2/);
+  assert.equal(posts[0][0], '/api/zones/A/release');
+  assert.equal(JSON.stringify(posts[0][1]), JSON.stringify({ robot_id: 'pinky1', client_request_id: 'click1' }));
+  assert.equal(messages[0][2], false);
+  // 취소하면 보내지 않는다
+  const declined = zoneUi({ online: false, extra: {} }, { confirm: () => false,
+    postJson: async (...args) => { posts.push(args); return { ok: true }; } });
+  await declined.openZoneRelease('A', 'pinky1');
+  assert.equal(posts.length, 1);
+});

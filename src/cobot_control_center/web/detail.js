@@ -5,7 +5,8 @@
 // 전체 화면(.layout)을 숨기고 한 로봇 전용 배치(#detail-page)를 보인다:
 //   상태줄(명령 포함) → 카메라 | 확대 지도 → 요약 칸 → 타임라인 | 진단.
 // 연결·작업 목록·명령 함수는 전체 화면과 같은 것을 쓴다 (renderCommands, onCommand, drawLayers ...).
-// 로봇 직접 조종(cmd_vel)은 두지 않는다. 명령은 작업 노드(fleet_control_node)를 거치는 버튼만 쓴다.
+// 명령 버튼은 작업 노드(fleet_control_node)를 거친다. 직접 조종(cmd_vel)은 카메라 칸 아래 조종 칸(teleop.js)이
+// teleop_node 를 거쳐 낸다.
 // 로봇이 보낸 문자열은 textContent 로만 넣는다.
 // 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
 // 파일끼리 함수·상수를 전역 이름으로 함께 쓴다 (빌드 단계 없이 브라우저가 바로 읽게).
@@ -20,7 +21,7 @@ const DIAG_OK_SEC = 8;
 const DIAG_WARN_SEC = 30;
 // 확대 지도에 보이는 가로 폭 [m]. null 은 지도 전체.
 const ZOOM_SPANS_M = [0.8, 1.4, null];
-const ZOOM_DEFAULT = 1;
+const ZOOM_DEFAULT = 2;   // 기본은 지도 전체 (2026-11-18 사용자 요청). ＋ 로 1.4 m · 0.8 m
 const TIMELINE_MAX = 50;
 const ROUTE_PREFIX = "#/robot/";
 
@@ -88,6 +89,8 @@ function renderDetail() {
   renderTimeline(robotId);
   renderDiag(robotId, robot);
   drawDetailMap();
+  renderTeleop();
+  renderGroupRun();
 }
 
 // ---------- 상태줄 ----------
@@ -417,6 +420,8 @@ function drawDetailMap() {
   const show = {
     points: view.showPoints || (picking && (view.pick.cmd === "goto" || view.pick.cmd === "route")),
     layers: view.showLayers || picking,
+    // 관제 웨이포인트: 이동·경로를 고를 때는 모두, 평소엔 묶음에 안 든 점 + '묶음 보기'로 고른 묶음의 점 (2026-11-18)
+    allWaypoints: picking && (view.pick.cmd === "goto" || view.pick.cmd === "route"),
   };
   if (view.layers && (show.layers || show.points)) {
     drawLayers(ctx, info, view.layers, scale, show, labels);
@@ -425,6 +430,8 @@ function drawDetailMap() {
   const color = css(robotColorVar(Math.max(0, index)));
   if (picking) drawPick(ctx, info, scale, robots);
   else if (robot) drawRoute(ctx, info, scale, robotId, robot, color);
+  drawGroup(ctx, info, scale);
+  drawRecord(ctx, info, scale, robotId);
   const posing = Boolean(detail.posePick && detail.posePick.robotId === robotId);
   canvas.classList.toggle("posing", posing);
   // 구역·지점 이름표는 고정 자리(로봇 아래), 로봇 이름표는 맨 위 (map.js placeStaticLabels)

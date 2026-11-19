@@ -27,6 +27,7 @@
     <arg name="port" value="$(var port)"/>
     <arg name="read_only" value="true"/>
     <arg name="arm_command" value="false"/>
+    <arg name="teleop" value="false"/>
     <!-- 측정 노드는 실물 bringup 이 띄운 것을 같이 본다 (둘이면 /control_center/net_status 가 겹침) -->
     <arg name="net_hosts" value="off"/>
     <arg name="web_dir" value="$(var web_dir)"/>
