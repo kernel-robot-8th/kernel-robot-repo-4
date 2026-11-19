@@ -4,7 +4,7 @@ import math
 
 import py_trees
 
-from .scenario_contracts import BLOCKED, TERMINAL, finite
+from .scenario_contracts import BLOCKED, LEAVE_SIDE, TERMINAL, finite
 
 
 Status = py_trees.common.Status
@@ -112,7 +112,7 @@ class NavigationStep(Step):
         ctx = self.ctx
         row = ctx.service.fleet.repository.get(ctx.order['request_id'])
         if row['state'] == 'SUCCEEDED':
-            side = {'LEAVE_PICKUP': 'pickup', 'LEAVE_DROPOFF': 'dropoff'}.get(self.stage)
+            side = LEAVE_SIDE.get(self.stage)
             if side:
                 ctx.service.store.release(
                     ctx.order['order_id'], ctx.service._station(ctx.order, side))
@@ -241,15 +241,24 @@ class CustomerReceipt(py_trees.behaviour.Behaviour):
             self.feedback_message = '회수 주문 또는 복구 체크포인트: 수령 대기 생략'
             return Status.SUCCESS
         ctx.enter('CUSTOMER')
+        customer = 'customer' in ctx.service._route(ctx.order)
         if ctx.customer_received:
             ctx.save(customer_received=True)
         elif ctx.customer_declined:
-            # 새 물리 동작 없이 시간 초과와 같은 복귀 경로를 쓴다.
-            ctx.service._alarm(ctx.order, 'CUSTOMER_DECLINED', '고객 구매 취소: 기록 후 복귀')
+            if customer:
+                # 고객 자리 주문: 핑키 위 신발을 ZC 에서 정리하고 ZA 선반에 반환한 뒤 복귀한다.
+                ctx.service._alarm(ctx.order, 'CUSTOMER_DECLINED',
+                                   '고객 회수 요청: 정리 구역 → 반환 구역 → 복귀')
+            else:
+                # 새 물리 동작 없이 시간 초과와 같은 복귀 경로를 쓴다.
+                ctx.service._alarm(ctx.order, 'CUSTOMER_DECLINED', '고객 구매 취소: 기록 후 복귀')
             ctx.save(customer_declined=True)
         elif ctx.service.clock() >= ctx.service.deadlines[ctx.order['order_id']]:
-            ctx.service._alarm(ctx.order, 'CUSTOMER_TIMEOUT',
-                               f"{ctx.service.config['customer_timeout_sec']:g}초 수령 무응답: 기록 후 복귀")
+            limit = f"{ctx.service.config['customer_timeout_sec']:g}초"
+            ctx.service._alarm(
+                ctx.order, 'CUSTOMER_TIMEOUT',
+                f'{limit} 결제·회수 무응답: 신발을 실은 채 HOME 복귀, 운영자 재고 확인 필요'
+                if customer else f'{limit} 수령 무응답: 기록 후 복귀')
             ctx.save(customer_timed_out=True)
         else:
             return Status.RUNNING
@@ -257,12 +266,31 @@ class CustomerReceipt(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
+class CustomerDeclined(py_trees.behaviour.Behaviour):
+    """
+    고객 회수 여부 조건. declined=True 는 회수한 주문, False 는 결제·시간 초과 주문에서만 성공한다.
+
+    회수 분기가 도중에 실패해도 '바로 복귀' 쪽으로 새지 않게 두 조건을 따로 둔다.
+    """
+
+    def __init__(self, context, declined=True):
+        super().__init__('고객 회수 요청 확인' if declined else '결제·시간 초과: 바로 복귀')
+        self.ctx, self.declined = context, declined
+
+    def update(self):
+        return (Status.SUCCESS if bool(self.ctx.order.get('customer_declined')) == self.declined
+                else Status.FAILURE)
+
+
 class FinishOrder(py_trees.behaviour.Behaviour):
     """트리의 끝에서 필수 단계와 자원 정리를 확인하고 주문을 종결한다."""
 
     def __init__(self, context, mandatory):
         super().__init__('필수 단계 확인·주문 종결')
+        # mandatory: 단계 집합, 또는 주문을 받아 집합을 돌려주는 함수 (분기마다 필수 단계가 다를 때)
         self.ctx, self.mandatory = context, mandatory
 
     def update(self):
-        return Status.SUCCESS if self.ctx.finish(self.mandatory) else Status.FAILURE
+        mandatory = (self.mandatory(self.ctx.order) if callable(self.mandatory)
+                     else self.mandatory)
+        return Status.SUCCESS if self.ctx.finish(mandatory) else Status.FAILURE
