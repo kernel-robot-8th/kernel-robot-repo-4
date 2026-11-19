@@ -40,6 +40,6 @@ stale_sec: 3.0
 battery_stale_sec: 10.0       # control-center documents the real battery topic at 5 s intervals
 battery_min: 20.0             # assignment policy, not a fixed UML value
 departure_gap_sec: 3.0
-dock_xy_m: 0.01
+dock_xy_m: 0.03                # [m] 정차 위치 공차. 2026-11-19 실물 ZB 정차 오차 약 5 cm, 실제 정밀 보정이 아직 없어 3 cm 로 넓혀 시험
 dock_yaw_deg: 15.0
 allow_returns: false
