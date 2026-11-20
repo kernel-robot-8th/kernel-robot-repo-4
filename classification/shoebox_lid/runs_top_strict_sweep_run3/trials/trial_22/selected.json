@@ -1,0 +1,33 @@
+{
+  "trial": 22,
+  "optimizer": "SGD",
+  "lr0": 0.01,
+  "batch": 16,
+  "dropout": 0.15,
+  "epoch": 4,
+  "average_precision": 1.0,
+  "weights": "/home/team11/il_ws/shoebox-lid/classification/shoebox_lid/runs_top_strict_sweep_run3/trials/trial_22/best.pt",
+  "size": 640,
+  "threshold": 0.9830173254013062,
+  "max_false_positives": 0,
+  "selection_rule": "FP constraint, recall, AP, precision, F1, fewer FP, earlier epoch/trial",
+  "selection_split": "dataset/test (internal 9:1 parameter-selection holdout)",
+  "holdout_metrics": {
+    "threshold": 0.9830173254013062,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "tn": 117,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "false_closed_rate": 0.0,
+    "specificity": 1.0,
+    "accuracy": 1.0,
+    "balanced_accuracy": 1.0,
+    "mcc": 1.0,
+    "predicted_positives": 3
+  },
+  "rejects_all_holdout": false,
+  "external_video": "test_classification.mp4 (reserved for human review)"
+}
