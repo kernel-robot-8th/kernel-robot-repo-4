@@ -22,6 +22,8 @@
 | `omx_chain.py`, `success_judge.py` | `tool/omx-dashboard-v2` (a54637d) `omx_dashboard_v2/` 에서 **고치지 않고 복사**. 바꿀 일이 있으면 원본과 함께 바꾼다 |
 | `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 경로 또는 번들·버전) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
+| `torque_probe.py` | 모터 토크 켜짐(`Torque_Enable`)을 읽기만 한다. 팔 노드가 실행기가 없을 때 불러 관제에 실측을 보인다 |
+| `read_pose.py` | 토크를 켜지 않고 관절 값을 읽는다 (쉬는 자세 재기용, `--save` 로 파일 저장). 실행기가 꺼져 있을 때만 |
 
 ## 모델 지정과 번들 (v0.2, 2026-11-17)
 
@@ -124,6 +126,13 @@ omx_1031 번들(`Sungah/omx_1031_act_smolvla`)의 E 모델처럼 입력이 다�
 - `rest_pose` 가 없으면 `release` 는 늘 거절된다. 처음 값은 shoebox_d 시작 자세이므로 실제 팔로 재서 바꾼다.
   팔을 쉬는 자세에 두고 켠 뒤 관제 저장소 `scripts/arm_console.py` 의 `saverest` 로 `rest_pose_omx1.json` 을 만든다
   (`~/il_ws/poses/` 로 옮기거나 경로를 인자로 준다).
+  - 켜면 토크가 켜지고 시작 자세로 옮겨지므로 손으로 놓은 자세를 재기 어렵다. 그때는 토크를 푼 뒤 손으로 놓고,
+    실행기가 꺼진 상태에서 `read_pose.py --port <보드> --robot-id <robot_id> --arm omx2 --save ~/il_ws/poses/rest_pose_omx2.json`
+    으로 잰다 (모터에 쓰지 않음).
+- 실행기를 `--release-without-rest` 로 띄우면 `rest_pose` 가 없는 팔은 거절 대신 바로 끊는다 (팔이 내려앉을 수 있음).
+  쉬는 자세를 재기 전 임시 수단이다.
+- 실행기가 강제로 꺼지면(kill) 토크를 끄지 못한 채 남는다. 팔 노드는 실행기가 없을 때 `torque_probe.py` 로 재서
+  info 토픽 `torque` 칸에 싣고, 관제는 꺼짐인데 켜져 있으면 `torque_left_on` 경고를 띄운다.
 - `ready` 에는 action 별 모델 정보(`models`: bundle·version·model_name·path·init_pose·success_judge 유무),
   `rest_pose`, `safe_tol` 이 실린다. 어댑터가 이것을 관제에 넘겨 팔 카드에 보인다. `done` 에는 `model` (`omx_pick_za@v1`).
 
