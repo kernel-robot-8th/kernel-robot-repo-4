@@ -1,0 +1,60 @@
+# 공유용 기본 설정. 앱 첫 실행 시 config.yaml로 복사되며, config.yaml은 git에서 제외됩니다.
+# 기본값을 바꿀 때만 이 파일을 수정하세요.
+session:
+  output_dir: ./output
+  task_name: omx_task
+  task_text: ''
+robot:
+  follower_port: auto
+  follower_id: omx_follower_arm
+  leader_port: auto
+  leader_id: omx_leader_arm
+cameras:
+  wrist:
+    index_or_path: ''
+    width: 640
+    height: 480
+    fps: 30
+  top:
+    index_or_path: ''
+    width: 640
+    height: 480
+    fps: 30
+record:
+  fps: 30
+  status_hz: 1.0
+  vcodec: libsvtav1
+motion:
+  move_duration_s: 3.0
+  max_step: 3.0
+hub:
+  user: ''
+  private: true
+fk:
+  signs:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  offsets_deg:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+train:
+  omx_train_dir: ../omx_train
+  dataset_root: ''
+  policy: act
+  gpu: 0
+  params: {}
+  wandb: false
+  holdout_episodes: ''
+infer:
+  policy: act
+  params: {}
+  task: ''
+  ensemble: false
+  ensemble_k: 5
+  ensemble_m: 0.01

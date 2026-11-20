@@ -145,9 +145,11 @@ def test_delivery_requires_all_device_results_customer_and_home(env):
     assert env.stock('SHOE42') == 9
 
 
-@pytest.mark.parametrize('route,pickup', [('lab_delivery', 'ZA'), ('lab_delivery_zb', 'ZB')])
-def test_configured_lab_routes_load_with_omx1_and_deliver_to_zc_with_omx2(env, route, pickup):
-    """실제 배포 설정의 두 상차 경로가 ZC 하차와 올바른 팔 요청으로 끝나는지 검증한다."""
+@pytest.mark.parametrize('route,pickup,arm', [
+    ('lab_delivery', 'ZA', 'omx1'), ('lab_delivery_zb', 'ZB', 'omx2')])
+def test_configured_lab_routes_load_at_zone_arm_and_deliver_to_zc_with_omx3(
+        env, route, pickup, arm):
+    """실제 배포 설정의 두 상차 경로가 ZC 하차와 자리별 팔(ZA omx1·ZB omx2·ZC omx3) 요청으로 끝난다."""
     config = yaml.safe_load(
         (Path(__file__).resolve().parents[1] / 'config/scenario.yaml').read_text())
     env.scenario = ScenarioService(env.repo, env.fleet, env.gateway,
@@ -162,8 +164,8 @@ def test_configured_lab_routes_load_with_omx1_and_deliver_to_zc_with_omx2(env, r
     assert env.current()['state'] == 'COMPLETED'
     assert [payload['command'] for _, payload in env.gateway.sent] == [
         f'zone:{pickup}', 'leave', 'zone:ZC', 'leave', 'home']
-    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'LOAD') == 'omx1'
-    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'UNLOAD') == 'omx2'
+    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'LOAD') == arm
+    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'UNLOAD') == 'omx3'
 
 
 def test_qos_duplicate_conflict_inventory_atomicity_and_no_available_robot(env):

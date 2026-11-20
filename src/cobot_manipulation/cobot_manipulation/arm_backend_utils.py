@@ -206,7 +206,7 @@ def judge_done(event):
     """
     arm_safe = event.get('arm_safe') is True
     data = {'arm_safe': arm_safe}
-    for key in ('end_reason', 'success_basis', 'pose_error', 'joints', 'model'):
+    for key in ('end_reason', 'success_basis', 'pose_error', 'joints', 'model', 'box'):
         if key in event:
             data[key] = event[key]
     if event.get('success') is not True:
@@ -217,6 +217,21 @@ def judge_done(event):
     if not arm_safe:
         return False, data, '동작은 끝났으나 안전 자세 확인 안 됨 (arm_safe)'
     return True, data, ''
+
+
+def run_message(request):
+    """
+    실행기에 보내는 run 한 줄.
+
+    주문의 선반 행(shelf_row, fleet_control 이 주문 재고 칸에서 싣는다)을 박스 번호 box 로 넘긴다.
+    박스 원핫을 받는 모델(omx_1031 E 등)이 꺼낼 박스를 이것으로 안다. 행이 없거나 정수가 아니면 싣지 않고,
+    그런 모델이면 실행기가 팔을 움직이지 않고 거절한다.
+    """
+    message = {'cmd': 'run', 'id': request['request_id'], 'action': request.get('action')}
+    row = request.get('shelf_row')
+    if isinstance(row, int) and not isinstance(row, bool) and row >= 1:
+        message['box'] = row
+    return message
 
 
 class WorkerBackend(ArmBackend):
@@ -311,8 +326,7 @@ class WorkerBackend(ArmBackend):
             return '팔 실행기 준비 중 (팔 연결·모델 불러오는 중)'
         if self.busy():
             return '팔 작업 중'
-        if not self._send({'cmd': 'run', 'id': request['request_id'],
-                           'action': request.get('action')}):
+        if not self._send(run_message(request)):
             return '팔 실행기에 명령을 보내지 못함'
         self.job = (request, now + self._timeout(request))
         return None

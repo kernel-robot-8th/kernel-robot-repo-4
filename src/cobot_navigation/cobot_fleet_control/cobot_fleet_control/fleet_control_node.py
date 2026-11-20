@@ -19,6 +19,7 @@ from .control_api import (
     ControlAPI, initial_pose_fields, manual_load_request, parse_zone_status)
 from .repository import encode, SqliteRepository
 from .scenario import ScenarioService
+from .scenario_contracts import ROUTE_ARMS
 from .service import FleetService
 from .web_profiles import load_profiles
 
@@ -148,7 +149,7 @@ class FleetControlNode(Node):
         command_id = uuid.uuid4().hex
         self.send(robot_id, {'command_id': command_id, 'command': 'control_reset'})
         if route:
-            for target in {route['pickup_arm'], route['dropoff_arm']}:
+            for target in {route[k] for k in ROUTE_ARMS if k in route}:
                 self.work(dict(request_id=uuid.uuid4().hex, order_id='', robot_id=robot_id,
                                target=target, stage='SAFETY', action='release_hold'))
         return command_id
@@ -203,7 +204,7 @@ class FleetControlNode(Node):
         self.publishers_by_robot[robot_id].publish(String(data=encode(
             {'command_id': uuid.uuid4().hex, 'command': 'emergency_stop'})))
         routes = list(self.scenario.routes.values()) if route.get('all_arms') else [route]
-        targets = {r.get(k) for r in routes for k in ('pickup_arm', 'dropoff_arm')} - {None}
+        targets = {r.get(k) for r in routes for k in ROUTE_ARMS} - {None}
         for target in targets:
             self.work(dict(request_id=uuid.uuid4().hex, order_id=order_id, robot_id=robot_id,
                            target=target, stage='SAFETY', action='hold'))

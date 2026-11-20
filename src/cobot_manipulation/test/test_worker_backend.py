@@ -18,7 +18,8 @@ import shlex
 import sys
 import time
 
-from cobot_manipulation.arm_backend_utils import judge_done, make_backend, parse_worker_line
+from cobot_manipulation.arm_backend_utils import (
+    judge_done, make_backend, parse_worker_line, run_message)
 import pytest
 
 NOW = 1_000_000.0
@@ -72,7 +73,7 @@ for line in sys.stdin:
         continue
     if mode == 'crash':
         sys.exit(1)
-    emit(event='done', id=msg['id'], **done)
+    emit(event='done', id=msg['id'], box=msg.get('box'), **done)
 """
 
 
@@ -141,6 +142,23 @@ def test_ready_keeps_worker_info_and_done_keeps_model():
     assert success is True and data['model'] == 'omx_pick_za@v1'
     backend.shutdown()
     assert backend.worker_info['actions'] == ['pick']  # 끈 뒤에도 마지막 값을 남긴다
+
+
+def test_shelf_row_goes_to_worker_as_box():
+    """주문 선반 행이 실행기 run 의 box 로 가고, 결과 data 에 남는다."""
+    backend, _ = worker(done={'success': True, 'arm_safe': True})
+    ready(backend)
+    assert backend.start(request(shelf_row=3, shelf_col=2), PORT, NOW) is None
+    [(_, success, data, _)] = wait(backend, until=lambda _, f: f)
+    assert success is True and data['box'] == 3
+    backend.shutdown()
+
+
+@pytest.mark.parametrize('row', [None, 0, -1, True, 2.0, '2'])
+def test_run_message_skips_missing_or_bad_row(row):
+    """행이 없거나 1 이상 정수가 아니면 box 를 싣지 않는다 (박스 모델이면 실행기가 거절)."""
+    extra = {} if row is None else {'shelf_row': row}
+    assert run_message(request(**extra)) == {'cmd': 'run', 'id': 'req1', 'action': 'pick'}
 
 
 @pytest.mark.parametrize('done, part', [

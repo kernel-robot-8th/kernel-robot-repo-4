@@ -31,15 +31,15 @@
 QR 내용은 주소 하나다.
 
 ```
-http://<관제 PC IP>:8080/?loc=BENCH_1
+http://<관제 PC IP>:8080/?loc=P22
 ```
 
 - 핸드폰과 관제 PC 는 같은 Wi-Fi 에 있어야 한다. `localhost` 는 핸드폰 자신이라 쓸 수 없다.
 - IP 가 QR 에 인쇄되므로 공유기에서 관제 PC IP 를 고정한다 (DHCP 예약).
 - 포트 6000 은 크롬이 막는다. 8080 을 쓴다.
-- 좌표는 QR 에 넣지 않는다. 위치 ID → 하차 구역은 fleet_control 의 `scenario.yaml` `destinations` 에 있다. 맵이 바뀌어도 QR 을 다시 인쇄하지 않는다.
+- 좌표는 QR 에 넣지 않는다. 위치 ID → 로봇이 갈 지점은 fleet_control 의 `scenario.yaml` `destinations` 에 있다 (`{point: P22, lane}`, 지점 좌표는 로봇 순찰 설정 `sites/<현장>.yaml`). 맵이 바뀌어도 QR 을 다시 인쇄하지 않는다.
 - 자리를 늘리려면 `destinations` 에만 한 줄 더하고 QR 을 인쇄한다. 게이트웨이는 자리 목록을 `/control_center/tasks` 스냅숏에서 받는다.
-  지금은 하차 구역이 ZC 하나라 `BENCH_1` 만 있다.
+  지금은 `P22` 하나만 있다 (자리 ID = 지점 이름).
   QR 그림은 아무 QR 생성기로 위 주소를 넣어 만든다.
 
 ## 3. 화면 흐름
@@ -49,7 +49,7 @@ http://<관제 PC IP>:8080/?loc=BENCH_1
 | 신발 선택 → 상세 | | 재고 0 이면 품절 |
 | "Cobot이 물건을 준비 중이에요" (접수) | `RECEIVED` | `WAITING` (로봇 배정 전) |
 | 〃 (꺼내는 중) | `ASSIGNED`, `LOADING` | `MOVE_PICKUP`, 상차 구역 안 단계(`PICKUP_EXIT`~`VERIFY_LOAD`) |
-| 〃 (가는 중) | `IN_TRANSIT` | `LEAVE_PICKUP`~`VERIFY_UNLOAD` (하차 팔이 자리에 내려놓을 때까지) |
+| 〃 (가는 중) | `IN_TRANSIT` | `LEAVE_PICKUP`, `MOVE_CUSTOMER` (고객 자리로 이동) |
 | 도착 → [구매하기] / [구매하지 않을게요] | `UNLOADING` | `CUSTOMER` 이고 `RUNNING` |
 | 결제 → [결제하기] 또는 QR 스캔 뒤 [QR 결제를 완료했어요] | | 구매하기를 누른 뒤. 핸드폰 하나로도 결제할 수 있게 버튼을 둔다. 둘 다 가짜 결제다 |
 | 구매 완료 | `HANDOVER_CONFIRMED` | `customer_received` |
@@ -59,8 +59,9 @@ http://<관제 PC IP>:8080/?loc=BENCH_1
 
 - 화면 단계 이름은 고객 화면의 진행 표시에 맞춘 것이다. 바꾸는 규칙은 `customer_gateway_utils.order_progress` 에 있다.
 - 고객 결정: [구매하기] → `type=received`, [구매하지 않을게요] → `type=declined`. fleet_control 은 `CUSTOMER` 단계에서만 받는다.
-- **도착 뒤 120초 안에 고르지 않으면** fleet_control 이 시간 초과로 기록하고 로봇을 복귀시킨다. 화면은 구매 취소로 바뀐다.
-- 구매하지 않으면 로봇은 그대로 복귀한다. 자리에 내려놓은 신발의 회수는 fleet_control 의 `allow_returns` 설정을 따른다 (그 패키지 README).
+- 고객 자리에는 팔이 없다. 고객이 핑키에서 신발을 직접 꺼내고 그 자리에서 결제한다.
+- **도착 뒤 5분(`customer_timeout_sec: 300`) 안에 고르지 않으면** fleet_control 이 시간 초과로 기록하고 로봇이 신발을 실은 채 HOME 으로 돌아간다. 재고는 운영자가 맞춘다. 화면은 구매 취소로 바뀐다.
+- [구매하지 않을게요] = 회수: 로봇이 ZC 로 가서 omx3 가 신발을 정리해 핑키에 다시 올리고, ZA 에서 omx1 이 선반에 반환한 뒤 HOME. 반환이 끝나면 재고가 1 돌아온다 (fleet_control README '고객 자리(지점) 주문').
 - 정지·현장 확인 중(`UNKNOWN`, `PAUSED`, `ESTOP`, `MANUAL`)에는 준비 중 화면을 유지한다.
 - 진행 중인 주문은 브라우저 `localStorage` 에 남겨서 새로고침해도 이어진다.
 - 주문은 만든 화면(세션)만 조회·결정할 수 있다. 세션 소유는 게이트웨이 메모리에만 있어서 게이트웨이를 다시 켜면 진행 중이던 화면은 처음으로 돌아간다 (주문 자체는 fleet_control 에 남는다).
@@ -92,7 +93,7 @@ ros2 launch cobot_gui customer_gateway.launch.xml          # 고객 화면
 
 - 두 노드는 같은 관제 PC, 같은 `ROS_DOMAIN_ID` 에서 돈다 (값은 `docs/fms_interfaces.md`, 임의로 바꾸지 않는다).
 - `--symlink-install` 빌드도 된다. 게이트웨이는 설치 폴더의 바로가기를 풀지 않고 경로로만 허용 범위를 본다.
-- **관제 도커(`cobot_fleet_control/config/docker`)의 `fleet_docker.sh up` 은 게이트웨이도 같이 켠다** (`customer` 서비스, 포트 8081, 웹 빌드는 이미지 안에서 한다). 이때 자리 QR 은 `http://<관제 PC IP>:8081/?loc=BENCH_1` 이다. 도커 관제 web 이 8080 을 쓰기 때문이다.
+- **관제 도커(`cobot_fleet_control/config/docker`)의 `fleet_docker.sh up` 은 게이트웨이도 같이 켠다** (`customer` 서비스, 포트 8081, 웹 빌드는 이미지 안에서 한다). 이때 자리 QR 은 `http://<관제 PC IP>:8081/?loc=P22` 이다. 도커 관제 web 이 8080 을 쓰기 때문이다.
 - 위 `ros2 launch` 직접 실행은 개발용이다. 도커 fleet_control 에 붙일 때는 같은 DDS 설정(`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `CYCLONEDDS_URI=file://<저장소>/src/cobot_navigation/cobot_fleet_control/config/docker/cyclonedds.xml`)과 8080 이 아닌 포트를 준다. 도커 `customer` 와 같은 포트를 동시에 쓰지 않는다.
 - 주문하려면 fleet_control 에 재고와 선반 칸이 있어야 한다. 예 (1행 1열에 3켤레):
   ```bash
