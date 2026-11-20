@@ -66,6 +66,7 @@ class ArmBackend:
     실행기가 끄기 전에 쉬는 자세로 옮기기 시작하면 take_release_moving() 이 예상 시간[s] 을 한 번 돌려준다.
     dead 가 비어 있지 않으면 고장이다. reset() 이 상태를 비워 다시 attach() 할 수 있게 한다.
     joints·joints_at 은 마지막으로 잰 관절 값과 그 시각[s] 이다 (ArmStatus 용, 모르면 None).
+    torque 는 실행기가 없을 때 모터에서 직접 읽은 토크 상태다 (probe_torque, 모르면 None).
     """
 
     name = 'base'
@@ -81,6 +82,10 @@ class ArmBackend:
         self.release_moving = None
         # 관제에 보일 실행기 정보 (모델·쉬는 자세). 끈 뒤에도 마지막 값을 남긴다 (arm_info_utils).
         self.worker_info = {}
+        self.torque = None
+
+    def probe_torque(self, port, now):
+        """실행기가 없을 때 모터 토크를 읽는다 (재는 수단이 있는 백엔드만). 결과는 torque 에 남는다."""
 
     def busy(self):
         """작업 중인지."""
@@ -251,10 +256,14 @@ class WorkerBackend(ArmBackend):
     available = True
 
     def __init__(self, arm_id, command, timeout_sec=300.0, popen=subprocess.Popen,
-                 env=None, log=None):
+                 env=None, log=None, probe_command='', probe_timeout_sec=10.0, run=subprocess.run):
         super().__init__()
         self.arm_id = arm_id
         self.argv = shlex.split(command) if isinstance(command, str) else []
+        self.probe_argv = torque_probe_argv(self.argv, probe_command)
+        self.probe_timeout_sec = probe_timeout_sec
+        self.run = run
+        self.probing = False
         self.timeout_sec = timeout_sec
         self.popen = popen
         self.env = dict(os.environ if env is None else env)
@@ -352,6 +361,32 @@ class WorkerBackend(ArmBackend):
     def running(self):
         return self.process is not None and self.process.poll() is None
 
+    def probe_torque(self, port, now):
+        """
+        실행기가 없을 때만 모터 토크를 읽는다 (같은 포트를 두 프로그램이 열지 않게).
+
+        읽기 도구가 포트를 잠깐 열었다 닫는다. 쓰지 않으므로 팔은 움직이지 않는다.
+        노드 타이머를 막지 않게 따로 돌린다. 이미 재는 중이거나 수단이 없으면 아무것도 안 한다.
+        """
+        if not self.probe_argv or not port or self.probing or self.running():
+            return
+        self.probing = True
+        threading.Thread(target=self._probe, args=(port,), daemon=True).start()
+
+    def _probe(self, port):
+        try:
+            done = self.run(self.probe_argv + ['--port', port], capture_output=True, text=True,
+                            timeout=self.probe_timeout_sec, env=self.env)
+            self.torque = dict(parse_torque_probe(done.stdout), at=time.time())
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            self.torque = {'enabled': None, 'motors': {}, 'errors': {'probe': str(error)},
+                           'at': time.time()}
+        finally:
+            self.probing = False
+        state = {True: '켜짐', False: '꺼짐', None: '모름'}[self.torque['enabled']]
+        errors = f', 못 읽음 {self.torque["errors"]}' if self.torque['errors'] else ''
+        self.log(f'{self.arm_id} 모터 토크 실측: {state} {self.torque["motors"]}{errors}')
+
     def release(self, now):
         """실행기에 release 를 보낸다. 실행기가 쉬는 자세인지 보고 끄거나 거절한다."""
         if not self.running():
@@ -387,7 +422,9 @@ class WorkerBackend(ArmBackend):
         elif kind == 'released':
             self.releasing, self.ready, self.released = False, False, True
             self.release_result = (True, '')
-            self.log(f'{self.arm_id} 쉬는 자세 확인, 실행기가 연결을 끊음')
+            # detail 은 쉬는 자세 없이 끈 경우 (실행기 --release-without-rest)
+            why = event.get('detail') or '쉬는 자세 확인'
+            self.log(f'{self.arm_id} {why}, 실행기가 연결을 끊음')
         elif kind == 'release_moving' and self.releasing:
             # 실행기 설정 release_move: 끄기 전에 쉬는 자세로 옮긴다. 결과(released·refused)는 그 뒤에 온다.
             try:
@@ -442,6 +479,43 @@ class WorkerBackend(ArmBackend):
             self.process.wait(timeout=5.0)
         except subprocess.TimeoutExpired:
             os.killpg(self.process.pid, signal.SIGINT)
+
+
+def torque_probe_argv(worker_argv, probe_command=''):
+    """
+    토크 읽기 도구 명령. probe_command 가 있으면 그것, 없으면 실행기 명령에서 만든다.
+
+    실행기 명령이 '<python> .../omx_fleet_worker.py ...' 이면 같은 python 과 같은 폴더의
+    torque_probe.py 를 쓴다 (lerobot venv 의 dynamixel_sdk 를 쓰려고). 만들 수 없으면 [] (재지 않음).
+    """
+    if probe_command:
+        return shlex.split(probe_command)
+    for i, arg in enumerate(worker_argv):
+        if os.path.basename(arg) == 'omx_fleet_worker.py':
+            return worker_argv[:i] + [os.path.join(os.path.dirname(arg), 'torque_probe.py')]
+    return []
+
+
+def parse_torque_probe(text):
+    """토크 읽기 도구의 마지막 JSON 줄 → {'enabled', 'motors', 'errors'}. 형식이 틀리면 ValueError."""
+    lines = [line for line in (text or '').splitlines() if line.strip()]
+    if not lines:
+        raise ValueError('토크 읽기 도구가 아무것도 출력하지 않음')
+    data = json.loads(lines[-1])
+    if not isinstance(data, dict):
+        raise ValueError('토크 읽기 결과가 객체가 아님')
+    enabled = data.get('enabled')
+    if enabled not in (True, False, None):
+        raise ValueError(f'enabled 값이 틀림: {enabled!r}')
+    motors = data.get('torque') if isinstance(data.get('torque'), dict) else {}
+    errors = data.get('errors') if isinstance(data.get('errors'), dict) else {}
+    return {'enabled': enabled,
+            'motors': {str(k): int(v) for k, v in motors.items() if _int_like(v)},
+            'errors': {str(k): str(v) for k, v in errors.items()}}
+
+
+def _int_like(value):
+    return not isinstance(value, bool) and isinstance(value, int)
 
 
 def make_backend(name, fake_duration_sec, worker_options=None):

@@ -81,6 +81,9 @@ class ArmAdapterNode(Node):
             'fake_duration_sec': 2.0,
             'worker_command': '',
             'worker_timeout_sec': 300.0,
+            # 실행기가 없을 때 모터 토크를 읽는 명령. 비우면 worker_command 의 omx_fleet_worker.py 옆
+            # torque_probe.py 를 같은 python 으로 쓴다 (arm_backend_utils.torque_probe_argv).
+            'torque_probe_command': '',
             'dedupe_size': 256,
             'detect_period_sec': 1.0,
             'tick_sec': 0.1,
@@ -113,6 +116,7 @@ class ArmAdapterNode(Node):
                     'arm_id': self.arm_id,
                     'command': value['worker_command'],
                     'timeout_sec': value['worker_timeout_sec'],
+                    'probe_command': value['torque_probe_command'],
                     'log': self.get_logger().info,
                 })
         except ValueError as error:
@@ -133,6 +137,9 @@ class ArmAdapterNode(Node):
         self.filter = contract.RequestFilter(self.arm_id, value['dedupe_size'])
         self.state, self.port, self.reason = None, None, ''
         self.held = False
+        # 실행기가 없을 때 모터 토크를 한 번 잴 차례인지. 노드가 뜰 때·보드를 다시 찾을 때·끈 뒤에 잰다.
+        # 실행기가 강제로 꺼지면 토크가 켜진 채 남는데, 새 노드는 그것을 모르기 때문이다 (2026-11-21 omx2).
+        self.probe_due = True
 
         self.iid = value['interface_arm_id'] or power.interface_arm_id(self.arm_id)
         self.gate = power.CommandGate(self.iid)
@@ -182,6 +189,8 @@ class ArmAdapterNode(Node):
         log(f'{self.arm_id} 탐지 {state}: {reason}')
         lost = self.state == registry_utils.READY and state != registry_utils.READY
         self.state, self.port, self.reason = state, port, reason
+        if state == registry_utils.READY:
+            self.probe_due = True
         if state == registry_utils.READY and self.auto_start and self.power == power.DISARMED:
             self._connect('auto_start')
         if lost and self.backend.busy():
@@ -291,6 +300,7 @@ class ArmAdapterNode(Node):
         """실행기를 정리하고 꺼짐(DISARMED). 지난 HOLD 도 함께 지운다 (power.keep_hold)."""
         self.backend.reset()
         self.power = power.DISARMED
+        self.probe_due = True
         held = power.keep_hold(self.power, self.held)
         cleared, self.held = self.held and not held, held
         note = ', 정지(HOLD) 해제' if cleared else ''
@@ -331,14 +341,23 @@ class ArmAdapterNode(Node):
                 and now - self.last_state_poll >= self.state_poll_sec):
             self.last_state_poll = now
             self.backend.request_state(now)
+        self._probe_torque(now)
         self._publish_info(now)
+
+    def _probe_torque(self, now):
+        """꺼짐(DISARMED) 이고 실행기가 끝났을 때 모터 토크를 한 번 잰다. 실행기가 포트를 쓰면 기다린다."""
+        if (not self.probe_due or self.state != registry_utils.READY
+                or self.power != power.DISARMED or self.backend.running()):
+            return
+        self.probe_due = False
+        self.backend.probe_torque(self.port, now)
 
     def _publish_info(self, now):
         """백엔드·탐지·실행기 정보. 바뀌면 바로, 아니면 info_period_sec 마다 낸다."""
         info = info_utils.make_info(
             self.arm_id, self.iid, self.boot_id, self.backend.name, self.backend.ready,
             self.backend.worker_info, (self.state, self.reason, self.port), self.power,
-            self.backend.dead, now)
+            self.backend.dead, now, self.backend.torque)
         if (not info_utils.info_changed(self.last_info, info)
                 and now - self.last_info_at < self.info_period_sec):
             return
@@ -367,7 +386,7 @@ class ArmAdapterNode(Node):
             self.release_ok = True
         if self.release_ok and not self.backend.running():
             self.pending_reset = None
-            self._disarm('쉬는 자세에서 토크를 껐습니다')
+            self._disarm('실행기가 연결을 끊어 토크를 껐습니다')
             self._ack_release(ack, power.ACCEPTED, '')
         elif self.backend.dead:
             self.power, self.pending_reset = power.FAULT, None
@@ -397,6 +416,8 @@ class ArmAdapterNode(Node):
             joint_names=[k.removesuffix('.pos') for k in body],
             joint_positions=[float(v) for v in body.values()],
             gripper_position=float(joints.get(GRIPPER_KEY, math.nan)),
+            # 실행기 상태로 정한 값이다. 관제는 이 값으로 켜짐·꺼짐 화면 상태를 정하므로 실측을 섞지 않는다.
+            # 실행기가 없을 때 모터에서 잰 값은 info 토픽 torque 칸으로 따로 낸다.
             torque_enabled=self.backend.running() and self.power in power.WORKER_STATES,
             retract_safe=self.retract[0], retract_safe_measured=self.retract[1],
             hold_active=hold_active, hold_reason=hold_reason,

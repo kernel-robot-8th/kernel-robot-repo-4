@@ -19,7 +19,8 @@ import sys
 import time
 
 from cobot_manipulation.arm_backend_utils import (
-    judge_done, make_backend, parse_worker_line, run_message)
+    judge_done, make_backend, parse_torque_probe, parse_worker_line, run_message,
+    torque_probe_argv)
 import pytest
 
 NOW = 1_000_000.0
@@ -59,6 +60,9 @@ for line in sys.stdin:
         if mode == 'not_rest':
             emit(event='release_refused', detail='쉬는 자세가 아님', pose_error={}, joints=joints)
             continue
+        if mode == 'no_rest':
+            emit(event='released', pose_error={}, joints=joints, detail='rest_pose 없이 끔')
+            break
         emit(event='released', pose_error={})
         break
     if msg['cmd'] == 'hold':
@@ -323,3 +327,87 @@ def test_release_without_running_worker_is_immediate():
     backend, _ = worker()
     backend.release(NOW)
     assert backend.take_release() == (True, '')
+
+
+def test_released_without_rest_ends_worker_and_logs_reason():
+    backend, logs = worker('no_rest')
+    ready(backend)
+    backend.release(NOW)
+    wait(backend, until=lambda b, _: b.release_result is not None)
+    assert backend.take_release() == (True, '')
+    assert any('rest_pose 없이 끔' in line for line in logs)
+    backend.process.wait(timeout=5)
+    wait(backend, until=lambda b, _: not b.running())
+    assert backend.dead == ''
+
+
+def test_torque_probe_argv_from_worker_command():
+    argv = ['/v/bin/python', '/r/omx_fleet/omx_fleet_worker.py', '--arms-file', 'a.yaml']
+    assert torque_probe_argv(argv) == ['/v/bin/python', '/r/omx_fleet/torque_probe.py']
+    assert torque_probe_argv(argv, 'probe --x 1') == ['probe', '--x', '1']
+    assert torque_probe_argv(['/usr/bin/other']) == []
+
+
+def test_parse_torque_probe():
+    got = parse_torque_probe('log\n{"torque": {"11": 1, "12": 0, "b": true}, '
+                             '"errors": {"16": "timeout"}, "enabled": true}\n')
+    assert got == {'enabled': True, 'motors': {'11': 1, '12': 0}, 'errors': {'16': 'timeout'}}
+    assert parse_torque_probe('{"torque": {}, "errors": {}, "enabled": null}')['enabled'] is None
+    for bad in ('', 'not json', '[1]', '{"enabled": 3}'):
+        with pytest.raises(ValueError):
+            parse_torque_probe(bad)
+
+
+class FakeRun:
+    """subprocess.run 대신: 받은 명령을 남기고 정해진 출력을 돌려준다."""
+
+    def __init__(self, stdout='', error=None):
+        self.stdout, self.error, self.calls = stdout, error, []
+
+    def __call__(self, argv, **kwargs):
+        self.calls.append(argv)
+        if self.error:
+            raise self.error
+
+        class Done:
+            pass
+        done = Done()
+        done.stdout = self.stdout
+        return done
+
+
+def probed(backend):
+    end = time.monotonic() + 5
+    while backend.probing and time.monotonic() < end:
+        time.sleep(0.01)
+    return backend.torque
+
+
+def test_probe_torque_reads_when_worker_not_running():
+    run = FakeRun('{"torque": {"11": 1}, "errors": {}, "enabled": true}')
+    backend, logs = worker(run=run, probe_command='probe')
+    backend.probe_torque(PORT, NOW)
+    got = probed(backend)
+    assert got['enabled'] is True and got['motors'] == {'11': 1} and 'at' in got
+    assert run.calls[0] == ['probe', '--port', PORT]
+    assert any('모터 토크 실측: 켜짐' in line for line in logs)
+
+
+def test_probe_torque_failure_is_unknown():
+    import subprocess
+    run = FakeRun(error=subprocess.TimeoutExpired('x', 1))
+    backend, _ = worker(run=run, probe_command='probe')
+    backend.probe_torque(PORT, NOW)
+    assert probed(backend)['enabled'] is None
+
+
+def test_probe_torque_skipped_while_worker_runs_or_without_tool():
+    run = FakeRun('{"torque": {}, "errors": {}, "enabled": false}')
+    backend, _ = worker(run=run, probe_command='probe')
+    ready(backend)
+    backend.probe_torque(PORT, NOW)
+    assert run.calls == [] and backend.torque is None
+    backend.shutdown()
+    plain = make_backend('worker', 2.0, {'arm_id': 'omx1', 'command': 'x', 'run': run})
+    plain.probe_torque(PORT, NOW)
+    assert run.calls == [] and not plain.probing

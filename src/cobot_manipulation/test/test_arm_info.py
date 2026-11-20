@@ -35,6 +35,14 @@ def test_make_info_fields():
     assert got['detect'] == {'state': 'READY', 'reason': '보드 확인', 'port': '/dev/x'}
     assert got['worker'] == {'actions': ['pick'], 'ready': True}
     assert got['power'] == 'ARMED' and got['dead'] == '' and got['at'] == 10.0
+    assert got['torque'] is None
+
+
+def test_make_info_keeps_measured_torque():
+    torque = {'enabled': True, 'motors': {'11': 1}, 'errors': {}, 'at': 5.0}
+    got = make(torque=torque, power='DISARMED', ready=False)
+    assert got['torque'] == torque
+    assert info.info_changed(make(power='DISARMED', ready=False), got)
 
 
 def test_make_info_without_worker_and_none_dead():

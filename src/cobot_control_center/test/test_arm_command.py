@@ -731,3 +731,23 @@ def test_snapshot_carries_rest_check():
     assert arm['rest_check']['at_rest'] is True
     assert arm['rest_check']['diff'] == {'shoulder_pan': 0.5}
     assert commander.snapshot(10.1, 100.0)['arms'][1]['rest_check'] is None
+
+
+def test_torque_left_on_alarm_only_when_off():
+    commander = make()
+    off = dict(STATUS, torque_enabled=False, work_step='')
+    commander.put_status('omx_1', off, 0.0, 100.0)
+    assert alarms(commander, 0.1) == []
+    commander.put_info('omx_1', {'torque': {'enabled': True, 'motors': {'11': 1}, 'at': 99.0}},
+                       0.1)
+    snap = commander.snapshot(0.2, 100.2)['arms'][0]
+    assert [a['code'] for a in snap['alarms']] == ['torque_left_on']
+    assert snap['alarms'][0]['level'] == 'warn' and snap['alarms'][0]['since'] == 99.0
+    # 켜짐(실행기 연결)이면 실측 값과 상관없이 알람 없음
+    commander.put_status('omx_1', STATUS, 0.3, 100.3)
+    assert alarms(commander, 0.4) == []
+    # 꺼짐이고 실측이 꺼짐·모름이면 알람 없음
+    commander.put_status('omx_1', off, 0.5, 100.5)
+    for enabled in (False, None):
+        commander.put_info('omx_1', {'torque': {'enabled': enabled}}, 0.6)
+        assert alarms(commander, 0.7) == []

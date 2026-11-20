@@ -635,6 +635,11 @@ class ArmCommander:
         if online and state == HOLD:
             alarms.append({'code': 'hold', 'level': 'warn', 'since': arm['state_since'],
                            'text': '정지 유지 중: 정지 해제 또는 끄기'})
+        torque = (arm.get('info') or {}).get('torque') or {}
+        if online and state == OFF and torque.get('enabled') is True:
+            # 실행기가 강제로 꺼지면 토크를 끄지 못한 채 남는다. 팔 노드가 모터에서 잰 값 (info.torque).
+            alarms.append({'code': 'torque_left_on', 'level': 'warn', 'since': torque.get('at'),
+                           'text': '꺼짐인데 모터 토크가 켜져 있음 (실측): 켜기 → 끄기로 풀기'})
         if arm['posture']:
             alarms.append({'code': 'posture_unknown', 'level': 'bad',
                            'since': arm['posture']['since'], 'text': arm['posture']['text']})

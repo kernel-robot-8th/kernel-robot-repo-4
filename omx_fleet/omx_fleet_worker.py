@@ -15,6 +15,8 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
          {"cmd": "state"}  대기 중 관절 값 보고 (작업 중이면 작업이 끝난 뒤 답함)
          {"cmd": "release"} 쉬는 자세(rest_pose)에 있을 때만 연결을 끊고 끝냄. 아니면 거절 (팔을 옮기지 않음).
                             팔 설정 release_move: true 면 거절 대신 쉬는 자세로 옮긴 뒤 다시 재서 끈다
+                            --release-without-rest 로 띄우면 rest_pose 가 없는 팔은 거절 대신 바로 끈다
+                            (토크가 꺼지므로 팔이 내려앉을 수 있음. 현장에서 팔을 받친 뒤 누른다)
          {"cmd": "quit"}   무조건 연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
   stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
          @fleet {"event": "ready", "actions": [...], "joints": {...}, "models": {action: {...}},
@@ -229,6 +231,10 @@ def main(argv=None):
     p.add_argument("--safe-tol", type=float, default=3.0, help="안전 자세 허용 오차 (관절 단위, 1 ≈ 1.8°)")
     p.add_argument("--dry-check", action="store_true",
                    help="설정·모델·입력 모양만 확인하고 끝냄 (팔·카메라에 연결하지 않음)")
+    # 쉬는 자세를 아직 재지 못한 팔도 관제 끄기로 토크를 풀 수 있게 한다. 없으면 끄기가 늘 거절돼
+    # 노드를 강제로 끄게 되고, 그러면 토크가 켜진 채 남는다 (2026-11-21 omx2).
+    p.add_argument("--release-without-rest", action="store_true",
+                   help="rest_pose 가 없는 팔은 끄기(release)를 거절하지 않고 바로 연결을 끊음 (팔이 내려앉을 수 있음)")
     mine, extra = p.parse_known_args(argv)
     arm_id, port = os.environ.get("ARM_ID", ""), os.environ.get("ROBOT_PORT", "")
     if not arm_id or not port:
@@ -326,6 +332,11 @@ def main(argv=None):
             if cmd == "release":
                 # 관제는 팔 모션을 시작하지 않는다. 그래서 옮기지 않고 지금 자세만 보고 판정한다.
                 joints = read_joints(robot)
+                if rest_pose is None and mine.release_without_rest:
+                    print(f"[{arm_id}] 쉬는 자세 없이 끔 (--release-without-rest): "
+                          "팔이 내려앉을 수 있음", flush=True)
+                    emit(event="released", pose_error={}, joints=joints, detail="rest_pose 없이 끔")
+                    break
                 if rest_pose is None:
                     emit(event="release_refused", detail=f"rest_pose 가 설정되지 않음 (arms.{arm_id}.rest_pose)",
                          pose_error={}, joints=joints)

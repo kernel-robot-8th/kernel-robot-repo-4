@@ -49,13 +49,14 @@ def _number(value):
 
 
 def make_info(arm_id, interface_arm_id, boot_id, backend, ready, worker, detect, power, dead,
-              now):
+              now, torque=None):
     """
     팔 노드 정보 토픽 한 건.
 
     worker: 마지막 실행기 ready 정보 (끈 뒤에도 남긴다: 어떤 모델로 켜졌었는지 보이게).
     ready: 지금 실행기가 떠서 일을 받을 수 있는지.
     detect: (상태, 이유, 포트) — arm_registry_utils.detect 결과.
+    torque: 실행기가 없을 때 모터에서 읽은 토크 ({'enabled', 'motors', 'errors', 'at'}), 안 쟀으면 None.
     """
     state, reason, port = detect
     return {
@@ -68,6 +69,7 @@ def make_info(arm_id, interface_arm_id, boot_id, backend, ready, worker, detect,
         'power': power,
         'worker': dict(worker or {}, ready=bool(ready)),
         'dead': dead or '',
+        'torque': torque,
         'at': now,
     }
 
