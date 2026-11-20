@@ -163,7 +163,7 @@ def test_tc_scn_04_driving_stage_resumes_after_arm(stack):
     assert stack.control(type='create', robot_id='pinky2', operation='home')[0] == 409
     for robot in ('pinky2', 'pinky3'):
         assert stack.control(type='release_control', robot_id=robot, operator='kgh',
-                             note='현장 확인', evidence=EVIDENCE)[0] == 200
+                             note='현장 확인', evidence=EVIDENCE)[0] == 202
     stack.tick()
     assert stack.core.holds == {}
     # 전부 풀린 스냅샷에서 닫힌다. 복구한 사람과 메모는 남는다.
@@ -267,7 +267,7 @@ def test_full_estop_blocks_moves_until_control_is_released(stack):
     assert stack.status['pinky1']['central_latched'] is True
     status, _ = stack.control(type='release_control', robot_id='pinky1', operator='kgh',
                               note='현장 확인', evidence=EVIDENCE)
-    assert status == 200
+    assert status == 202
     stack.tick()
     assert 'pinky1' not in stack.core.holds
     assert stack.status['pinky1']['central_latched'] is False
@@ -505,7 +505,7 @@ def test_full_stop_recovery_order(stack):
     stack.tick()
     assert stack.current()['state'] == 'RUNNING' and 'pinky1' not in stack.core.holds
     assert stack.control(type='release_control', robot_id='pinky2', operator='kgh',
-                         note='현장 확인', evidence=EVIDENCE)[0] == 200
+                         note='현장 확인', evidence=EVIDENCE)[0] == 202
     stack.tick()
     assert list(stack.core.holds) == ['pinky3']
     # 래치는 제어권을 돌려받은 로봇만 풀린다. 남은 로봇은 배정 대상이 아니다.
@@ -527,7 +527,7 @@ def test_resolve_sent_straight_to_fleet_closes_the_robot_event(stack):
     row = stack.vision('box_perched_on_rim', xy)
     stack.tick()
     assert stack.store.event(row['event_id'])['hold_seen'] == 1
-    assert fleet(stack, type='resolve', order_id='order1', decision='fail') == 200
+    assert fleet(stack, type='resolve', order_id='order1', decision='fail', evidence=EVIDENCE) == 200
     # 닫는 것은 다음 스냅샷이다. 그 전에는 열려 있다.
     assert stack.store.event(row['event_id'])['ack_state'] == 'UNREAD'
     stack.tick()
@@ -564,9 +564,9 @@ def test_full_stop_event_closes_only_after_everything_is_released(stack):
     assert state() == 'UNREAD'
     assert fleet(stack, type='resolve', order_id='order1', decision='resume') == 200
     assert state() == 'UNREAD'
-    assert fleet(stack, type='release_control', robot_id='pinky2') == 200
+    assert fleet(stack, type='release_control', robot_id='pinky2') == 202
     assert state() == 'UNREAD' and list(stack.core.holds) == ['pinky3']
-    assert fleet(stack, type='release_control', robot_id='pinky3') == 200
+    assert fleet(stack, type='release_control', robot_id='pinky3') == 202
     assert state() == 'RESOLVED'
     assert stack.store.event(row['event_id'])['resolved_by'] == 'fleet'
 
@@ -577,7 +577,7 @@ def test_full_stop_event_stays_open_while_armed_is_off(stack):
     row = stack.vision('box_on_floor', (0.0, 0.0))
     stack.tick()
     for robot in ('pinky1', 'pinky2', 'pinky3'):
-        assert fleet(stack, type='release_control', robot_id=robot) == 200
+        assert fleet(stack, type='release_control', robot_id=robot) == 202
     stack.tick()
     assert stack.core.holds == {} and stack.scenario.armed is False
     assert stack.store.event(row['event_id'])['ack_state'] == 'UNREAD'
@@ -598,7 +598,7 @@ def test_redetection_stops_again_only_after_the_event_is_closed(stack):
     assert again['repeat_count'] == 4 and len(stack.stop_requests()) == 1
     assert again['ack_state'] == 'UNREAD'
     for robot in ('pinky1', 'pinky2', 'pinky3'):
-        assert fleet(stack, type='release_control', robot_id=robot) == 200
+        assert fleet(stack, type='release_control', robot_id=robot) == 202
     assert fleet(stack, type='arm', armed=True) == 200
     stack.tick()
     assert stack.store.event(first['event_id'])['ack_state'] == 'RESOLVED'
@@ -637,7 +637,7 @@ def test_observe_only_event_is_not_closed_by_snapshots(stack):
     row = stack.vision('box_perched_on_rim', xy)
     assert stack.control(type='pause', robot_id='pinky1')[0] == 202
     stack.tick()
-    assert fleet(stack, type='resolve', order_id='order1', decision='fail') == 200
+    assert fleet(stack, type='resolve', order_id='order1', decision='fail', evidence=EVIDENCE) == 200
     stack.tick()
     assert stack.store.event(row['event_id'])['ack_state'] == 'UNREAD'
 
@@ -670,7 +670,7 @@ def test_redetection_after_a_failed_order_stays_on_that_robot(stack, direct):
     stack.tick()
     assert first['judgment'] == 'LOAD_FAIL_DROP' and first['stop_scope'] == 'ROBOT'
     if direct:
-        assert fleet(stack, type='resolve', order_id='order1', decision='fail') == 200
+        assert fleet(stack, type='resolve', order_id='order1', decision='fail', evidence=EVIDENCE) == 200
     else:
         assert resolve(stack, 'fail')[0] == 200
     stack.tick()
@@ -706,7 +706,7 @@ def test_full_stop_event_merges_redetection_after_a_long_gap(stack):
     first = stack.vision('box_on_floor', (0.0, 0.0))
     stack.tick(45.0)
     for robot in ('pinky1', 'pinky2'):  # 복구 도중
-        assert fleet(stack, type='release_control', robot_id=robot) == 200
+        assert fleet(stack, type='release_control', robot_id=robot) == 202
     stack.tick()
     again = stack.vision('box_on_floor', (0.1, 0.0))
     assert again['event_id'] == first['event_id'] and again['repeat_count'] == 2
@@ -743,16 +743,18 @@ def test_full_stop_keeps_the_reason_already_written_on_an_order(stack):
     assert second['event_id'] in stack.store.scenario('order2')['hold_reason']
 
 
-def test_console_resolve_of_a_robot_event_closes_it_at_once(stack):
+def test_console_resolve_waits_for_confirmed_recovery(stack):
     xy = transit(stack)
     stack.core.set_mode('AUTO_HOLD')
     row = stack.vision('box_perched_on_rim', xy)
     stack.tick()
     assert resolve(stack, 'resume')[0] == 200
     closed = stack.store.event(row['event_id'])
-    assert (closed['ack_state'], closed['resolved_by']) == ('RESOLVED', 'kgh')
+    assert (closed['ack_state'], closed['resolved_by']) == ('ACKNOWLEDGED', 'kgh')
     stack.tick()
-    assert stack.store.event(row['event_id'])['resolved_note'] == '현장 확인'
+    closed = stack.store.event(row['event_id'])
+    assert closed['ack_state'] == 'RESOLVED'
+    assert closed['resolved_note'].startswith('현장 확인 / ')
 
 
 def test_acknowledged_full_stop_keeps_the_operator_when_fleet_closes_it(stack):
@@ -762,7 +764,7 @@ def test_acknowledged_full_stop_keeps_the_operator_when_fleet_closes_it(stack):
     stack.tick()
     stack.core.acknowledge(row['event_id'], 'ACKNOWLEDGED', 'lee', '상자 치움')
     for robot in ('pinky1', 'pinky2', 'pinky3'):
-        assert fleet(stack, type='release_control', robot_id=robot) == 200
+        assert fleet(stack, type='release_control', robot_id=robot) == 202
     assert fleet(stack, type='arm', armed=True) == 200
     stack.tick()
     closed = stack.store.event(row['event_id'])

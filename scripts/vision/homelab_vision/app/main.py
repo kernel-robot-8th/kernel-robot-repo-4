@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""homelab-vision: 천장 카메라 MJPEG -> YOLO 두 모델 -> 구역 근거(MQTT, PUBLISH=true 일 때만).
+"""homelab-vision: 천장 카메라 MJPEG -> YOLO 두 모델(+ 선택: 팔 모델) -> 구역 근거(MQTT, PUBLISH=true 일 때만).
 
 하지 않는 것: ROS, 관제·작업 결과 토픽, 프레임 저장·전송, 포트 열기. 구역 판정은 /app/zone 모듈을 그대로 불러 쓴다.
 """
@@ -38,8 +38,8 @@ os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
 sys.path.insert(0, "/app/zone")
 
 import config as cfgmod  # noqa: E402
-from config import (CALIBRATION_ID, CLOCK_ERROR_SEC, EVIDENCE_CONF, FRAME_H, FRAME_W, MAX_PAYLOAD, MODEL_ID, PACKET_SUMS,  # noqa: E402
-                    STREAM_ID, TOPIC_BOXES, TOPIC_ZONES, WEIGHTS, ZONE_MARGIN_PX, ZONES_TRAY_JSON)
+from config import (ARM_WEIGHT, CALIBRATION_ID, CLOCK_ERROR_SEC, EVIDENCE_CONF, FRAME_H, FRAME_W, MAX_PAYLOAD, MODEL_ID,  # noqa: E402
+                    PACKET_SUMS, STREAM_ID, TOPIC_ARM, TOPIC_BOXES, TOPIC_ZONES, WEIGHTS, ZONE_MARGIN_PX, ZONES_TRAY_JSON)
 
 
 def sha256_file(path):
@@ -72,13 +72,40 @@ def cpu_limit():
     return n
 
 
-def dets_payload(dets, zone_of=None, limit=50):
+TRAY_MARKER_IDS = (30, 31, 32)
+
+
+def read_tray_markers(detector, frame, cv2_mod, allowed_ids=TRAY_MARKER_IDS):
+    """프레임에서 트레이 마커(30·31·32) 중심 픽셀 좌표를 읽는다. 중복 ID 는 버린다."""
+    gray = frame if frame.ndim == 2 else cv2_mod.cvtColor(frame, cv2_mod.COLOR_BGR2GRAY)
+    corners, ids, _ = detector.detectMarkers(gray)
+    found, twice = {}, set()
+    if ids is not None:
+        for c, mid in zip(corners, ids.ravel().tolist()):
+            if mid in allowed_ids:
+                if mid in found:
+                    twice.add(mid)
+                pt = c.reshape(4, 2).mean(axis=0)
+                found[int(mid)] = [round(float(pt[0]), 1), round(float(pt[1]), 1)]
+    for mid in twice:
+        del found[mid]
+    return found
+
+
+def dets_payload(dets, zone_of=None, tray_centers=None, limit=50):
     keep = [d for d in dets if d["confidence"] >= EVIDENCE_CONF]
     out = []
     for d in keep[:limit]:
-        item = {"cls": d["cls"], "name": d["name"], "confidence": round(d["confidence"], 4), "bbox": [round(v, 1) for v in d["bbox"]]}
+        box = [round(v, 1) for v in d["bbox"]]
+        item = {"cls": d["cls"], "name": d["name"], "confidence": round(d["confidence"], 4), "bbox": box}
         if zone_of is not None:
             item["zones"] = zone_of(d["bbox"])
+        if tray_centers is not None:
+            x0, y0, x1, y1 = d["bbox"]
+            in_box = sorted(mid for mid, (cx, cy) in tray_centers.items()
+                            if x0 <= cx <= x1 and y0 <= cy <= y1)
+            item["tray_markers"] = in_box
+            item["tray_marker_seen"] = bool(in_box)
         out.append(item)
     return out, max(0, len(keep) - limit)
 
@@ -94,6 +121,12 @@ def main():
     bad = [n for n, s in sums.items() if want.get(n) != s]
     if bad:
         log("fatal", {"reason": "weights sha256 differs from packet", "files": bad})
+        return 2
+    # 선택 자리(팔 모델). 파일이 없으면 두 모델만 돈다. 있으면 패킷 목록의 해시와 같아야 한다.
+    # sums(핑키·상자)는 기존 메시지에 그대로 실리므로 팔 해시는 따로 둔다.
+    arm_sum = sha256_file(ARM_WEIGHT) if os.path.isfile(ARM_WEIGHT) else None
+    if arm_sum is not None and want.get(os.path.basename(ARM_WEIGHT)) != arm_sum:
+        log("fatal", {"reason": "weights sha256 differs from packet", "files": [os.path.basename(ARM_WEIGHT)]})
         return 2
 
     import cv2
@@ -115,7 +148,7 @@ def main():
     cv2.setNumThreads(threads)
 
     stream_epoch = f"{int(T0)}-{uuid.uuid4().hex[:8]}"
-    log("startup", {"weights_sha256": sums, "stream_epoch": stream_epoch, "device": device,
+    log("startup", {"weights_sha256": sums, "arm_weights_sha256": arm_sum, "stream_epoch": stream_epoch, "device": device,
                     "gpu": torch.cuda.get_device_name(0) if device.startswith("cuda") else None,
                     "versions": {"python": sys.version.split()[0], "torch": torch.__version__, "torchvision": torchvision.__version__,
                                  "ultralytics": ultralytics.__version__, "cv2": cv2.__version__, "numpy": numpy.__version__,
@@ -124,6 +157,7 @@ def main():
                     "config": cfg.public()})
 
     import marker_zone
+    import model_slots
     import tray_zones
     import zone_evidence_msg
     from detector import Detector
@@ -135,7 +169,16 @@ def main():
     marker = marker_zone.MarkerSquare(period_sec=1.0)
 
     t = time.time()
-    det = Detector(device)
+    try:
+        det = Detector(device)
+    except ValueError as e:                  # 자리에 맞지 않는 모델(클래스 이름표가 다름) 또는 필수 가중치 없음
+        log("fatal", {"reason": "model does not fit its slot", "detail": str(e)})
+        return 2
+    if det.arm_error:                        # 팔 모델만 못 읽었다. 필수 두 모델로 계속 돈다.
+        log("arm_disabled", {"reason": det.arm_error})
+    elif det.has_arm != (arm_sum is not None):
+        log("fatal", {"reason": "arm weights appeared or vanished between hashing and loading"})
+        return 2
     log("models_ready", {"load_and_warmup_sec": round(time.time() - t, 2), "names": det.names, "warmup_detections": det.warmup_dets})
 
     pub = None
@@ -148,7 +191,8 @@ def main():
 
     st = {"inferred": 0, "skipped_wrong_size": 0, "zones_emitted": 0, "zones_refused": 0, "oversize_payload": 0, "infer_ms": 0.0,
           "infer_ms_sum": 0.0, "first_infer": None, "last_infer": None, "marker_state": marker.state, "markers_seen": 0,
-          "last_zones": None, "last_refusal": None}
+          "last_zones": None, "last_refusal": None, "arm_frames": 0, "arm_frames_with_detection": 0, "arm_errors": 0,
+          "arm_skipped_queue_busy": 0, "arm_ms_sum": 0.0}
 
     def status(prev):
         now = time.time()
@@ -216,6 +260,7 @@ def main():
             continue
         t_inf = time.monotonic()
         marker_state = marker.update(frame, now=time.time())
+        tray_centers = read_tray_markers(marker.detector, frame, cv2)
         pinky, boxes = det.infer(frame)
         now = time.time()
         st["infer_ms"] = (time.monotonic() - t_inf) * 1000.0
@@ -234,16 +279,42 @@ def main():
             st["zones_emitted"] += 1
             st["last_zones"] = zframe["zones"]
             offer(TOPIC_ZONES, zframe)             # 모니터 계약: 키를 더하지 않고 그대로 보낸다
-        p_list, p_cut = dets_payload(pinky, zone_of)
+        p_list, p_cut = dets_payload(pinky, zone_of, tray_centers=tray_centers)
         b_list, b_cut = dets_payload(boxes)
         offer(TOPIC_BOXES, {"source_kind": "model_output", "stream_id": STREAM_ID, "stream_epoch": stream_epoch,
                             "frame_seq": st["inferred"] - 1, "zones_frame_seq": zframe["frame_seq"] if zframe else None,
                             "capture_time": float(capture_time), "clock_error_sec": CLOCK_ERROR_SEC, "model_id": MODEL_ID,
                             "calibration_id": CALIBRATION_ID, "marker_state": marker_state, "device": device,
                             "weights_sha256": sums, "frame_size": [w, h], "conf_min": EVIDENCE_CONF, "box_model": "kneg-d-final",
-                            "pinky_model": "pinky-v2-final", "boxes": b_list, "pinky": p_list, "truncated": b_cut + p_cut})
+                            "pinky_model": "pinky-v2-final", "boxes": b_list, "pinky": p_list,
+                            "tray_markers": sorted(tray_centers), "truncated": b_cut + p_cut})
+        # 팔 모델(관찰용)은 이 프레임의 zones·boxes 를 내보낸 뒤에 돌린다. 느리거나 실패해도 기존 두 주제는 늦어지지 않는다.
+        # infer_ms 는 전과 같이 필수 두 모델의 시간이다. 팔 시간은 arm_ms_sum 에 따로 쌓는다.
+        if det.has_arm:
+            if model_slots.arm_may_publish(pub.queue_len() if pub else 0, cfg.queue_max):
+                t_arm = time.monotonic()
+                try:
+                    arm = det.infer_arm(frame)
+                    amsg = model_slots.arm_message(arm, zone_of=zone_of, stream_id=STREAM_ID, stream_epoch=stream_epoch,
+                                                   frame_seq=st["inferred"] - 1, capture_time=capture_time,
+                                                   clock_error_sec=CLOCK_ERROR_SEC, calibration_id=CALIBRATION_ID,
+                                                   marker_state=marker_state, device=device, frame_size=[w, h],
+                                                   weights_sha256=arm_sum)
+                    st["arm_frames"] += 1
+                    st["arm_frames_with_detection"] += bool(amsg["arm"])
+                    st["arm_ms_sum"] += (time.monotonic() - t_arm) * 1000.0
+                    offer(TOPIC_ARM, amsg)
+                except Exception as e:         # noqa: BLE001 - 관찰용 모델의 오류가 구역 근거를 멈추지 않게
+                    st["arm_errors"] += 1
+                    if st["arm_errors"] in (1, 10, 100) or st["arm_errors"] % 1000 == 0:
+                        log("arm_error", {"count": st["arm_errors"], "error": f"{type(e).__name__}: {e}"})
+            else:
+                st["arm_skipped_queue_busy"] += 1   # 발행 대기열이 차 있으면 팔 메시지가 zones·boxes 를 밀어내지 않게 건너뛴다
 
     log("stopping", {"frames_inferred": st["inferred"], "frames_received": src.frames_received,
+                     "arm_frames": st["arm_frames"], "arm_frames_with_detection": st["arm_frames_with_detection"],
+                     "arm_errors": st["arm_errors"], "arm_skipped_queue_busy": st["arm_skipped_queue_busy"],
+                     "arm_ms_avg": round(st["arm_ms_sum"] / st["arm_frames"], 1) if st["arm_frames"] else None,
                      "frames_skipped_wrong_size": st["skipped_wrong_size"], "publish_queue_drops": pub.drops if pub else 0})
     if pub:
         pub.close()

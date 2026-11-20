@@ -8,7 +8,9 @@
 | `scenario_view.py` | 21단계를 7단계로 바꾸고 적재 상태를 계산합니다 |
 | `monitor_store.py` | 별도 SQLite 파일. 관제 DB에는 쓰지 않습니다 |
 | `monitor_core.py` | 스냅샷 기록, 판정, 모드별 조치 |
-| `manual_adapter.py` | 사람 승인으로 `/fleet/work_request`에 답합니다 |
+| `manual_adapter.py` | 사람 승인·자동 응답·비전 판정으로 `/fleet/work_request`에 답합니다 |
+| `load_complete.py` | 비전 적재 판정 규칙. ROS 없는 순수 계산 |
+| `mqtt_evidence.py` | MQTT로 온 YOLO 근거를 ROS 토픽으로 옮깁니다(`mqtt_zone_evidence`) |
 | `console_api.py` | 메뉴 6.5용 HTTP. 표준 라이브러리만 씁니다 |
 | `pixel_map.py` | 픽셀 bbox를 map 좌표로 바꿉니다. 확신이 없으면 null입니다 |
 | `debug_view.py` | 메뉴 6.5 디버그 표시용 순수 계산 |
@@ -19,7 +21,7 @@
 - `patrol_cmd`를 발행하지 않습니다. 관제의 단일 발행자 검사가 주행을 거절합니다.
 - `/control_center/task_request`를 구독하지 않습니다. 구독자 수도 같은 검사 대상입니다.
 - 로봇 명령은 `/control_center/task_request`로 관제에 요청만 합니다.
-- 수동 어댑터와 시뮬 어댑터를 같은 도메인에서 동시에 띄우지 않습니다. `/fleet/work_result` 발행자가 둘이면 수동 어댑터는 답하지 않습니다.
+- 수동 어댑터와 시뮬 어댑터를 같은 도메인에서 동시에 띄우지 않습니다. `/fleet/work_result`에 모르는 발행자가 있으면 수동 어댑터는 답하지 않습니다. 등록된 팀 팔 노드(`peer_result_nodes`)는 예외이고, 이때 팔 대상만 그쪽에 맡깁니다.
 
 ## 실행
 
@@ -174,3 +176,129 @@ ros2 run cobot_anomaly_monitor build_camera_calibration measured.yaml camera_cal
 현장 감지기는 아직 이 입력을 내지 않습니다. 지금 `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다. `image_size`와 `reference_markers`를 내는 코드와 이 토픽의 발행자도 없습니다. 원본 프레임 bbox를 내는 검출기는 `~/yolo_edge/inbox/homelab-20261102/`에 전달돼 있고 미적용입니다.
 
 홈랩 7번 적재 검증과 메뉴 6.5 재생은 [실행 안내](docs/homelab_verify_load.md)를 참고하세요.
+발표자 및 발표 지원 에이전트용 핵심 요약표(문제·만든 것·시행착오·개선 결과·20초 대본)와 소스 매핑은 [발표자·에이전트 안내서](docs/PRESENTER_AGENT_VISION_JUDGE_GUIDE.md)에 정리되어 있습니다.
+
+## 비전 적재 판정 (천장 카메라 → `/fleet/work_result`)
+
+천장 카메라 YOLO 근거와 팔 결과를 묶어 "상자가 핑키에 실렸는가"를 한 번 답합니다.
+`/fleet` 계약의 토픽·메시지·노드 이름은 새로 만들지 않았습니다. 관제가 이미 내는 `/fleet/work_request`의
+`VERIFY_LOAD` 단계(target `vision`)에 `/fleet/work_result`로 답하는 기존 자리를 그대로 씁니다.
+근거 입력용 ROS 토픽 `/anomaly_monitor/box_evidence`(MQTT `relay/evidence/boxes`) 하나만 추가했습니다.
+기본값은 꺼짐(`judge_mode=off`)이라 인자를 주지 않으면 이전과 똑같이 돕니다.
+단, `auto_targets`는 이제 launch 인자가 yaml 값을 덮어씁니다. yaml에서 켜 두었다면 launch 인자로 옮겨야 합니다.
+
+### 흐름
+
+```text
+천장 카메라 → YOLO 발행 앱 ─MQTT→ mqtt_zone_evidence ─┬→ /anomaly_monitor/zone_evidence
+              (relay/evidence/zones, boxes)           └→ /anomaly_monitor/box_evidence
+팔 노드 ──────────────────────────────→ /fleet/work_result (PICK, LOAD 결과)
+관제 ─────────────────────────────────→ /fleet/work_request (VERIFY_LOAD, target vision)
+                         monitor_node (판정) ─→ /fleet/work_result (VERIFY_LOAD 답)
+```
+
+### 보내는 답 세 가지
+
+| 판정 | 조건 | `/fleet/work_result` |
+|---|---|---|
+| 적재 성공 `LOAD_COMPLETE` | 아래 세 조건이 모두 참 | `success: true`, `data.load_present: true`, `data.arm_safe: true`, `data.box_dropped: false` |
+| 상자 추락 `BOX_DROPPED` | 상차 구역 핑키 근처에서 `box_on_floor`·`box_run_over`가 연속 `judge_drop_frames`장 | `success: false`, `data.box_dropped: true`, `detail`에 사유 |
+| 보류 | 위 둘이 아님 | 답을 보내지 않음. `judge_max_wait_sec` 뒤 콘솔에 `operator_attention` 표시 |
+
+세 조건:
+
+1. **팔**: 같은 주문의 PICK·LOAD 결과가 모두 `success: true`이고 LOAD의 `data.arm_safe`가 참.
+   두 결과의 `source`가 서로 같고 주문 경로의 `pickup_arm`과 같아야 합니다. `fake`·수동 결과는 근거로 쓰지 않습니다.
+   `session_id`·`attempt`는 결과에 들어 있을 때만 비교합니다(지금 팔 노드는 넣지 않습니다).
+2. **핑키 적재**: 상차 구역 상태가 `judge_hold_sec` 이상, `judge_min_frames`장 이상 연속 `LOADED`이고 그 사이 핑키가 서 있음.
+3. **추락 아님**: 판정 시점의 가장 최근 상자 프레임에 상차 구역 핑키 근처 바닥 상자가 없음.
+   상자 프레임이 `judge_fresh_sec` 넘게 끊기면 모르는 것으로 보고 보류합니다.
+   유지 구간 중간에 잡혔다 사라진 바닥 상자는 막지 않습니다(`judge_latch_drop:=true`면 연속으로 확정된 추락만 유지).
+
+세 조건이 참이어도 주문·호기 귀속 검사(관제 스냅샷의 주문 단계, 대상 호기 정지·구역 도착, 다른 호기가 구역 밖)와
+턱 걸림 검사를 통과해야 답합니다. 통과하지 못하면 보류입니다.
+귀속 검사(`load_evidence.py`)는 상차 구역 ZA·ZB만 받습니다. 상차 구역이 ZC인 주문은 보류됩니다.
+
+답의 공통 필드는 기존 계약 그대로입니다(`request_id`, `order_id`, `robot_id`, `stage`, `source: vision`,
+`measured`, `finished`). `data`에는 `decision: vision_judged`, `rule_version`, 근거 프레임 번호(`evidence`)가 붙습니다.
+추락은 결과만 전합니다. 주문을 어떻게 처리할지는 관제가 정합니다.
+지금 관제 코드는 `retry_safe` 없는 실패를 주문 `UNKNOWN` + 정지(로봇 비상 정지, 경로 팔 SAFETY hold)로 처리하고
+관제 알람에는 `재시도 안전성 미확인`만 남깁니다. 추락 사유(`detail`)는 중계 웹의 작업 이력에서 봅니다.
+
+### 모드
+
+| `judge_mode` | 동작 |
+|---|---|
+| `off` (기본) | 판정하지 않음. 이전 동작 그대로 |
+| `shadow` | 판정을 계산해 기록만 함. 답은 기존 자동 응답이 성공으로 보내고(판정이 안 서면 약 5초 기다림) `data.judge`에 판정을 붙임. 추락 판정이어도 성공으로 답합니다. **관측 전용이 아닙니다** |
+| `enforce` | 판정대로 답함. 성공 근거면 성공, 추락이면 실패, 모르면 보류 |
+
+`auto_targets`에 `vision`이 있어야 판정이 쓰입니다. 없으면 기동 때 경고를 냅니다.
+`verify_load_join`과는 같이 켤 수 없습니다. `VERIFY_UNLOAD`는 판정하지 않습니다(`placed` 기준 미정).
+
+### 켜는 법
+
+```bash
+# 1) MQTT 근거를 ROS 토픽으로 (현장 도메인에 붙일 때만 --field-domain)
+ros2 run cobot_anomaly_monitor mqtt_zone_evidence --broker <브로커 주소> --field-domain 100
+
+# 2) 감시 노드 (shadow 예)
+ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml \
+  judge_mode:=shadow auto_targets:='[vision]' calibration_id:=ceil-20261108
+```
+
+`mqtt_zone_evidence`는 paho-mqtt 2.x가 필요합니다(`pip install paho-mqtt==2.1.0`). apt의 `python3-paho-mqtt` 1.6.1로는 뜨지 않습니다.
+프레임의 `stream_id`·`model_id`·`calibration_id`가 감시 노드 값(`ceiling`, `pinky-v1`, `calibration_id` 인자)과 같아야 받습니다.
+`--field-domain`은 도메인 100 참여를 명시적으로 허용하는 옵션일 뿐, 현장 승인을 뜻하지 않습니다.
+`/fleet/work_result` 발행자를 늘리지 않습니다. 팔 노드(`<arm>_adapter`)와는 함께 돌 수 있습니다.
+
+| launch 인자 | 기본값 |
+|---|---|
+| `auto_targets` | `['']` (꺼짐), 시험 시 `'[vision]'` |
+| `judge_hold_sec`, `judge_still_ratio` | 1.0, 0.15 |
+| `judge_drop_frames`, `judge_min_frames` | 3, 3 |
+| `judge_fresh_sec`, `judge_gap_sec`, `judge_drop_reach` | 2.0, 1.0, 1.0 |
+| `judge_drop_tray_iou_max` | `-1.0` (`> 0`이면 핑키 안 tray와 겹치는 floor를 추락에서 제외, 예: `0.5`) |
+| `judge_require_tray_marker_absent` | `false` (`true`면 트레이 마커가 안 보여야 적재로 인정. 상자 메시지에 `tray_markers` 또는 핑키 항목의 `tray_marker_seen`이 없으면 보류) |
+| `judge_min_tray_box_frames` | `0` (`> 0`이면 유지 구간 안 `box_on_tray` 최소 장수 요구) |
+| `judge_latch_drop` | `false` (`true`면 확정된 추락을 이후 단발 미검출에도 유지) |
+| `judge_max_wait_sec` | `30.0` (보류가 이어지면 `operator_attention` 표시, `judge_hold_timeout` 기록) |
+
+이 값들은 실물 성능으로 확정한 임계값이 아닙니다. `judge_mode`가 `shadow`·`enforce`일 때 판정 수치가 유효하지 않으면 기동을 거절합니다.
+`judge_max_wait_sec`는 검사하지 않으며 0 이하면 `operator_attention` 표시가 꺼집니다.
+트레이 마커 번호(ZA 31, ZB 30, ZC 32)는 `load_complete.py`의 `TRAY_MARKERS`에 있으며, `scripts/vision/homelab_vision` 발행 앱이 프레임별 `tray_markers`와 핑키별 `tray_marker_seen`을 `relay/evidence/boxes`에 담아 보냅니다.
+스트림·모델·보정·시각이 맞지 않는 프레임이 오면 그때까지 쌓은 이력도 함께 비우고, 불일치가 이어지는 동안 종류별 30초 간격으로 경고합니다.
+추락을 주문에 귀속하지 못해 보류하면 `judge_suppressed` 이력에 원래 판정과 프레임 번호를 남기고 실패 답은 보내지 않습니다.
+
+### 11-18 현장 시험에서 확인한 것
+
+pinky1을 ZC에 세우고 omx3로 `load`, `arrange_shoe`를 수동 시험(`MANUAL_TEST`)으로 한 번씩 돌렸습니다.
+
+- `arrange_shoe`에서 팔이 상자를 떨어뜨렸는데 팔 결과는 `SUCCEEDED`(`success_basis: judge`)였습니다.
+  카메라 상자 토픽에는 같은 구간에 `box_on_floor`가 약 40초 동안 여러 번 잡혔습니다. 팔 결과만으로는 적재를 확정할 수 없습니다.
+- 그래도 판정 답은 나가지 않았습니다. 이유:
+  - 수동 시험은 `VERIFY_LOAD` 단계가 아니라 판정 대상이 아닙니다.
+  - 당시 모서리 마커가 3개만 잡혀 `marker_state`가 `FIXED`였고, 이때 발행 앱은 세 구역을 모두 `NO_ROBOT`으로 보내므로 판정은 보류합니다(현재 모서리 마커 4개 정상 검출로 `OK`).
+- 빈 핑키가 처음부터 `pinky_loaded`로 분류됐고 트레이 마커는 계속 보였습니다.
+  빈 차가 적재로 읽히지 않게 하려면 `judge_require_tray_marker_absent`를 켜야 합니다.
+- 배포된 `scenario.yaml`은 상차 구역이 ZA·ZB, 상차 팔이 `omx1`, 하차 팔이 `omx2`입니다. 조건 1은 팔 결과의 `source`가
+  경로의 `pickup_arm`과 같아야 통과하므로 경로의 팔 지정이 실제 팔과 맞아야 합니다. ZC를 상차 구역으로 쓰는 주문은
+  귀속 검사에서 보류됩니다(위 "세 조건" 참고).
+
+아직 실물에서 확인하지 못한 것: 주문 단계에서의 성공·추락 답, `enforce` 모드, 실제 적재 때의 구역 `LOADED` 전환.
+
+### 로컬 시험
+
+가짜 로봇과 주문은 격리 도메인에만 둡니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+export ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+unset CYCLONEDDS_URI ROS_DISCOVERY_SERVER
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+# 워크스페이스 루트, py_trees와 ROS가 있는 가상환경에서 실행
+export PYTHONPATH="$PWD/src/cobot_anomaly_monitor:$PWD/src/cobot_navigation/cobot_fleet_control:$PWD/src/cobot_navigation/cobot_amcl_corrector:$PYTHONPATH"
+python -m pytest src/cobot_anomaly_monitor/test -q -p no:cacheprovider
+```
+
+판정만 볼 때는 `test/test_load_complete.py`(규칙), `test/test_vision_judge.py`(응답), `test/test_judge_node.py`(ROS 입력)를 돌립니다.

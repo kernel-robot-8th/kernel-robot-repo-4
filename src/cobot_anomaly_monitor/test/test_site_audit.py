@@ -11,6 +11,7 @@ def test_gate67_offset_alone_puts_exit_and_queue_in_wall():
                    (1.415, 1.639))
     assert not result['missing']
     assert result['checked_centers'] == 53
-    for name in ('ZC_EXIT', 'queue_C_0', 'queue_C_1', 'queue_C_2'):
+    for name in ('ZC_EXIT', 'queue_C_0', 'queue_B_1'):
         assert result['blocked'][name]['reason'] == 'OCCUPIED'
-    assert 'P6' not in result['blocked']
+    for name in ('P6', 'queue_C_1', 'queue_C_2'):
+        assert name not in result['blocked']

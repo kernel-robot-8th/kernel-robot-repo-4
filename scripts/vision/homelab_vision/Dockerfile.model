@@ -1,0 +1,57 @@
+# homelab-vision 얇은 이미지: 기반 이미지 위에 가중치·구역·앱만 굽는다 (torch 층을 다시 받지 않는다).
+# 기반 homelab-vision-base:* 는 Dockerfile 의 base 단계와 같다. 다시 만드는 법은 README "기반 이미지 다시 만들기".
+#
+# 빌드 (가중치 해시 두 개는 반드시 넘긴다. 없으면 빌드가 멈춘다):
+#   docker build -f Dockerfile.model \
+#     --build-arg PINKY_SHA256=<pinky_v2_final.pt 의 sha256 64자> \
+#     --build-arg KNEG_SHA256=<kneg_d_final.pt 의 sha256 64자> \
+#     [--build-arg ARM_SHA256=<arm_v1.pt 의 sha256 64자>] \
+#     -t homelab-vision:<태그> .
+# ARM_SHA256 은 선택이다(팔 모델, 관찰용). 주면 weights/arm_v1.pt 가 있어야 하고, 안 주면 있어서는 안 된다.
+# Jenkins 는 태그를 inbox 패킷(WEIGHTS_PACKET)의 가중치 해시로 짓는데, 이미지에 들어가는 것은 이 폴더(저장소)의 weights/ 다.
+# 둘이 다르면 태그가 이미지 내용을 거짓으로 가리키게 되므로, 패킷 쪽 해시를 build-arg 로 받아 구운 파일과 대조한다.
+FROM homelab-vision-base:t2.11.0-u8.4.193-20261110
+
+ARG PINKY_SHA256
+ARG KNEG_SHA256
+ARG ARM_SHA256=""
+
+WORKDIR /app
+COPY --chown=app:app PACKET_SHA256SUMS /app/PACKET_SHA256SUMS
+COPY --chown=app:app weights/ /app/weights/
+COPY --chown=app:app zone/ /app/zone/
+# 구운 가중치·구역 파일이 패킷 해시와 같은지 빌드에서 확인한다(README 줄은 이미지에 없으므로 뺀다).
+# 패킷 목록은 "해시 *./경로"(이진 표시 '*') 형식이다. 남은 줄이 정확히 구역 11 + 가중치 수(2, 팔 모델이 있으면 3)인지도 본다.
+RUN grep -v '[ *]\./README\.md$' /app/PACKET_SHA256SUMS > /tmp/sums \
+ && NW="$(find /app/weights -type f | wc -l)" \
+ && { [ "$NW" = 2 ] || [ "$NW" = 3 ]; } \
+ && test "$(wc -l < /tmp/sums)" = "$((11 + NW))" \
+ && sha256sum -c --strict --quiet /tmp/sums \
+ && rm /tmp/sums
+# 구운 가중치가 build-arg 로 받은 해시(태그를 지은 패킷의 해시)와 같은지 본다. 저장소 PACKET_SHA256SUMS 와도 같아야 한다.
+RUN if [ "$(printf '%s\n%s\n' "$PINKY_SHA256" "$KNEG_SHA256" | grep -Ecx '[0-9a-f]{64}')" != 2 ]; then \
+      echo "ERROR: --build-arg PINKY_SHA256 / KNEG_SHA256 (sha256 64자) 가 필요하다" >&2; exit 1; \
+    fi \
+ && printf '%s *./weights/pinky_v2_final.pt\n%s *./weights/kneg_d_final.pt\n' "$PINKY_SHA256" "$KNEG_SHA256" > /tmp/want \
+ && sha256sum -c --strict /tmp/want \
+ && grep -Fqx "$PINKY_SHA256 *./weights/pinky_v2_final.pt" /app/PACKET_SHA256SUMS \
+ && grep -Fqx "$KNEG_SHA256 *./weights/kneg_d_final.pt" /app/PACKET_SHA256SUMS \
+ && rm /tmp/want
+# 선택 자리(팔 모델). ARM_SHA256 을 주면 weights/arm_v1.pt 가 그 해시여야 하고 가중치는 3개, 안 주면 팔 가중치가 없어야 하고 2개다.
+# (해시 없이 팔 가중치가 섞여 들어가거나, 해시만 주고 파일이 빠지는 것을 둘 다 막는다.)
+RUN if [ -n "$ARM_SHA256" ]; then \
+      printf '%s\n' "$ARM_SHA256" | grep -Eqx '[0-9a-f]{64}' \
+        || { echo "ERROR: --build-arg ARM_SHA256 는 sha256 64자여야 한다" >&2; exit 1; }; \
+      printf '%s *./weights/arm_v1.pt\n' "$ARM_SHA256" > /tmp/want \
+      && sha256sum -c --strict /tmp/want \
+      && grep -Fqx "$ARM_SHA256 *./weights/arm_v1.pt" /app/PACKET_SHA256SUMS \
+      && test "$(find /app/weights -type f | wc -l)" = 3 \
+      && rm /tmp/want; \
+    else \
+      test ! -e /app/weights/arm_v1.pt \
+      && test "$(find /app/weights -type f | wc -l)" = 2; \
+    fi
+
+COPY --chown=app:app app/ /app/
+
+ENTRYPOINT ["python", "-B", "/app/main.py"]
