@@ -197,3 +197,19 @@ def test_api_read_only_can_read_but_not_write(tmp_path):
     assert client.get('/api/waypoints').status_code == 200
     res = client.post('/api/waypoints', json={'robot_id': 'pinky1'})
     assert res.status_code == 503 and '읽기 전용' in res.json()['detail']
+
+
+def test_wall_distance_and_capture_warning(tmp_path):
+    from cobot_control_center.waypoint_utils import wall_distance
+    # 5x5 지도, 0.1 m/px, 원점 (0, 0). 맨 윗줄(y = 0.4~0.5)만 벽(0), 나머지 빈칸(254).
+    pgm = b'P5\n5 5\n255\n' + bytes([0] * 5 + [254] * 20)
+    info = {'image_width': 5, 'image_height': 5, 'resolution': 0.1, 'origin': [0.0, 0.0, 0.0]}
+    m = (info, pgm)
+    assert wall_distance(m, 0.25, 0.35, 0.15) == pytest.approx(0.1)
+    assert wall_distance(m, 0.25, 0.05, 0.15) is None
+    assert wall_distance(None, 0.25, 0.35, 0.15) is None
+    store = WaypointStore(str(tmp_path / 'w.json'), 'lab', LAYERS, map_data=m, wall_warn_m=0.15)
+    near = store.capture('pinky1', robot(x=0.25, y=0.35))
+    assert any(w.startswith('벽에 가까움') for w in near['warnings'])
+    far = store.capture('pinky1', robot(x=0.25, y=0.05))
+    assert far['warnings'] == []

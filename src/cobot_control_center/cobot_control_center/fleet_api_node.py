@@ -136,12 +136,15 @@ class FleetApiNode(Node):
         # 도메인을 이름에 넣어 가짜 핑키(101)·시뮬(140)에서 저장한 점이 실물(100) 파일에 섞이지 않게 한다.
         self.declare_parameter('waypoints_file', '')
         self.declare_parameter('zone_keepout_m', 0.0)   # 0 = 검사 안 함
+        self.declare_parameter('wall_warn_m', 0.15)
         site = self.get_parameter('site').value
         path = (self.get_parameter('waypoints_file').value
                 or f'~/.ros/cobot_control_center/waypoints_{site}'
                    f'_d{self.context.get_domain_id()}.json')
         self.waypoints = WaypointStore(path, site, self.layers,
-                                       self.get_parameter('zone_keepout_m').value)
+                                       self.get_parameter('zone_keepout_m').value,
+                                       map_data=self.map_data,
+                                       wall_warn_m=self.get_parameter('wall_warn_m').value)
         if self.waypoints.load_error:
             self.get_logger().error(self.waypoints.load_error + ' (저장은 막음)')
         self.get_logger().info(

@@ -82,6 +82,64 @@ def zone_poses(layers):
     return found
 
 
+# 지도 픽셀이 이 값보다 어두우면 벽(점유)으로 본다. map_server 기본 occupied_thresh 0.65 (negate 0):
+# 점유 확률 = (255 - p) / 255 > 0.65  →  p < 89.
+OCCUPIED_BELOW = 89
+
+
+def pgm_raster(data):
+    """P5 PGM 바이트 → (가로, 세로, 픽셀 바이트). 형식이 아니면 None."""
+    tokens, pos = [], 0
+    while len(tokens) < 4 and pos < len(data):
+        if data[pos:pos + 1] == b'#':
+            pos = data.find(b'\n', pos)
+            if pos < 0:
+                return None
+            continue
+        if data[pos:pos + 1].isspace():
+            pos += 1
+            continue
+        end = pos
+        while end < len(data) and not data[end:end + 1].isspace():
+            end += 1
+        tokens.append(data[pos:end])
+        pos = end
+    if len(tokens) < 4 or tokens[0] != b'P5' or int(tokens[3]) > 255:
+        return None
+    width, height = int(tokens[1]), int(tokens[2])
+    pixels = data[pos + 1:pos + 1 + width * height]   # 헤더 끝 공백 한 개 다음부터
+    return (width, height, pixels) if len(pixels) == width * height else None
+
+
+def wall_distance(map_data, x, y, radius):
+    """
+    (x, y) [m] 에서 radius [m] 안의 가장 가까운 벽까지 거리 [m]. 없거나 지도가 없으면 None.
+
+    map_data 는 fleet_api_utils.load_map() 결과 (info, pgm 바이트).
+    """
+    if not map_data or radius <= 0:
+        return None
+    info, data = map_data
+    raster = pgm_raster(data)
+    if raster is None:
+        return None
+    width, height, pixels = raster
+    res = float(info['resolution'])
+    ox, oy = info['origin'][0], info['origin'][1]
+    # 연속 픽셀 좌표 (왼쪽 위 모서리가 0). 픽셀 (r, c) 의 가운데는 (c + 0.5, r + 0.5).
+    col = (x - ox) / res
+    row = height - (y - oy) / res
+    reach = int(math.ceil(radius / res)) + 1
+    best = None
+    for r in range(max(0, int(row) - reach), min(height, int(row) + reach + 1)):
+        for c in range(max(0, int(col) - reach), min(width, int(col) + reach + 1)):
+            if pixels[r * width + c] < OCCUPIED_BELOW:
+                d = math.hypot(c + 0.5 - col, r + 0.5 - row) * res
+                if d <= radius and (best is None or d < best):
+                    best = d
+    return best
+
+
 def _text(value, field, limit):
     if value is None:
         return ''
@@ -97,10 +155,14 @@ class WaypointStore:
     layers 는 load_map_layers() 결과 (없으면 이름 충돌·구역 거리 검사를 하지 않는다).
     """
 
-    def __init__(self, path, site='lab', layers=None, keepout_m=0.0, clock=time.time):
+    def __init__(self, path, site='lab', layers=None, keepout_m=0.0, clock=time.time,
+                 map_data=None, wall_warn_m=0.0):
         self.path = os.path.expanduser(path) if path else ''
         self.site = site
         self.keepout_m = float(keepout_m)
+        # 벽(지도 점유 픽셀)이 이만큼 [m] 안이면 저장은 하되 주의를 남긴다 (Nav2 가 길을 못 만들 수 있어서).
+        self.map_data = map_data
+        self.wall_warn_m = float(wall_warn_m)
         self.clock = clock
         self._reserved = config_poses(layers)
         self._zones = zone_poses(layers)
@@ -219,9 +281,13 @@ class WaypointStore:
                 raise WaypointError(409, f'구역 지점 {near} 에서 {self.keepout_m:g} m 안이라 저장하지 않음 '
                                          '(구역은 구역 명령으로만 들어감)')
             teach = robot.get('teach') if isinstance(robot.get('teach'), dict) else {}
+            warnings = list(teach.get('warnings') or [])
+            wall = wall_distance(self.map_data, x, y, self.wall_warn_m)
+            if wall is not None:
+                warnings.append(f'벽에 가까움 ({wall * 100:.0f} cm, 가지 못할 수 있음)')
             item = {'x': round(x, 4), 'y': round(y, 4), 'yaw': round(yaw, 4),
                     'robot_id': robot_id, 'captured_at': self.clock(),
-                    'warnings': list(teach.get('warnings') or []), 'note': note}
+                    'warnings': warnings, 'note': note}
             self._waypoints[name] = item
             try:
                 self._save()

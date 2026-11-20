@@ -31,6 +31,9 @@
     # 0 이면 검사 안 함 (2026-11-18 사용자 결정: 0.3 m 는 기록이 너무 자주 막혀 끔).
     # 끄면 구역 근처 좌표로 goto 할 때 구역 토큰 없이 들어갈 수 있으니 구역 근처에는 저장하지 않는다.
     zone_keepout_m: 0.0
+    # [m] 관제 웨이포인트를 저장할 때 지도의 벽이 이만큼 안이면 '벽에 가까움' 주의 (저장은 함).
+    # Nav2 inflation_radius(0.15 m) 안이면 길을 못 만들 수 있다. 0 이면 검사 안 함.
+    wall_warn_m: 0.15
     teleop_stale_sec: 2.0     # 직접 조종 노드(teleop_node) 상태(0.5 s 주기)가 이만큼 끊기면 조종을 받지 않음 [s]
     host_stale_sec: 10.0      # 다른 PC 상태 보고(host_status_node, 3 s 주기)가 이만큼 끊기면 끊김 [s]
     read_only: false          # true 면 명령 경로 503, task_request 를 내지 않음. fleet_api_dev.launch.xml 이 켠다
