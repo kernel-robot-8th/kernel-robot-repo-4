@@ -102,3 +102,41 @@ test('zone release asks on-site check and posts robot id', async () => {
   await declined.openZoneRelease('A', 'pinky1');
   assert.equal(posts.length, 1);
 });
+
+function loadBarUi(order) {
+  const el = {};
+  const $ = id => (el[id] ||= { id, hidden: true, checked: false, value: '', textContent: '',
+    disabled: false, focus() {}, addEventListener() {} });
+  const host = { appendChild() {} };
+  const context = ui('load.js', { $, barHost: () => host, focusCard() {}, savedOperator: () => '' });
+  context.view.orders = [order];
+  return { context, el: $ };
+}
+
+test('load bar offers order cancel only for a blocked order', () => {
+  const blocked = { order_id: 'o1', robot_id: 'pinky1', sku: 'SHOE42', blocked: true,
+    load_confirmable: true, resumable: false };
+  const shown = loadBarUi(blocked);
+  shown.context.openLoad('pinky1');
+  assert.equal(shown.el('load-abort').hidden, false);
+
+  const waiting = loadBarUi({ ...blocked, blocked: false });
+  waiting.context.openLoad('pinky1');
+  assert.equal(waiting.el('load-abort').hidden, true);
+});
+
+test('load bar order cancel closes the bar and sends confirmed cleanup evidence', () => {
+  const order = { order_id: 'o1', robot_id: 'pinky1', sku: 'SHOE42', blocked: true,
+    load_confirmable: true, resumable: false };
+  const { context, el } = loadBarUi(order);
+  const requests = [];
+  context.sendOrderRecover = (...args) => requests.push(args);
+  context.openLoad('pinky1');
+  context.abortLoad();
+  assert.equal(el('load-bar').hidden, true);
+  assert.equal(context.view.loading, null);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0][1], 'fail');
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[0][2])),
+    { arms_safe: true, cargo_reconciled: true, resources_clear: true });
+});

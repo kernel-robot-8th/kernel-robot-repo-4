@@ -11,6 +11,8 @@
 // 멈춘 주문 복구도 여기 둔다 (주문 화면 기능 모음). 빨간 줄을 누르면 확인 창으로
 // [이어서 가기](이동 단계만) / [주문 취소] 를 고르고 POST /api/orders/{id}/recover 로 보낸다.
 // 보통 방식대로 확인 창 한 번 (2026-11-09 임시 일반형, 확인 항목은 fleet 에서도 선택).
+// 팔 PICK 실패처럼 멈춘 주문이 상차 확인 대기도 겹치면 카드 줄은 상차 확인 띠를 연다. 그 띠의
+// [주문 취소] 로 같은 복구 확인 창에 갈 수 있다 (2026-11-21, 띠만 열려 취소할 길이 없던 것을 고침).
 // TODO(시나리오): 멈춘 단계별 확인 항목, 취소 뒤 홈 복귀, 하차 완료 표시
 //   (draft/safety_locks_review.md 8절).
 
@@ -47,6 +49,8 @@ function openLoad(robotId) {
   $("load-confirm").checked = false;
   $("load-operator").value = savedOperator();
   $("load-note").value = LOAD_NOTE;
+  // 진행 중(정상 상차 대기) 주문은 fleet 도 취소를 거절하므로 멈춘 주문일 때만 보인다.
+  $("load-abort").hidden = !order.blocked;
   updateLoadButton();
   host.appendChild($("load-bar"));
   $("load-bar").hidden = false;
@@ -82,11 +86,20 @@ async function sendLoad() {
   }
 }
 
+// 상차 확인 띠의 [주문 취소]: 띠를 닫고 멈춘 주문 복구 확인 창(recoverOrder)으로 넘긴다.
+function abortLoad() {
+  const loading = view.loading;
+  if (!loading) return;
+  closeLoad();
+  recoverOrder(loading.robotId);
+}
+
 function setupLoad() {
   $("load-confirm").addEventListener("change", updateLoadButton);
   $("load-operator").addEventListener("input", updateLoadButton);
   $("load-ok").addEventListener("click", sendLoad);
   $("load-cancel").addEventListener("click", closeLoad);
+  $("load-abort").addEventListener("click", abortLoad);
   $("load-note").addEventListener("keydown", (event) => {
     if (event.key === "Enter") sendLoad();
   });

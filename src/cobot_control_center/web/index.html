@@ -394,7 +394,9 @@
       <input id="load-note" maxlength="200" aria-label="확인 내용" placeholder="확인 내용 (기록에 남음)">
     </div>
     <div class="cmd-buttons">
-      <button type="button" id="load-cancel" title="Esc 로도 닫힌다">취소</button>
+      <button type="button" id="load-cancel" title="Esc 로도 닫힌다">닫기</button>
+      <!-- 멈춘 주문일 때만 보인다 (load.js openLoad). 누르면 멈춘 주문 복구(취소) 확인 창으로 간다 -->
+      <button type="button" id="load-abort" title="싣지 않고 주문을 취소한다. 현장 정리 3가지를 하나씩 확인한다" hidden>주문 취소</button>
       <button type="button" id="load-ok" class="danger">현장 확인함 · 상차 완료</button>
     </div>
   </div>
