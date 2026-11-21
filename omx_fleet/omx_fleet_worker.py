@@ -61,8 +61,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fleet_runtime  # noqa: E402
 import omx_chain  # noqa: E402
+import usb_cams  # noqa: E402
 
 PREFIX = "@fleet "
+CAMERA_ROLES = ("top", "wrist")
 GRIPPER = "gripper.pos"
 DEFAULT_BUNDLES_DIR = "~/il_ws/bundles"
 VERSION_RE = re.compile(r"^v\d+$")  # 번들 버전 폴더 이름 (HF 태그와 같게: v1, v2, ...)
@@ -82,9 +84,15 @@ def load_arm_config(path, arm_id):
     arm = (data.get("arms") or {}).get(arm_id)
     if not isinstance(arm, dict):
         raise ValueError(f"{path} 에 arms.{arm_id} 가 없음")
-    for key in ("top", "wrist", "actions"):
-        if not arm.get(key):
-            raise ValueError(f"arms.{arm_id}.{key} 가 비어 있음")
+    if not arm.get("actions"):
+        raise ValueError(f"arms.{arm_id}.actions 가 비어 있음")
+    # 카메라: 경로(top) 또는 모델 ID(top_model, 보드 허브에서 찾음) 중 하나만 적는다
+    for role in CAMERA_ROLES:
+        path, model = arm.get(role), arm.get(f"{role}_model")
+        if bool(path) == bool(model):
+            raise ValueError(f"arms.{arm_id}: {role} 와 {role}_model 중 하나만 적는다")
+        if model and not usb_cams.MODEL_PATTERN.match(str(model)):
+            raise ValueError(f"arms.{arm_id}.{role}_model 은 'vid:pid' 16진수 ({model!r})")
     bundles_dir = Path(data.get("bundles_dir") or DEFAULT_BUNDLES_DIR).expanduser()
     actions = {}
     for name, spec in arm["actions"].items():
@@ -242,6 +250,18 @@ def main(argv=None):
         return 2
     try:
         arm = load_arm_config(mine.arms_file, arm_id)
+    except (OSError, ValueError) as error:
+        emit(event="fatal", detail=f"설정 오류: {error}")
+        return 2
+    wants = {role: arm[f"{role}_model"] for role in CAMERA_ROLES if arm.get(f"{role}_model")}
+    try:  # 팔에 연결하기 전. 실패해도 팔은 건드리지 않았다
+        arm.update(usb_cams.find_cameras(port, wants) if wants else {})
+    except usb_cams.CameraError as error:
+        emit(event="fatal", detail=f"카메라 찾기 실패: {error}")
+        return 2
+    for role in CAMERA_ROLES:
+        print(f"[{arm_id}] {role} = {arm[role]}" + (f" ({wants[role]})" if role in wants else ""), flush=True)
+    try:
         args = chain_args(arm, port, extra)
     except (OSError, ValueError) as error:
         emit(event="fatal", detail=f"설정 오류: {error}")
@@ -284,6 +304,7 @@ def main(argv=None):
             "model": spec["meta"]["model_name"], "box": spec["n_box"], "success_motion": bool(spec["motion"]),
             "init_pose": stages[name]["init_pose"] is not None} for name, spec in arm["actions"].items()}
         print(json.dumps({"dry_check": "ok", "robot_type": robot_type,
+                          "cameras": {role: arm[role] for role in CAMERA_ROLES},
                           "state": features["observation.state"]["shape"][0],
                           "inputs": sorted(k for k in features if k.startswith("observation.")),
                           "actions": summary, "start_pose": start_pose is not None}, ensure_ascii=False), flush=True)

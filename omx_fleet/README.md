@@ -75,6 +75,13 @@ hf download Sungah/omx_1031_act_smolvla --revision <태그나 커밋> \
 카메라 경로, 캘리브레이션 이름(`robot_id`), 쉬는 자세(`rest_pose`, `~/il_ws/poses/rest_pose_<팔>.json`)는
 현장에서 팔마다 정해 `fleet_arms.yaml` 에 적는다.
 
+카메라는 경로(`top`·`wrist`) 대신 모델 ID(`top_model`·`wrist_model`, `lsusb` 의 `vid:pid`)로 적을 수 있다.
+그러면 실행기가 보드(어댑터가 넘긴 시리얼 포트)가 꽂힌 USB 허브에서 그 모델 카메라를 찾는다 (`usb_cams.py`).
+두 팔 카메라가 같은 기종이라 by-id 로는 구별되지 않고, by-path 는 다시 꽂으면 바뀌기 때문이다.
+- 카메라는 그 팔 보드와 같은 허브에 꽂는다. 한 허브에 같은 기종이 둘이면 정하지 않는다
+- 못 찾으면 팔에 연결하기 전에 `fatal`("카메라 찾기 실패: …")로 끝난다
+- 확인: `python usb_cams.py /dev/serial/by-id/<보드> top=4c4a:4a55 wrist=0c45:6367`
+
 ### 관제에 보이는 것
 `ready` 에 action 별 `models` (bundle·version·model_name·path·init_pose·success_judge 유무), `rest_pose`, `safe_tol` 이
 실린다. 팔 카드에 `pick omx_pick_za@v1` (① 이면 폴더 이름) 으로 보이고, 작업 결과 `done` 에도 `model` 로 남는다.

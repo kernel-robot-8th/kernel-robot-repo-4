@@ -5,9 +5,10 @@
 bundles_dir: ~/il_ws/bundles
 arms:
   omx1:
-    # /dev/videoN 은 다시 꽂으면 바뀐다. /dev/v4l/by-id (또는 by-path) 경로를 쓴다.
-    top: /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0
-    wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
+    # 카메라 모델 ID (vid:pid). 이 팔 보드와 같은 USB 허브에서 찾는다 (README '팔에 딸린 값').
+    # 경로로 적어도 된다: top: /dev/v4l/by-path/... (top 과 top_model 중 하나만)
+    top_model: "4c4a:4a55"     # Jieli USB Composite Device
+    wrist_model: "0c45:6367"   # Innomaker U20CAM-720P
     mjpg: true            # 두 카메라가 같은 USB 허브면 MJPG 라야 대역폭이 버틴다
     robot_id: omx_follower  # 캘리브레이션 파일 이름 (~/.cache/huggingface/lerobot/calibration/robots/omx_follower/<이 값>.json)
     # 쉬는 자세 (init_pose.json 과 같은 형식). 관제가 끄기(release)를 할 때 지금 자세가 여기서
