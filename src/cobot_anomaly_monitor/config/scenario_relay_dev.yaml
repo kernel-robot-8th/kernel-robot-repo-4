@@ -1,18 +1,44 @@
 # 개발 전용 fleet_control scenario_config. 팀 scenario.yaml은 고치지 않고 파라미터로 넘긴다.
+# 격리 시뮬·시험 전용이다. 현장 관제(fleet_control)는 자기 패키지 안의 config/scenario.yaml을 읽는다.
+# 기준: 관제 origin/sakim 1b0cb08(김지혜, 11-19)의 src/cobot_navigation/cobot_fleet_control/config/scenario.yaml.
+#   routes(lab_delivery, lab_delivery_zb)·shelf·customer_return·destinations와 수치는 그 파일과 같은 값이다.
+#   팀 파일이 바뀌면 이 파일도 다시 맞춘다. 맞춘 날: 11-20.
+# 구역 역할(sakim 머리말): ZB = 창고 → 핑키 상차(omx2), ZC = 매장 신발 정리(omx3),
+#   ZA = 반환된 신발 상자를 선반에 다시 올림(omx1).
+# customer_return은 sakim 87b9bee 이후 fleet_control만 받는다. 그래서 이 파일은 그 판에서만 뜬다.
+#   main a0d0bf0·feature/control-center 판 ScenarioService는 customer_return 인자가 없어 이 파일로 뜨지 않는다.
+# 감시 노드(monitor_node)는 이 파일의 routes만 읽는다. col1__P22·col2__P22는 fleet_control이 shelf·destinations로
+#   만드는 경로라 감시 노드 routes에는 없다. 그래서 자리 주문 감시 기록의 팔 이름(load_arm_id·unload_arm_id)은 아직 빈 값이다.
 routes:
-  # 팀 scenario.yaml 과 같은 이름·팔. 현장 주문이 와도 기록이 비지 않게 한다.
-  lab_delivery: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx2, lane: main}
-  lab_delivery_zb: {pickup: ZB, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx2, lane: main}
-  # 개발 전용. 하차 팔을 따로 두고 보는 경우에만 쓴다.
+  # sakim scenario.yaml routes와 같은 값. 관제 화면 주문이 직접 고르는 경로다.
+  lab_delivery: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx3, lane: main}
+  lab_delivery_zb: {pickup: ZB, dropoff: ZC, pickup_arm: omx2, dropoff_arm: omx3, lane: main}
+  # 개발 전용. 팀 scenario.yaml에는 없다. 현장 주문에 쓰지 않는다.
+  # sakim 1b0cb08부터 값이 lab_delivery(wh_a)·lab_delivery_zb(wh_b)와 같다. 시험과 옛 기록이 이름을 써서 남겨 둔다.
   wh_a_to_store: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx3, lane: main}
   wh_b_to_store: {pickup: ZB, dropoff: ZC, pickup_arm: omx2, dropoff_arm: omx3, lane: main}
+# 고객 자리 주문 설정. sakim scenario.yaml과 같다. 주문에 route 대신 destination(자리 ID)을 주면
+# 경로 이름 col<열>__<자리>로 고른다. 이 설정으로 col1__P22, col2__P22가 생긴다.
+shelf:
+  # 행 = 상차 팔이 꺼낼 박스 번호(작업 요청 shelf_row → 실행기 box). omx_1031 E 모델 기준:
+  # 1 맨 윗층 위, 2 맨 윗층 아래, 3 둘째 층, 4 셋째 층.
+  rows: 4
+  columns:                     # 열 -> 상차 구역과 상차 팔. 창고 선반은 모두 ZB에서 꺼낸다.
+    1: {pickup: ZB, pickup_arm: omx2}
+    2: {pickup: ZB, pickup_arm: omx2}
+    # 3열: 팀이 아직 쓰지 않는다. 3열 상품 주문은 거절된다.
+# 회수(구매하지 않음): ZC 정리(arrange_shoe, 핑키 위에 다시 올림) → ZA 선반 반환(warehouse_store) → HOME.
+customer_return: {arrange: ZC, arrange_arm: omx3, restock: ZA, restock_arm: omx1}
+# 자리 QR의 위치 ID -> 로봇이 갈 지점. {point, lane}은 고객이 핑키에서 직접 꺼내고 그 자리에서 결제한다.
+destinations:
+  P22: {name: "P22 자리", point: P22, lane: main}
 max_retries: 3
 step_timeout_sec: 300.0
-customer_timeout_sec: 120.0
+customer_timeout_sec: 300.0   # 고객 자리 도착 뒤 결제·회수 대기(5분). sakim 값
 stale_sec: 3.0
 battery_stale_sec: 10.0
 battery_min: 20.0
 departure_gap_sec: 3.0
-dock_xy_m: 0.05    # 임시값. 시뮬 값이 정해지면 맞춘다. 팀 기본은 0.01
+dock_xy_m: 0.03    # [m] 정차 위치 공차. sakim 1b0cb08 값. 11-19 실물 ZB 정차 오차 약 5 cm, 정밀 보정이 없어 팀이 1 cm에서 3 cm로 넓혔다(시험용)
 dock_yaw_deg: 15.0
 allow_returns: false

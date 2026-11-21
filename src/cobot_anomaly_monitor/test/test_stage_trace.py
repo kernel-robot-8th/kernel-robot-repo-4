@@ -8,9 +8,22 @@
    수동 결정을 덮어쓰지 않아야 한다.
 """
 
-from cobot_anomaly_monitor.stage_trace import build_stage_trace
+from pathlib import Path
+
+from cobot_anomaly_monitor.stage_trace import (
+    build_stage_trace, CUSTOMER_RETURN_STAGES, CUSTOMER_STAGES, NAVIGATION, ROUTE_ARMS, STAGE_INFO,
+    STAGES)
 
 from cobot_anomaly_monitor.console_api import ConsoleApi
+import pytest
+
+# 관제 origin/sakim 1b0cb08 이 shelf·customer_return·destinations 로 만드는 col1__P22 경로와 같은 모양.
+SEAT_ROUTE = {'pickup': 'ZB', 'pickup_arm': 'omx2', 'customer': 'P22', 'dropoff': 'ZC',
+              'dropoff_arm': 'omx3', 'restock': 'ZA', 'restock_arm': 'omx1', 'lane': 'main'}
+# 자리 주문에 없는 경로 주문 하차 쪽 단계
+DROPOFF_ONLY = {'MOVE_DROPOFF', 'PATH_EXIT', 'DOCK_DROPOFF', 'QR', 'PICK_DROPOFF', 'UNLOAD',
+                'VERIFY_UNLOAD', 'LEAVE_DROPOFF'}
+SEAT_BEFORE_CUSTOMER = list(CUSTOMER_STAGES[:CUSTOMER_STAGES.index('CUSTOMER')])
 
 
 def test_case_1_pinky1_token_b_operator_stop_records_unknown_not_success():
@@ -305,7 +318,8 @@ def test_customer_timeout_final_clear_and_separate_resource_evidence(tmp_path):
         stack.approve(stack.until('VERIFY_UNLOAD'))
         stack.tick()
         assert stack.current()['stage'] == 'CUSTOMER'
-        stack.wait(121)
+        # 고객 대기 시간은 dev yaml 값을 따른다(11-20 sakim 기준 120 → 300).
+        stack.wait(stack.config['customer_timeout_sec'] + 1)
         for _ in range(150):
             stack.step()
             if stack.current()['state'] == 'COMPLETED':
@@ -349,5 +363,245 @@ def test_operator_load_confirmation_keeps_bypass_evidence(tmp_path):
         assert skipped['checkpoints']['result'] == 'MANUAL'
         assert skipped['evidence_detail']['operator_load_confirmation']['note']=='현장 상차 확인'
         assert not skipped['request_id'] and not skipped['checkpoints']['requested']
+    finally:
+        stack.close()
+
+
+def test_stage_tables_match_control_scenario_tree():
+    """감시 표는 팀 패키지를 import 하지 않는다. 팀 패키지가 있으면 관제 표(sakim 1b0cb08)와 대조한다."""
+    from cobot_anomaly_monitor.stage_trace import CORRECTION, CUSTOMER_ONLY_STAGES
+    tree = pytest.importorskip('cobot_fleet_control.scenario_tree')
+    contracts = pytest.importorskip('cobot_fleet_control.scenario_contracts')
+    assert STAGES == tuple(tree.STAGES)
+    assert CUSTOMER_STAGES == tuple(tree.CUSTOMER_STAGES)
+    assert set(CUSTOMER_RETURN_STAGES) == set(tree.CUSTOMER_RETURN_STAGES)
+    assert set(STAGE_INFO) == set(tree.STAGES) | set(tree.CUSTOMER_STAGES)
+    assert NAVIGATION == set(contracts.NAVIGATION)
+    assert ROUTE_ARMS == tuple(contracts.ROUTE_ARMS)
+    for stage, operation in contracts.NAVIGATION.items():
+        assert STAGE_INFO[stage][1] == operation, stage
+    for stage, work in contracts.WORK.items():
+        expected = CORRECTION[:2] if stage.startswith('CORRECT_') else STAGE_INFO[stage][:2]
+        assert tuple(work) == expected, stage
+    for stage in CUSTOMER_ONLY_STAGES:
+        assert STAGE_INFO[stage][2] == tree.LABELS[stage], stage
+
+
+def test_route_order_targets_come_from_route_not_fixed_arms():
+    """요청을 못 본 행의 대체 대상은 경로 칸이다. 경로를 모르면 칸 이름을 보인다(관제 route.get(actor, actor))."""
+    order = dict(order_id='o', state='WAITING', stage='MOVE_PICKUP')
+    rows = {r['stage_code']: r for r in build_stage_trace(order, [])}
+    assert len(rows) == 19
+    assert rows['PICK']['target'] == rows['LOAD']['target'] == 'pickup_arm'
+    assert rows['PICK_DROPOFF']['target'] == rows['UNLOAD']['target'] == 'dropoff_arm'
+    zb = {'pickup': 'ZB', 'dropoff': 'ZC', 'pickup_arm': 'omx2', 'dropoff_arm': 'omx3',
+          'lane': 'main'}  # sakim 1b0cb08 lab_delivery_zb
+    rows = {r['stage_code']: r for r in build_stage_trace(order, [], route=zb)}
+    assert rows['PICK']['target'] == rows['LOAD']['target'] == 'omx2'
+    assert rows['PICK_DROPOFF']['target'] == rows['UNLOAD']['target'] == 'omx3'
+    assert rows['UNLOAD']['action'] == 'unload'
+    returned = dict(order, kind='return')
+    rows = {r['stage_code']: r for r in build_stage_trace(returned, [], route=zb)}
+    assert rows['UNLOAD']['action'] == 'warehouse_store'
+
+
+def test_seat_order_paid_lists_only_its_own_stages():
+    """결제로 끝난 자리 주문에 하차 8행과 건너뛴 회수 갈래가 대기 행으로 남지 않는다."""
+    done = [s for s in CUSTOMER_STAGES if s not in CUSTOMER_RETURN_STAGES]
+    order = dict(order_id='s', robot_id='pinky1', state='COMPLETED', stage='RETURN_EXIT',
+                 completed=done, customer_received=True, customer_declined=False)
+    rows = build_stage_trace(order, [], route=SEAT_ROUTE)
+    assert [r['stage_code'] for r in rows] == done
+    assert not DROPOFF_ONLY & {r['stage_code'] for r in rows}
+    assert all(r['status'] == 'COMPLETED' for r in rows)
+    by = {r['stage_code']: r for r in rows}
+    assert by['PICK']['target'] == by['LOAD']['target'] == 'omx2'
+    assert by['MOVE_CUSTOMER']['target'] == 'pinky1' and by['MOVE_CUSTOMER']['action'] == 'goto'
+    assert by['CUSTOMER']['evidence_summary'] == '고객 결제 입력 확인'
+    assert by['CUSTOMER']['stage_name'] == '10 고객 결제·회수 대기'
+    # 번호는 관제 CUSTOMER_STAGES 의 위치다. 회수 갈래를 건너뛰어도 바뀌지 않는다.
+    assert by['RETURN_HOME']['stage_name'].startswith('17 ')
+
+
+def test_seat_order_timeout_skips_return_branch():
+    order = dict(order_id='s', robot_id='pinky1', state='RUNNING', stage='RETURN_HOME',
+                 request_id='home1', completed=SEAT_BEFORE_CUSTOMER + ['CUSTOMER'],
+                 customer_timed_out=True, customer_declined=False)
+    rows = {r['stage_code']: r for r in build_stage_trace(order, [], route=SEAT_ROUTE)}
+    assert not set(CUSTOMER_RETURN_STAGES) & set(rows)
+    assert rows['CUSTOMER']['checkpoints']['result'] == 'TIMEOUT'
+    assert '신발 실은 채' in rows['CUSTOMER']['evidence_summary']
+    assert rows['RETURN_HOME']['status'] == 'RUNNING'
+
+
+def test_seat_order_waiting_for_customer_lists_both_branches():
+    """결제·회수 입력 전에는 회수 갈래도 다음에 올 수 있는 단계라 대기 행으로 보인다."""
+    order = dict(order_id='s', robot_id='pinky1', state='RUNNING', stage='CUSTOMER',
+                 completed=SEAT_BEFORE_CUSTOMER, customer_declined=False)
+    rows = build_stage_trace(order, [], route=SEAT_ROUTE)
+    assert [r['stage_code'] for r in rows] == list(CUSTOMER_STAGES)
+    by = {r['stage_code']: r for r in rows}
+    assert by['CUSTOMER']['evidence_summary'] == '고객 결제·회수 입력 대기'
+    assert all(by[s]['status'] == 'WAITING' for s in CUSTOMER_RETURN_STAGES)
+
+
+def test_seat_return_branch_uses_route_arms_from_control_request():
+    """
+    감시 경로 표에는 col1__P22 가 없어 route 가 빈 값으로 온다(감시 노드는 routes 만 읽는다).
+
+    관제가 요청에 실어 보낸 route 로 자리 주문을 알아보고 팔 칸을 채운다.
+    RESTOCK(restock_arm) 결과가 없으면 '결과 미관측'을 붙인다.
+    """
+    completed = SEAT_BEFORE_CUSTOMER + ['CUSTOMER', 'MOVE_ARRANGE', 'ARRANGE', 'LEAVE_ARRANGE',
+                                        'MOVE_RESTOCK']
+    order = dict(order_id='s', robot_id='pinky1', state='RUNNING', stage='RESTOCK',
+                 request_id='r-restock', completed=completed, customer_declined=True)
+    history = [dict(order_id='s', robot_id='pinky1', stage='ARRANGE', request_id='r-arrange',
+                    target='omx3', action='arrange_shoe', route=SEAT_ROUTE, created_at=10.0,
+                    state='APPROVED', result={'success': True, 'data': {}})]
+    rows = build_stage_trace(order, history, route={})
+    assert [r['stage_code'] for r in rows] == list(CUSTOMER_STAGES)
+    by = {r['stage_code']: r for r in rows}
+    assert by['PICK']['target'] == by['LOAD']['target'] == 'omx2'
+    assert by['ARRANGE']['target'] == 'omx3' and by['ARRANGE']['action'] == 'arrange_shoe'
+    assert by['ARRANGE']['status'] == 'COMPLETED'
+    assert by['RESTOCK']['target'] == 'omx1' and by['RESTOCK']['action'] == 'warehouse_store'
+    assert by['RESTOCK']['status'] == 'RUNNING'
+    assert '결과 미관측' in by['RESTOCK']['evidence_summary']
+    assert '회수' in by['CUSTOMER']['evidence_summary']
+    assert by['LEAVE_ARRANGE']['target'] == 'pinky1'
+
+
+def test_seat_order_is_recognized_by_stage_without_any_route():
+    """경로도 요청도 못 봤어도 자리 주문에만 있는 단계가 보이면 자리 단계열을 쓴다."""
+    order = dict(order_id='s', robot_id='pinky1', state='RUNNING', stage='MOVE_CUSTOMER',
+                 request_id='goto1', completed=SEAT_BEFORE_CUSTOMER[:-1])
+    rows = {r['stage_code']: r for r in build_stage_trace(order, [])}
+    assert 'MOVE_CUSTOMER' in rows and not DROPOFF_ONLY & set(rows)
+    assert rows['MOVE_CUSTOMER']['status'] == 'RUNNING'
+    assert rows['PICK']['target'] == 'pickup_arm'
+    assert rows['ARRANGE']['target'] == 'dropoff_arm'
+    assert rows['RESTOCK']['target'] == 'restock_arm'
+
+
+SEAT_POINT = {'MOVE_PICKUP': 'pickup', 'MOVE_CUSTOMER': 'customer', 'MOVE_ARRANGE': 'dropoff',
+              'MOVE_RESTOCK': 'restock'}
+
+
+def _team_scenario_config():
+    """관제 패키지 안의 scenario.yaml(고객 자리 설정이 있는 sakim 1b0cb08 이후 판)을 읽는다."""
+    fleet = pytest.importorskip('cobot_fleet_control.scenario')
+    import yaml
+    team = 'cobot_navigation/cobot_fleet_control/config/scenario.yaml'
+    candidates = [
+        Path(fleet.__file__).resolve().parents[1] / 'config/scenario.yaml',
+        Path(__file__).resolve().parents[2] / team,
+    ]
+    for path in candidates:
+        if path.is_file():
+            config = yaml.safe_load(path.read_text(encoding='utf-8'))
+            if config.get('destinations') and config.get('customer_return'):
+                return config
+    pytest.skip('고객 자리 설정이 있는 관제 scenario.yaml 없음')
+
+
+def _seat_stack(path):
+    """관제만 팀 scenario.yaml 로 다시 띄운다. 감시 경로 표는 개발 yaml routes 라 col*__P22 가 없다."""
+    config = _team_scenario_config()
+    from harness import Stack
+    from cobot_fleet_control.control_api import ControlAPI
+    from cobot_fleet_control.scenario import ScenarioService
+    stack = Stack(path)
+    stack.scenario = ScenarioService(stack.repo, stack.fleet, stack.gateway, **config,
+                                     clock=lambda: stack.now)
+    stack.api = ControlAPI(stack.scenario, stack.fleet, stack.gateway)
+    stack.adapter.publish = stack.scenario.result
+    stack.scenario.armed = True
+    stack.scenario.store.set_stock('SHOE42', 10, 3, 1)
+    return stack
+
+
+def _drive_seat(stack, order):
+    """자리 주문 주행 단계를 끝낸다. 구역이면 자세와 구역 토큰을 맞추고, 일반 지점이면 도착만 알린다."""
+    from harness import POINTS, ZONE
+    robot, stage = order['robot_id'], order['stage']
+    status = stack.status[robot]
+    if stage in SEAT_POINT:
+        point = stack.scenario.routes[order['route']][SEAT_POINT[stage]]
+        stack.move(robot, 'MOVING', point)
+        if point in ZONE:
+            x, y, yaw = POINTS[point]
+            stack.core.on_pose(robot, x + 0.01, y, yaw + 0.02)
+            status.update(state='HOLDING_ZONE', held_zone=ZONE[point], detail=point)
+        else:
+            status.update(state='IDLE_WAIT', held_zone=None, detail=point)
+    elif stage == 'RETURN_HOME':
+        stack.move(robot, 'RETURNING', 'EXIT')
+        status.update(state='IDLE', held_zone=None, detail='')
+    else:
+        stack.move(robot, 'LEAVING_ZONE', 'EXIT')
+        status.update(state='IDLE_WAIT', held_zone=None, detail='')
+    stack.core.on_speed(robot, 0.0)
+    stack.fleet.tick(allow_dispatch=True)
+    stack.fleet.on_status(robot, {'command_id': order['request_id'], 'state': 'DONE',
+                                  'task_finished': True})
+    stack.fleet.tick(allow_dispatch=True)
+
+
+@pytest.mark.parametrize('decision', ['declined', 'received'])
+def test_seat_order_trace_and_progress_follow_control_stages(tmp_path, decision):
+    """관제 실제 ScenarioService(팀 scenario.yaml)로 P22 자리 주문을 끝까지 돌리고 감시 표시를 본다."""
+    stack = _seat_stack(tmp_path)
+    try:
+        stack.scenario.submit({'order_id': 'seat1', 'sku': 'SHOE42', 'destination': 'P22'})
+        for _ in range(400):
+            stack.tick()
+            order = stack.current('seat1')
+            if order['state'] != 'RUNNING':
+                if order['state'] in ('COMPLETED', 'FAILED', 'UNKNOWN', 'ESTOP'):
+                    break
+                continue
+            if order['stage'] == 'CUSTOMER':
+                getattr(stack.scenario, decision)('seat1')
+            elif order['request_id']:
+                if order['stage'] in NAVIGATION:
+                    _drive_seat(stack, order)
+                else:
+                    stack.approve(order)
+        stack.core.on_tasks(stack.api.snapshot())
+        final = stack.current('seat1')
+        assert final['state'] == 'COMPLETED', final.get('detail')
+        assert final['route'] == 'col1__P22' and 'col1__P22' not in stack.core.routes
+        rows = stack.console.handle('GET', '/api/fms/orders/seat1/trace', None)[1]['trace']
+        expected = [s for s in CUSTOMER_STAGES
+                    if decision == 'declined' or s not in CUSTOMER_RETURN_STAGES]
+        assert [r['stage_code'] for r in rows] == expected
+        assert all(r['status'] == 'COMPLETED' for r in rows)
+        by = {r['stage_code']: r for r in rows}
+        assert by['PICK']['target'] == by['LOAD']['target'] == 'omx2'
+        assert by['MOVE_CUSTOMER']['action'] == 'goto'
+        if decision == 'declined':
+            arrange, restock = by['ARRANGE'], by['RESTOCK']
+            assert (arrange['target'], arrange['action']) == ('omx3', 'arrange_shoe')
+            assert (restock['target'], restock['action']) == ('omx1', 'warehouse_store')
+        # 감시 기록: 결제·회수 뒤에는 빈 트레이 실측 단계가 없어 LOADED 로 남긴다(11-20, 걸침 감지 유지).
+        mission = stack.store.scenario('seat1')
+        assert mission['cargo_state'] == 'LOADED' and mission['current_step_seq'] == 7
+        robot = final['robot_id']
+        views = [v[robot] for v in stack.history if v[robot]['order_id'] == 'seat1']
+        steps = {v['stage']: v['step_seq'] for v in views}
+        cargo = {v['stage']: v['cargo_state'] for v in views}
+        assert steps['MOVE_CUSTOMER'] == steps['CUSTOMER'] == 4
+        assert cargo['CUSTOMER'] == 'LOADED'
+        assert [v['step_seq'] for v in views] == sorted(v['step_seq'] for v in views)
+        tasks = {t['step_seq']: t['task_state'] for t in stack.store.tasks('seat1')}
+        if decision == 'declined':
+            assert steps['ARRANGE'] == steps['RESTOCK'] == 6
+            assert cargo['RESTOCK'] == 'UNLOADING' and cargo['LEAVE_RESTOCK'] == 'LOADED'
+        else:
+            assert not {5, 6} & {v['step_seq'] for v in views}
+            assert cargo['RETURN_HOME'] == 'LOADED'
+            # 결제한 자리 주문은 하차 정차·팔 하역을 하지 않는다.
+            assert tasks[5] == tasks[6] == 'SKIPPED'
     finally:
         stack.close()
