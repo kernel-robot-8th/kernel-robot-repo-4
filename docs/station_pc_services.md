@@ -104,6 +104,13 @@ systemctl --user stop 'cobot-arm-adapter@*'
 - 단독으로 띄운 실행기(`omx_fleet_worker.py`)가 그 팔 포트를 잡고 있으면 사전 검사에 실패해 서비스가 뜨지 않는다. 그 실행기를 먼저 끈다.
 - `--symlink-install` 빌드를 그대로 쓴다. 이 저장소에서 브랜치를 바꾸거나 다시 빌드하면 서비스가 쓰는 코드도 바뀐다. 반영하려면 `systemctl --user restart` 한다.
 - `ROS_DOMAIN_ID` 는 지금 쓰는 값을 옮길 뿐이고 바꾸지 않는다 ([D2](fms_decisions.md#d2)).
+- **한 PC 에 팔이 둘이면 실행기 CPU 스레드를 제한한다** (`station.env` 의 `OMP_NUM_THREADS`·`MKL_NUM_THREADS`·`OPENCV_FOR_THREADS_NUM`).
+  torch·OpenCV 는 기본으로 프로세스마다 코어 수만큼 스레드를 띄워, 두 실행기가 CPU 를 서로 빼앗는다.
+  - 2026-11-21 8-OMEN (Ultra 9 275HX 24코어, RTX 5080 Laptop) 측정, 제한 없음: 혼자 15~20 스텝/s →
+    omx1·omx2 같이 둘 다 6.5 스텝/s (목표 30, 300 s 시간 초과). 그동안 GPU 사용률 평균 18%, 실행기마다 CPU 약 1000~1300%.
+  - 첫 값 8·8·4. 같이 돌려 팔마다 12 스텝/s 이상이면 유지, 아니면 낮춘다. 스텝 수는
+    `journalctl --user -u 'cobot-arm-adapter@*' | grep 스텝` 의 "N 스텝, 목표 주기 초과 M회" 로 본다.
+  - 바꾼 뒤에는 두 팔 서비스를 다시 켠다 (실제 팔, 팔 옆에서).
 
 ## 되돌리기
 ```bash
