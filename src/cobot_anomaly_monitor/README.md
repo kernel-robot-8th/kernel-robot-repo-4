@@ -176,7 +176,6 @@ ros2 run cobot_anomaly_monitor build_camera_calibration measured.yaml camera_cal
 현장 감지기는 아직 이 입력을 내지 않습니다. 지금 `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다. `image_size`와 `reference_markers`를 내는 코드와 이 토픽의 발행자도 없습니다. 원본 프레임 bbox를 내는 검출기는 `~/yolo_edge/inbox/homelab-20261102/`에 전달돼 있고 미적용입니다.
 
 홈랩 7번 적재 검증과 메뉴 6.5 재생은 [실행 안내](docs/homelab_verify_load.md)를 참고하세요.
-발표자 및 발표 지원 에이전트용 핵심 요약표(문제·만든 것·시행착오·개선 결과·20초 대본)와 소스 매핑은 [발표자·에이전트 안내서](docs/PRESENTER_AGENT_VISION_JUDGE_GUIDE.md)에 정리되어 있습니다.
 
 ## 비전 적재 판정 (천장 카메라 → `/fleet/work_result`)
 
