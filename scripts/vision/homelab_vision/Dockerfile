@@ -1,6 +1,8 @@
 # homelab-vision: 관제 PC(omen-8)용 YOLO 근거 컨테이너. 2a 단계(중계에서 빌드·CPU 검증만).
 # ROS 없음. 프레임을 디스크에 쓰지 않음. 듣는 포트 없음.
-FROM python:3.12-slim
+# 단계 base(1~3)가 Dockerfile.model 이 쓰는 기반 이미지 homelab-vision-base:* 와 같은 내용이다.
+# 기반만 다시 만들 때: docker build --target base -t homelab-vision-base:<태그> . (README "기반 이미지 다시 만들기")
+FROM python:3.12-slim AS base
 
 LABEL project="homelab-vision" stage="2a" built_on="relay"
 
@@ -34,14 +36,18 @@ RUN python -c "from ultralytics import settings; settings.update({'sync': False}
  && test -f /app/ultralytics-config/Ultralytics/settings.json \
  && rm -rf /tmp/mpl /tmp/Ultralytics
 
+# 여기부터는 가중치·구역·앱을 굽는 단계다. Dockerfile.model 의 내용과 같은 일을 한다.
+FROM base
 WORKDIR /app
 COPY --chown=app:app PACKET_SHA256SUMS /app/PACKET_SHA256SUMS
 COPY --chown=app:app weights/ /app/weights/
 COPY --chown=app:app zone/ /app/zone/
 # 구운 가중치·구역 파일이 패킷 해시와 같은지 빌드에서 확인한다(README 줄은 이미지에 없으므로 뺀다).
-# 패킷 목록은 "해시 *./경로"(이진 표시 '*') 형식이다. 남은 줄이 정확히 13개(가중치 2 + 구역 11)인지도 본다.
+# 패킷 목록은 "해시 *./경로"(이진 표시 '*') 형식이다. 남은 줄이 정확히 구역 11 + 가중치 수(2, 팔 모델이 있으면 3)인지도 본다.
 RUN grep -v '[ *]\./README\.md$' /app/PACKET_SHA256SUMS > /tmp/sums \
- && test "$(wc -l < /tmp/sums)" = 13 \
+ && NW="$(find /app/weights -type f | wc -l)" \
+ && { [ "$NW" = 2 ] || [ "$NW" = 3 ]; } \
+ && test "$(wc -l < /tmp/sums)" = "$((11 + NW))" \
  && sha256sum -c --strict --quiet /tmp/sums \
  && rm /tmp/sums
 

@@ -176,6 +176,7 @@ ros2 run cobot_anomaly_monitor build_camera_calibration measured.yaml camera_cal
 현장 감지기는 아직 이 입력을 내지 않습니다. 지금 `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다. `image_size`와 `reference_markers`를 내는 코드와 이 토픽의 발행자도 없습니다. 원본 프레임 bbox를 내는 검출기는 `~/yolo_edge/inbox/homelab-20261102/`에 전달돼 있고 미적용입니다.
 
 홈랩 7번 적재 검증과 메뉴 6.5 재생은 [실행 안내](docs/homelab_verify_load.md)를 참고하세요.
+발표자 및 발표 지원 에이전트용 핵심 요약표(문제·만든 것·시행착오·개선 결과·20초 대본)와 소스 매핑은 [발표자·에이전트 안내서](docs/PRESENTER_AGENT_VISION_JUDGE_GUIDE.md)에 정리되어 있습니다.
 
 ## 비전 적재 판정 (천장 카메라 → `/fleet/work_result`)
 
@@ -265,7 +266,7 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml \
 
 이 값들은 실물 성능으로 확정한 임계값이 아닙니다. `judge_mode`가 `shadow`·`enforce`일 때 판정 수치가 유효하지 않으면 기동을 거절합니다.
 `judge_max_wait_sec`는 검사하지 않으며 0 이하면 `operator_attention` 표시가 꺼집니다.
-트레이 마커 번호(ZA 31, ZB 30, ZC 32)는 `load_complete.py`의 `TRAY_MARKERS`에 있습니다. 저장소의 `scripts/vision/homelab_vision` 발행 앱은 아직 트레이 마커 필드를 내지 않습니다.
+트레이 마커 번호(ZA 31, ZB 30, ZC 32)는 `load_complete.py`의 `TRAY_MARKERS`에 있으며, `scripts/vision/homelab_vision` 발행 앱이 프레임별 `tray_markers`와 핑키별 `tray_marker_seen`을 `relay/evidence/boxes`에 담아 보냅니다.
 스트림·모델·보정·시각이 맞지 않는 프레임이 오면 그때까지 쌓은 이력도 함께 비우고, 불일치가 이어지는 동안 종류별 30초 간격으로 경고합니다.
 추락을 주문에 귀속하지 못해 보류하면 `judge_suppressed` 이력에 원래 판정과 프레임 번호를 남기고 실패 답은 보내지 않습니다.
 
