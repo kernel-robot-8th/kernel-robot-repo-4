@@ -73,7 +73,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                tasks=None, publish_request=None, cameras=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
-               hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None):
+               hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None,
+               cctv=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -96,6 +97,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     둘 중 하나라도 None 이면 직접 조종은 받지 않는다.
     waypoints 는 WaypointStore (관제 웨이포인트·묶음) 또는 None 이다. 이동·경로의 지점 이름 중
     관제 웨이포인트는 좌표를 poses 로 실어 작업 노드에 넘긴다 (순찰 노드가 좌표로 간다).
+    cctv 는 CctvRelay (현장영상 중계) 또는 None 이다. None 이면 /api/cctv 는 404 다.
     """
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
@@ -137,6 +139,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         return {'ok': True, 'domain_id': domain_id, 'read_only': publish_request is None,
                 **store.health(), **task_health,
                 'cameras': camera_health,
+                'cctv': cctv.health() if cctv is not None else None,
                 # routes: 로봇별 마지막 경로 (진행 중이면 state RUNNING). 화면 카드의 경로 진행 표시용.
                 'routes': routes.routes()['robots'] if routes is not None else {},
                 'arm_controller_online': arms is not None and arms.online(),
@@ -216,6 +219,46 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                     continue
                 seq, jpeg = store_.latest(robot_id)
                 yield mjpeg_part(jpeg)
+
+        return StreamingResponse(
+            frames(), media_type=f'multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}',
+            headers={'Cache-Control': 'no-store'})
+
+    # ---------- 현장영상 (천장 CCTV, 유선망 장치의 MJPEG 을 중계) ----------
+
+    def cctv_or_404():
+        if cctv is None:
+            raise HTTPException(status_code=404, detail='현장영상 주소가 설정되지 않음 (cctv_url)')
+        return cctv
+
+    @app.get('/api/cctv.jpg')
+    def cctv_frame():
+        frame = cctv_or_404().latest()
+        if frame is None:
+            raise HTTPException(status_code=404, detail='아직 받은 현장영상이 없음')
+        return Response(content=frame[1], media_type='image/jpeg',
+                        headers={'Cache-Control': 'no-store'})
+
+    @app.get('/api/cctv')
+    def cctv_stream():
+        relay = cctv_or_404()
+
+        async def frames():
+            # 보는 동안만 원본에 붙는다. 창을 닫으면 Starlette 가 생성기를 취소하고 finally 에서 뺀다.
+            relay.acquire()
+            try:
+                frame = relay.latest()
+                seq = 0
+                if frame is not None:
+                    seq = frame[0]
+                    yield mjpeg_part(frame[1])
+                while True:
+                    if not await asyncio.to_thread(relay.wait_newer, seq, WS_WAIT_SEC):
+                        continue
+                    seq, jpeg = relay.latest()
+                    yield mjpeg_part(jpeg)
+            finally:
+                relay.release()
 
         return StreamingResponse(
             frames(), media_type=f'multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}',

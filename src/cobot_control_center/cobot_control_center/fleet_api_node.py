@@ -33,6 +33,7 @@ import threading
 import time
 
 from ament_index_python.packages import get_package_share_directory
+from cobot_control_center.cctv_relay import CctvRelay
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
     ArmStore, CameraStore, LayerError, load_map, load_map_layers, MapError, SnapshotStore,
@@ -150,6 +151,7 @@ class FleetApiNode(Node):
         self.get_logger().info(
             f'웨이포인트: {self.waypoints.path} ({len(self.waypoints.poses())}개)')
         self.cameras = self._subscribe_cameras()
+        self.cctv = self._setup_cctv()
         self._setup_network()
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
@@ -174,6 +176,22 @@ class FleetApiNode(Node):
             topics.append(topic)
         self.get_logger().info(f'카메라 구독: {", ".join(topics) or "없음"}')
         return cameras
+
+    def _setup_cctv(self):
+        # 현장영상(천장 CCTV): 유선망 장치의 MJPEG 을 받아 /api/cctv 로 다시 낸다. 주소가 비면 끈다.
+        self.declare_parameter('cctv_url', '')
+        self.declare_parameter('cctv_idle_sec', 10.0)
+        self.declare_parameter('cctv_reconnect_sec', 2.0)
+        self.declare_parameter('cctv_timeout_sec', 5.0)
+        url = self.get_parameter('cctv_url').value
+        if not url:
+            self.get_logger().info('현장영상: 끔 (cctv_url 비어 있음)')
+            return None
+        self.get_logger().info(f'현장영상: {url} (보는 사람이 있을 때만 연결)')
+        return CctvRelay(url,
+                         idle_sec=float(self.get_parameter('cctv_idle_sec').value),
+                         reconnect_sec=float(self.get_parameter('cctv_reconnect_sec').value),
+                         timeout_sec=float(self.get_parameter('cctv_timeout_sec').value))
 
     def _setup_network(self):
         # 네트워크 화면(#/network): 측정 노드(net_status_node) 값 + 이 PC 의 DDS·노드 목록.
@@ -336,7 +354,7 @@ def main(args=None):
                          request_net_check=node.request_net_check, hosts=node.hosts,
                          routes=node.routes, teleop=node.teleop,
                          publish_teleop=None if node.read_only else node.publish_teleop,
-                         waypoints=node.waypoints)
+                         waypoints=node.waypoints, cctv=node.cctv)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):
@@ -345,6 +363,8 @@ def main(args=None):
         with contextlib.suppress(KeyboardInterrupt):
             if node.routes is not None:
                 node.routes.shutdown()
+            if node.cctv is not None:
+                node.cctv.shutdown()
             executor.shutdown()
             node.destroy_node()
             rclpy.try_shutdown()

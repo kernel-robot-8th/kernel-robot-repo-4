@@ -22,6 +22,13 @@
     # 실물은 cobot_domain_bridge 에 카메라 토픽이 있어야 들어온다 (아직 없음 → 화면에 '영상 없음').
     camera_robots: [pinky1, pinky2, pinky3]   # 구독할 로봇. [''] 이면 끔
     camera_topic_format: /{robot}/camera/image_raw/compressed
+    # 현장영상 (상단 '현장영상' 버튼): 천장 CCTV MJPEG 주소. 백엔드가 받아 /api/cctv 로 다시 낸다.
+    # 192.168.0.7 은 관제 PC 유선망(enp130s0) 장치다 (비전 homelab_vision 의 CAMERA_SOURCE 와 같은 주소).
+    # DHCP 라 바뀔 수 있다. 비우면 끔.
+    cctv_url: http://192.168.0.7:18086/processed
+    cctv_idle_sec: 10.0       # 마지막 사람이 닫고 이만큼 지나면 원본 연결을 끊음 [s]
+    cctv_reconnect_sec: 2.0   # 원본이 끊기면 이 간격으로 다시 붙음 [s]
+    cctv_timeout_sec: 5.0     # 원본 연결·읽기 제한 시간 [s]
     # 네트워크 화면: Station PC 에서 도는 노드 이름 (팔 노드 arm_station.launch.xml 의 omx1~3_adapter)
     station_node_patterns: ['omx*_adapter']
     # 관제 웨이포인트·묶음 파일 (화면 '저장'·#/waypoints). 비우면 ~/.ros/cobot_control_center/waypoints_<site>_d<ROS_DOMAIN_ID>.json

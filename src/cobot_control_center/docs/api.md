@@ -11,12 +11,14 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | 경로 | 응답 |
 |---|---|
 | `GET /` | 관제 화면 |
-| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "routes": {"pinky1": 마지막 경로 (`GET /api/routes` 의 robots)}, "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}, "arm_controller_online": 로봇팔 명령 노드(arm_command_node)가 켜져 있는지}` |
+| `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "routes": {"pinky1": 마지막 경로 (`GET /api/routes` 의 robots)}, "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}, "cctv": 현장영상 중계 상태 `{"url", "connected": 원본에 붙어 있는지, "viewers": 보는 창 수, "age_sec": 마지막 장면 뒤 지난 초 또는 null, "frames": 받은 수, "error": 마지막 연결 오류}` (`cctv_url` 이 비면 null), "arm_controller_online": 로봇팔 명령 노드(arm_command_node)가 켜져 있는지}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
 | `GET /api/robots/{robot_id}` | 로봇 하나. 없으면 404 |
 | `GET /api/robots/{robot_id}/camera` | 카메라 영상 MJPEG 스트림 (`multipart/x-mixed-replace; boundary=frame`). 로봇이 낸 JPEG 를 풀지 않고 새 프레임마다 그대로 보냄. 프레임이 없으면 보내지 않고 기다림. `camera_robots` 에 없는 로봇이면 404 |
 | `GET /api/robots/{robot_id}/camera.jpg` | 마지막 프레임 1장 (`image/jpeg`). 아직 못 받았거나 구독하지 않는 로봇이면 404 |
+| `GET /api/cctv` | 현장영상(천장 CCTV) MJPEG 스트림 (`multipart/x-mixed-replace; boundary=frame`). 백엔드가 `cctv_url` 원본에서 받아 장면마다 다시 보냄. 보는 사람이 있을 때만 원본에 붙고, 원본 연결은 보는 사람 수와 상관없이 1개. `cctv_url` 이 비면 404 |
+| `GET /api/cctv.jpg` | 현장영상 마지막 장면 1장 (`image/jpeg`). 아직 못 받았거나 `cctv_url` 이 비면 404 |
 | `GET /api/map/info` | `{"image_width", "image_height", "resolution", "origin"}`. 지도 없으면 404 |
 | `GET /api/map/image` | 지도 PGM 원본 바이트 |
 | `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
@@ -427,6 +429,10 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `arm_reply_timeout_sec` | `10.0` | 로봇팔 명령 응답을 기다리는 시간 [s]. `arm_command_node` 의 `ack_timeout_sec` 보다 길어야 504 가 화면까지 감 |
 | `camera_robots` | `[pinky1, pinky2, pinky3]` | 카메라를 구독할 로봇. `['']` 이면 끔 |
 | `camera_topic_format` | `/{robot}/camera/image_raw/compressed` | 카메라 토픽 (`sensor_msgs/CompressedImage`, JPEG). QoS `BEST_EFFORT / VOLATILE / KEEP_LAST(1)`. 이름은 가정값(비전 브랜치 592ebd4 규격 + 로봇 접두사)이라 확정되면 바꿈. 실물은 브릿지에 카메라 토픽이 있어야 들어옴 (아직 없음) |
+| `cctv_url` | `http://192.168.0.7:18086/processed` | 현장영상(천장 CCTV) MJPEG 주소. 관제 PC 유선망 장치(DHCP 라 바뀔 수 있음). 비우면 끔 |
+| `cctv_idle_sec` | `10.0` | 마지막 사람이 창을 닫고 이만큼 지나면 원본 연결을 끊음 [s] |
+| `cctv_reconnect_sec` | `2.0` | 원본이 끊기면 이 간격으로 다시 붙음 [s] |
+| `cctv_timeout_sec` | `5.0` | 원본 연결·읽기 제한 시간 [s] |
 
 `arm_command_node` (`config/arm_command_node.yaml`). `fleet_api.launch.xml` 이 함께 띄웁니다 (`arm_command:=false` 로 끔, 개발용 읽기 전용 launch 는 끔).
 

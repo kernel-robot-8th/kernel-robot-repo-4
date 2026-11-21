@@ -33,6 +33,8 @@
       <a class="link net-btn" id="net-btn" href="#/network" data-state="na"><i></i>네트워크 상태보기</a>
       <!-- 관제 웨이포인트·묶음 화면 (#/waypoints, waypoints.js) -->
       <a class="link net-btn wp-btn" href="#/waypoints" title="로봇 위치로 저장한 관제 웨이포인트와 묶음">웨이포인트</a>
+      <!-- 현장영상: 천장 CCTV 를 창으로 띄운다 (cctv.js, 백엔드 /api/cctv 중계) -->
+      <button type="button" class="link net-btn cctv-btn" id="cctv-btn" title="천장 CCTV 영상을 창으로 본다">현장영상</button>
       <span class="updated" id="updated">수신 대기</span>
       <button type="button" class="estop-all" id="stop-all" disabled
               title="모든 로봇을 그 자리에 세운다 (비상정지, 확인 창 없음)">전체 비상정지</button>
@@ -519,6 +521,20 @@
     </article>
   </template>
 
+  <!-- 현장영상 창 (cctv.js). 열 때만 /api/cctv 를 받고, 닫으면 끊는다 -->
+  <dialog class="cctv-dialog" id="cctv-dialog" aria-labelledby="cctv-title">
+    <div class="cctv-head">
+      <h2 id="cctv-title">현장영상 <span class="muted">천장 CCTV</span></h2>
+      <span class="muted cctv-meta" id="cctv-meta"></span>
+      <a class="cctv-snap" id="cctv-snap" href="/api/cctv.jpg" target="_blank" rel="noopener">한 장 저장</a>
+      <button type="button" class="cctv-close" id="cctv-close" aria-label="닫기">닫기</button>
+    </div>
+    <div class="cctv-body">
+      <img id="cctv-img" alt="현장영상" hidden>
+      <p class="cctv-empty" id="cctv-empty">연결 중…</p>
+    </div>
+  </dialog>
+
   <!-- 순서가 중요하다: core.js 가 공통 이름을 만들고, main.js 가 마지막에 시작한다 -->
   <script src="core.js"></script>
   <script src="cards.js"></script>
@@ -536,6 +552,7 @@
   <script src="pose.js"></script>
   <script src="arms.js"></script>
   <script src="network.js"></script>
+  <script src="cctv.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
