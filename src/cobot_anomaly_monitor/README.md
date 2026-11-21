@@ -41,8 +41,8 @@
 
 - 값은 sakim 1b0cb08 `scenario.yaml`과 같게 맞췄습니다(11-20). 팀 파일이 바뀌면 다시 맞춥니다. 개발 전용 경로 `wh_a_to_store`·`wh_b_to_store`만 더 있습니다.
 - `customer_return`이 들어 있어 sakim 87b9bee 이후 `fleet_control`에서만 뜹니다. main a0d0bf0·feature/control-center 판은 `customer_return` 인자 오류로 시작하지 못합니다.
-- 감시 노드도 기본값(`scenario_config` 인자)으로 이 파일을 읽지만 `routes`만 씁니다. 기록의 팔 이름(`load_arm_id`·`unload_arm_id`), 7단계의 구역 진입 계산과 작업 주체, 주문 추적의 대상 대체값에 씁니다. 비전 적재 판정에는 쓰지 않습니다(판정은 요청에 실린 route를 씁니다).
-- 자리 주문 경로 `col1__P22`·`col2__P22`는 `fleet_control`이 `shelf`·`destinations`로 만드는 경로라 감시 노드 `routes`에 없습니다. 그래서 자리 주문 기록의 팔 이름은 빈 값입니다.
+- 감시 노드도 기본값(`scenario_config` 인자)으로 이 파일을 읽습니다. `routes`에 더해 `shelf`·`destinations`·`customer_return`으로 관제 `_layout`과 같은 자리 경로 `col<열>__<자리>`(`col1__P22`·`col2__P22`)를 만듭니다(`monitor_node.layout_routes`, 11-21). 기록의 팔 이름(`load_arm_id`·`unload_arm_id`), 7단계의 구역 진입 계산과 작업 주체, 주문 추적의 대상 대체값에 씁니다. 비전 적재 판정에는 쓰지 않습니다(판정은 요청에 실린 route를 씁니다).
+- 같은 파일의 `dock_xy_m`·`dock_yaw_deg`는 주문 추적표 정차 행의 공차 비교에만 씁니다. 관제 응답은 바꾸지 않습니다.
 
 ```bash
 ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml
@@ -96,10 +96,16 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 
 | 판정 | 범위 | 요청 |
 |---|---|---|
-| `LOAD_FAIL_PERCHED`, `TRANSIT_PERCHED`, `LOAD_FAIL_DROP`, `UNLOAD_FAIL` | `ROBOT` | `pause`, 그 로봇 |
-| `TRANSIT_DROP`, `LANE_OBSTACLE`, `AMBIGUOUS`(바닥) | `ALL` | `pause`, 로봇 지정 없음 |
+| `LOAD_FAIL_PERCHED`, `TRANSIT_PERCHED`, `LOAD_FAIL_DROP`(LOAD·VERIFY_LOAD), `UNLOAD_FAIL`, `ARRANGE_FAIL`, `CUSTOMER_HANDOVER_PERCHED`, `CUSTOMER_HANDOVER_DROP`, `RESIDUAL_PERCHED` | `ROBOT` | `pause`, 그 로봇 |
+| `AMBIGUOUS`(걸침, 근처 화물 로봇 둘 이상) | `ROBOT` | `pause`, 근처 로봇마다 |
+| `TRANSIT_DROP`, `LANE_OBSTACLE`, `AMBIGUOUS`(바닥), `LOAD_FAIL_DROP`(PICK), `RESIDUAL_DROP` | `ALL` | `pause`, 로봇 지정 없음 |
 | `RUN_OVER_COLLISION` | `ALL` | `estop`, 로봇 지정 없음 |
-| `LID_OPEN_ANOMALY`, `AMBIGUOUS`(걸침), `NO_POSITION`, `IGNORED` | `ROBOT` | 없음 |
+| `LID_OPEN_ANOMALY`, `CUSTOMER_HANDOVER_LID`, `NO_POSITION`, `IGNORED` | `ROBOT` | 없음 |
+
+- 11-21 판정 국면 정리 뒤에도 같은 물리 상황의 범위는 11-20 전(404d7ab)보다 좁히지 않습니다. 예외는 자리 주문 고객 인계(D1)로, 11-20 전과 같은 로봇 한 대 범위(`UNLOAD_FAIL`)를 이름만 바꿔 씁니다.
+- PICK 바닥 상자는 11-20 전에 진로 장애물(전체 정지)이었으므로 `LOAD_FAIL_DROP`이라도 `ALL`입니다. 같은 이름이 국면에 따라 범위가 다릅니다.
+- 걸침 `AMBIGUOUS`는 11-20 전에 조치가 없었습니다. 화물로 잇는 로봇(PICK, 잔류 화물, `EMPTY_UNVERIFIED`)이 늘어 한 대를 세우던 자리가 보류로 바뀌지 않게 근처 로봇을 모두 세웁니다. `linked_robot_id`는 비웁니다.
+- 고객 인계 중 뚜껑 열림(`CUSTOMER_HANDOVER_LID`)은 고객 개봉으로 보고 기록만 합니다. 다만 열린 사건으로 남아 웹 열린 이상 목록에는 보입니다(웹 표시 미정리).
 
 - `ROBOT`은 `stop_targets`의 로봇마다 `robot_id`를 넣어 요청합니다. 관제는 그 로봇만 보류하고 `armed`는 켜 둡니다.
 - `ALL`은 `robot_id` 키가 없는 요청 한 건입니다. 관제는 전 로봇을 보류하고 `armed`를 끕니다. 이때 `stop_targets`는 기록용입니다.
@@ -127,6 +133,15 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 - 거절된 정지(`*_FAILED`), 관찰 모드 기록, 조치 없는 판정은 자동으로 닫지 않습니다.
 - 열린 사건과 같은 자리(30초, 0.25 m)의 재감지는 묶여서 요청이 늘지 않습니다. 전체 정지가 걸린 채 열린 사건은 30초가 지나도 묶습니다. 닫힌 뒤의 재감지는 새 사건이고 정지가 다시 나갑니다.
 - 로봇 지정 정지 사건이 `RESOLVED`로 닫힌 뒤 300초 안에 같은 자리에서 다시 감지되면, 새 판정이 `LANE_OBSTACLE`이어도 닫힌 사건의 판정·범위·대상을 이어받습니다(그 로봇만 정지, 경보 문구에 `재감지`와 앞 사건 ID). 주문이 `fail`로 끝난 뒤 남은 상자가 전체 정지를 부르지 않게 하기 위해서입니다. 300초가 지나면 새로 판정합니다.
+- 묶인 재감지는 지목 로봇의 국면(단계·판정 국면·적재)이 바뀌면 다시 판정합니다(11-21 M2). 조치와 범위는 처음과 새 판정 중 넓은 쪽을 둡니다. 그래서 `UNLOAD_FAIL`·`ALL`처럼 판정 이름의 본래 범위보다 넓은 짝이 생길 수 있습니다(이미 건 정지를 좁히지 않음). 지난 판정은 `judgment_history`에 남습니다.
+- 로봇을 지목하지 못한 사건(`LANE_OBSTACLE`·`IGNORED` 등)에 새로 로봇을 잇는 것은 첫 감지 때 근처 로봇으로 적힌 로봇이거나, 첫 감지부터 주행하지 않고 오도메트리 정지가 이어진 로봇일 때만입니다. 지나가던 적재 로봇에 옛 장애물을 붙이지 않습니다.
+
+### 판정 입력의 로봇 상태(11-21)
+
+- 판정 국면(`phase`)은 표시용 7단계와 따로 계산합니다: PICK, LOADING, TRANSIT, UNLOADING(RESTOCK 포함), ARRANGE(ZC 정리, 하역 아님), HANDOVER(자리 주문 CUSTOMER), RESIDUAL.
+- 자리 주문 결제 뒤와 RESTOCK 완료 뒤 적재는 `EMPTY_UNVERIFIED`입니다. 빈 트레이를 확인한 센서가 없기 때문입니다.
+- 시간 초과로 신발을 실은 채 끝난 자리 주문의 로봇은 잔류 화물(`residual_cargo` 표)로 남고 적재를 `LOADED`로 봅니다. 운영자가 `POST /api/fms/anomalies/residual:<robot_id>`에 `RESOLVED`·`FALSE_ALARM`을 보낼 때만 지웁니다. 같은 로봇의 뒤 주문 결제·하차 검증·선반 반환으로는 지우지 않습니다(상자 하나만 내리므로).
+- 순찰 상태가 3초 넘게 끊기면 `op_state`는 `LINK_LOST`, `link_stale`은 `true`입니다. 판정 입력 `driving`·`queue_wait`은 마지막 상태 그대로입니다(통신이 끊겼다고 선 것이 아님, 11-20 전과 같음).
 
 ### 기록 DB 열 추가
 

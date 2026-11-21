@@ -7,8 +7,9 @@
 #   ZA = 반환된 신발 상자를 선반에 다시 올림(omx1).
 # customer_return은 sakim 87b9bee 이후 fleet_control만 받는다. 그래서 이 파일은 그 판에서만 뜬다.
 #   main a0d0bf0·feature/control-center 판 ScenarioService는 customer_return 인자가 없어 이 파일로 뜨지 않는다.
-# 감시 노드(monitor_node)는 이 파일의 routes만 읽는다. col1__P22·col2__P22는 fleet_control이 shelf·destinations로
-#   만드는 경로라 감시 노드 routes에는 없다. 그래서 자리 주문 감시 기록의 팔 이름(load_arm_id·unload_arm_id)은 아직 빈 값이다.
+# 감시 노드(monitor_node)도 이 파일을 읽는다. routes에 더해 shelf·destinations·customer_return으로 관제 _layout과 같은
+#   col1__P22·col2__P22 경로를 만든다(layout_routes, 11-21). 그래서 자리 주문 감시 기록에도 팔 이름이 남는다.
+#   dock_xy_m·dock_yaw_deg는 감시 주문 추적표의 정차 공차 비교에만 쓴다.
 routes:
   # sakim scenario.yaml routes와 같은 값. 관제 화면 주문이 직접 고르는 경로다.
   lab_delivery: {pickup: ZA, dropoff: ZC, pickup_arm: omx1, dropoff_arm: omx3, lane: main}

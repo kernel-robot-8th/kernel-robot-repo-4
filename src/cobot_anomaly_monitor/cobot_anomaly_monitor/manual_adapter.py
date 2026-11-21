@@ -16,9 +16,56 @@ EVIDENCE = {
     'CORRECT_PICKUP': {'no_motion': True}, 'CORRECT_DROPOFF': {'no_motion': True},
 }
 DOCK_SIDE = {'DOCK_PICKUP': 'pickup', 'DOCK_DROPOFF': 'dropoff'}
+# 자동 응답하는 단계. 관제 WORK(origin/sakim scenario_contracts.py)의 vision·navigation 단계 11개다.
+# 여기 없는 단계는 무엇을 확인하는지 모르므로 성공으로 답하지 않고 대기에 둔다(11-21 S8).
+AUTO_STAGES = frozenset(EVIDENCE) | frozenset(DOCK_SIDE) | {'MARKER', 'QR'}
+UNKNOWN_STAGE_REASON = '모르는 단계: 자동 응답 안 함 (운영자 확인 필요)'
 # 판정 기준 없이 통신만 잇는 자동 응답의 표시. 결과 data 에 그대로 싣는다.
 AUTO_DECISION = 'auto_unjudged'
 AUTO_OPERATOR = 'auto'
+# 모든 팔을 맡는 팀 팔 노드 이름. 나머지는 omx<N>_adapter 가 그 팔만 맡는다.
+GENERIC_ARM_NODE = 'arm_adapter'
+
+
+def arm_presence(peers, targets):
+    """결과 토픽의 팀 팔 노드 이름으로 팔 대상별 응답 노드가 보이는지 만든다."""
+    names = set(peers)
+    generic = GENERIC_ARM_NODE in names
+    return {target: generic or f'{target}_adapter' in names for target in targets}
+
+
+def arm_missing_text(target):
+    return f'팔 노드 없음 ({target}_adapter 미발견)'
+
+
+def arm_node_warning(request, arm_nodes):
+    """
+    팔 대상 작업 요청인데 그 대상의 팀 팔 노드가 안 보이면 경고 문구를 준다. 모르면 빈 문자열.
+
+    정지 때 모든 팔에 가는 SAFETY 보류는 답을 기다리는 작업이 아니라서 뺀다.
+    """
+    target = request.get('target') if isinstance(request, dict) else None
+    if (not isinstance(target, str) or arm_nodes.get(target) is not False
+            or request.get('stage') == 'SAFETY'):
+        return ''
+    return arm_missing_text(target)
+
+
+def known_stage(request):
+    """
+    자동 응답하는 단계인가. 단계가 문자열이 아니면(목록·객체 등) 모르는 단계로 본다.
+
+    `in AUTO_STAGES` 를 바로 쓰면 목록·객체 단계에서 TypeError 가 난다. 그 요청은 이미 대기로 저장된 뒤라
+    재시작 뒤 pending() 마다 다시 터진다. 그래서 문자열인지 먼저 본다.
+    """
+    stage = request.get('stage') if isinstance(request, dict) else None
+    return isinstance(stage, str) and stage in AUTO_STAGES
+
+
+def _target(request):
+    """요청의 대상. 문자열이 아니면 None(어느 담당 대상과도 같지 않다)."""
+    target = request.get('target') if isinstance(request, dict) else None
+    return target if isinstance(target, str) else None
 
 
 def yaw_error_deg(actual, target):
@@ -32,8 +79,9 @@ class ManualAdapter:
     def __init__(self, store, publish, targets, points, robot_state, clock=time.time, join=None,
                  exclusive=None, auto_targets=(), judge=None, judge_mode='off',
                  judge_stages=('VERIFY_LOAD',), attribute=None, shadow_wait_sec=5.0,
-                 max_wait_sec=30.0):
+                 max_wait_sec=30.0, warn=None):
         self.store, self.publish, self.targets = store, publish, set(targets)
+        self.warn = warn  # 운영 경고를 노드 로그로 넘기는 함수. 없으면 기록만 한다
         self.points, self.robot_state, self.clock = points, robot_state, clock
         self.session_id = None
         self.sequences = {}
@@ -69,7 +117,7 @@ class ManualAdapter:
 
     def on_request(self, request):
         """계약 검사를 통과한 요청만 받는다. 답할 수 없는 요청은 결과를 내지 않는다."""
-        target, request_id = request.get('target'), request.get('request_id')
+        target, request_id = _target(request), request.get('request_id')
         if (target not in self.targets or target in self.yielded or not request_id
                 or self.blocked):
             return False
@@ -102,11 +150,28 @@ class ManualAdapter:
             self.sequences[target] = request['seq']
         self.store.add_work(request_id, state, request, now)
         if state == 'PENDING' and target in self.auto:
-            self._auto(request)
+            if known_stage(request):
+                self._auto(request)
+            else:
+                self._unknown_stage(request, now)
         return state == 'PENDING'
+
+    def _unknown_stage(self, request, now):
+        """모르는 단계는 대기에 두고 경고만 남긴다. 주문 수신 원문에 kind adapter_warning 으로 들어간다."""
+        detail = f"{UNKNOWN_STAGE_REASON} · {request.get('stage')} ({request.get('target')})"
+        order_id = request.get('order_id')
+        if isinstance(order_id, str) and order_id:
+            self.store.record_control(
+                'adapter_warning', order_id, request['request_id'],
+                {'code': 'UNKNOWN_STAGE', 'detail': detail, 'stage': request.get('stage'),
+                 'target': request.get('target'), 'robot_id': request.get('robot_id')}, now)
+        if self.warn:
+            self.warn(f"{detail} · 요청 {request['request_id']}")
 
     def _auto(self, request):
         """자동 대상 요청에 판정 없이 성공으로 답한다. 지금 답할 수 없으면 대기에 둔다."""
+        if not known_stage(request):
+            return None  # 모르는 단계에는 성공을 지어내지 않는다
         if self.join and request.get('stage') == 'VERIFY_LOAD':
             return None  # 적재 결합 시험은 근거 3장과 팔 확인으로만 답한다
         try:
@@ -175,7 +240,7 @@ class ManualAdapter:
         for row in self.store.works('PENDING'):
             request = json.loads(row['request_json'])
             timeout = request.get('timeout_sec')
-            if (request.get('target') not in self.auto or request.get('target') in self.yielded
+            if (_target(request) not in self.auto or _target(request) in self.yielded
                     or type(timeout) not in (int, float)
                     or self.clock() >= request.get('issued_at', 0) + timeout):
                 continue
@@ -223,6 +288,8 @@ class ManualAdapter:
 
     def _load_view(self, row):
         req = json.loads(row['request_json'])
+        if _target(req) in self.auto and not known_stage(req):
+            return {'wait_reason': UNKNOWN_STAGE_REASON, 'unknown_stage': True}
         if not self.join or req.get('stage') != 'VERIFY_LOAD':
             judged = self.judged.get(row['request_id'])
             return ({'judge_mode': self.judge_mode, 'wait_reason': judged['reason'],

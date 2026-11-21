@@ -23,12 +23,65 @@ import yaml
 from .console_api import ConsoleApi, serve
 from .load_complete import LoadComplete
 from .load_evidence import LoadEvidence
-from .manual_adapter import ManualAdapter
+from .manual_adapter import arm_node_warning, arm_presence, ManualAdapter
 from .monitor_core import camera_allowed, MonitorCore
 from .monitor_store import MonitorStore
 
 REPLY_WAIT_SEC = 3.0
 ADAPTER_CHECK_SEC = 2.0
+# 관제 _layout 의 지점 자리 회수 설정 칸(origin/sakim scenario.py).
+CUSTOMER_RETURN_KEYS = {'arrange', 'arrange_arm', 'restock', 'restock_arm'}
+
+
+def layout_routes(config):
+    """
+    감시 경로 표를 관제와 같이 만든다(origin/sakim 1b0cb08 scenario.py ScenarioService._layout).
+
+    routes 에 shelf 열 × destinations 자리마다 col<열>__<자리> 경로를 더한다. 값은 관제와 같다.
+    - 지점 자리 {point, lane}: customer=지점, dropoff/dropoff_arm=회수 정리, restock/restock_arm=선반 반환.
+    - 하차 구역 자리 {dropoff, dropoff_arm, lane}: 하차 팔이 내려놓는 기존 경로.
+    관제 패키지는 import 하지 않는다. 관제라면 거절할 칸은 건너뛰고 (경로 표, 문제 목록)으로 돌려준다.
+    """
+    routes = {name: dict(route) for name, route in (config.get('routes') or {}).items()}
+    shelf = config.get('shelf') or {}
+    columns = (shelf.get('columns') if isinstance(shelf, dict) else None) or {}
+    destinations = config.get('destinations') or {}
+    back = config.get('customer_return') or {}
+    problems = []
+    if not isinstance(columns, dict) or not isinstance(destinations, dict):
+        return routes, ['shelf.columns·destinations 형식 오류: 자리 경로를 만들지 않음']
+    for name, target in destinations.items():
+        keys = set(target) - {'name'} if isinstance(target, dict) else None
+        if keys not in ({'dropoff', 'dropoff_arm', 'lane'}, {'point', 'lane'}):
+            problems.append(f'자리 {name}: dropoff, dropoff_arm, lane 또는 point, lane 필요')
+            continue
+        if 'point' in keys and set(back) != CUSTOMER_RETURN_KEYS:
+            problems.append(f'자리 {name}: customer_return(arrange·restock) 설정 없음')
+            continue
+        for column, pickup in columns.items():
+            route = f'col{column}__{name}'
+            if route in routes:
+                problems.append(f'{route}: routes 의 이름과 겹침')
+                continue
+            if not isinstance(pickup, dict) or set(pickup) != {'pickup', 'pickup_arm'}:
+                problems.append(f'shelf.columns {column}: pickup, pickup_arm 필요')
+                continue
+            if 'point' in keys:
+                routes[route] = dict(pickup, customer=target['point'],
+                                     dropoff=back['arrange'], dropoff_arm=back['arrange_arm'],
+                                     restock=back['restock'], restock_arm=back['restock_arm'],
+                                     lane=target['lane'])
+            else:
+                routes[route] = dict(pickup, dropoff=target['dropoff'],
+                                     dropoff_arm=target['dropoff_arm'], lane=target['lane'])
+    return routes, problems
+
+
+def dock_tolerance_of(config):
+    """scenario_config 의 정차 공차 {'dock_xy_m', 'dock_yaw_deg'}. 없는 키는 뺀다. 둘 다 없으면 None."""
+    found = {key: config[key] for key in ('dock_xy_m', 'dock_yaw_deg')
+             if isinstance(config, dict) and key in config}
+    return found or None
 
 
 def load_site(path):
@@ -99,8 +152,15 @@ class AnomalyMonitorNode(Node):
         config = {name: self.get_parameter(name).value for name in defaults}
         self.config = config
         camera_allowed('', config['camera_policy'])
-        routes = yaml.safe_load(
-            Path(config['scenario_config']).read_text(encoding='utf-8'))['routes']
+        # 자리 주문 경로(col1__P22 등)도 관제처럼 만들어야 기록에 팔 이름이 남는다(11-21 S5).
+        scenario = yaml.safe_load(Path(config['scenario_config']).read_text(encoding='utf-8'))
+        if 'routes' not in scenario:
+            raise KeyError('routes')  # 예전처럼 routes 가 없는 설정으로는 시작하지 않는다
+        routes, problems = layout_routes(scenario)
+        for problem in problems:
+            self.get_logger().warning('경로 표: ' + problem)
+        # 추적표 정차 행의 공차 비교(S10·G6). 관제 scenario.yaml 과 같은 키다.
+        self.dock_tolerance = dock_tolerance_of(scenario)
         self.store = MonitorStore(config['db_path'])
         if config['observation_only'] and (config['manual_adapter'] or config['console_commands']
                                            or config['cctv_control_mode'] != 'OBSERVE_ONLY'):
@@ -159,7 +219,7 @@ class AnomalyMonitorNode(Node):
         self.console = ConsoleApi(
             self.core, self.adapter, self._run, self._wait_reply,
             config['allow_mock_events'], commands=config['console_commands'],
-            observation_only=config['observation_only'])
+            observation_only=config['observation_only'], dock_tolerance=self.dock_tolerance)
         for robot in config['robot_ids']:
             self.create_subscription(Float32, f'/{robot}/battery/percent',
                                      lambda m, r=robot: self.core.on_battery(r, m.data), 10)
@@ -202,7 +262,8 @@ class AnomalyMonitorNode(Node):
                                 attribute=(LoadEvidence(self.core, self.points, '', '', '')
                                            .attribution if self.judge else None),
                                 shadow_wait_sec=config['judge_shadow_wait_sec'],
-                                max_wait_sec=config['judge_max_wait_sec'])
+                                max_wait_sec=config['judge_max_wait_sec'],
+                                warn=lambda text: self.get_logger().warning(text))
         adapter.blocked = '기동 검사 전'
         self.create_subscription(String, config['heartbeat_topic'], self._heartbeat, 10)
         self.adapter_check = self.create_timer(ADAPTER_CHECK_SEC, self._check_adapter)
@@ -288,8 +349,22 @@ class AnomalyMonitorNode(Node):
         return {'request': self._link(self.config['request_topic']),
                 'tasks': self._link(self.config['tasks_topic']), 'robots': robots}
 
+    def _update_arm_nodes(self):
+        """
+        팔 대상별 팀 팔 노드가 보이는지 core 에 넘긴다(live 의 arm_nodes).
+
+        양보 규칙은 그대로다(_check_adapter). 팔 단계에는 우리가 답하지 않는다. 표시와 경고에만 쓴다.
+        """
+        nodes = arm_presence(self._foreign_publishers()[1], self.config['peer_targets'])
+        if nodes != self.core.arm_nodes:
+            missing = sorted(target for target, present in nodes.items() if not present)
+            self.get_logger().info('팔 노드 없음: ' + ', '.join(missing) if missing
+                                   else '팔 노드 모두 보임')
+        self.core.set_arm_nodes(nodes)
+
     def _refresh(self):
         self.core.graph = self._read_graph()
+        self._update_arm_nodes()
         if self.adapter and self.adapter.auto:
             self.adapter.retry_auto()
         self.core.flush()
@@ -377,9 +452,23 @@ class AnomalyMonitorNode(Node):
     def _work_request(self, message):
         request = self._decode(message, '작업 요청')
         if request is not None:
-            self.store.observe_work('request', request, time.time())
+            now = time.time()
+            self.store.observe_work('request', request, now)
+            self._warn_arm_node(request, now)
             if self.adapter:
                 self.adapter.on_request(request)
+
+    def _warn_arm_node(self, request, now):
+        """팔 대상 요청에 응답할 팀 팔 노드가 안 보이면 주문 기록에 남긴다. 대신 답하지는 않는다."""
+        warning = arm_node_warning(request, self.core.arm_nodes)
+        if not warning:
+            return
+        order_id, request_id = request.get('order_id'), request.get('request_id')
+        if isinstance(order_id, str) and order_id and isinstance(request_id, str) and request_id:
+            self.store.record_control('arm_node_missing', order_id, request_id, {
+                'code': 'ARM_NODE_MISSING', 'detail': warning, 'target': request['target'],
+                'stage': request.get('stage'), 'robot_id': request.get('robot_id')}, now)
+        self.get_logger().warning(f"{warning} · {request.get('stage')} 요청 {request_id}")
 
     def _observed_result(self, message):
         result = self._decode(message, '작업 결과')

@@ -1,6 +1,9 @@
 """주문별로 실제 관측한 요청·작업 결과와 관제 스냅샷을 연결한다."""
 
 import json
+import math
+
+from .scenario_view import SEAT_OUTCOMES
 
 # 단계 순서는 관제 기준(origin/sakim 1b0cb08, 11-19) cobot_fleet_control scenario_tree 의
 # STAGES(경로 주문)·CUSTOMER_STAGES(고객 자리 주문)와 같다. 감시 패키지는 팀 패키지를 import 하지 않는다.
@@ -79,14 +82,20 @@ CUSTOMER_STAGE_SPECS = _specs(CUSTOMER_STAGES, {'CUSTOMER': CUSTOMER_SEAT_NAME})
 NAVIGATION = {'MOVE_PICKUP', 'LEAVE_PICKUP', 'MOVE_DROPOFF', 'LEAVE_DROPOFF', 'RETURN_HOME',
               'MOVE_CUSTOMER', 'MOVE_ARRANGE', 'LEAVE_ARRANGE', 'MOVE_RESTOCK', 'LEAVE_RESTOCK'}
 BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL', 'FAILED'}
+# 피킹 전 정차 실패(order.failure) 뒤 관제가 도는 안전 복귀 단계(관제 scenario_tree safe_return).
+SAFE_RETURN = ('RETURN_HOME', 'RETURN_EXIT')
+# 관제 SAFETY 요청(팔 hold·release_hold). 단계 행이 아니라 주문 메모로만 보인다.
+SAFETY_STAGE = 'SAFETY'
+# 관제가 복구할 때 경로 팔에 release_hold 를 보내는 결정(관제 scenario_safety recover).
+RELEASE_DECISIONS = ('resume', 'fail')
 
 
 def _sent_route(route, items):
     """
     관제가 작업 요청에 실어 보낸 경로(dict)를 먼저 쓴다.
 
-    감시 노드의 경로 표(scenario_config routes)는 사본이다. 자리 주문 경로(col1__P22 등)는
-    관제가 shelf·destinations 로 만들어서 사본에 없다. 사본이 낡았을 때도 관제 값을 따른다.
+    감시 노드 경로 표는 scenario_config 사본이다(자리 경로 col*__P22 도 관제처럼 펼친다).
+    사본이 낡았거나 옛 기록이라 경로를 모를 때도 관제가 보낸 값을 따른다.
     요청을 아직 못 봤으면 넘겨받은 경로를 쓴다.
     """
     for item in items:
@@ -102,23 +111,101 @@ def _is_customer_order(route, seen):
 
 
 def _return_branch_listed(order, seen):
-    """회수 갈래 행을 보일지 정한다. 결제·시간 초과로 건너뛴 갈래는 대기 행으로 남기지 않는다."""
+    """회수 갈래 행을 보일지 정한다. 결제·시간 초과·안전 복귀로 건너뛴 갈래는 대기 행으로 남기지 않는다."""
     if seen & set(CUSTOMER_RETURN_STAGES) or order.get('customer_declined'):
         return True
-    if order.get('customer_received') or order.get('customer_timed_out'):
+    if (order.get('customer_received') or order.get('customer_timed_out')
+            or order.get('failure')):
         return False
     return order.get('state') not in ('COMPLETED', 'FAILED')
 
 
+def _outcome(order, customer):
+    """고객 응답 결과. 감시 기록(scenario_view.outcome_of)과 같은 값이다."""
+    for flag, outcome in SEAT_OUTCOMES:
+        if order.get(flag):
+            return 'RECEIVED' if outcome == 'PAID' and not customer else outcome
+    return ''
+
+
+def _not_reached(order, stage):
+    """
+    도달하지 않은 행을 '건너뜀'으로 볼 이유. 없으면 None(아직 올 수 있는 대기 행).
+
+    피킹 전 정차 실패(failure)면 관제는 안전 복귀 두 단계만 돈다. 실패 종결·UNKNOWN 보류면 더 진행하지 않는다.
+    """
+    failure, state = order.get('failure'), order.get('state')
+    if failure and stage not in SAFE_RETURN:
+        return f'건너뜀 · 피킹 전 실패({failure}) 뒤 안전 복귀'
+    if state == 'FAILED':
+        return '진행 안 함 · 주문 실패 종결'
+    if state == 'UNKNOWN':
+        return '진행 안 함 · 주문 보류(UNKNOWN), 운영자 복구 대기'
+    return None
+
+
+def _at(item):
+    return item.get('created_at') or item.get('first_seen')
+
+
+def _finite(value):
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value))
+
+
+def _tolerance(dock_tolerance):
+    """scenario_config 의 dock_xy_m·dock_yaw_deg. 둘 다 숫자일 때만 비교한다."""
+    tol = dock_tolerance or {}
+    xy, yaw = tol.get('dock_xy_m'), tol.get('dock_yaw_deg')
+    return (xy, yaw) if _finite(xy) and _finite(yaw) else None
+
+
+def _dock_evidence(stage, entries, idx, grouped, order, last):
+    """
+    정차 시도 뒤 관제가 보정을 요청했는지, 보정 예산을 다 써서 끝났는지 본다.
+
+    보정 요청은 이 시도와 다음 정차 시도 사이에 관측한 CORRECT_* 요청이다(관제가 공차 초과로 판단한 증거).
+    """
+    at = _at(entries[idx - 1]) if entries else None
+    following = _at(entries[idx]) if idx < len(entries) else None
+    corrected = False
+    if at is not None:
+        for record in grouped.get(stage.replace('DOCK_', 'CORRECT_'), {}).values():
+            time = _at(record)
+            if time is not None and time > at and (following is None or time < following):
+                corrected = True
+    # 예산 소진: 상차 쪽은 failure 를 남기고 안전 복귀, 하차 쪽은 그 자리에서 보류한다(관제 retry).
+    if stage == 'DOCK_PICKUP':
+        reason = order.get('failure') or ''
+    elif (order.get('stage') in (stage, stage.replace('DOCK_', 'CORRECT_'))
+            and order.get('state') in BLOCKED):
+        reason = order.get('detail') or ''
+    else:
+        reason = ''
+    exhausted = bool(entries) and last and not corrected and '공차 초과' in str(reason)
+    return {'corrected': corrected, 'exhausted': exhausted}
+
+
 def build_stage_trace(order, work_history, tasks=None, live_work=None,
-                      attempts=(), route=None, unmatched=(), terminal=None):
-    """요약 완료 표시와 특정 시도에 대한 수신·수용 증거를 따로 계산한다."""
+                      attempts=(), route=None, unmatched=(), terminal=None,
+                      dock_tolerance=None):
+    """
+    요약 완료 표시와 특정 시도에 대한 수신·수용 증거를 따로 계산한다.
+
+    dock_tolerance 는 감시 scenario_config 의 {'dock_xy_m', 'dock_yaw_deg'} 다. 주면 정차 행 실측을 공차와 비교한다.
+    """
     if not order:
         return []
+    # completed·operator_completed 가 null 이거나 목록이 아니면 빈 목록으로 본다.
+    order = dict(order, **{key: [x for x in order[key] if isinstance(x, str)]
+                           if isinstance(order.get(key), (list, tuple)) else []
+                           for key in ('completed', 'operator_completed')})
     task_map = tasks if isinstance(tasks, dict) else {t['task_id']: t for t in tasks or []}
     items = [item for item in [*attempts, *work_history, *(live_work or [])]
-             if item.get('order_id') == order['order_id'] and item.get('request_id')]
+             if item.get('order_id') == order['order_id'] and item.get('request_id')
+             and item.get('stage') != SAFETY_STAGE]
     route = _sent_route(route, items)
+    tolerance = _tolerance(dock_tolerance)
     grouped = {}
     for item in items:
         bucket = grouped.setdefault(item['stage'], {})
@@ -148,9 +235,13 @@ def build_stage_trace(order, work_history, tasks=None, live_work=None,
     entered = set(grouped) | set(order.get('completed', []))
     if current and order.get('state') != 'WAITING':
         entered.add(current)
+    reached = entered | set(order.get('operator_completed', []))
     arms = {route[key] for key in ROUTE_ARMS if route.get(key)}
     rows = []
     base_names = [spec['stage'] for spec in base]
+    # 회수 주문(kind return)은 관제가 CUSTOMER 를 건너뛴다. 다음 단계 계산에서도 뺀다.
+    flow = [name for name in base_names
+            if not (order.get('kind') == 'return' and name == 'CUSTOMER')]
     for spec in specs:
         stage = spec['stage']
         entries = sorted(grouped.get(stage, {}).values(), key=lambda e: (
@@ -158,7 +249,8 @@ def build_stage_trace(order, work_history, tasks=None, live_work=None,
         if stage.startswith('CORRECT_'):
             successors = [stage.replace('CORRECT_', 'DOCK_')]
         else:
-            successors = base_names[base_names.index(stage) + 1:][:1]
+            names = flow if stage in flow else base_names
+            successors = names[names.index(stage) + 1:][:1]
             if stage.startswith('DOCK_'):
                 successors.append(stage.replace('DOCK_', 'CORRECT_'))
         for idx, item in enumerate(entries or [{}], 1):
@@ -172,9 +264,23 @@ def build_stage_trace(order, work_history, tasks=None, live_work=None,
                 if records and at is not None:
                     following |= any((r.get('created_at') or r.get('first_seen') or 0) > at
                                      for r in records)
-                elif last and not stage.startswith('CORRECT_') and not successor.startswith('CORRECT_'):
+                elif (last and not stage.startswith('CORRECT_')
+                      and not successor.startswith('CORRECT_')):
                     following = True
-            row = _attempt(order, spec, item, task_map, idx, last, following, route, customer)
+            dock = None
+            if stage.startswith('DOCK_'):
+                dock = dict(_dock_evidence(stage, entries, idx, grouped, order, last),
+                            tolerance=tolerance)
+            row = _attempt(order, spec, item, task_map, idx, last, following, route, customer,
+                           dock)
+            if not entries and stage not in reached and row['status'] == 'WAITING':
+                reason = _not_reached(order, stage)
+                if reason:
+                    row['status'], row['evidence_summary'] = 'SKIPPED', reason
+            if order.get('failure') and stage in SAFE_RETURN:
+                row['evidence_summary'] += f" · 안전 복귀: {order['failure']}"
+                row['evidence_detail'] = dict(row['evidence_detail'] or {},
+                                              safe_return=order['failure'])
             if stage.startswith('CORRECT_') and at is not None:
                 measurements = grouped.get(successors[0], {}).values()
                 times = [(r.get('created_at') or r.get('first_seen'), r['request_id'])
@@ -212,7 +318,81 @@ def build_stage_trace(order, work_history, tasks=None, live_work=None,
     return rows
 
 
-def _attempt(order, spec, item, tasks, idx, last, following, route, customer=False):
+def order_notes(order, work_history, attempts=(), live_work=None, control_events=()):
+    """
+    단계 행에 넣지 않는 주문 메모. 지금은 관제 SAFETY 요청(팔 hold·release_hold)만 모은다.
+
+    관제는 주문을 멈출 때 경로 팔에 hold(order_id 있음)를 보내고, 운영자 복구(resume·fail) 때
+    release_hold(order_id 빈 값)를 보낸다. release_hold 는 주문 기록에 남지 않으므로
+    같은 주문의 운영자 복구 기록(control_events 의 recovery)으로 해제 요청을 알아본다.
+    """
+    if not order:
+        return {'safety': None}
+    oid = order['order_id']
+    requests = {}
+    for item in [*attempts, *work_history, *(live_work or [])]:
+        if (item.get('stage') == SAFETY_STAGE and item.get('order_id') == oid
+                and item.get('request_id')):
+            requests.setdefault(item['request_id'], {}).update(item)
+    calls = sorted(({'request_id': rid, 'action': r.get('action'), 'target': r.get('target'),
+                     'robot_id': r.get('robot_id'),
+                     'at': r.get('wire_observed_at') or r.get('created_at') or r.get('issued_at')}
+                    for rid, r in requests.items()),
+                   key=lambda c: (c['at'] if _finite(c['at']) else float('inf'), c['request_id']))
+    holds = [c for c in calls if c['action'] == 'hold']
+    releases = [c for c in calls if c['action'] == 'release_hold']
+    recoveries = sorted(
+        ({'decision': (e.get('payload') or {}).get('decision'),
+          'operator': (e.get('payload') or {}).get('operator'), 'at': e.get('at')}
+         for e in control_events or ()
+         if e.get('type') == 'recovery' and e.get('order_id') == oid),
+        key=lambda r: r['at'] if _finite(r['at']) else float('inf'))
+    if not holds and not releases:
+        return {'safety': None}
+    targets = sorted({c['target'] for c in holds if c['target']})
+    text = f'SAFETY hold {len(holds)}건' + (' (' + ', '.join(targets) + ')' if targets else '')
+    asked = [r for r in recoveries if r['decision'] in RELEASE_DECISIONS]
+    if releases:
+        text += f' · release_hold {len(releases)}건 관측'
+    elif asked:
+        text += f" · 운영자 복구({asked[-1]['decision']})로 경로 팔 해제 요청됨"
+    else:
+        text += ' · 해제 요청 미관측'
+    return {'safety': {'holds': holds, 'releases': releases, 'recoveries': recoveries,
+                       'text': text,
+                       'release_note': 'release_hold 는 order_id 가 비어 주문 기록에 남지 않음'}}
+
+
+def _number_text(value, digits):
+    return f'{value:.{digits}f}' if _finite(value) else '미확인'
+
+
+def _dock_text(data, dock):
+    """
+    정차 실측 문구와 공차 비교. 관제 MeasureDock·DockTolerance 와 같이 |xy|·|yaw| 를 공차와 비교한다.
+
+    공차 사본이 없으면 관제 행동(보정 요청·보정 예산 소진)으로만 공차 초과를 적는다.
+    """
+    xy, yaw = data.get('xy_m'), data.get('yaw_deg')
+    text = f' · 실측 {_number_text(xy, 3)} m / {_number_text(yaw, 1)}°'
+    extra = {'correction_requested': dock['corrected']}
+    tolerance, within = dock.get('tolerance'), None
+    if tolerance and _finite(xy) and _finite(yaw):
+        within = abs(xy) <= tolerance[0] and abs(yaw) <= tolerance[1]
+        extra.update(dock_tolerance={'xy_m': tolerance[0], 'yaw_deg': tolerance[1]},
+                     within_tolerance=within)
+    if within is True:
+        text += ' · 공차 이내'
+        if dock['corrected']:
+            text += ' · 관제는 보정 요청(감시 공차 사본과 다름)'
+    elif within is False or dock['corrected'] or dock['exhausted']:
+        text += ' · 공차 초과 → 보정' + (' 예산 소진' if dock['exhausted'] else '')
+        if within is None:
+            text += ' (관제 보정 요청 기준)' if dock['corrected'] else ' (관제 실패 사유 기준)'
+    return text, extra
+
+
+def _attempt(order, spec, item, tasks, idx, last, following, route, customer=False, dock=None):
     stage = spec['stage']
     rid = item.get('request_id')
     nav = stage in NAVIGATION
@@ -221,7 +401,8 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
     manual = stage in order.get('operator_completed', []) and last
     observed = item.get('wire_results', [])
     matches = [entry['payload'] for entry in observed if (
-        all(entry['payload'].get(k) == item.get(k) for k in ('order_id', 'stage', 'robot_id', 'request_id'))
+        all(entry['payload'].get(k) == item.get(k)
+            for k in ('order_id', 'stage', 'robot_id', 'request_id'))
         and entry['payload'].get('source') == item.get('target')
         and entry['payload'].get('measured') is True and entry['payload'].get('finished') is True
         and isinstance(entry['payload'].get('success'), bool)
@@ -233,8 +414,8 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
         detail.update(note=result.get('detail'), success=result.get('success'),
                       source=result.get('source'), finished=result.get('finished'),
                       measured=result.get('measured'))
-    cp = dict(requested=bool(rid), received='UNCONFIRMED', result='NONE',
-              accepted='WAITING', next_stage=False)
+    cp = {'requested': bool(rid), 'received': 'UNCONFIRMED', 'result': 'NONE',
+          'accepted': 'WAITING', 'next_stage': False}
     state = 'WAITING'
     msg = '이전 단계 완료 대기'
     target = spec['target']
@@ -255,7 +436,8 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
     if item.get('load_join') and not result:
         count = item.get('evidence_count', 0)
         arm = '팔 퇴피 확인됨' if item.get('arm_checked') else '팔 퇴피 대기'
-        msg = f'적재 표본 {max(0, 3-count)}개 대기 ({count}/3) · {arm}' if count < 3 else f'적재 표본 3/3 · {arm}'
+        msg = (f'적재 표본 {max(0, 3 - count)}개 대기 ({count}/3) · {arm}' if count < 3
+               else f'적재 표본 3/3 · {arm}')
         if item.get('wait_reason'):
             msg += ' · ' + item['wait_reason']
     if item.get('created_at') is not None:
@@ -279,6 +461,14 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
             cp['accepted'] = 'UNCONFIRMED'
         elif not data.get('manual') and data.get('decision') != 'camera_and_operator':
             cp['received'] = 'CONFIRMED'
+    failed = result.get('success') is False
+    if (dock and dock['corrected'] and result and not failed
+            and not (observed and len(matches) != 1)):
+        # 관제가 이 실측을 받고 보정(CORRECT_*)을 요청했다. 수용한 것이다.
+        cp['accepted'] = 'ACCEPTED'
+        msg = '결과 기록 · 관제 수용(보정 요청 관측)'
+        if data.get('decision'):
+            msg += ' · ' + str(data['decision'])
     if current and order.get('state') == 'RUNNING' and not rid:
         state, msg = 'RUNNING', '단계 진입 · 요청 생성 미확인'
     if manual or complete:
@@ -301,6 +491,14 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
     if manual and rid and not result:
         cp['accepted'], cp['next_stage'] = 'UNCONFIRMED', False
         msg = '운영자 단계 확인 · 이 요청의 장치 결과 수용 미확인'
+    if failed:
+        # 장치 실패 응답. 관제는 retry_safe 가 true 면 같은 단계를 다시 요청하고, 아니면 보류한다.
+        retry = data.get('retry_safe')
+        state, cp['next_stage'] = 'FAILED', False
+        msg = (f"실패 응답: {result.get('detail') or '사유 없음'} "
+               f"(retry_safe={json.dumps(retry) if isinstance(retry, bool) else '없음'})")
+        if manual or complete:
+            msg += ' · 단계 완료는 다른 시도·운영자 기록'
     if stage == 'CUSTOMER':
         # 관제 CustomerReceipt: 결제(received)·회수(declined)·시간 초과 중 하나로 끝난다.
         if order.get('customer_timed_out'):
@@ -314,12 +512,16 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
             cp['result'] = 'MANUAL'
         elif current:
             msg = '고객 결제·회수 입력 대기' if customer else '고객 수령 입력 대기'
+        outcome = _outcome(order, customer)
+        if outcome:
+            detail['outcome'] = outcome
+            msg += ' · 결과 ' + outcome
     if nav and rid:
         task = json.loads(item.get('task') or '{}') or tasks.get(rid, {})
         obs = json.loads(item.get('observation') or '{}')
         if task.get('robot_id') != order.get('robot_id'):
             task = {}
-        detail = dict(task=task, robot_report=obs)
+        detail = {'task': task, 'robot_report': obs}
         if obs:
             cp['received'] = 'CONFIRMED'
         if obs.get('task_finished') is True:
@@ -330,22 +532,25 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
             stopped = obs.get('last_state') == 'STOPPED' or simultaneous.get('state') == 'STOPPED'
 
             state, cp['accepted'], cp['next_stage'] = 'BLOCKED', 'REJECTED', False
-            msg = ' · '.join(filter(None, [f"구역 {zone} 점유" if zone else '',
-                task['state'], task.get('detail'), '정지' if stopped else '',
-                '도착 미성공']))
+            msg = ' · '.join(filter(None, [
+                f'구역 {zone} 점유' if zone else '', task['state'], task.get('detail'),
+                '정지' if stopped else '', '도착 미성공']))
         elif task.get('state') == 'SUCCEEDED':
             msg = '주행 원장 SUCCEEDED · ' + ('관제 단계 완료' if complete else '단계 완료 미확인')
         elif task:
             msg = f"주행 원장 {task['state']} · 완료 미확인"
     hold = order.get('detail') or order.get('hold_reason')
     if stage.startswith('DOCK_') and ('xy_m' in data or 'yaw_deg' in data):
-        msg += f" · 실측 {data.get('xy_m', '미확인')} m / {data.get('yaw_deg', '미확인')}°"
+        text, extra = _dock_text(data, dock or {'corrected': False, 'exhausted': False})
+        msg += text
+        detail.update(extra)
     if current and order.get('state') in BLOCKED and not (complete or manual):
         state, cp['accepted'] = 'BLOCKED', 'REJECTED'
         msg += ' · ' + (hold or order['state'])
         if hold and ('시간 초과' in hold or 'timeout' in hold.lower()):
             cp['result'] = 'TIMEOUT'
-    if following and rid and not current and not manual and cp['accepted'] != 'REJECTED':
+    if (following and rid and not current and not manual and not failed
+            and cp['accepted'] != 'REJECTED'):
         cp['next_stage'] = True
     if not last and state == 'RUNNING':
         state = 'PREVIOUS'
@@ -353,7 +558,13 @@ def _attempt(order, spec, item, tasks, idx, last, following, route, customer=Fal
         msg = ('후미 이탈 clear 기록 · 주문 종결' if data.get('clear') is True
                else '관제 단계 완료 · 주문 종결 · clear 실측 미확인')
         cp['next_stage'] = True
-    return dict(stage_code=stage, stage_name=spec['name'], target=target, action=action,
-                is_correction=stage.startswith('CORRECT_'), attempt_no=idx,
-                command_id=rid if nav else None, request_id=rid, status=state, checkpoints=cp,
-                evidence_summary=msg, evidence_detail=detail or None, hold_reason=hold if current else None)
+    if stage == 'RETURN_HOME' and customer and order.get('customer_timed_out'):
+        msg += ' · 신발 실은 채 복귀'
+    if stage == 'CUSTOMER' and order.get('kind') == 'return':
+        # 관제 CustomerReceipt 는 회수 주문이면 수령 대기 없이 넘어간다(completed 에도 남지 않는다).
+        state, msg = 'SKIPPED', '회수 주문 · 고객 수령 생략(관제가 건너뜀)'
+    return {'stage_code': stage, 'stage_name': spec['name'], 'target': target, 'action': action,
+            'is_correction': stage.startswith('CORRECT_'), 'attempt_no': idx,
+            'command_id': rid if nav else None, 'request_id': rid, 'status': state,
+            'checkpoints': cp, 'evidence_summary': msg, 'evidence_detail': detail or None,
+            'hold_reason': hold if current else None}

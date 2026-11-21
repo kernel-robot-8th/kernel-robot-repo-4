@@ -101,11 +101,14 @@ def test_ambiguous_drop_records_only_the_nearby_loaded_robots():
     assert sorted(result['stop_targets']) == ['pinky1', 'pinky2']
 
 
-def test_perched_between_two_loaded_robots_is_held_without_stop():
+def test_perched_between_two_loaded_robots_pauses_each_of_them():
+    # 11-21: 예전에는 조치 없음(NONE)이었다. 화물로 잇는 로봇이 늘어 한 대를 세우던 자리가
+    # 보류로 바뀌지 않게 근처 로봇을 모두 그 로봇만 세운다(범위를 좁히지 않음).
     robots = {'pinky1': robot((0, 0), 3, 'LOADING'), 'pinky2': robot((0.4, 0), 3, 'LOADING')}
     result = judge(event('box_perched_on_rim', (0.2, 0)), robots)
-    assert result['judgment'] == 'AMBIGUOUS'
-    assert result['recommended_action'] == 'NONE' and result['stop_scope'] == 'ROBOT'
+    assert result['judgment'] == 'AMBIGUOUS' and result['linked_robot_id'] is None
+    assert result['recommended_action'] == 'PAUSE' and result['stop_scope'] == 'ROBOT'
+    assert sorted(result['stop_targets']) == ['pinky1', 'pinky2']
 
 
 def test_run_over_needs_a_moving_robot():

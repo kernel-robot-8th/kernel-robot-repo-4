@@ -1,6 +1,7 @@
 """관제 스냅샷을 7단계 기록으로 바꾸고 CCTV 이벤트를 판정한다. ROS에 의존하지 않는다."""
 
 from collections import deque, OrderedDict
+import hashlib
 import json
 import math
 import time
@@ -8,10 +9,12 @@ import uuid
 
 from .debug_view import (
     parse_zone_status, ready_problems, RouteTrace, STATUS_FIELDS, zone_table)
-from .judgment import closed_before, INHERIT_SEC, is_duplicate, judge
+from .judgment import (
+    CARGO_UNVERIFIED, closed_before, escalated, INHERIT_SEC, is_duplicate, judge, rejudge)
 from .scenario_view import (
-    cargo_of, driving_of, op_state_of, queue_wait_of, RESUMABLE_STAGES, STAGE_STEP,
-    STEP_CARGO_AFTER, STEP_CODES, step_of, zone_of)
+    cargo_of, done_stages, driving_of, hold_op_state, is_customer_order,
+    leaves_residual, op_state_of, outcome_of, phase_of, queue_wait_of, RESUMABLE_STAGES,
+    STAGE_STEP, STATUS_STALE_SEC, STEP_CARGO_AFTER, STEP_CODES, step_of, zone_of)
 
 MODES = ('OBSERVE_ONLY', 'AUTO_HOLD')
 TERMINAL = ('COMPLETED', 'FAILED')
@@ -31,6 +34,17 @@ LOG_LIMIT = 30
 TASK_LIMIT = 10
 CAMERA_POLICIES = ('field', 'sim')
 STILL_SPEED_MPS = 0.03  # manual_adapter.MOVING_SPEED_MPS 와 같은 정지 기준
+# 관제 /control_center/task_events 중 기록하는 종류. scenario(주문 전체 사본)·task·inventory 는
+# 스냅샷으로 이미 보므로 남기지 않는다.
+CONTROL_EVENT_TYPES = ('alarm', 'recovery', 'operator_load_confirmed',
+                       'operator_load_confirmation_pending', 'control_release_requested',
+                       'control_released', 'control_release_unconfirmed', 'release_control',
+                       'operator_stop', 'operator_arm')
+ALARM_LIMIT = 20
+# 잔류 화물 표시를 운영자가 확인하는 길. 새 쓰기 경로를 만들지 않고 기존 사건 확인 창구
+# (POST /api/fms/anomalies/<id>)에 'residual:<robot_id>' 를 넘긴다.
+RESIDUAL_ACK_PREFIX = 'residual:'
+RESIDUAL_REASON = 'CUSTOMER_TIMEOUT'
 
 
 def step_code(step):
@@ -93,6 +107,14 @@ class MonitorCore:
         self.diagnostics = None
         self.log = deque(maxlen=LOG_LIMIT)
         self.log_rows = {}
+        self.arm_nodes = {}
+        self.residual, self.residual_known = {}, set()
+        self._load_residual()
+        self.stop_unconfirmed = {}
+        for row in reversed(store.control_events(('alarm', 'control_released', 'recovery'),
+                                                 limit=500)):
+            self._note_stop(row['type'], row['code'], row['robot_id'], row['order_id'],
+                            row['detail'], row['at'])
 
     def _seen(self, robot, topic):
         self.seen.setdefault(robot, {})[topic] = self.clock()
@@ -143,6 +165,7 @@ class MonitorCore:
         self.tasks = tasks[:TASK_LIMIT]
         self.orders = {order['order_id']: order for order in snapshot.get('orders', [])}
         self.store.record_trace_snapshot(self.orders.values(), tasks, self.tasks_at, self.status, self.seen)
+        self._track_residual(snapshot.get('orders', []))
         for order in self.orders.values():
             self._sync_order(order)
         self._close_recovered()
@@ -192,9 +215,14 @@ class MonitorCore:
             'current_step_seq': step, 'current_step_code': step_code(step),
             'current_stage': order['stage'], 'cargo_state': cargo_of(order),
             'mission_state': order['state'], 'hold_reason': reason,
-            'detail': order.get('detail') or '',
+            'detail': order.get('detail') or '', 'outcome': outcome_of(order, route),
             'created_at': stored['created_at'] if stored else order.get('created_at', now),
             'updated_at': now})
+        if not stored:
+            # 첫 스냅샷보다 먼저 온 경보를 시나리오 행에 옮긴다.
+            alarm = self.store.control_events(('alarm',), mission, 1)
+            if alarm:
+                self.store.set_last_alarm(mission, alarm[0]['code'], alarm[0]['detail'])
         if step > previous:
             self._advance(order, route, previous, step, now)
         self.steps[mission] = step
@@ -206,7 +234,7 @@ class MonitorCore:
         if previous:
             state = 'FAILED' if order.get('failure') else 'SUCCEEDED'
             self.store.update_task(f'{mission}-S{previous}', state, now)
-        completed = set(order.get('completed', ()))
+        completed = done_stages(order)
         for seq in range(previous + 1, step + 1):
             # 스냅샷은 1초 주기라 짧은 단계는 사이에 끝날 수 있다.
             passed = {s for s, n in STAGE_STEP.items() if n == seq} & completed
@@ -245,22 +273,94 @@ class MonitorCore:
         status, order = self.status.get(robot), self._active_order(robot)
         pose = self.pose.get(robot, (None, None, None))
         speed = self.speed.get(robot)
+        age = self._status_age(robot)
+        # 순찰 상태가 끊겨도 판정 입력 driving·queue_wait 은 마지막 상태 그대로 둔다(11-20 전과 같다).
+        # 통신이 끊겼다고 로봇이 선 것은 아니다. 끊김은 op_state LINK_LOST·link_stale·status_age_sec 로만 보인다.
+        stale = status is not None and age is not None and age > STATUS_STALE_SEC
+        driving = driving_of(status)
+        route = self._route(order) if order else {}
+        cargo = cargo_of(order) if order else 'EMPTY'
+        residual = self._residual_of(robot)
+        residual_only = bool(residual) and cargo in ('EMPTY', CARGO_UNVERIFIED)
+        if residual_only:
+            cargo = 'LOADED'
         op_state = op_state_of(status, order is not None)
+        if (order and order['stage'] == 'CUSTOMER' and op_state in ('IDLE', 'WAIT_ARM')
+                and is_customer_order(order, route)):
+            op_state = 'WAIT_CUSTOMER'  # 자리에 서서 고객 결제·회수를 기다린다
+        # 관제는 holds 를 {로봇: 사유 문자열}로 보낸다. 다른 모양이면 사유 없이 옛 표시(PAUSED)로 둔다.
+        hold = self.holds.get(robot) if isinstance(self.holds, dict) else ''
+        hold = hold if isinstance(hold, str) else ''
         if robot in self.holds or (order and order['state'] in BLOCKED):
             stored = self.store.scenario(order['order_id']) if order else None
-            op_state = 'HOLD_ANOMALY' if stored and stored['hold_reason'] else 'PAUSED'
+            op_state = ('HOLD_ANOMALY' if stored and stored['hold_reason']
+                        else hold_op_state(hold or (order['state'] if order else '')))
+        if stale:
+            op_state = 'LINK_LOST'
         return {
             'order_id': order['order_id'] if order else None,
             'stage': order['stage'] if order else None,
             'step_seq': self._step(order) if order else 0,
-            'cargo_state': cargo_of(order) if order else 'EMPTY',
+            'phase': phase_of(order, status, route, cargo, driving, residual=residual_only),
+            'cargo_state': cargo,
             'zone': zone_of(status, order is not None), 'pose_x': pose[0], 'pose_y': pose[1],
-            'pose_yaw': pose[2], 'speed_mps': speed, 'driving': driving_of(status),
+            'pose_yaw': pose[2], 'speed_mps': speed, 'driving': driving, 'link_stale': stale,
             'battery_percent': self.battery.get(robot),
             'central_latched': (status or {}).get('central_latched'),
             'queue_wait': queue_wait_of(status, speed),
             'updated_at': self.clock(), 'op_state': op_state,
+            'hold_reason': hold, 'order_state': order['state'] if order else None,
+            'status_age_sec': age, 'residual_cargo': residual,
+            'stop_unconfirmed': self.stop_unconfirmed.get(robot),
             'waypoint': str((status or {}).get('detail') or '')}
+
+    def _status_age(self, robot):
+        at = self.seen.get(robot, {}).get('patrol_status')
+        return None if at is None else self.clock() - at
+
+    @staticmethod
+    def _phase_key(view):
+        """재판정 비교용 국면 문자열. 단계·판정 국면·적재가 바뀌면 달라진다."""
+        if not view:
+            return ''
+        return '|'.join(str(view.get(k) or '') for k in ('stage', 'phase', 'cargo_state'))
+
+    def _load_residual(self):
+        self.residual, self.residual_known = {}, set()
+        for row in self.store.residuals():
+            self.residual_known.add((row['robot_id'], row['order_id']))
+            if row['cleared_at'] is None:
+                self.residual.setdefault(row['robot_id'], {})[row['order_id']] = row
+
+    def _residual_of(self, robot):
+        """로봇에 남은 화물 표시(가장 최근 주문 기준). 없으면 None."""
+        rows = list(self.residual.get(robot, {}).values())
+        if not rows:
+            return None
+        last = rows[-1]
+        return {'order_id': last['order_id'], 'reason': last['reason'], 'since': last['set_at'],
+                'acked_by': last['acked_by'], 'orders': [row['order_id'] for row in rows],
+                'ack_id': RESIDUAL_ACK_PREFIX + robot}
+
+    def _track_residual(self, orders):
+        """
+        시간 초과로 신발을 실은 채 끝난 자리 주문의 로봇을 잔류 화물로 남긴다.
+
+        관제 배정 조건(_available)에는 적재 검사가 없어 그 로봇이 바로 다음 주문을 받는다.
+        운영자 확인('residual:<robot_id>' 를 RESOLVED·FALSE_ALARM 으로)으로만 지운다.
+        뒤 주문의 하차 검증(우리 자동 응답)·결제·선반 반환은 상자 하나만 내리므로 빈 트레이를 확인하지 않는다.
+        """
+        changed, now = False, self.clock()
+        for order in orders:
+            robot = order.get('robot_id')
+            if not isinstance(robot, str) or not robot:
+                continue
+            if (leaves_residual(order, self._route(order))
+                    and (robot, order['order_id']) not in self.residual_known):
+                self.store.add_residual(robot, order['order_id'], RESIDUAL_REASON, now)
+                changed = True
+        if changed:
+            self._load_residual()
 
     def request(self, payload, control=None):
         """관제 요청을 보내고 request_id를 돌려준다. 응답은 task_events로 온다."""
@@ -281,9 +381,12 @@ class MonitorCore:
         return request_id
 
     def on_task_event(self, event):
-        """요청 응답을 보관하고 CCTV 조치 결과를 기록에 반영한다."""
+        """요청 응답을 보관하고 CCTV 조치 결과를 기록에 반영한다. 관제 경보·운영자 조치도 남긴다."""
         if event.get('type') == 'scenario_bt_snapshot':
             self.store.record_terminal_resources(event)
+            return
+        if event.get('type') in CONTROL_EVENT_TYPES:
+            self._record_control_event(event)
             return
         if event.get('type') != 'reply' or not event.get('request_id'):
             return
@@ -295,6 +398,50 @@ class MonitorCore:
         control = self.control_requests.pop(request_id, None)
         if control:
             self._record_reply(control, event)
+
+    def _record_control_event(self, event):
+        """
+        관제 경보(CUSTOMER_TIMEOUT·STOP_UNCONFIRMED·중단 코드 등)와 운영자 복구·상차 확인·해제를 남긴다.
+
+        주문이 있는 이벤트는 주문 수신 원문(trace_work_wire, kind control_event)에도 넣어 주문 이력에 보인다.
+        """
+        kind = event['type']
+        order_id = event.get('order_id') if isinstance(event.get('order_id'), str) else ''
+        robot = event.get('robot_id') if isinstance(event.get('robot_id'), str) else ''
+        if not robot and order_id:
+            robot = (self.orders.get(order_id) or {}).get('robot_id') or ''
+        at = event['recorded_at'] if _number(event.get('recorded_at')) else self.clock()
+        payload = json.dumps(event, ensure_ascii=False, sort_keys=True)
+        # 관제 outbox 번호는 관제 DB를 새로 만들면 다시 1부터다. 기록 시각을 붙여 겹치지 않게 한다.
+        key = (f"fleet-{event['event_id']}-{at}" if type(event.get('event_id')) is int
+               else 'sha1-' + hashlib.sha1(payload.encode('utf-8')).hexdigest())
+        code = str(event.get('code') or '') if kind == 'alarm' else ''
+        detail = str(event.get('detail') or event.get('note') or '')
+        self.store.add_control_event({'event_key': key, 'type': kind, 'code': code,
+                                      'order_id': order_id, 'robot_id': robot, 'detail': detail,
+                                      'at': at, 'payload': payload})
+        if order_id:
+            self.store.record_control('control_event', order_id, key, event, at)
+            if kind == 'alarm':
+                self.store.set_last_alarm(order_id, code, detail)
+        self._note_stop(kind, code, robot, order_id, detail, at)
+
+    def _note_stop(self, kind, code, robot, order_id, detail, at):
+        """정지 전달 실패(STOP_UNCONFIRMED)를 로봇에 남긴다. 해제 확인·운영자 복구가 오면 내린다."""
+        if not robot:
+            return
+        if kind == 'alarm' and code == 'STOP_UNCONFIRMED':
+            self.stop_unconfirmed[robot] = {'order_id': order_id, 'detail': detail, 'at': at}
+        elif kind in ('control_released', 'recovery'):
+            self.stop_unconfirmed.pop(robot, None)
+
+    def alarms(self, order_id=None):
+        """저장한 관제 경보를 새것부터 돌려준다. order_id를 주면 그 주문 것만."""
+        return self.store.control_events(('alarm',), order_id)
+
+    def set_arm_nodes(self, nodes):
+        """팔 대상별 응답 노드가 보이는지 기록한다. {target: bool}. live 의 arm_nodes 로 나간다."""
+        self.arm_nodes = {str(target): bool(present) for target, present in (nodes or {}).items()}
 
     def _log_reply(self, request_id, event):
         row = self.log_rows.pop(request_id, None)
@@ -335,7 +482,7 @@ class MonitorCore:
         same = is_duplicate(event, self.store.open_events(), event['detected_at'])
         if same:
             self.store.touch_event(same['event_id'], event['detected_at'])
-            self._retry(same)
+            self._rejudge(same, event)
             return self.store.event(same['event_id'])
         robots = self.robots_view()
         result = self._inherit(event, judge(event, robots), robots)
@@ -350,12 +497,64 @@ class MonitorCore:
             'linked_mission_id': result['linked_order_id'],
             'robot_step_at_event': step_code(linked.get('step_seq', 0)),
             'robot_cargo_at_event': linked.get('cargo_state', 'UNKNOWN'),
+            'robot_phase_at_event': self._phase_key(linked),
             'judgment': result['judgment'], 'recommended_action': result['recommended_action'],
             'stop_scope': result['stop_scope'],
             'stop_targets_json': json.dumps(result['stop_targets']),
             'alarm_text': result['alarm_text'], 'control_action': 'NONE'})
         self._control(event['event_id'], result, robots)
         return self.store.event(event['event_id'])
+
+    def _rejudge(self, row, event):
+        """
+        합친 재감지를 지금 로봇 상태로 다시 판정한다(judgment.rejudge 규칙).
+
+        바뀌지 않으면 옛 동작대로 걸리지 않은 정지만 다시 요청한다. 조치나 범위가 넓어지면 새로 요청한다.
+        """
+        robots = self.robots_view()
+        fresh = judge(event, robots)
+        linked = robots.get(fresh['linked_robot_id'], {})
+        merged = rejudge(row, fresh, self._phase_key(linked),
+                         self._adoptable(row, event, fresh['linked_robot_id'], linked))
+        if merged is None:
+            self._retry(row)
+            return
+        wider = escalated(row, merged)
+        fields = {
+            'judgment': merged['judgment'], 'linked_robot_id': merged['linked_robot_id'],
+            'linked_mission_id': merged['linked_order_id'],
+            'robot_step_at_event': step_code(linked.get('step_seq', 0)),
+            'robot_cargo_at_event': linked.get('cargo_state', 'UNKNOWN'),
+            'robot_phase_at_event': self._phase_key(linked),
+            'recommended_action': merged['recommended_action'], 'stop_scope': merged['stop_scope'],
+            'stop_targets_json': json.dumps(merged['stop_targets']),
+            'alarm_text': merged['alarm_text'],
+            'judgment_history': ' > '.join(x for x in (row.get('judgment_history'),
+                                                       row['judgment']) if x)}
+        if wider:
+            fields['hold_seen'] = 0  # 새 정지를 요청하므로 옛 정지 확인을 쓰지 않는다
+        self.store.rejudge_event(row['event_id'], fields)
+        if wider or row['control_action'] == 'NONE':
+            self._control(row['event_id'], merged, robots)
+        else:
+            self._retry(self.store.event(row['event_id']))
+
+    def _adoptable(self, row, event, robot, view):
+        """
+        로봇을 지목하지 못한 열린 사건에 이 로봇을 새로 이어도 되는가(judgment.rejudge 의 adopt).
+
+        첫 감지 때 근처 로봇으로 적힌 로봇(AMBIGUOUS 대상)이거나, 첫 감지부터 지금까지 주행하지 않고
+        오도메트리 정지가 이어진 로봇만 잇는다. 지나가던 적재 로봇에 옛 장애물·무시 사건을 붙이지 않는다.
+        경과 시간은 카메라 시각끼리 빼서 쓴다(카메라와 감시 PC 시계 차이와 무관).
+        """
+        if robot is None:
+            return False
+        if robot in json.loads(row.get('stop_targets_json') or '[]'):
+            return True
+        since = self.still_since.get(robot)
+        elapsed = max(0.0, event['detected_at'] - (row.get('detected_at') or 0.0))
+        return (since is not None and not view.get('driving')
+                and self.clock() - since >= elapsed)
 
     def _inherit(self, event, result, robots):
         """닫힌 로봇 지정 사건 자리의 재감지가 전체 정지로 번지지 않게 그 사건의 범위를 잇는다."""
@@ -444,15 +643,37 @@ class MonitorCore:
         return mode
 
     def acknowledge(self, event_id, state, operator, note=''):
-        """운영자 확인을 기록한다. 로봇 복구는 관제 resolve로 따로 요청한다."""
+        """
+        운영자 확인을 기록한다. 로봇 복구는 관제 resolve로 따로 요청한다.
+
+        event_id 가 'residual:<robot_id>' 이면 그 로봇의 잔류 화물 표시를 확인한다.
+        ACKNOWLEDGED 는 봤다는 것만 남기고, RESOLVED·FALSE_ALARM 은 표시를 내린다(비운 것을 확인).
+        """
         if state not in ACK_STATES:
             raise ValueError('ack_state: ' + ', '.join(ACK_STATES))
         if not isinstance(operator, str) or not operator.strip():
             raise ValueError('operator 필요')
+        if isinstance(event_id, str) and event_id.startswith(RESIDUAL_ACK_PREFIX):
+            return self._ack_residual(event_id[len(RESIDUAL_ACK_PREFIX):], state,
+                                      operator.strip(), note)
         if not self.store.event(event_id):
             raise KeyError(event_id)
         self.store.set_ack(event_id, state, operator, note, self.clock())
         return self.store.event(event_id)
+
+    def _ack_residual(self, robot, state, operator, note):
+        if not self.residual.get(robot):
+            raise KeyError(robot)
+        now = self.clock()
+        if state == 'ACKNOWLEDGED':
+            self.store.ack_residual(robot, operator, now)
+        else:
+            for order_id in list(self.residual[robot]):
+                self.store.clear_residual(robot, order_id, operator,
+                                          note or f'운영자 확인({state})', now)
+        self._load_residual()
+        return {'robot_id': robot, 'ack_state': state,
+                'residual_cargo': self._residual_of(robot)}
 
     def close_events(self, mission_id, operator, note=''):
         """관제가 복구를 받은 주문의 열린 이벤트를 닫는다."""
@@ -524,7 +745,10 @@ class MonitorCore:
             (status.get('central_latched') is not True, 'central_latched'),
             (not status.get('held_zone'), '구역 점유'),
         ]
-        return [reason for ok, reason in checks if not ok]
+        reasons = [reason for ok, reason in checks if not ok]
+        # 관제 배정 조건에는 없는 감시 쪽 경고다. 관제는 이 로봇에도 주문을 준다.
+        reasons += [f'잔류 화물 의심 ({order_id})' for order_id in self.residual.get(robot, {})]
+        return reasons
 
     def live(self):
         """웹 표시용 현재 상태를 만든다."""
@@ -544,4 +768,8 @@ class MonitorCore:
                 'links': [self._link(robot, now) for robot in self.robots],
                 'fleet_age_sec': None if self.tasks_at is None else now - self.tasks_at,
                 'robots': [dict(views[r], robot_id=r) for r in self.robots],
-                'holds': self.holds, 'missions': missions, 'anomalies': self.store.events(30)}
+                'holds': self.holds, 'missions': missions, 'anomalies': self.store.events(30),
+                'alarms': self.store.control_events(('alarm',), limit=ALARM_LIMIT),
+                'arm_nodes': dict(self.arm_nodes),
+                'residual_cargo': [dict(row) for rows in self.residual.values()
+                                   for row in rows.values()]}
