@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS scenarios (
     current_step_code TEXT NOT NULL DEFAULT 'NONE',
     current_stage TEXT NOT NULL DEFAULT '', cargo_state TEXT NOT NULL DEFAULT 'EMPTY',
     mission_state TEXT NOT NULL, hold_reason TEXT NOT NULL DEFAULT '',
-    detail TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, updated_at REAL NOT NULL
+    detail TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, updated_at REAL NOT NULL,
+    outcome TEXT NOT NULL DEFAULT '', last_alarm_code TEXT NOT NULL DEFAULT '',
+    last_alarm_detail TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS scenario_tasks (
     task_id TEXT PRIMARY KEY, mission_id TEXT NOT NULL, step_seq INTEGER NOT NULL,
@@ -44,7 +46,8 @@ CREATE TABLE IF NOT EXISTS cctv_anomaly_events (
     control_action TEXT NOT NULL, control_detail TEXT NOT NULL DEFAULT '',
     ack_state TEXT NOT NULL DEFAULT 'UNREAD', resolved_by TEXT NOT NULL DEFAULT '',
     resolved_note TEXT NOT NULL DEFAULT '', resolved_at REAL,
-    hold_seen INTEGER NOT NULL DEFAULT 0
+    hold_seen INTEGER NOT NULL DEFAULT 0,
+    robot_phase_at_event TEXT NOT NULL DEFAULT '', judgment_history TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS trace_orders (
     order_id TEXT PRIMARY KEY, snapshot TEXT NOT NULL
@@ -73,12 +76,36 @@ CREATE TABLE IF NOT EXISTS manual_work (
 );
 CREATE INDEX IF NOT EXISTS manual_work_order ON manual_work(json_extract(request_json,'$.order_id'))
     WHERE json_valid(request_json);
+CREATE TABLE IF NOT EXISTS residual_cargo (
+    robot_id TEXT NOT NULL, order_id TEXT NOT NULL, reason TEXT NOT NULL, set_at REAL NOT NULL,
+    acked_by TEXT NOT NULL DEFAULT '', acked_at REAL,
+    cleared_at REAL, cleared_by TEXT NOT NULL DEFAULT '', clear_note TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(robot_id, order_id)
+);
+CREATE TABLE IF NOT EXISTS control_events (
+    event_key TEXT PRIMARY KEY, type TEXT NOT NULL, code TEXT NOT NULL DEFAULT '',
+    order_id TEXT NOT NULL DEFAULT '', robot_id TEXT NOT NULL DEFAULT '',
+    detail TEXT NOT NULL DEFAULT '', at REAL NOT NULL, payload TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS control_event_order ON control_events(order_id, at);
+CREATE INDEX IF NOT EXISTS control_event_type ON control_events(type, at);
 """
 # 이미 만들어진 DB에는 CREATE TABLE IF NOT EXISTS로 열이 생기지 않는다. 시작 때 따로 더한다.
 ADDED_COLUMNS = (
     ('cctv_anomaly_events', 'stop_scope', "TEXT NOT NULL DEFAULT 'ROBOT'"),
     ('cctv_anomaly_events', 'hold_seen', 'INTEGER NOT NULL DEFAULT 0'),
+    # 11-21: 재감지 재판정(국면이 바뀐 때)과 고객 응답·관제 경보 기록.
+    ('cctv_anomaly_events', 'robot_phase_at_event', "TEXT NOT NULL DEFAULT ''"),
+    ('cctv_anomaly_events', 'judgment_history', "TEXT NOT NULL DEFAULT ''"),
+    ('scenarios', 'outcome', "TEXT NOT NULL DEFAULT ''"),
+    ('scenarios', 'last_alarm_code', "TEXT NOT NULL DEFAULT ''"),
+    ('scenarios', 'last_alarm_detail', "TEXT NOT NULL DEFAULT ''"),
 )
+# 재판정이 바꾸는 사건 칸. 처음 감지 시각·위치·조치 기록은 그대로 둔다.
+REJUDGE_FIELDS = ('judgment', 'linked_robot_id', 'linked_mission_id', 'robot_step_at_event',
+                  'robot_cargo_at_event', 'robot_phase_at_event', 'recommended_action',
+                  'stop_scope', 'stop_targets_json', 'alarm_text', 'judgment_history',
+                  'hold_seen')
 
 
 class MonitorStore:
@@ -199,6 +226,12 @@ class MonitorStore:
         """같은 물체의 재검출을 기존 이벤트에 합친다."""
         self._write('UPDATE cctv_anomaly_events SET last_seen=?, repeat_count=repeat_count+1 '
                     'WHERE event_id=?', seen_at, event_id)
+
+    def rejudge_event(self, event_id, fields):
+        """합친 재감지를 다시 판정한 결과로 사건 분류를 바꾼다."""
+        names = [name for name in REJUDGE_FIELDS if name in fields]
+        self._write(f"UPDATE cctv_anomaly_events SET {', '.join(n + '=?' for n in names)} "
+                    'WHERE event_id=?', *[fields[n] for n in names], event_id)
 
     def set_control(self, event_id, action, detail):
         """조치와 그 결과를 남긴다."""
@@ -390,3 +423,51 @@ class MonitorStore:
                 "WHERE request_id=? AND state='PENDING'",
                 (state, json.dumps(result, ensure_ascii=False), at, request_id))
             return changed.rowcount == 1
+
+    def set_last_alarm(self, mission_id, code, detail):
+        """주문의 마지막 관제 경보를 시나리오 행에 남긴다."""
+        self._write('UPDATE scenarios SET last_alarm_code=?, last_alarm_detail=? '
+                    'WHERE mission_id=?', code, detail, mission_id)
+
+    def residuals(self):
+        """잔류 화물 기록 전체를 읽는다(지운 것 포함). 시작 때 한 번 읽는다."""
+        return self._rows('SELECT * FROM residual_cargo ORDER BY set_at, rowid')
+
+    def add_residual(self, robot_id, order_id, reason, at):
+        """신발을 실은 채 끝난 주문을 로봇별로 남긴다. 같은 주문은 한 번만 넣는다."""
+        self._write('INSERT OR IGNORE INTO residual_cargo (robot_id, order_id, reason, set_at) '
+                    'VALUES (?, ?, ?, ?)', robot_id, order_id, reason, at)
+
+    def ack_residual(self, robot_id, operator, at):
+        """운영자가 잔류 화물 표시를 봤다는 것만 남긴다. 표시는 그대로다."""
+        self._write('UPDATE residual_cargo SET acked_by=?, acked_at=? '
+                    'WHERE robot_id=? AND cleared_at IS NULL', operator, at, robot_id)
+
+    def clear_residual(self, robot_id, order_id, by, note, at):
+        """잔류 화물 표시를 내린다. 기록은 지우지 않는다."""
+        self._write('UPDATE residual_cargo SET cleared_at=?, cleared_by=?, clear_note=? '
+                    'WHERE robot_id=? AND order_id=? AND cleared_at IS NULL',
+                    at, by, note, robot_id, order_id)
+
+    def add_control_event(self, row):
+        """관제 task_events 의 경보·운영자 조치를 남긴다. 같은 event_key 는 한 번만 넣는다."""
+        self._write('INSERT OR IGNORE INTO control_events (event_key, type, code, order_id, '
+                    'robot_id, detail, at, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    row['event_key'], row['type'], row['code'], row['order_id'], row['robot_id'],
+                    row['detail'], row['at'], row['payload'])
+
+    def control_events(self, types=None, order_id=None, limit=50):
+        """관제 경보·조치 기록을 새것부터 읽는다."""
+        where, args = [], []
+        if types:
+            where.append(f"type IN ({', '.join('?' for _ in types)})")
+            args += list(types)
+        if order_id is not None:
+            where.append('order_id=?')
+            args.append(order_id)
+        clause = (' WHERE ' + ' AND '.join(where)) if where else ''
+        rows = self._rows(f'SELECT * FROM control_events{clause} ORDER BY at DESC, rowid DESC '
+                          'LIMIT ?', *args, limit)
+        for row in rows:
+            row['payload'] = json.loads(row['payload'])
+        return rows

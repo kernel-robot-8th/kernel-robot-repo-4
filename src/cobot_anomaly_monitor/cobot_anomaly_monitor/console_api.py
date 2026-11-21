@@ -8,32 +8,122 @@ import time
 import uuid
 from urllib.parse import parse_qs, urlsplit
 
+from .manual_adapter import arm_missing_text
+from .scenario_view import is_customer_order
+
 BODY_LIMIT = 16384
-CONTROL_TYPES = ('arm', 'inventory', 'order', 'received', 'resolve', 'pause', 'estop',
-                 'release_control', 'create')
+# declined: 자리 주문 CUSTOMER 에서 고객이 사지 않음(회수). 관제 control_api 가 받는 type 이다.
+CONTROL_TYPES = ('arm', 'inventory', 'order', 'received', 'declined', 'resolve', 'pause',
+                 'estop', 'release_control', 'create')
 CONSOLE_OPERATIONS = ('goto', 'zone', 'leave', 'home')
 WRITE_ROUTES = ('control', 'mode', 'work')
 ARM_ON_DETAIL = '가동 허용 켜기는 관제 웹에서만 합니다. 이 창구는 끄기만 전달합니다.'
 MOCK_CLASSES = ('box_on_floor', 'box_perched_on_rim', 'box_run_over', 'lid_detached')
+TERMINAL = ('COMPLETED', 'FAILED')
+# 관제 confirm_loaded 가 받는 주문(origin/sakim scenario_safety.py:59-63): 상태 RUNNING·UNKNOWN,
+# 단계 PICKUP_EXIT~VERIFY_LOAD 와 CORRECT_PICKUP, MOVE_PICKUP 완료, 실패 없음. 멈춘 주문 중에는 UNKNOWN 만 된다.
+CONFIRM_LOADED_STAGES = frozenset({'PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER', 'PICK', 'LOAD',
+                                   'VERIFY_LOAD', 'CORRECT_PICKUP'})
+# 자리 주문은 상차장만 예약해 관제가 늘 거절한다(scenario_safety.py:77-80, scenario_runtime.py:61-65).
+SEAT_CONFIRM_NOTE = '자리 주문은 수동 상차 확인(confirm_loaded)을 관제가 거절함 · fail 로 종결 후 재주문'
+# 주문 수신 원문(trace_work_wire)에 감시가 남기는 경고 종류.
+WARNING_KINDS = ('arm_node_missing', 'adapter_warning')
+WIRE_PAGE_LIMIT = 40  # 경고를 찾을 때 읽는 수신 원문 쪽수 상한(쪽당 50건)
 
 
 class ConsoleApi:
     """요청 해석만 맡는다. 저장소와 ROS 접근은 run으로 실행기 스레드에 넘긴다."""
 
     def __init__(self, core, adapter, run, wait_reply, allow_mock=True, clock=time.time,
-                 commands=False, observation_only=False):
+                 commands=False, observation_only=False, dock_tolerance=None):
         self.core, self.adapter, self.run, self.wait_reply = core, adapter, run, wait_reply
         self.allow_mock, self.clock, self.commands = allow_mock, clock, commands
         self.observation_only = observation_only
+        # 추적표 정차 행 공차 비교용 scenario_config 값 {'dock_xy_m', 'dock_yaw_deg'}. 없으면 관제 행동으로만 본다.
+        self.dock_tolerance = dock_tolerance
         self.cached = {}
 
     def refresh(self):
         """실행기 스레드에서 호출한다. GET은 이 사본만 읽는다."""
         work = self.adapter.pending() if self.adapter else []
-        self.cached = dict(self.core.live(), work=work, allow_mock=self.allow_mock,
-                           commands_enabled=self.commands,
+        live = self.core.live()
+        # 아래 두 값은 화면용 덧붙임이다. 노드 타이머에서 돌므로 이상한 주문 값 하나로 예외가 나면
+        # 노드 전체가 멈춘다. 실패하면 그 값만 비우고 갱신은 계속한다.
+        for row in live.get('missions', []):
+            try:
+                self._recovery_options(row)
+            except Exception:  # noqa: BLE001 - 표시용 값 계산 실패가 감시를 멈추면 안 된다
+                row['recovery_options'], row['recovery_note'] = [], ''
+        try:
+            arm_waits = self._arm_waits()
+        except Exception:  # noqa: BLE001
+            arm_waits = []
+        self.cached = dict(live, work=work, allow_mock=self.allow_mock,
+                           commands_enabled=self.commands, arm_waits=arm_waits,
                            adapter={'enabled': self.adapter is not None,
                                     'blocked': self.adapter.blocked if self.adapter else ''})
+
+    def _recovery_options(self, row):
+        """
+        멈춘 주문에 관제가 받는 복구 길을 붙인다. recovery(옛 칸)는 그대로 둔다.
+
+        resume 은 이동·수령 단계만, fail 은 멈춘 주문 모두, confirm_loaded 는 경로 주문의 상차 검증 중에만이다.
+        로봇 정지·구역 보유 같은 실시간 조건은 관제가 요청 때 다시 확인한다.
+        """
+        options, note = [], ''
+        if row.get('recovery'):
+            options = (['resume'] if row['recovery'] == 'resume' else []) + ['fail']
+        order = self.core.orders.get(row.get('mission_id')) or {}
+        stage = order.get('stage')
+        if (order.get('state') == 'UNKNOWN' and isinstance(stage, str)
+                and stage in CONFIRM_LOADED_STAGES
+                and isinstance(order.get('completed'), (list, tuple))
+                and 'MOVE_PICKUP' in order['completed'] and order.get('robot_id')
+                and not order.get('failure') and not order.get('operator_load_confirmation')):
+            route = self.core._route(order) if order.get('route') else {}
+            if is_customer_order(order, route) or (not route and order.get('destination')):
+                note = SEAT_CONFIRM_NOTE
+            else:
+                options.append('confirm_loaded')
+        row['recovery_options'] = options
+        row['recovery_note'] = note
+
+    def _arm_waits(self):
+        """지금 단계가 팔 작업인데 그 팔의 팀 노드가 안 보이는 주문. 아무도 답하지 않는다."""
+        missing = {t for t, present in (self.core.arm_nodes or {}).items() if present is False}
+        if not missing:
+            return []
+        waits = []
+        for order in self.core.orders.values():
+            rid = order.get('request_id')
+            if order.get('state') in TERMINAL or not isinstance(rid, str) or not rid:
+                continue
+            try:
+                request = self._request_of(order['order_id'], rid)
+            except Exception:  # noqa: BLE001 - 주문 하나의 이상한 기록이 다른 주문 표시를 막지 않게 한다
+                continue
+            target = request.get('target') if request else None
+            if not isinstance(target, str) or target not in missing or request.get('answered'):
+                continue
+            waits.append({'order_id': order['order_id'], 'robot_id': order.get('robot_id'),
+                          'stage': order.get('stage'), 'request_id': rid,
+                          'target': request['target'], 'since': request.get('at'),
+                          'detail': arm_missing_text(request['target'])})
+        return waits
+
+    def _request_of(self, order_id, request_id):
+        """관측한 작업 요청 원문(없으면 어댑터 접수본)과 결과 관측 여부."""
+        requests, _ = self.core.store.observed_work(order_id)
+        seen = next((r for r in requests if r.get('request_id') == request_id), None)
+        if seen and seen.get('target'):
+            return {'target': seen['target'], 'at': seen.get('wire_observed_at'),
+                    'answered': bool(seen.get('wire_results'))}
+        row = self.adapter.store.work(request_id) if self.adapter else None
+        if row:
+            request = json.loads(row['request_json'])
+            return {'target': request.get('target'), 'at': row['created_at'],
+                    'answered': row['state'] != 'PENDING'}
+        return None
 
     def handle(self, method, path, body):
         """(HTTP 상태, 본문)을 돌려준다. 쓰기 뒤에는 사본을 바로 맞춰 이중 승인을 막는다."""
@@ -158,7 +248,7 @@ class ConsoleApi:
         raise ValueError('decision: approve 또는 reject')
 
     def _order_trace(self, order_id):
-        from .stage_trace import build_stage_trace
+        from .stage_trace import build_stage_trace, order_notes
         store = self.core.store
         reader = self.adapter or store
         attempts = store.trace_attempts(order_id)
@@ -178,8 +268,51 @@ class ConsoleApi:
         trace = build_stage_trace(order, history, tasks=self.core.tasks,
                                   attempts=attempts,
                                   route=self.core._route(order) if order.get('route') else {},
-                                  unmatched=unmatched, terminal=store.terminal_resources(order_id))
-        return {'order_id': order_id, 'order': order, 'trace': trace, 'unmatched_results': unmatched}
+                                  unmatched=unmatched, terminal=store.terminal_resources(order_id),
+                                  dock_tolerance=self.dock_tolerance)
+        warnings = self._warnings(order_id)
+        self._mark_arm_missing(order, trace, warnings)
+        notes = order_notes(order, history, attempts=attempts,
+                            control_events=store.control_events(order_id=order_id))
+        return {'order_id': order_id, 'order': order, 'trace': trace, 'unmatched_results': unmatched,
+                'warnings': warnings, 'alarms': self.core.alarms(order_id), 'notes': notes}
+
+    def _warnings(self, order_id):
+        """감시가 남긴 주문 경고(팔 노드 없음·모르는 단계)를 수신 원문에서 모은다."""
+        found, after = [], 0
+        for _ in range(WIRE_PAGE_LIMIT):
+            page = self.core.store.wire_page(order_id, after)
+            found += [dict(row['payload'], kind=row['kind'], request_id=row['request_id'],
+                           at=row['at'])
+                      for row in page['events']
+                      if row['kind'] in WARNING_KINDS and isinstance(row['payload'], dict)]
+            after = page['next_cursor']
+            if after is None:
+                break
+        return found
+
+    def _mark_arm_missing(self, order, trace, warnings):
+        """
+        결과가 안 온 팔 단계 행에 '팔 노드 없음'을 붙인다.
+
+        요청 때 남긴 경고가 있거나, 지금 단계 행인데 그 팔 노드가 지금 안 보이면 붙인다.
+        """
+        recorded = {w['request_id']: w.get('detail') or arm_missing_text(w.get('target'))
+                    for w in warnings if w['kind'] == 'arm_node_missing'}
+        nodes = self.core.arm_nodes or {}
+        for row in trace:
+            rid = row.get('request_id')
+            if not rid or row['checkpoints'].get('result') != 'NONE':
+                continue
+            detail = recorded.get(rid)
+            if (not detail and rid == order.get('request_id')
+                    and order.get('state') not in TERMINAL
+                    and nodes.get(row.get('target')) is False):
+                detail = arm_missing_text(row['target'])
+            if detail:
+                row['evidence_summary'] += ' · ' + detail
+                row['evidence_detail'] = dict(row['evidence_detail'] or {},
+                                              arm_node_missing=detail)
 
 
 def serve(api, host, port):

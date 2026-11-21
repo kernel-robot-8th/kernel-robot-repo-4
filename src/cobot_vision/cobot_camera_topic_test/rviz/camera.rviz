@@ -13,7 +13,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Depth: 1
-      Transport Hint: raw
+      Transport Hint: compressed
       Queue Size: 1
   Global Options:
     Fixed Frame: front_camera_link

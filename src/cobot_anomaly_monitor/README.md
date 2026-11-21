@@ -5,7 +5,7 @@
 | 모듈 | 하는 일 |
 |---|---|
 | `judgment.py` | 판정표 정본. ROS와 DB 없는 순수 함수로, 시뮬도 그대로 import합니다 |
-| `scenario_view.py` | 21단계를 7단계로 바꾸고 적재 상태를 계산합니다 |
+| `scenario_view.py` | 관제 단계(일반 경로 주문 단계와 고객 자리 주문 단계, 아래 "관제 기준")를 7단계로 바꾸고 적재 상태를 계산합니다 |
 | `monitor_store.py` | 별도 SQLite 파일. 관제 DB에는 쓰지 않습니다 |
 | `monitor_core.py` | 스냅샷 기록, 판정, 모드별 조치 |
 | `manual_adapter.py` | 사람 승인·자동 응답·비전 판정으로 `/fleet/work_request`에 답합니다 |
@@ -16,6 +16,16 @@
 | `debug_view.py` | 메뉴 6.5 디버그 표시용 순수 계산 |
 | `monitor_node.py`, `pixel_event_node.py` | 위 모듈을 ROS에 연결합니다 |
 
+## 관제 기준
+
+관제 기준은 김성아 님 작업 1af9888(11-19, 고객 자리 주문 흐름)입니다(11-21). 원격 `sakim` 1b0cb08은 그중 고객 주문 3커밋을 먼저 올린 사본이라 시나리오 파일이 같습니다. 코드 주석·시험의 `origin/sakim`·1b0cb08은 같은 파일을 가리킵니다. 구역 역할은 ZB 상차(`omx2`), ZC 매장 신발 정리(`omx3`), ZA 반환 상자 선반 복귀(`omx1`)입니다.
+
+- 일반 경로 주문(`lab_delivery` ZA→ZC `omx1`/`omx3`, `lab_delivery_zb` ZB→ZC `omx2`/`omx3`)은 19단계입니다. 정차 보정 `CORRECT_PICKUP`·`CORRECT_DROPOFF`를 더하면 21개입니다.
+- 고객 자리 주문(`col1__P22`, `col2__P22`)은 `MOVE_PICKUP`(ZB)부터 `LEAVE_PICKUP`까지 같고, 그 뒤 `MOVE_CUSTOMER`(P22), `CUSTOMER`로 갑니다. 결제나 시간 초과(300초)면 `RETURN_HOME`, `RETURN_EXIT`로 끝납니다. 회수면 `MOVE_ARRANGE`(ZC), `ARRANGE`(`omx3` `arrange_shoe`), `LEAVE_ARRANGE`, `MOVE_RESTOCK`(ZA), `RESTOCK`(`omx1` `warehouse_store`), `LEAVE_RESTOCK` 뒤 복귀합니다.
+- 관제의 재개 가능 단계(`RESUME_STAGES`)는 `MOVE_PICKUP`, `MOVE_DROPOFF`, `RETURN_HOME`, `CUSTOMER`, `MOVE_CUSTOMER`, `MOVE_ARRANGE`, `MOVE_RESTOCK`입니다.
+- `ARRANGE`·`RESTOCK` 뒤에는 결과를 확인하는 관제 비전 단계(`VERIFY_*`)가 없습니다. 그래서 자리 주문의 적재 판정은 ZB의 `VERIFY_LOAD`에서만 돕니다.
+- 이 변경을 어느 브랜치에 올릴지는 사용자가 정합니다(미정).
+
 ## 지키는 규칙
 
 - `patrol_cmd`를 발행하지 않습니다. 관제의 단일 발행자 검사가 주행을 거절합니다.
@@ -25,7 +35,14 @@
 
 ## 실행
 
-관제와 같은 ROS 도메인에서 실행합니다. `fleet_control`에는 `scenario_config`로 `config/scenario_relay_dev.yaml`을 넘깁니다.
+관제와 같은 ROS 도메인에서 실행합니다.
+
+`config/scenario_relay_dev.yaml`은 격리 시뮬·시험 전용입니다. 격리 도메인에서 `fleet_control`을 같이 띄울 때만 `scenario_config`로 넘깁니다. 현장 관제 `fleet_control`은 자기 패키지의 `config/scenario.yaml`을 씁니다.
+
+- 값은 관제 `scenario.yaml`(1af9888, sakim 1b0cb08과 같음)과 같게 맞췄습니다(11-20). 팀 파일이 바뀌면 다시 맞춥니다. 개발 전용 경로 `wh_a_to_store`·`wh_b_to_store`만 더 있습니다.
+- `customer_return`이 들어 있어 고객 자리 주문이 들어간 `fleet_control`(87b9bee 이후)에서만 뜹니다. 그 전 판(11-17 main a0d0bf0 등)은 `customer_return` 인자 오류로 시작하지 못합니다.
+- 감시 노드도 기본값(`scenario_config` 인자)으로 이 파일을 읽습니다. `routes`에 더해 `shelf`·`destinations`·`customer_return`으로 관제 `_layout`과 같은 자리 경로 `col<열>__<자리>`(`col1__P22`·`col2__P22`)를 만듭니다(`monitor_node.layout_routes`, 11-21). 기록의 팔 이름(`load_arm_id`·`unload_arm_id`), 7단계의 구역 진입 계산과 작업 주체, 주문 추적의 대상 대체값에 씁니다. 비전 적재 판정에는 쓰지 않습니다(판정은 요청에 실린 route를 씁니다).
+- 같은 파일의 `dock_xy_m`·`dock_yaw_deg`는 주문 추적표 정차 행의 공차 비교에만 씁니다. 관제 응답은 바꾸지 않습니다.
 
 ```bash
 ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml
@@ -79,10 +96,16 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 
 | 판정 | 범위 | 요청 |
 |---|---|---|
-| `LOAD_FAIL_PERCHED`, `TRANSIT_PERCHED`, `LOAD_FAIL_DROP`, `UNLOAD_FAIL` | `ROBOT` | `pause`, 그 로봇 |
-| `TRANSIT_DROP`, `LANE_OBSTACLE`, `AMBIGUOUS`(바닥) | `ALL` | `pause`, 로봇 지정 없음 |
+| `LOAD_FAIL_PERCHED`, `TRANSIT_PERCHED`, `LOAD_FAIL_DROP`(LOAD·VERIFY_LOAD), `UNLOAD_FAIL`, `ARRANGE_FAIL`, `CUSTOMER_HANDOVER_PERCHED`, `CUSTOMER_HANDOVER_DROP`, `RESIDUAL_PERCHED` | `ROBOT` | `pause`, 그 로봇 |
+| `AMBIGUOUS`(걸침, 근처 화물 로봇 둘 이상) | `ROBOT` | `pause`, 근처 로봇마다 |
+| `TRANSIT_DROP`, `LANE_OBSTACLE`, `AMBIGUOUS`(바닥), `LOAD_FAIL_DROP`(PICK), `RESIDUAL_DROP` | `ALL` | `pause`, 로봇 지정 없음 |
 | `RUN_OVER_COLLISION` | `ALL` | `estop`, 로봇 지정 없음 |
-| `LID_OPEN_ANOMALY`, `AMBIGUOUS`(걸침), `NO_POSITION`, `IGNORED` | `ROBOT` | 없음 |
+| `LID_OPEN_ANOMALY`, `CUSTOMER_HANDOVER_LID`, `NO_POSITION`, `IGNORED` | `ROBOT` | 없음 |
+
+- 11-21 판정 국면 정리 뒤에도 같은 물리 상황의 범위는 11-20 전(404d7ab)보다 좁히지 않습니다. 예외는 자리 주문 고객 인계(D1)로, 11-20 전과 같은 로봇 한 대 범위(`UNLOAD_FAIL`)를 이름만 바꿔 씁니다.
+- PICK 바닥 상자는 11-20 전에 진로 장애물(전체 정지)이었으므로 `LOAD_FAIL_DROP`이라도 `ALL`입니다. 같은 이름이 국면에 따라 범위가 다릅니다.
+- 걸침 `AMBIGUOUS`는 11-20 전에 조치가 없었습니다. 화물로 잇는 로봇(PICK, 잔류 화물, `EMPTY_UNVERIFIED`)이 늘어 한 대를 세우던 자리가 보류로 바뀌지 않게 근처 로봇을 모두 세웁니다. `linked_robot_id`는 비웁니다.
+- 고객 인계 중 뚜껑 열림(`CUSTOMER_HANDOVER_LID`)은 고객 개봉으로 보고 기록만 합니다. 다만 열린 사건으로 남아 웹 열린 이상 목록에는 보입니다(웹 표시 미정리).
 
 - `ROBOT`은 `stop_targets`의 로봇마다 `robot_id`를 넣어 요청합니다. 관제는 그 로봇만 보류하고 `armed`는 켜 둡니다.
 - `ALL`은 `robot_id` 키가 없는 요청 한 건입니다. 관제는 전 로봇을 보류하고 `armed`를 끕니다. 이때 `stop_targets`는 기록용입니다.
@@ -110,6 +133,15 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml console_commands:=t
 - 거절된 정지(`*_FAILED`), 관찰 모드 기록, 조치 없는 판정은 자동으로 닫지 않습니다.
 - 열린 사건과 같은 자리(30초, 0.25 m)의 재감지는 묶여서 요청이 늘지 않습니다. 전체 정지가 걸린 채 열린 사건은 30초가 지나도 묶습니다. 닫힌 뒤의 재감지는 새 사건이고 정지가 다시 나갑니다.
 - 로봇 지정 정지 사건이 `RESOLVED`로 닫힌 뒤 300초 안에 같은 자리에서 다시 감지되면, 새 판정이 `LANE_OBSTACLE`이어도 닫힌 사건의 판정·범위·대상을 이어받습니다(그 로봇만 정지, 경보 문구에 `재감지`와 앞 사건 ID). 주문이 `fail`로 끝난 뒤 남은 상자가 전체 정지를 부르지 않게 하기 위해서입니다. 300초가 지나면 새로 판정합니다.
+- 묶인 재감지는 지목 로봇의 국면(단계·판정 국면·적재)이 바뀌면 다시 판정합니다(11-21 M2). 조치와 범위는 처음과 새 판정 중 넓은 쪽을 둡니다. 그래서 `UNLOAD_FAIL`·`ALL`처럼 판정 이름의 본래 범위보다 넓은 짝이 생길 수 있습니다(이미 건 정지를 좁히지 않음). 지난 판정은 `judgment_history`에 남습니다.
+- 로봇을 지목하지 못한 사건(`LANE_OBSTACLE`·`IGNORED` 등)에 새로 로봇을 잇는 것은 첫 감지 때 근처 로봇으로 적힌 로봇이거나, 첫 감지부터 주행하지 않고 오도메트리 정지가 이어진 로봇일 때만입니다. 지나가던 적재 로봇에 옛 장애물을 붙이지 않습니다.
+
+### 판정 입력의 로봇 상태(11-21)
+
+- 판정 국면(`phase`)은 표시용 7단계와 따로 계산합니다: PICK, LOADING, TRANSIT, UNLOADING(RESTOCK 포함), ARRANGE(ZC 정리, 하역 아님), HANDOVER(자리 주문 CUSTOMER), RESIDUAL.
+- 자리 주문 결제 뒤와 RESTOCK 완료 뒤 적재는 `EMPTY_UNVERIFIED`입니다. 빈 트레이를 확인한 센서가 없기 때문입니다.
+- 시간 초과로 신발을 실은 채 끝난 자리 주문의 로봇은 잔류 화물(`residual_cargo` 표)로 남고 적재를 `LOADED`로 봅니다. 운영자가 `POST /api/fms/anomalies/residual:<robot_id>`에 `RESOLVED`·`FALSE_ALARM`을 보낼 때만 지웁니다. 같은 로봇의 뒤 주문 결제·하차 검증·선반 반환으로는 지우지 않습니다(상자 하나만 내리므로).
+- 순찰 상태가 3초 넘게 끊기면 `op_state`는 `LINK_LOST`, `link_stale`은 `true`입니다. 판정 입력 `driving`·`queue_wait`은 마지막 상태 그대로입니다(통신이 끊겼다고 선 것이 아님, 11-20 전과 같음).
 
 ### 기록 DB 열 추가
 
@@ -134,7 +166,7 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest test/test_ros_roundtrip.
 - 로봇을 지정한 정지는 그 로봇만 보류하고 관제의 `armed`는 켜 둡니다. 로봇 지정 없는 정지는 전 로봇을 보류하고 `armed`를 끕니다. 판정별 범위는 위 "정지 범위"에 있습니다.
 - `AUTO_HOLD`에서는 콘솔 모의 이벤트의 `box_on_floor`도 전체 정지를 부릅니다. 주문과 로봇이 없어도 `LANE_OBSTACLE`이 나옵니다.
 - `armed`가 꺼진 채 300초를 넘겨 장치 결과가 오면 그 주문은 `UNKNOWN`과 비상 정지로 갑니다.
-- `dock_xy_m` 0.05는 개발용 임시값입니다. 팀 기본은 0.01입니다.
+- `dock_xy_m`은 0.03 m입니다(관제 `scenario.yaml` 값, 팀이 1 cm에서 3 cm로 넓힘. 11-21 현장 시험은 관제 컨테이너 안에서 0.10 m로 고쳐 돌렸고 git에는 없습니다). 11-19 실물 ZB 정차 오차가 약 5 cm였고 정밀 보정은 아직 없습니다. 수동 어댑터는 `CORRECT_*`에 `no_motion`으로만 답해 로봇을 움직이지 않습니다. 그래서 상차 정차(`DOCK_PICKUP`) 오차가 3 cm를 계속 넘으면 보정 3회 뒤 안전 복귀로 주문이 `FAILED`가 됩니다(논리 탐침 확인, 실물 미확인). 하차 정차(`DOCK_DROPOFF`)에서 같은 일이 나면 `RETRIES_EXHAUSTED` 경보 뒤 `UNKNOWN` 보류입니다(관제 `scenario_runtime.retry` 코드 확인).
 - 개발 경로 둘은 `ZC`와 주행 통로를 함께 써서 두 로봇이 동시에 달리지 않습니다.
 
 ## 픽셀→map 좌표 변환
@@ -176,7 +208,6 @@ ros2 run cobot_anomaly_monitor build_camera_calibration measured.yaml camera_cal
 현장 감지기는 아직 이 입력을 내지 않습니다. 지금 `inference_worker.py`의 `infer()`는 빈 목록만 돌려주고 결과도 로그로만 남깁니다. `image_size`와 `reference_markers`를 내는 코드와 이 토픽의 발행자도 없습니다. 원본 프레임 bbox를 내는 검출기는 `~/yolo_edge/inbox/homelab-20261102/`에 전달돼 있고 미적용입니다.
 
 홈랩 7번 적재 검증과 메뉴 6.5 재생은 [실행 안내](docs/homelab_verify_load.md)를 참고하세요.
-발표자 및 발표 지원 에이전트용 핵심 요약표(문제·만든 것·시행착오·개선 결과·20초 대본)와 소스 매핑은 [발표자·에이전트 안내서](docs/PRESENTER_AGENT_VISION_JUDGE_GUIDE.md)에 정리되어 있습니다.
 
 ## 비전 적재 판정 (천장 카메라 → `/fleet/work_result`)
 
@@ -244,8 +275,13 @@ ros2 run cobot_anomaly_monitor mqtt_zone_evidence --broker <브로커 주소> --
 
 # 2) 감시 노드 (shadow 예)
 ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml \
-  judge_mode:=shadow auto_targets:='[vision]' calibration_id:=ceil-20261108
+  judge_mode:=shadow auto_targets:='[vision, navigation]' calibration_id:=ceil-20261108
 ```
+
+sakim 관제에서 target `vision`·`navigation` 요청에 답하는 노드는 이 패키지의 수동 어댑터뿐입니다.
+주문을 끝까지 돌리려면 `auto_targets`에 둘 다 넣습니다. `vision`이 빠지면 첫 비전 단계 `PICKUP_EXIT`에서,
+`navigation`이 빠지면 정차가 공차를 벗어나 `CORRECT_PICKUP`이 나갈 때 답이 없어 300초 뒤 `UNKNOWN`이 됩니다.
+`console_commands`가 `false`(기본)이면 콘솔 승인도 403이라 사람이 대신 답할 수 없습니다.
 
 `mqtt_zone_evidence`는 paho-mqtt 2.x가 필요합니다(`pip install paho-mqtt==2.1.0`). apt의 `python3-paho-mqtt` 1.6.1로는 뜨지 않습니다.
 프레임의 `stream_id`·`model_id`·`calibration_id`가 감시 노드 값(`ceiling`, `pinky-v1`, `calibration_id` 인자)과 같아야 받습니다.
@@ -254,7 +290,7 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml \
 
 | launch 인자 | 기본값 |
 |---|---|
-| `auto_targets` | `['']` (꺼짐), 시험 시 `'[vision]'` |
+| `auto_targets` | `['']` (꺼짐), sakim 관제와 돌릴 때 `'[vision, navigation]'` |
 | `judge_hold_sec`, `judge_still_ratio` | 1.0, 0.15 |
 | `judge_drop_frames`, `judge_min_frames` | 3, 3 |
 | `judge_fresh_sec`, `judge_gap_sec`, `judge_drop_reach` | 2.0, 1.0, 1.0 |
@@ -266,7 +302,9 @@ ros2 launch cobot_anomaly_monitor anomaly_monitor.launch.xml \
 
 이 값들은 실물 성능으로 확정한 임계값이 아닙니다. `judge_mode`가 `shadow`·`enforce`일 때 판정 수치가 유효하지 않으면 기동을 거절합니다.
 `judge_max_wait_sec`는 검사하지 않으며 0 이하면 `operator_attention` 표시가 꺼집니다.
-트레이 마커 번호(ZA 31, ZB 30, ZC 32)는 `load_complete.py`의 `TRAY_MARKERS`에 있으며, `scripts/vision/homelab_vision` 발행 앱이 프레임별 `tray_markers`와 핑키별 `tray_marker_seen`을 `relay/evidence/boxes`에 담아 보냅니다.
+트레이 마커는 구역이 아니라 핑키 트레이에 붙어 있는 것으로 보입니다(추정. 11-18 ZC에 선 pinky1 위에서 31이 보였습니다). 핑키별 번호 대응은 미확인이고 현장 확인이 필요합니다.
+`load_complete.py`의 `TRAY_MARKERS`(ZA 31, ZB 30, ZC 32)는 구역별 표입니다. 상자 메시지의 핑키 항목에 `tray_marker_seen`(bool)이 없을 때 쓰는 대체값입니다(있으면 표는 사실상 쓰이지 않습니다). 이 검사는 `judge_require_tray_marker_absent`를 켰을 때만 돌고, 기본은 꺼짐입니다.
+`scripts/vision/homelab_vision` 발행 앱(404d7ab 판)은 프레임별 `tray_markers`와 핑키별 `tray_marker_seen`을 `relay/evidence/boxes`에 담아 보냅니다.
 스트림·모델·보정·시각이 맞지 않는 프레임이 오면 그때까지 쌓은 이력도 함께 비우고, 불일치가 이어지는 동안 종류별 30초 간격으로 경고합니다.
 추락을 주문에 귀속하지 못해 보류하면 `judge_suppressed` 이력에 원래 판정과 프레임 번호를 남기고 실패 답은 보내지 않습니다.
 
@@ -279,11 +317,22 @@ pinky1을 ZC에 세우고 omx3로 `load`, `arrange_shoe`를 수동 시험(`MANUA
 - 그래도 판정 답은 나가지 않았습니다. 이유:
   - 수동 시험은 `VERIFY_LOAD` 단계가 아니라 판정 대상이 아닙니다.
   - 당시 모서리 마커가 3개만 잡혀 `marker_state`가 `FIXED`였고, 이때 발행 앱은 세 구역을 모두 `NO_ROBOT`으로 보내므로 판정은 보류합니다(현재 모서리 마커 4개 정상 검출로 `OK`).
+  - (11-20 정정: 위 괄호의 "현재 4개 정상 검출로 `OK`"는 지금 사실이 아닙니다. 천장 모서리 마커 42가 실제로 없습니다(11-20 사용자 현장 확인).
+    그래서 `marker_state`가 `OK`가 될 수 없고, 발행 앱은 세 구역을 모두 `NO_ROBOT`으로 보내며, 판정은 늘 보류입니다.
+    이 동안 `enforce`는 쓸 수 없습니다. `enforce`면 답이 없어 관제가 300초 뒤 `UNKNOWN`과 비상 정지로 처리합니다.
+    `shadow`는 약 5초 뒤 판정 없이 성공으로 답합니다. 42를 다시 붙일지, 마커 조건을 바꿀지는 미정이고 사용자가 정합니다.)
 - 빈 핑키가 처음부터 `pinky_loaded`로 분류됐고 트레이 마커는 계속 보였습니다.
   빈 차가 적재로 읽히지 않게 하려면 `judge_require_tray_marker_absent`를 켜야 합니다.
 - 배포된 `scenario.yaml`은 상차 구역이 ZA·ZB, 상차 팔이 `omx1`, 하차 팔이 `omx2`입니다. 조건 1은 팔 결과의 `source`가
   경로의 `pickup_arm`과 같아야 통과하므로 경로의 팔 지정이 실제 팔과 맞아야 합니다. ZC를 상차 구역으로 쓰는 주문은
   귀속 검사에서 보류됩니다(위 "세 조건" 참고).
+  - (11-20 정정: 위는 11-18 당시 배포판 기준입니다. 관제 기준 sakim 1b0cb08 `scenario.yaml`에서는 ZB 상차 `omx2`,
+    ZC 매장 신발 정리 `omx3`, ZA 반환 상자 선반 복귀 `omx1`입니다. 경로는 `lab_delivery` ZA→ZC `omx1`/`omx3`,
+    `lab_delivery_zb` ZB→ZC `omx2`/`omx3`이고, 자리 주문 `col1__P22`·`col2__P22`는 ZB `omx2` 상차 → P22이며
+    회수 때 ZC `omx3` 정리 → ZA `omx1` 반환을 거칩니다. sakim 경로에는 ZC 상차가 없습니다.
+    판정은 요청에 실린 route의 `pickup`·`pickup_arm`을 쓰므로 자리 주문은 ZB·`omx2`로 판정합니다.
+    현장 관제가 sakim 판으로 배포됐는지는 확인하지 않았습니다.
+    ZA가 반환 구역이 된 뒤에도 `lab_delivery`(ZA 상차)를 쓰는지는 미정이고 시나리오 최종본 담당(김성아 님)이 정합니다.)
 
 아직 실물에서 확인하지 못한 것: 주문 단계에서의 성공·추락 답, `enforce` 모드, 실제 적재 때의 구역 `LOADED` 전환.
 

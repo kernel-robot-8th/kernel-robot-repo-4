@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Publish Pinky Pro camera frames as raw ROS images using Best Effort QoS."""
+"""Publish Pinky Pro camera frames as JPEG or raw ROS images using Best Effort QoS."""
 
 from dataclasses import fields
 
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-
 from cobot_camera_topic_test.camera_runtime import camera_qos, run_node
-from cobot_camera_topic_test.camera_utils import CameraSettings, frame_payload, synthetic_payload
+from cobot_camera_topic_test.camera_utils import (
+    CameraSettings, frame_payload, jpeg_payload, synthetic_payload, transport_topic,
+)
 from cobot_camera_topic_test.pinky_camera_source import PinkyCameraSource
+from rclpy.node import Node
+from sensor_msgs.msg import CompressedImage, Image
 
 
 class CameraPublisherNode(Node):
@@ -40,7 +41,9 @@ class CameraPublisherNode(Node):
             }
             self.settings = CameraSettings(**values).validate()
             topic = self.declare_parameter('topic', '/camera/image_raw').value
-            self.publisher = self.create_publisher(Image, topic, camera_qos())
+            message_type = CompressedImage if self.settings.transport == 'compressed' else Image
+            self.publisher = self.create_publisher(
+                message_type, transport_topic(topic, self.settings.transport), camera_qos())
             self.sequence = 0
             self.read_failures = 0
             if self.settings.source == 'pinky':
@@ -48,15 +51,17 @@ class CameraPublisherNode(Node):
             self.timer = self.create_timer(1.0 / self.settings.fps, self.publish_frame)
             self.get_logger().info(
                 f'source={self.settings.source}, topic={self.publisher.topic_name}, '
+                f'transport={self.settings.transport}, fps={self.settings.fps}, '
+                f'jpeg_quality={self.settings.jpeg_quality}, '
                 'QoS=BEST_EFFORT / VOLATILE / KEEP_LAST(1)')
         except Exception:
             self.destroy_node()
             raise
 
     def publish_frame(self):
-        """Read a vendor frame or build a pattern and publish an uncompressed image."""
+        """Read a vendor frame or build a pattern and publish a JPEG or raw image."""
         settings = self.settings
-        if self.source is None:
+        if settings.source == 'synthetic':
             width, height, step, data = synthetic_payload(
                 settings.width, settings.height, settings.encoding, self.sequence)
         else:
@@ -70,15 +75,17 @@ class CameraPublisherNode(Node):
                 return
             self.read_failures = 0
             width, height, step, data = frame_payload(frame, settings.encoding)
-        message = Image()
-        message.header.stamp = self.get_clock().now().to_msg()
+        stamp = self.get_clock().now().to_msg()
+        if settings.transport == 'compressed':
+            image_format, data = jpeg_payload(
+                width, height, step, settings.encoding, data, settings.jpeg_quality)
+            message = CompressedImage(format=image_format, data=data)
+        else:
+            message = Image(
+                height=height, width=width, encoding=settings.encoding,
+                is_bigendian=0, step=step, data=data)
+        message.header.stamp = stamp
         message.header.frame_id = settings.frame_id
-        message.height = height
-        message.width = width
-        message.encoding = settings.encoding
-        message.is_bigendian = 0
-        message.step = step
-        message.data = data
         self.publisher.publish(message)
         self.sequence += 1
 

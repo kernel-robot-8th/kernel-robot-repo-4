@@ -363,7 +363,8 @@ def test_tc_scn_07_device_result_after_timeout_with_armed_off_goes_unknown(stack
     assert stack.current('order2')['state'] == 'UNKNOWN'
     assert 'pinky2' in stack.gateway.halts
     assert stack.store.scenario('order2')['mission_state'] == 'UNKNOWN'
-    assert stack.core.robots_view()['pinky2']['op_state'] == 'PAUSED'
+    # 관제 보류 사유(UNKNOWN)를 그대로 보인다(11-21 G4). 예전에는 PAUSED 로 뭉뚱그렸다.
+    assert stack.core.robots_view()['pinky2']['op_state'] == 'UNKNOWN'
 
 
 def loading(stack):
@@ -439,7 +440,6 @@ def test_stop_scope_per_judgment(stack, scene, vision_class, judgment, kind, rob
 
 @pytest.mark.parametrize('scene,vision_class,judgment', [
     (loading, 'lid_detached', 'LID_OPEN_ANOMALY'),
-    (two_loaded, 'box_perched_on_rim', 'AMBIGUOUS'),
 ])
 def test_judgments_without_action_send_nothing(stack, scene, vision_class, judgment):
     xy = scene(stack)
@@ -448,6 +448,21 @@ def test_judgments_without_action_send_nothing(stack, scene, vision_class, judgm
     assert row['judgment'] == judgment and row['stop_scope'] == 'ROBOT'
     assert row['control_action'] == 'NONE' and stack.stop_requests() == []
     assert stack.scenario.armed is True and stack.scenario.store.holds() == {}
+
+
+def test_ambiguous_perched_box_pauses_each_nearby_robot_only(stack):
+    """11-21: 걸침 AMBIGUOUS 는 근처 화물 로봇을 모두 그 로봇만 세운다. armed 는 켜 둔다."""
+    xy = two_loaded(stack)
+    stack.core.set_mode('AUTO_HOLD')
+    row = stack.vision('box_perched_on_rim', xy)
+    assert row['judgment'] == 'AMBIGUOUS' and row['stop_scope'] == 'ROBOT'
+    assert row['linked_robot_id'] is None
+    assert sorted(json.loads(row['stop_targets_json'])) == ['pinky1', 'pinky2']
+    requests = stack.stop_requests()
+    assert sorted((r['type'], r.get('robot_id')) for r in requests) == [
+        ('pause', 'pinky1'), ('pause', 'pinky2')]
+    stack.tick()
+    assert stack.scenario.armed is True and sorted(stack.core.holds) == ['pinky1', 'pinky2']
 
 
 def test_lane_obstacle_without_any_order_stops_everyone(stack):
