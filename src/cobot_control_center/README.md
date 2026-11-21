@@ -125,7 +125,7 @@ ros2 launch cobot_bringup bringup.launch.xml
 | `fleet_api` | `true` | 백엔드·화면 실행 여부. `.venv` 가 없는 환경이면 `fleet_api:=false` |
 | `controller` | `fleet` | 작업 노드. `fleet` (기본, `fleet_control_node`) / `none` (보기 전용) |
 
-로봇 쪽(Nav2, 순찰 노드)은 각 로봇에서 따로 켭니다. 순서는 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 봅니다.
+로봇 쪽(Nav2, 순찰 노드)은 각 로봇에서 따로 켭니다. 순서는 [`cobot_navigation/README.md`](../cobot_navigation/README.md#로봇-기동) 를 봅니다.
 
 노드만 따로 띄울 때:
 
@@ -250,8 +250,9 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 ## 실물 시험 순서
 
 2026-11-02 실물 pinky1~3 으로 처음 돌려 보며 정리한 순서입니다. 처음에는 로봇 한 대로 시작합니다.
+Station PC 팔·고객 화면까지 포함한 전체 켜는 순서는 [`docs/system_startup.md`](../../docs/system_startup.md) 에 모았습니다.
 
-1. **각 로봇: bringup → Nav2.** 명령과 도메인(10/20/30)은 [`cobot_navigation/README.md`](../cobot_navigation/README.md#실행-순서) 를 따릅니다.
+1. **각 로봇: bringup → Nav2.** 명령과 도메인(10/20/30)은 [`cobot_navigation/README.md`](../cobot_navigation/README.md#로봇-기동) 를 따릅니다.
 2. **관제 PC: bringup** ([실행](#실행)). 쓰는 로봇만 켭니다 (`pinky2:=false` 등).
    **관제 PC 는 한 대만** 띄웁니다. 두 PC 가 함께 켜면 브릿지와 zone_manager 가 두 벌이 되어 구역 토큰이 따로 나갑니다. 다른 PC 에서는 [SSH 터널](#화면-보기)로 화면만 봅니다.
 3. **초기 위치.** 로봇을 홈에 놓고 켜도 Nav2 는 그 자리를 모를 수 있습니다. 관제 화면 그 로봇 카드의 **초기위치** 를 누르고 확인 창에서 확인합니다. 작업 노드가 순찰 설정의 홈 좌표로 `/pinkyN/initialpose` 를 보냅니다 (로봇은 움직이지 않음, 작업 명령 켜기 없이 가능, 로봇이 멈춰 있어야 함). 홈이 아닌 곳이면 상세 화면 위치 칸의 **좌표 지정**으로 지도에서 위치·방향을 찍습니다 ([화면 안내](docs/screen_guide.md#초기위치)). 화면을 쓸 수 없으면 RViz `2D Pose Estimate` 로 찍거나 관제 PC 에서 아래 한 줄을 보냅니다.
@@ -267,7 +268,7 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
    ```
 
    화면 지도에서 로봇이 홈 자리에 오는지 봅니다. 2026-11-02 기준 Nav2 시작 위치는 pinky1 만 홈과 맞고, pinky2 는 (0, 0), pinky3 는 (0, -0.67) 로 떠서 다시 넣어야 했습니다 (주행 담당 확인 필요).
-4. **각 로봇: 순찰 노드.** 로봇 워크스페이스는 `~/ws/kernel-robot-repo-4` 입니다.
+4. **각 로봇: 순찰 노드.** 로봇 워크스페이스는 `~/ws/kernel-robot-repo-4` 입니다. 순찰 노드는 켤 때 움직이지 않으므로 3단계보다 먼저 켜도 됩니다. 다만 첫 명령 때 지난번 저장 위치(`restore_pose`)를 `initialpose` 로 다시 보내고 4 초 제자리 회전하므로, 3단계에서 넣은 위치가 바뀔 수 있습니다.
 
    ```bash
    source ~/ws/kernel-robot-repo-4/install/setup.bash
