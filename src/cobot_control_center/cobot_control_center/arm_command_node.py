@@ -113,7 +113,7 @@ class ArmCommandNode(Node):
             'work_request_topic': '/fleet/work_request',
             'work_result_topic': '/fleet/work_result',
             'work_stage': 'MANUAL_TEST',
-            'work_timeout_sec': 120.0,
+            'work_timeout_sec': 300.0,
             'work_result_margin_sec': 15.0,
         }
         for name, default in params.items():

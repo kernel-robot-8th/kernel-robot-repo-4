@@ -442,6 +442,29 @@ def test_posture_alarm_from_work_and_cleared():
     assert alarms(commander, 501.1) == []
 
 
+def test_reset_clears_finished_work_but_not_running():
+    commander = ready_commander()
+    payload = commander.make_work(work_request(), 100.0, 10.5)
+    commander.put_work_result(result_for(payload, False, '작업 중 정지'), 102.0)
+    assert commander.snapshot(10.6, 102.1)['arms'][0]['work']['state'] == arms.WORK_FAILED
+    # 거절된 끄기는 실패 기록을 그대로 둔다
+    header, _ = commander.make_command(request('reset'), 103.0, 10.6)
+    commander.put_ack(ack(header, result=1), 103.1)
+    assert commander.snapshot(10.7, 103.2)['arms'][0]['work']['state'] == arms.WORK_FAILED
+    # 수락된 끄기(고장 해제)는 끝난 작업을 카드에서 내린다
+    header, _ = commander.make_command(request('reset', request_id='r2'), 104.0, 10.7)
+    commander.put_ack(ack(header), 104.1)
+    assert commander.snapshot(10.8, 104.2)['arms'][0]['work'] is None
+    # 진행 중 작업은 끄기로 지우지 않고 결과를 받는다
+    commander.put_status('omx_1', STATUS, 10.8, 105.0)
+    payload = commander.make_work(work_request(request_id='w2'), 105.0, 10.8)
+    header, _ = commander.make_command(request('reset', request_id='r3'), 106.0, 10.9)
+    commander.put_ack(ack(header), 106.1)
+    assert commander.snapshot(11.0, 106.2)['arms'][0]['work']['state'] == arms.WORK_RUNNING
+    record = commander.put_work_result(result_for(payload, False, 'reset 으로 중단'), 107.0)
+    assert record['state'] == arms.WORK_FAILED
+
+
 def test_order_work_results_are_logged_once():
     commander = ready_commander()
     commander.take_events()

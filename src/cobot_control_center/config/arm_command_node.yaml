@@ -24,5 +24,7 @@
     work_request_topic: /fleet/work_request
     work_result_topic: /fleet/work_result
     work_stage: MANUAL_TEST       # 요청 stage. 팔 노드는 결과에 그대로 돌려준다 (주문 stage 와 겹치지 않게)
-    work_timeout_sec: 120.0       # [s] 요청 timeout_sec. 팔 노드는 자기 worker_timeout_sec(300) 와 작은 값을 쓴다
+    # [s] 요청 timeout_sec. 팔 노드는 자기 worker_timeout_sec(300) 와 작은 값을 쓴다.
+    # 2026-11-21 120 → 300: omx1 warehouse_store 가 120 s 에 잘림 (팔 쪽 seconds·worker_timeout_sec 300 과 맞춤)
+    work_timeout_sec: 300.0
     work_result_margin_sec: 15.0  # [s] timeout_sec 보다 이만큼 더 결과가 없으면 '결과 없음'
