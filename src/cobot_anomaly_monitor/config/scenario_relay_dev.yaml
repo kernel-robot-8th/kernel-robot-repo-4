@@ -1,6 +1,6 @@
 # 개발 전용 fleet_control scenario_config. 팀 scenario.yaml은 고치지 않고 파라미터로 넘긴다.
 # 격리 시뮬·시험 전용이다. 현장 관제(fleet_control)는 자기 패키지 안의 config/scenario.yaml을 읽는다.
-# 기준: 관제 origin/sakim 1b0cb08(김지혜, 11-19)의 src/cobot_navigation/cobot_fleet_control/config/scenario.yaml.
+# 기준: 관제 src/cobot_navigation/cobot_fleet_control/config/scenario.yaml(김성아 작업 1af9888, 11-19. 원격 sakim 1b0cb08과 같은 파일).
 #   routes(lab_delivery, lab_delivery_zb)·shelf·customer_return·destinations와 수치는 그 파일과 같은 값이다.
 #   팀 파일이 바뀌면 이 파일도 다시 맞춘다. 맞춘 날: 11-20.
 # 구역 역할(sakim 머리말): ZB = 창고 → 핑키 상차(omx2), ZC = 매장 신발 정리(omx3),

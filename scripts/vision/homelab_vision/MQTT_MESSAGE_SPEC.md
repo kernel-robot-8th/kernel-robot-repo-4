@@ -1,7 +1,9 @@
 # homelab-vision MQTT 메시지 명세 (비전 어댑터·관제 연동 개발용)
 
 작성 2026-11-14(16:10 관제 연동 8절 보충, 16:30 역할 분담·협의 항목 재구성). 대상: 이 메시지를 받아 관제 시나리오 단계에 답하는 **비전 어댑터**를 만드는 사람, 그리고 그 결과를 받는 관제(`src/cobot_navigation/cobot_fleet_control`, b554975 기준. 7f2b2e3 부터는 `src/cobot_fleet_control`)·`src/cobot_control_center` 개발자.
-**11-20 주**: 8절(관제 연동)을 관제 기준 origin/sakim 1b0cb08(김지혜, 11-19)로 고쳤다. sakim 의 관제 패키지 경로는 `src/cobot_navigation/cobot_fleet_control` 이다. 0~7절은 11-14 b554975 기준 그대로다. 그중 감시 노드 설명(0절 표의 "격리 시뮬에서만 켜짐", 3절 끝)은 판정(`judge_mode`) 도입 전 내용이고, 지금 경로는 8-6 에 있다. 천장 모서리 마커 42 는 11-20 현장 확인으로 실제로 없다(8-8).
+**11-21 주**: 시나리오 최종본 기준은 김성아 님 작업 1af9888(11-19)이다. 원격 sakim 1b0cb08은 그중 고객 주문 3커밋을 먼저 올린 사본이라 시나리오 파일이 같고, 아래 1b0cb08·sakim 줄 번호는 그대로 쓴다. 11-21 14:39 현장 근거에서는 모서리 마커 4개가 모두 보였다(`marker_state` OK, 42를 다시 붙인 것으로 보임 [추정]). 같은 때 pinky2는 AMCL로 ZC에 있었는데 ZC 구역은 `NO_ROBOT`이었다(구역 외곽선·위치 어긋남, 미해결). 8-8의 "42 없음"은 11-20 기록이다.
+
+**11-20 주**: 8절(관제 연동)을 관제 기준 origin/sakim 1b0cb08(11-19)로 고쳤다. sakim 의 관제 패키지 경로는 `src/cobot_navigation/cobot_fleet_control` 이다. 0~7절은 11-14 b554975 기준 그대로다. 그중 감시 노드 설명(0절 표의 "격리 시뮬에서만 켜짐", 3절 끝)은 판정(`judge_mode`) 도입 전 내용이고, 지금 경로는 8-6 에 있다. 천장 모서리 마커 42 는 11-20 현장 확인으로 실제로 없다(8-8).
 관제 노드가 이 MQTT 주제를 직접 구독하는 구조가 아니다. 관제는 설계상 MQTT 를 받지 않고, 장치 결과는 `/fleet/work_result` 로만 받는다(8절).
 기준 코드: 이 폴더 `app/`, `zone/` (브랜치 `merge/submaster-20261112` 머리 b554975, 현장 이미지 `homelab-vision:20261110` 과 같은 앱).
 시험 모드(5절)는 아직 커밋하지 않은 추가분(`~/kr4-vision-test` 작업본) 기준이다.
@@ -349,7 +351,7 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
 
 ## 8. 관제 시나리오와 잇기 (비전 단계 응답)
 
-> **11-20 갱신.** 이 절은 관제 기준 origin/sakim **1b0cb08**(김지혜, 11-19)로 다시 맞췄다. 관제 코드 근거는 `src/cobot_navigation/cobot_fleet_control/cobot_fleet_control/`(아래 `FC/`), 경로·수치 설정은 `src/cobot_navigation/cobot_fleet_control/config/scenario.yaml`(아래 `scenario.yaml`)이다. 우리 감시 노드 근거는 같은 커밋의 `src/cobot_anomaly_monitor/cobot_anomaly_monitor/`(아래 `AM/`)다. 감시 노드 코드는 sakim 과 origin/feature/control-center 404d7ab 가 같다(README 한 줄·발표자 안내서만 다름). 11-14 판의 근거였던 7f2b2e3·b554975 줄 번호는 더 쓰지 않는다. **[결정 11-14]** 표시는 그날 정한 것이다. 지금 상태는 같은 자리에 "11-20 현재"로 덧붙였다.
+> **11-20 갱신.** 이 절은 관제 기준 origin/sakim **1b0cb08**(11-19, 김성아 작업 1af9888과 시나리오 파일 같음)로 다시 맞췄다. 관제 코드 근거는 `src/cobot_navigation/cobot_fleet_control/cobot_fleet_control/`(아래 `FC/`), 경로·수치 설정은 `src/cobot_navigation/cobot_fleet_control/config/scenario.yaml`(아래 `scenario.yaml`)이다. 우리 감시 노드 근거는 같은 커밋의 `src/cobot_anomaly_monitor/cobot_anomaly_monitor/`(아래 `AM/`)다. 감시 노드 코드는 sakim 과 origin/feature/control-center 404d7ab 가 같다(README 한 줄·발표자 안내서만 다름). 11-14 판의 근거였던 7f2b2e3·b554975 줄 번호는 더 쓰지 않는다. **[결정 11-14]** 표시는 그날 정한 것이다. 지금 상태는 같은 자리에 "11-20 현재"로 덧붙였다.
 > 논리 탐침은 11-20 에 sakim 코드끼리 함수를 직접 불러 돌린 것이다. ROS·DDS 전송은 거치지 않았다.
 
 ### 8-1. 관제는 MQTT 를 받지 않는다 [사실]
@@ -449,7 +451,7 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
 
 | 단계 | action | 관제가 요구하는 `data` | 지금 비전 메시지로 | 11-20 현재 답(우리 ManualAdapter 자동 응답) |
 |---|---|---|---|---|
-| PICKUP_EXIT, PATH_EXIT, RETURN_EXIT | `path_exit` | `clear: true` (이때 통로 `lane_main` 예약을 푼다) | **없음.** zones 는 작업 구역 ZA·ZB·ZC 만 본다. 통로는 보지 않는다 | `{clear: true}` 를 판정 없이 보낸다. [추정] "목표 구역 안에 로봇이 보임"을 통로 이탈 근거로 써도 되는지는 김지혜 님(관제 기준 sakim) 확인 필요 |
+| PICKUP_EXIT, PATH_EXIT, RETURN_EXIT | `path_exit` | `clear: true` (이때 통로 `lane_main` 예약을 푼다) | **없음.** zones 는 작업 구역 ZA·ZB·ZC 만 본다. 통로는 보지 않는다 | `{clear: true}` 를 판정 없이 보낸다. [추정] "목표 구역 안에 로봇이 보임"을 통로 이탈 근거로 써도 되는지는 시나리오 최종본 담당(김성아 님) 확인 필요 |
 | DOCK_PICKUP, DOCK_DROPOFF | `dock_check` | `xy_m`, `yaw_deg` 숫자. 공차(0.03 m, 15도) 안이면 `stopped`·`base_hold` 도 `true` | **없음.** 정차 오차를 재지 않는다 | `/pinkyN/amcl_pose` 와 `cobot_pinky_patrol` `config/sites/lab.yaml` 지점 좌표의 차이로 `xy_m`·`yaw_deg` 를 낸다. `/odom` 속도가 없으면 `stopped` 가 false 라 자동으로 답하지 않는다(`AM/manual_adapter.py:131-132,311-323`). 공차 밖이면 관제가 `navigation` 대상 `dock_correct`(CORRECT_*)를 보내고, 우리는 `{no_motion: true}` 로만 답한다. 로봇은 움직이지 않는다 |
 | MARKER, QR | `marker`, `qr` | `sku` 가 주문 `sku` 와 같아야 함. 다르면 UNKNOWN(상품 불일치) | **없음** | 요청 `sku` 를 그대로 돌려준다. 그래서 관제의 상품 불일치 검사는 지금 아무것도 걸러 내지 않는다 |
 | VERIFY_LOAD | `verify_load` | `load_present: true`, `arm_safe: true` | `load_present` 후보: 상차 구역(ZA·ZB) `LOADED`. `arm_safe` 는 비전에 없다 | 비전 판정(`judge_mode`)을 거친다(8-6). shadow 는 판정과 상관없이 `{load_present, arm_safe}` 성공으로 답하고(판정이 대기면 약 5초 기다린 뒤), 판정은 `data.judge` 에 참고로만 싣는다. enforce 는 판정 통과 때만 성공, 추락이면 실패(`retry_safe` 없음), 그 밖에는 답하지 않는다 |
@@ -466,7 +468,7 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
 ### 8-5. 비전 단계 응답 규칙 [제안]
 
 1. **사람 승인은 보내지 않는다** [결정 11-14]: 관제에 보내는 결과는 카메라·팔 결과로만 만든다. `measured: true` 는 모델 추론 근거로 판정했을 때만 붙인다. 허지혁 님 원칙(c995902 문서 "measured=true 결과를 만들어 넣지 않는다")과 같다.
-   - 11-20 현재: 콘솔 사람 승인은 막혀 있다. 기본 설정과 8-OMEN 배포 설정은 `console_commands: false` 라 승인·거절 POST 가 403 이다(`AM/console_api.py:15,55-57`). 대신 자동 응답이 판정 없이 `measured: true` 를 붙여 나간다(`data.decision: "auto_unjudged"`). 이 규칙의 "판정했을 때만"과 어긋난다. 자동 응답을 계속 쓸지는 미정이다(사용자 결정, 김지혜 님 협의).
+   - 11-20 현재: 콘솔 사람 승인은 막혀 있다. 기본 설정과 8-OMEN 배포 설정은 `console_commands: false` 라 승인·거절 POST 가 403 이다(`AM/console_api.py:15,55-57`). 대신 자동 응답이 판정 없이 `measured: true` 를 붙여 나간다(`data.decision: "auto_unjudged"`). 이 규칙의 "판정했을 때만"과 어긋난다. 자동 응답을 계속 쓸지는 미정이다(사용자 결정).
 2. **요청 뒤 근거만**: 요청을 받은 시각 이후에 찍힌 프레임(`capture_time`)만 쓴다. 7절의 시각 검사(3초)와 `marker_state == "OK"` 를 지키고, 같은 판정이 연속 N 프레임(감시 노드 결합 시험은 3) 나올 때만 답한다.
    - 11-20 현재: 우리 판정은 이 규칙을 따른다. 요청 저장 시각 뒤 프레임만, `marker_state` OK 만, 연속 3프레임·1초 유지(`judge_min_frames`·`judge_hold_sec`)를 본다(`AM/load_complete.py:297-309,346-412`).
 3. **로봇 식별**: zones 에는 로봇 ID 가 없다. 요청의 `route.pickup`(VERIFY_LOAD) 또는 `route.dropoff`(VERIFY_UNLOAD) 구역 하나만 보고, 그 구역이 `MULTI`·`NO_ROBOT` 이면 판정하지 않는다. 구역 안에 한 대만 보여도 다른 핑키일 수 있으므로 관련 호기 전체의 위치와 대조해 다른 호기를 배제할 수 있을 때만 귀속한다. 주의: 서 있는 실물 핑키는 `/pinkyN/amcl_pose` 를 거의 내지 않는다(`src/cobot_control_center/config/fleet_status_node.yaml:5`@7f2b2e3, 11-02 실측). 정지 위치는 `/pinkyN/odom`·`/pinkyN/patrol_status`(둘 다 관제 도메인으로 넘어옴)와 함께 본다.
@@ -510,26 +512,26 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
 | 근거 기록 | 중계 웹에서 관리한다. 관제 원장에 남기지 않아도 된다 | 바뀐 것 없음 |
 | 어댑터 실행 PC | [미정, 우리 쪽에서 정함] 관제 DDS(도메인 100)에 닿는 PC 여야 한다. 11-14 기준 중계 노트북의 감시 노드는 관제에 붙어 있지 않다 | 11-17 부터 8-OMEN 에서 감시 노드를 띄웠다. 계속 거기서 쓸지는 미정(사용자 결정) |
 
-**협의할 것: 상태 처리** (관제 기준 담당 김지혜 님과. 11-14 판은 관제·시나리오 담당으로 적었다)
+**협의할 것: 상태 처리** (시나리오 최종본 담당 김성아 님과. 11-20 판은 김지혜 님, 11-14 판은 관제·시나리오 담당으로 적었다)
 
 1. **카메라가 아직 못 보는 단계의 상태 처리.** 통로 이탈(PICKUP_EXIT·PATH_EXIT·RETURN_EXIT), 정차 오차(DOCK_PICKUP·DOCK_DROPOFF), 상품 확인(MARKER·QR)이 해당한다. 사람 승인을 빼면 시나리오는 PICKUP_EXIT 에서 멈춘다(11-13 주행이 멈춘 자리). 선택지:
    - (가) 관제 시나리오에서 당분간 건너뛰는 설정을 둔다. 관제 코드 수정이 필요하다. `skip_stages` 는 복구 재개용뿐이다(`FC/scenario_tree.py:72`).
    - (나) 답하는 쪽이 대신 근거를 쓴다. 예: 통로 이탈 = "목표 구역 안에 로봇이 보임". 판정 기준을 합의해야 한다.
    - (다) 기능이 생길 때까지 그 단계에서 멈추는 것을 받아들인다.
-   - 11-20 현재: 셋 다 아니다. 우리 자동 응답이 판정 없이 고정값으로 흐름을 잇는다(8-4). 어느 안으로 갈지 합의는 없다. 1b0cb08 커밋 메시지가 "정밀 보정(CORRECT_PICKUP)은 자동 응답만 있고"라고 적어 관제 쪽도 자동 응답을 알고 있는 것으로 보인다 [추정]. 미정(사용자 결정, 김지혜 님 협의).
+   - 11-20 현재: 셋 다 아니다. 우리 자동 응답이 판정 없이 고정값으로 흐름을 잇는다(8-4). 어느 안으로 갈지 합의는 없다. 1b0cb08 커밋 메시지가 "정밀 보정(CORRECT_PICKUP)은 자동 응답만 있고"라고 적어 관제 쪽도 자동 응답을 알고 있는 것으로 보인다 [추정]. 미정(사용자 결정).
 2. **카메라·어댑터가 끊겼을 때 주문 상태.** 세 안 모두 주문이 멈추면 로봇 비상정지·팔 정지가 함께 나간다(8-3).
    - (가) 바로 `success: false`(`retry_safe` 없음)로 답한다. 즉시 UNKNOWN. 단, 관제는 실패 응답도 `measured: true` 일 때만 받으므로 재지 않은 결과에 `measured: true` 를 붙여야 하고, 8-5 1번 규칙과 충돌한다.
    - (나) 답하지 않는다. 300초 뒤(또는 통신 만료가 먼저면 그때) UNKNOWN. 남은 시간은 중계 웹에 표시한다. **[검증 권고, 11-14 19시]**
    - (다) `success: false` + `retry_safe: true`. 상하차 확인에서는 팔 단계부터 다시 돈다(8-5 4번). **위험**
    - 16:30 판은 (가)를 권장했으나 위 `measured` 충돌 때문에 보류한다. 최종 선택은 협의와 사용자 결정 대기.
-   - 11-20 현재: 판정은 enforce 면 (나)로, shadow 면 5초 뒤 성공으로 움직인다. 감시 노드 자체가 꺼지면 vision 단계 전체가 300초 뒤 UNKNOWN 이다. 최종 선택은 여전히 미정(사용자 결정, 김지혜 님 협의).
+   - 11-20 현재: 판정은 enforce 면 (나)로, shadow 면 5초 뒤 성공으로 움직인다. 감시 노드 자체가 꺼지면 vision 단계 전체가 300초 뒤 UNKNOWN 이다. 최종 선택은 여전히 미정(사용자 결정).
 3. **상하차 확인의 팔 항목.** VERIFY_LOAD 의 `arm_safe`, VERIFY_UNLOAD 의 `placed`·`arm_safe` 를 무엇으로 채울지. 11-14 우리 의견: 팔 결과(LOAD·UNLOAD 성공)만으로는 채우지 않는다. 팀 팔 sh 는 성공 판단이 없고("종료 코드 0 은 시간을 다 채웠다는 뜻"), 끝나면 토크를 끈다(`~/doc/ARM_ADAPTER_SCOPE_SH_20261114.md` 5항). 팔이 비켜났다는 실측 근거를 누가 무엇으로 낼지 묻는다. 결과의 `source` 는 `vision` 하나여야 하므로 그 근거는 vision 쪽이 묶어서 보내야 한다(`FC/scenario_runtime.py:197-199`). 정해지기 전까지 비전 어댑터는 VERIFY_LOAD 에 결과를 내지 않고 적재 근거만 기록한다.
-   - 11-20 현재: 팀 팔 노드는 실행기 success 와 `arm_safe`(실행기가 단계 뒤 안전 자세로 물러나 관절을 다시 읽어 확인한 값)가 둘 다 true 일 때만 성공을 보낸다. 실행기 done 결과에는 `data.arm_safe` 를 늘 싣는다(sakim `cobot_manipulation/arm_backend_utils.py:200-219`). 우리 판정은 PICK·LOAD 결과를 묶어 VERIFY_LOAD 의 `arm_safe` 를 채운다(8-6). VERIFY_UNLOAD 의 `placed` 근거는 아직 없다. 11-14 의 "정해지기 전까지 VERIFY_LOAD 에 결과를 내지 않는다"는 지금 지켜지지 않는다. shadow 자동 응답은 판정과 상관없이 VERIFY_LOAD 에 성공을 보낸다(8-6). 이 규칙을 되살릴지(enforce 전환 등)는 미정이다(사용자 결정, 김지혜 님 협의). 마커 42 가 없는 동안 enforce 는 쓸 수 없다(8-8).
+   - 11-20 현재: 팀 팔 노드는 실행기 success 와 `arm_safe`(실행기가 단계 뒤 안전 자세로 물러나 관절을 다시 읽어 확인한 값)가 둘 다 true 일 때만 성공을 보낸다. 실행기 done 결과에는 `data.arm_safe` 를 늘 싣는다(sakim `cobot_manipulation/arm_backend_utils.py:200-219`). 우리 판정은 PICK·LOAD 결과를 묶어 VERIFY_LOAD 의 `arm_safe` 를 채운다(8-6). VERIFY_UNLOAD 의 `placed` 근거는 아직 없다. 11-14 의 "정해지기 전까지 VERIFY_LOAD 에 결과를 내지 않는다"는 지금 지켜지지 않는다. shadow 자동 응답은 판정과 상관없이 VERIFY_LOAD 에 성공을 보낸다(8-6). 이 규칙을 되살릴지(enforce 전환 등)는 미정이다(사용자 결정). 마커 42 가 없는 동안 enforce 는 쓸 수 없다(8-8).
 4. **(선택) 어댑터 살아 있음을 관제가 받을지.** 관제는 로봇 신호만 본다(`FC/scenario.py:199-204`). 답하는 쪽이 꺼져 있어도 요청을 보낸 뒤 300초를 기다린다. 받기로 하면 이 수신만 관제에 구현하면 된다. 신호 형식은 우리가 맞춘다. 11-20 현재: sakim 에서도 바뀐 것 없음.
-5. **(11-20 추가) 응답 주체 공식 확인.** vision·navigation 단계에 우리 감시 노드가 답하는 것을 김지혜 님이 인정하는지, 시연 때 `auto_targets`·`judge_mode` 를 무엇으로 둘지. 미정(사용자 결정, 김지혜 님 확인). 마커 42 가 없는 동안 enforce 는 쓸 수 없다(8-8).
-6. **(11-20 추가) ARRANGE·RESTOCK 뒤 검증.** 관제 흐름에 검증 단계가 없다. 11-18 ZC 시험에서 omx3 `arrange_shoe` 는 상자를 떨어뜨리고도 성공을 보고했다. 여기에 판정을 붙이려면 관제에 단계가 있어야 한다. 김지혜 님께 제안할지는 사용자 결정이다. 우리는 팀 패키지를 고치지 않는다.
-7. **(11-20 추가) 자리 주문 수동 상차 확인 400**(8-3). 김지혜 님께 알릴지는 사용자 결정이다.
-8. **(11-20 추가) 정차 공차와 보정.** 3 cm 공차와 움직이지 않는 CORRECT_PICKUP 으로는 오차가 3 cm 를 넘게 이어지면 피킹 전에 FAILED 다(8-4). 공차를 더 넓힐지 실제 보정을 둘지는 김지혜 님 결정이다.
+5. **(11-20 추가) 응답 주체 공식 확인.** vision·navigation 단계에 우리 감시 노드가 답하는 것을 시나리오 최종본 담당(김성아 님)이 인정하는지, 시연 때 `auto_targets`·`judge_mode` 를 무엇으로 둘지. 미정(사용자 결정). 마커 42 가 없는 동안 enforce 는 쓸 수 없다(8-8).
+6. **(11-20 추가) ARRANGE·RESTOCK 뒤 검증.** 관제 흐름에 검증 단계가 없다. 11-18 ZC 시험에서 omx3 `arrange_shoe` 는 상자를 떨어뜨리고도 성공을 보고했다. 여기에 판정을 붙이려면 관제에 단계가 있어야 한다. 김성아 님께 제안할지는 사용자 결정이다. 우리는 팀 패키지를 고치지 않는다.
+7. **(11-20 추가) 자리 주문 수동 상차 확인 400**(8-3). 김성아 님께 알릴지는 사용자 결정이다.
+8. **(11-20 추가) 정차 공차와 보정.** 3 cm 공차와 움직이지 않는 CORRECT_PICKUP 으로는 오차가 3 cm 를 넘게 이어지면 피킹 전에 FAILED 다(8-4). 공차를 더 넓힐지 실제 보정을 둘지는 김성아 님 결정이다. 11-21 현장 시험은 관제 컨테이너 안에서 0.10 m로 고쳐 돌렸다(git 값은 0.03).
 
 ### 8-8. 마커 42 부재와 판정 (11-20 현장 사실)
 
@@ -591,7 +593,7 @@ mosquitto_sub -h 192.168.0.8 -p 1883 -i cc-dev-$USER -t relay/evidence/zones -C 
   - 8-7 을 "역할 분담(정한 것)"과 "협의할 것: 상태 처리만" 으로 재구성. 8-1·8-5(1·4·7번)·8-6 문구 수정.
   - 추가 대조: 7f2b2e3 `scenario_tree.py:50,66-73`(공유 재시도·skip_stages 용도), `scenario_runtime.py:92-108`(재시도 소진 시 UNKNOWN·DOCK_PICKUP 만 안전 복귀).
 - 11-20 수정 (2026-11-20 KST). 문서만 고침. 장비 접속·커밋·push 없음.
-  - 근거: 사용자 지시 "우리쪽 정보도 관제 정보를 기준으로 모두 업데이트 하자"(11-20). 관제 기준은 origin/sakim 1b0cb08(김지혜, 11-19). 로컬 사본 `~/kr4-align-sakim`(브랜치 align/sakim-20261120)에서 읽었다.
+  - 근거: 사용자 지시 "우리쪽 정보도 관제 정보를 기준으로 모두 업데이트 하자"(11-20). 관제 기준은 origin/sakim 1b0cb08(11-19). 로컬 사본 `~/kr4-align-sakim`(브랜치 align/sakim-20261120)에서 읽었다.
   - 대조한 코드: sakim `src/cobot_navigation/cobot_fleet_control/cobot_fleet_control/{scenario_contracts,scenario_runtime,scenario,scenario_nodes,scenario_tree,scenario_safety,fleet_control_node}.py`, `config/scenario.yaml`, `src/cobot_anomaly_monitor/cobot_anomaly_monitor/{manual_adapter,monitor_node,load_complete,load_evidence,mqtt_evidence,console_api}.py`, `config/anomaly_monitor.yaml`, `launch/anomaly_monitor.launch.xml`, `src/cobot_manipulation/cobot_manipulation/arm_backend_utils.py`, `src/cobot_control_center/config/site_arms.yaml`, `src/cobot_manipulation/config/arm_registry.yaml`, 1b0cb08 커밋 메시지.
   - 고친 것: 머리 11-20 주. 3절에 마커 42 부재와 "구역은 고정 외곽선, 마커는 OK 문" 주, 수신기 주. 8절 전체를 sakim 기준으로(줄 번호, 경로 표, 자리 route 8칸·`shelf_row`·`shelf_col`, 정지 대상에 `restock_arm`, 공차 0.03 m, 재개 단계 7개, 자리 주문 수동 상차 400, 지금 답하는 쪽은 우리 ManualAdapter 자동 응답과 VERIFY_LOAD 판정, `manual_targets` 에 omx3, "허지혁 님 확인 필요" → 김지혜 님, 협의 항목의 11-20 현재와 추가 4건, 8-8 마커 42 신설). 9절 두 항목에 11-20 주.
   - 확인하지 못한 것: 8-OMEN 감시 노드가 지금 떠 있는지와 그 코드 판, Team11 발행 앱의 지금 `marker_state`, 42 재부착 여부, 실제 관제와 붙인 ROS 전송 시험(논리 탐침만 했다).

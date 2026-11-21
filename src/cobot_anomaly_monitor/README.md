@@ -18,7 +18,7 @@
 
 ## 관제 기준
 
-관제 기준은 팀 `origin/sakim` 1b0cb08(김지혜, 11-19)입니다(11-20 맞춤). 구역 역할은 ZB 상차(`omx2`), ZC 매장 신발 정리(`omx3`), ZA 반환 상자 선반 복귀(`omx1`)입니다.
+관제 기준은 김성아 님 작업 1af9888(11-19, 고객 자리 주문 흐름)입니다(11-21). 원격 `sakim` 1b0cb08은 그중 고객 주문 3커밋을 먼저 올린 사본이라 시나리오 파일이 같습니다. 코드 주석·시험의 `origin/sakim`·1b0cb08은 같은 파일을 가리킵니다. 구역 역할은 ZB 상차(`omx2`), ZC 매장 신발 정리(`omx3`), ZA 반환 상자 선반 복귀(`omx1`)입니다.
 
 - 일반 경로 주문(`lab_delivery` ZA→ZC `omx1`/`omx3`, `lab_delivery_zb` ZB→ZC `omx2`/`omx3`)은 19단계입니다. 정차 보정 `CORRECT_PICKUP`·`CORRECT_DROPOFF`를 더하면 21개입니다.
 - 고객 자리 주문(`col1__P22`, `col2__P22`)은 `MOVE_PICKUP`(ZB)부터 `LEAVE_PICKUP`까지 같고, 그 뒤 `MOVE_CUSTOMER`(P22), `CUSTOMER`로 갑니다. 결제나 시간 초과(300초)면 `RETURN_HOME`, `RETURN_EXIT`로 끝납니다. 회수면 `MOVE_ARRANGE`(ZC), `ARRANGE`(`omx3` `arrange_shoe`), `LEAVE_ARRANGE`, `MOVE_RESTOCK`(ZA), `RESTOCK`(`omx1` `warehouse_store`), `LEAVE_RESTOCK` 뒤 복귀합니다.
@@ -39,8 +39,8 @@
 
 `config/scenario_relay_dev.yaml`은 격리 시뮬·시험 전용입니다. 격리 도메인에서 `fleet_control`을 같이 띄울 때만 `scenario_config`로 넘깁니다. 현장 관제 `fleet_control`은 자기 패키지의 `config/scenario.yaml`을 씁니다.
 
-- 값은 sakim 1b0cb08 `scenario.yaml`과 같게 맞췄습니다(11-20). 팀 파일이 바뀌면 다시 맞춥니다. 개발 전용 경로 `wh_a_to_store`·`wh_b_to_store`만 더 있습니다.
-- `customer_return`이 들어 있어 sakim 87b9bee 이후 `fleet_control`에서만 뜹니다. main a0d0bf0·feature/control-center 판은 `customer_return` 인자 오류로 시작하지 못합니다.
+- 값은 관제 `scenario.yaml`(1af9888, sakim 1b0cb08과 같음)과 같게 맞췄습니다(11-20). 팀 파일이 바뀌면 다시 맞춥니다. 개발 전용 경로 `wh_a_to_store`·`wh_b_to_store`만 더 있습니다.
+- `customer_return`이 들어 있어 고객 자리 주문이 들어간 `fleet_control`(87b9bee 이후)에서만 뜹니다. 그 전 판(11-17 main a0d0bf0 등)은 `customer_return` 인자 오류로 시작하지 못합니다.
 - 감시 노드도 기본값(`scenario_config` 인자)으로 이 파일을 읽습니다. `routes`에 더해 `shelf`·`destinations`·`customer_return`으로 관제 `_layout`과 같은 자리 경로 `col<열>__<자리>`(`col1__P22`·`col2__P22`)를 만듭니다(`monitor_node.layout_routes`, 11-21). 기록의 팔 이름(`load_arm_id`·`unload_arm_id`), 7단계의 구역 진입 계산과 작업 주체, 주문 추적의 대상 대체값에 씁니다. 비전 적재 판정에는 쓰지 않습니다(판정은 요청에 실린 route를 씁니다).
 - 같은 파일의 `dock_xy_m`·`dock_yaw_deg`는 주문 추적표 정차 행의 공차 비교에만 씁니다. 관제 응답은 바꾸지 않습니다.
 
@@ -166,7 +166,7 @@ ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1 python3 -m pytest test/test_ros_roundtrip.
 - 로봇을 지정한 정지는 그 로봇만 보류하고 관제의 `armed`는 켜 둡니다. 로봇 지정 없는 정지는 전 로봇을 보류하고 `armed`를 끕니다. 판정별 범위는 위 "정지 범위"에 있습니다.
 - `AUTO_HOLD`에서는 콘솔 모의 이벤트의 `box_on_floor`도 전체 정지를 부릅니다. 주문과 로봇이 없어도 `LANE_OBSTACLE`이 나옵니다.
 - `armed`가 꺼진 채 300초를 넘겨 장치 결과가 오면 그 주문은 `UNKNOWN`과 비상 정지로 갑니다.
-- `dock_xy_m`은 0.03 m입니다(sakim 1b0cb08 값, 팀이 1 cm에서 3 cm로 넓힘). 11-19 실물 ZB 정차 오차가 약 5 cm였고 정밀 보정은 아직 없습니다. 수동 어댑터는 `CORRECT_*`에 `no_motion`으로만 답해 로봇을 움직이지 않습니다. 그래서 상차 정차(`DOCK_PICKUP`) 오차가 3 cm를 계속 넘으면 보정 3회 뒤 안전 복귀로 주문이 `FAILED`가 됩니다(논리 탐침 확인, 실물 미확인). 하차 정차(`DOCK_DROPOFF`)에서 같은 일이 나면 `RETRIES_EXHAUSTED` 경보 뒤 `UNKNOWN` 보류입니다(관제 `scenario_runtime.retry` 코드 확인).
+- `dock_xy_m`은 0.03 m입니다(관제 `scenario.yaml` 값, 팀이 1 cm에서 3 cm로 넓힘. 11-21 현장 시험은 관제 컨테이너 안에서 0.10 m로 고쳐 돌렸고 git에는 없습니다). 11-19 실물 ZB 정차 오차가 약 5 cm였고 정밀 보정은 아직 없습니다. 수동 어댑터는 `CORRECT_*`에 `no_motion`으로만 답해 로봇을 움직이지 않습니다. 그래서 상차 정차(`DOCK_PICKUP`) 오차가 3 cm를 계속 넘으면 보정 3회 뒤 안전 복귀로 주문이 `FAILED`가 됩니다(논리 탐침 확인, 실물 미확인). 하차 정차(`DOCK_DROPOFF`)에서 같은 일이 나면 `RETRIES_EXHAUSTED` 경보 뒤 `UNKNOWN` 보류입니다(관제 `scenario_runtime.retry` 코드 확인).
 - 개발 경로 둘은 `ZC`와 주행 통로를 함께 써서 두 로봇이 동시에 달리지 않습니다.
 
 ## 픽셀→map 좌표 변환
@@ -332,7 +332,7 @@ pinky1을 ZC에 세우고 omx3로 `load`, `arrange_shoe`를 수동 시험(`MANUA
     회수 때 ZC `omx3` 정리 → ZA `omx1` 반환을 거칩니다. sakim 경로에는 ZC 상차가 없습니다.
     판정은 요청에 실린 route의 `pickup`·`pickup_arm`을 쓰므로 자리 주문은 ZB·`omx2`로 판정합니다.
     현장 관제가 sakim 판으로 배포됐는지는 확인하지 않았습니다.
-    ZA가 반환 구역이 된 뒤에도 `lab_delivery`(ZA 상차)를 쓰는지는 미정이고 김지혜 님이 정합니다.)
+    ZA가 반환 구역이 된 뒤에도 `lab_delivery`(ZA 상차)를 쓰는지는 미정이고 시나리오 최종본 담당(김성아 님)이 정합니다.)
 
 아직 실물에서 확인하지 못한 것: 주문 단계에서의 성공·추락 답, `enforce` 모드, 실제 적재 때의 구역 `LOADED` 전환.
 
