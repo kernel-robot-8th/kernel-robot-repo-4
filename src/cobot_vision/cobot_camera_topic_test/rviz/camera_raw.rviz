@@ -1,0 +1,21 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: Pinky camera
+      Topic:
+        Value: /camera/image_raw
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Depth: 1
+      Transport Hint: raw
+      Queue Size: 1
+  Global Options:
+    Fixed Frame: front_camera_link
+  Name: root
+  Tools: []
