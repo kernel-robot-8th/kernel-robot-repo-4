@@ -14,7 +14,7 @@ Station PC 에서 아래 노드를 계속 띄워 둔다. 노드가 죽으면 다
 | PC | `COBOT_ARMS` | `COBOT_WORKER_ARMS` | 이유 | 적용 상태 |
 |---|---|---|---|---|
 | OMEN-11 | `omx3` (ZC 하차) | (없음, 옛 `COBOT_ARM_BACKEND=none`) | ZC 팔 모델이 아직 없다. 이 PC 에 있는 모델은 ZB 팔 것이다 | 2026-11-16 두 서비스 켬, 부팅 자동 시작 등록. 재부팅 확인 전. 템플릿 전 단일 서비스(`cobot-arm-adapter`)로 등록됨 → 설치 스크립트를 다시 돌리면 `@omx3` 로 옮겨진다 |
-| 8-OMEN | `omx2` (ZB 상차. omx1 은 다시 학습 중이라 뺌) | (없음) | 실행기는 개발 동안 `OMX_FLEET_DIR=…-sakim/omx_fleet` (팔 팀원 수정본) | 2026-11-18 `@omx2` 켬 (none), 부팅 자동 시작 등록 안 함 |
+| 8-OMEN | `omx1 omx2` (ZA 창고 하차 · ZB 상차) | `omx1 omx2` | 실행기 `OMX_FLEET_DIR=<저장소>/omx_fleet`. 모델: omx1 = `omx_1119_act` 16번, omx2 = `omx_1031_act_smolvla` 25번, 둘 다 `ACT_ENSEMBLE_K=5` | 2026-11-18 `@omx2` 켬. 2026-11-21 omx1 을 worker 로 추가(설정만, 켜기는 시험 때), 카메라를 by-path 로 바꿈. 부팅 자동 시작 등록 안 함 |
 
 2026-11-16 OMEN-11 시험 결과:
 - host-status: `/control_center/host_status` 에 `station (11Ubuntu)` 가 3 s 마다 나옴. 노드를 kill 하면 5 s 뒤 다시 뜸.
@@ -38,8 +38,8 @@ systemctl --user restart cobot-arm-adapter@omx2
 옛 `station.env`(`COBOT_ARM_ID`·`COBOT_ARM_BACKEND`, OMEN-11)도 그대로 읽는다. `COBOT_ARM_BACKEND` 는 `COBOT_WORKER_ARMS` 에 없는 팔의 기본값이 된다.
 
 한 PC 에 팔이 둘일 때 실행기 `fleet_arms.yaml` 에서 주의한다.
-- 카메라: 같은 모델 카메라를 두 팔에 꽂으면 `/dev/v4l/by-id` 이름이 같아진다. 그때는 꽂은 USB 포트 기준인 `/dev/v4l/by-path/…` 로 적는다.
-- 캘리브레이션: `robot_id` 를 팔마다 다르게 둔다. 같으면 캘리브레이션 파일을 서로 덮어쓴다.
+- 카메라: 같은 모델 카메라를 두 팔에 꽂으면 `/dev/v4l/by-id` 이름이 같아진다. 그때는 꽂은 USB 포트 기준인 `/dev/v4l/by-path/…` 로 적는다. 8-OMEN 은 2026-11-21 이 경우라 by-path 로 적었다 (omx1 = 허브 usb 10.x, omx2 = 허브 usb 4.x). by-id 는 나중에 꽂은 카메라를 가리키므로 다른 팔 영상을 쓰게 된다.
+- 캘리브레이션: `robot_id` 를 팔마다 다르게 둔다. 같으면 캘리브레이션 파일을 서로 덮어쓴다. (OMX 는 lerobot 0.4.4 에서 공장 기본값으로 캘리브레이션하므로 8-OMEN 의 두 팔은 `omx_follower` 하나를 같이 써도 내용이 같다.)
 - 실행기 사전 검사는 **그 팔**(환경변수 `ARM_ID` 가 같거나 없는) 실행기만 막는다. 다른 팔 어댑터가 띄운 실행기는 다른 포트를 쓰므로 막지 않는다.
 
 > **시험 적용 상태.** [팔 PRD 6절](../src/cobot_manipulation/docs/prd.md)에는 부팅 때 자동 시작을 "D18(현장 실측) 뒤"로 적어 두었다. 지금은 이 Station PC 하나에서만 시험하는 단계이고, 팀이 확정한 운영 방식은 아니다.
