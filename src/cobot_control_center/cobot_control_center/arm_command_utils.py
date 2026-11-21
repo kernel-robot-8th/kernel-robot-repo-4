@@ -133,10 +133,25 @@ def is_fault_ack(last_ack):
                 and FAULT_HINT in (last_ack.get('reason') or ''))
 
 
-def derive_state(status, online, last_ack=None):
-    """팔 상태(ArmStatus dict) → 화면 상태 (위 STALE·OFF·FAULT·READY·BUSY·HOLD·SOFT_LATCH)."""
+def is_fault_info(status, info):
+    """
+    팔 노드 info 의 전원 상태가 FAULT 인지.
+
+    START 가 수락된 뒤에 실행기가 죽으면 거절 응답이 없어 is_fault_ack 로는 못 알아본다 (2026-11-21 omx2).
+    info 와 status 의 boot_id 가 다르면 팔 노드가 다시 켜진 뒤 남은 옛 info 라 보지 않는다.
+    """
+    if not isinstance(info, dict) or info.get('power') != FAULT:
+        return False
+    boot, status_boot = info.get('boot_id'), (status or {}).get('robot_boot_id')
+    return not (boot and status_boot and boot != status_boot)
+
+
+def derive_state(status, online, last_ack=None, info=None):
+    """팔 상태(ArmStatus dict)·info → 화면 상태 (위 STALE·OFF·FAULT·READY·BUSY·HOLD·SOFT_LATCH)."""
     if not online or not status:
         return STALE
+    if is_fault_info(status, info):
+        return FAULT
     if status.get('hold_reason') == 'SOFT_LATCH':
         return SOFT_LATCH
     if status.get('hold_active'):
@@ -293,12 +308,19 @@ class ArmCommander:
     def _set_posture(self, arm_id, now_wall, text):
         self._arms[arm_id]['posture'] = {'since': now_wall, 'text': text}
 
-    def put_info(self, arm_id, info, now_mono):
-        """팔 노드 info(dict)를 넣는다. 등록 안 된 팔이거나 dict 가 아니면 False."""
+    def put_info(self, arm_id, info, now_mono, now_wall=None):
+        """
+        팔 노드 info(dict)를 넣는다. 등록 안 된 팔이거나 dict 가 아니면 False.
+
+        고장(FAULT)은 info 로만 알 수 있어 여기서도 상태 바뀜을 기록한다 (is_fault_info).
+        """
         arm = self._arms.get(arm_id)
         if arm is None or not isinstance(info, dict):
             return False
         arm['info'], arm['info_at'] = info, now_mono
+        if arm['linked'] and arm['status']:
+            when = now_mono if now_wall is None else now_wall
+            self._track_state(arm_id, derive_state(arm['status'], True, None, info), when)
         return True
 
     def put_status(self, arm_id, status, now_mono, now_wall=None):
@@ -319,17 +341,24 @@ class ArmCommander:
             self._add(when, arm_id, 'boot', 'warn', '팔 노드 다시 켜짐')
         if boot:
             arm['boot_id'] = boot
-        state = derive_state(status, True)
-        if not arm['linked']:
+        state = derive_state(status, True, None, arm['info'])
+        linked_now = not arm['linked']
+        if linked_now:
             arm['linked'], arm['lost_at'] = True, None
             self._add(when, arm_id, 'link', 'info', f'연결됨 ({STATE_TEXT[state]})')
-        elif state != arm['state'] and (arm['state'], state) not in QUIET_CHANGES:
-            level = {HOLD: 'warn', SOFT_LATCH: 'bad'}.get(state, 'info')
+        self._track_state(arm_id, state, when, log=not linked_now)
+        return True
+
+    def _track_state(self, arm_id, state, when, log=True):
+        """화면 상태가 바뀌면 기록하고 state_since 를 옮긴다 (대기 ↔ 작업 중은 기록 안 함)."""
+        arm = self._arms[arm_id]
+        if state == arm['state']:
+            return
+        if log and (arm['state'], state) not in QUIET_CHANGES:
+            level = {HOLD: 'warn', SOFT_LATCH: 'bad', FAULT: 'bad'}.get(state, 'info')
             self._add(when, arm_id, 'state', level,
                       f'{STATE_TEXT.get(arm["state"], "?")} → {STATE_TEXT[state]}')
-        if state != arm['state']:
-            arm['state'], arm['state_since'] = state, when
-        return True
+        arm['state'], arm['state_since'] = state, when
 
     def check_links(self, now_mono, now_wall):
         """상태가 stale_sec 넘게 끊긴 팔을 끊김으로 기록한다 (한 번만)."""
@@ -343,7 +372,7 @@ class ArmCommander:
 
     def _state(self, arm, now_mono):
         online = arm['status_at'] is not None and now_mono - arm['status_at'] <= self.stale_sec
-        return derive_state(arm['status'], online, arm['last_ack'])
+        return derive_state(arm['status'], online, arm['last_ack'], arm['info'])
 
     def work_actions(self, arm_id):
         """그 팔이 할 수 있는 작업 (현장 배치 actions, 없으면 WORK_ACTIONS 전부)."""
@@ -629,9 +658,10 @@ class ArmCommander:
             alarms.append({'code': 'soft_latch', 'level': 'bad', 'since': arm['state_since'],
                            'text': '비상정지 잠김: 끄기 → 켜기로만 풀림'})
         if online and state == FAULT:
-            alarms.append({'code': 'fault', 'level': 'bad',
-                           'since': (arm['last_ack'] or {}).get('received_at'),
-                           'text': '고장: 팔 실행기가 멈춤. 끄기로 꺼짐에 되돌린 뒤 다시 켜기'})
+            dead = (arm.get('info') or {}).get('dead') or '팔 실행기가 멈춤'
+            since = arm['state_since'] or (arm['last_ack'] or {}).get('received_at')
+            alarms.append({'code': 'fault', 'level': 'bad', 'since': since,
+                           'text': f'고장: {dead}. 원인을 고치고 고장 해제(끄기) 뒤 다시 켜기'})
         if online and state == HOLD:
             alarms.append({'code': 'hold', 'level': 'warn', 'since': arm['state_since'],
                            'text': '정지 유지 중: 정지 해제 또는 끄기'})
@@ -652,7 +682,7 @@ class ArmCommander:
             arm = self._arms[arm_id]
             age = None if arm['status_at'] is None else now_mono - arm['status_at']
             online = age is not None and age <= self.stale_sec
-            state = derive_state(arm['status'], online, arm['last_ack'])
+            state = derive_state(arm['status'], online, arm['last_ack'], arm['info'])
             running = self._running_work(arm_id)
             work_actions = self.work_actions(arm_id)
             block = start_block(arm['info'])

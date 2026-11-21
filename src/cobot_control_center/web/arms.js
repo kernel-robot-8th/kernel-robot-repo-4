@@ -17,7 +17,7 @@ const ARM_LOG_MAX = 300;   // 화면에 들고 있을 알람 기록 수 (백엔�
 const ARM_STATE = {
   STALE: { text: "미연결", level: "na", hint: "팔 노드 상태가 안 들어옴 (Station PC 노드·도메인 확인)" },
   OFF: { text: "꺼짐", level: "idle", hint: "토크 꺼짐. 켜기만 됨 (고장이면 켜기가 거절되고 '고장'으로 바뀜)" },
-  FAULT: { text: "고장", level: "bad", hint: "팔 실행기가 멈춤 (켜기 거절 사유로 판단). 끄기(RESET)로 꺼짐에 되돌린 뒤 다시 켜기" },
+  FAULT: { text: "고장", level: "bad", hint: "팔 실행기가 멈춤 (팔 노드 전원 FAULT). 원인을 고치고 고장 해제 → 켜기" },
   READY: { text: "대기", level: "good", hint: "켜짐, 작업을 받을 수 있음" },
   BUSY: { text: "작업·연결 중", level: "active", hint: "연결 중이거나 작업 중이거나 끄는 중" },
   HOLD: { text: "정지", level: "warn", hint: "정지 유지 중. 정지 해제를 누르면 바로 다시 씀" },
@@ -39,6 +39,12 @@ const ARM_COMMAND = {
     confirm: (armId, domain) => `${armId} 를 끌까요? (도메인 ${domain})\n\n`
       + "쉬는 자세일 때만 토크를 끕니다. 아니면 팔 노드가 거절합니다 (팔을 옮기지 않음).\n"
       + "고장(FAULT) 상태라면 이 명령으로 꺼짐으로 돌아갑니다.",
+    // 고장(FAULT)일 때 같은 reset 명령을 '고장 해제'로 보인다. 팔 노드는 실행기만 정리하고 꺼짐으로 간다.
+    faultText: "고장 해제",
+    faultConfirm: (armId, domain, dead) => `${armId} 고장을 해제할까요? (도메인 ${domain})\n\n`
+      + `원인: ${dead || "모름"}\n\n`
+      + "실행기를 정리하고 꺼짐으로 돌립니다. 팔은 움직이지 않습니다 (토크는 이미 꺼짐).\n"
+      + "원인(카메라·보드·모델 등)을 고친 뒤 켜기를 누르세요.",
   },
   release_hold: {
     text: "정지 해제",
@@ -303,6 +309,7 @@ function renderArmCard(arm, canCommand) {
   card.querySelectorAll("button[data-arm-cmd]").forEach((button) => {
     const cmd = button.dataset.armCmd;
     // 정지는 응답을 기다리는 중에도 누를 수 있어야 한다.
+    button.textContent = armCommandText(cmd, arm.state);
     button.disabled = !canCommand || !allowed.has(cmd) || (waiting && !ARM_STOPS.has(cmd));
     button.title = !canCommand ? armsBlockedReason()
       : cmd === "start" && arm.start_block && arm.state === "OFF" ? arm.start_block
@@ -370,22 +377,34 @@ function showArmMessage(armId, text, bad) {
   setTimeout(renderArms, MSG_MS + 50);
 }
 
+// 버튼 글: 고장(FAULT)일 때 끄기(reset)는 '고장 해제'로 보인다 (명령은 같은 reset)
+function armCommandText(cmd, state) {
+  const spec = ARM_COMMAND[cmd];
+  return state === "FAULT" && spec.faultText ? spec.faultText : spec.text;
+}
+
 async function sendArmCommand(armId, cmd) {
   const spec = ARM_COMMAND[cmd];
-  if (spec.confirm && !confirm(spec.confirm(armId, view.healthDomain ?? "?"))) return;
+  const arm = ((armsView.data && armsView.data.arms) || []).find((a) => a.arm_id === armId);
+  const fault = Boolean(arm && arm.state === "FAULT" && spec.faultConfirm);
+  const domain = view.healthDomain ?? "?";
+  const question = fault ? spec.faultConfirm(armId, domain, (arm.info || {}).dead)
+    : spec.confirm ? spec.confirm(armId, domain) : null;
+  if (question && !confirm(question)) return;
+  const text = armCommandText(cmd, arm && arm.state);
   armsView.busy.add(armId);
-  showArmMessage(armId, `${spec.text} 보냄, 팔 응답 기다리는 중…`, false);
+  showArmMessage(armId, `${text} 보냄, 팔 응답 기다리는 중…`, false);
   const result = await postJson(`/api/arms/${encodeURIComponent(armId)}/command`,
     { client_request_id: newRequestId(), command: cmd });
   armsView.busy.delete(armId);
   if (result.ok) {
     const late = result.data.accepted ? "" : " (정지는 실행됨)";
-    showArmMessage(armId, `${spec.text} 수락${late}`, false);
+    showArmMessage(armId, `${text} 수락${late}`, false);
   } else {
     const data = result.data || {};
     const why = data.reason || errorText(result);
     const kind = data.result ? ARM_RESULT_TEXT[data.result] || data.result : "";
-    showArmMessage(armId, `${spec.text} 거절 (${result.status}${kind ? ` ${kind}` : ""}): ${why}`, true);
+    showArmMessage(armId, `${text} 거절 (${result.status}${kind ? ` ${kind}` : ""}): ${why}`, true);
   }
   pollArms();
 }

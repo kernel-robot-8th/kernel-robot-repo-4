@@ -180,7 +180,7 @@ class ArmCommandNode(Node):
         except ValueError as error:
             self.get_logger().warning(f'{arm_id} info 무시 (JSON 아님): {error}')
             return
-        self.commander.put_info(arm_id, info, time.monotonic())
+        self.commander.put_info(arm_id, info, time.monotonic(), time.time())
 
     def _on_ack(self, msg):
         ack = ack_to_dict(msg)

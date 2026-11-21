@@ -694,6 +694,37 @@ def test_put_info_and_start_hidden_when_blocked():
     json.dumps(commander.snapshot(10.3, 100.0), allow_nan=False)
 
 
+def test_fault_from_info_after_accepted_start():
+    """START 가 수락된 뒤 실행기가 죽음 (2026-11-21 omx2): 거절 응답 없이 info.power 로만 고장을 안다."""
+    commander = make()
+    off = dict(STATUS, torque_enabled=False, robot_boot_id='b1')
+    commander.put_status('omx_1', off, 10.0, 100.0)
+    header, _ = commander.make_command(request('start'), 100.0, 10.0)
+    commander.put_ack(ack(header), 100.1)
+    kinds(commander)
+    commander.put_info('omx_1', info(power='FAULT', dead='실행기가 끝남'), 10.2, 100.2)
+    arm = commander.snapshot(10.3, 100.3)['arms'][0]
+    assert arm['state'] == arms.FAULT and arm['allowed'] == ['reset', 'hold', 'soft_latch']
+    assert [a['code'] for a in arm['alarms']] == ['fault']
+    assert '실행기가 끝남' in arm['alarms'][0]['text'] and arm['alarms'][0]['since'] == 100.2
+    assert ('omx_1', 'state', 'bad', '꺼짐 → 고장') in kinds(commander)
+    # 고장 해제(RESET) 뒤 팔 노드가 DISARMED 를 내면 꺼짐으로 돌아온다
+    commander.put_info('omx_1', info(power='DISARMED'), 10.4, 100.4)
+    arm = commander.snapshot(10.5, 100.5)['arms'][0]
+    assert arm['state'] == arms.OFF and arm['alarms'] == [] and 'start' in arm['allowed']
+    assert ('omx_1', 'state', 'info', '고장 → 꺼짐') in kinds(commander)
+
+
+def test_fault_info_ignored_after_arm_node_restart():
+    off = dict(STATUS, torque_enabled=False, robot_boot_id='b2')
+    assert arms.derive_state(off, True, None, info(power='FAULT', boot_id='b1')) == arms.OFF
+    assert arms.derive_state(off, True, None, info(power='FAULT', boot_id='b2')) == arms.FAULT
+    # boot_id 를 모르면 info 를 믿는다, 끊김(STALE)이 먼저다
+    no_boot = dict(off, robot_boot_id='')
+    assert arms.derive_state(no_boot, True, None, info(power='FAULT')) == arms.FAULT
+    assert arms.derive_state(off, False, None, info(power='FAULT', boot_id='b2')) == arms.STALE
+
+
 def joints_status(**values):
     names = list(values)
     return dict(STATUS, joint_names=names, joint_positions=[values[n] for n in names])
