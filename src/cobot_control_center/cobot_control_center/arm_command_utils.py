@@ -270,7 +270,7 @@ class ArmCommander:
     작업 시험은 노드 실행마다 새 session_id 를 쓰고 seq 는 팔마다 1부터 센다 (fleet_control 과 같은 방식).
     """
 
-    def __init__(self, arm_ids, ttl_ms, ack_timeout_sec, stale_sec, work_timeout_sec=120.0,
+    def __init__(self, arm_ids, ttl_ms, ack_timeout_sec, stale_sec, work_timeout_sec=300.0,
                  work_margin_sec=15.0, work_stage='MANUAL_TEST', session_id=None, site=None):
         self.arm_ids = [interface_arm_id(a) for a in arm_ids]
         # 현장 배치 (site_arms_utils.parse_site_arms 결과). actions 말고는 화면 표시용이다.
@@ -620,6 +620,10 @@ class ArmCommander:
                       f'{what} → {"수락" if record["accepted"] else record["result"]}{stop}{reason}')
             if record['accepted'] and record.get('command') == 'reset':
                 arm['posture'] = None   # 쉬는 자세를 확인하고 꺼졌다
+                # 끄기·고장 해제로 정리했으니 끝난 작업 결과(실패 등)는 카드에서 내린다.
+                # 기록은 이벤트에 남아 있다. 진행 중 작업은 결과를 받아야 하므로 둔다.
+                if arm['work'] and arm['work']['state'] != WORK_RUNNING:
+                    arm['work'] = None
             if record['accepted'] and record.get('command') == START:
                 # 상태 토픽보다 응답이 먼저 오면, 바로 다음 명령이 새 epoch 를 쓰게 한다.
                 arm['accepted_epoch'] = max(arm['accepted_epoch'], int(ack.get('epoch', 0)))

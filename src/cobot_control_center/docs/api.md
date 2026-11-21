@@ -166,7 +166,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `pending`, `epoch`, `seq` | 응답 기다리는 명령 수, 팔이 받아들인 epoch·seq |
 | `site` | 현장 팔 배치 `{station, role, host, serial, actions}` 또는 null (`config/site_arms.yaml`, 빈 칸은 미정). `actions` 말고는 표시용 |
 | `work_actions` | 그 팔에 작업 시험으로 보낼 수 있는 작업 (`site.actions`, 칸이 없으면 전체). 비면 `allowed` 에 `work` 가 없음 |
-| `work` | 마지막 작업 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data, source, requested_by, order_id, robot_id, stage}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT`. `source`: `test`(웹 작업 시험, `requested_by` 는 누른 곳 IP) / `order`(fleet_control 주문 작업, `order_id`·`robot_id`·`stage` 채움). 주문 작업이 진행 중이면 작업 시험은 409. 결과 기한은 요청의 `timeout_sec` + `work_result_margin_sec` (작업 시험은 `work_timeout_sec`). `stage: SAFETY`(release_hold 등) 요청은 `work` 를 바꾸지 않고 기록만. 실행기가 모델을 알려 주면 `data.model` (`omx_pick_za@v1`) |
+| `work` | 마지막 작업 `{request_id, action, state, seq, sent_at, finished_at, duration, detail, retry_safe, data, source, requested_by, order_id, robot_id, stage}` 또는 null. `state`: `RUNNING`·`SUCCEEDED`·`FAILED`·`NO_RESULT`. `source`: `test`(웹 작업 시험, `requested_by` 는 누른 곳 IP) / `order`(fleet_control 주문 작업, `order_id`·`robot_id`·`stage` 채움). 주문 작업이 진행 중이면 작업 시험은 409. 결과 기한은 요청의 `timeout_sec` + `work_result_margin_sec` (작업 시험은 `work_timeout_sec`). `stage: SAFETY`(release_hold 등) 요청은 `work` 를 바꾸지 않고 기록만. 실행기가 모델을 알려 주면 `data.model` (`omx_pick_za@v1`). 끄기(`reset`, 고장 해제 포함)가 수락되면 끝난 작업은 null 로 내린다 (진행 중은 그대로, 기록은 이벤트에 남음) |
 | `info` | 팔 노드 info 그대로 `{v, arm_id, interface_arm_id, boot_id, backend, detect: {state, reason, port}, power, worker: {ready, actions, models, rest_pose, safe_tol} 또는 {fake, ready}, dead, at}` 또는 null (예전 팔 노드). `worker.models` 는 작업별 `{bundle, version, model_name, path, init_pose, success_judge}` (`omx_fleet` 번들 규격), 끈 뒤에도 마지막 값 |
 | `start_block` | 켜기가 안 되는 이유 (`backend=none`, 보드 탐지 실패, 실행기 고장) 또는 `''`. 있으면 `OFF` 의 `allowed` 에서 `start` 를 뺌 (`arm_command_utils.start_block`). info 가 없으면 `''` |
 | `rest_check` | 지금 관절과 실행기 `rest_pose` 차이 `{configured, tol, diff: {관절: 지금-쉬는자세}, worst, at_rest}` 또는 null (info·실행기 정보 없음, fake). 그리퍼 제외. `configured=false` 면 끄기는 늘 거절. 관절 값이 없으면 `diff`·`at_rest` null (`arm_command_utils.rest_check`) |
@@ -231,7 +231,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `action` | `pick`·`load`·`unload`·`warehouse_store`·`arrange_shoe` |
 | `session_id`, `seq` | 노드 실행마다 새 session, seq 는 팔마다 1부터 |
 | `issued_at`, `ttl_sec` | 관제 PC 시각 [s], `ttl_ms`/1000 (5 s) |
-| `timeout_sec`, `attempt` | `work_timeout_sec` (120 s, 팔 노드는 자기 `worker_timeout_sec` 와 작은 값), 1 |
+| `timeout_sec`, `attempt` | `work_timeout_sec` (300 s, 팔 노드는 자기 `worker_timeout_sec` 와 작은 값), 1 |
 
 - `/fleet/work_result` 에서 **내가 낸 `request_id` 의 결과만** 기록합니다. 주문 결과나 두 번 온 결과는 버립니다.
 - `timeout_sec + work_result_margin_sec` 안에 결과가 없으면 `NO_RESULT` 입니다. 팔 자세를 모르니 현장에서 확인합니다.
@@ -441,7 +441,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `snapshot_period_sec` | `0.2` | `/control_center/arms` 발행 주기 [s] |
 | `work_request_topic`, `work_result_topic` | `/fleet/work_request`, `/fleet/work_result` | 작업 시험 토픽 (`fleet_control_node` 와 같음) |
 | `work_stage` | `MANUAL_TEST` | 작업 시험 요청의 `stage` (팔 노드가 결과에 그대로 돌려줌) |
-| `work_timeout_sec` | `120.0` | 요청 `timeout_sec` [s] |
+| `work_timeout_sec` | `300.0` | 요청 `timeout_sec` [s] |
 | `work_result_margin_sec` | `15.0` | `timeout_sec` 뒤 이만큼 더 결과가 없으면 `NO_RESULT` [s] |
 
 ### 지도·구역 기본 경로
