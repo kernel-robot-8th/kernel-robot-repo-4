@@ -14,13 +14,14 @@ tool/omx-dashboard-v2 (a54637d) 의 omx_dashboard_v2/ 에서 고치지 않고 �
          {"cmd": "hold"}   지금 단계를 멈추고 토크 유지 (안전 자세 이동도 하지 않음)
          {"cmd": "state"}  대기 중 관절 값 보고 (작업 중이면 작업이 끝난 뒤 답함)
          {"cmd": "release"} 쉬는 자세(rest_pose)에 있을 때만 연결을 끊고 끝냄. 아니면 거절 (팔을 옮기지 않음).
+                            허용 오차는 팔 설정 rest_tol (없으면 --safe-tol)
                             팔 설정 release_move: true 면 거절 대신 쉬는 자세로 옮긴 뒤 다시 재서 끈다
                             --release-without-rest 로 띄우면 rest_pose 가 없는 팔은 거절 대신 바로 끈다
                             (토크가 꺼지므로 팔이 내려앉을 수 있음. 현장에서 팔을 받친 뒤 누른다)
          {"cmd": "quit"}   무조건 연결을 끊고 끝냄 (토크가 꺼지므로 팔이 내려앉을 수 있음)
   stdout 기계용 줄은 "@fleet " 로 시작한다. 나머지 줄은 사람이 읽는 로그.
          @fleet {"event": "ready", "actions": [...], "joints": {...}, "models": {action: {...}},
-                 "rest_pose": {관절: 값} | null, "safe_tol": N, "robot_type": "..."}
+                 "rest_pose": {관절: 값} | null, "safe_tol": N, "rest_tol": N, "robot_type": "..."}
                  models 칸은 model_meta() 참고 (+ box_required, success_motion, noop)
          @fleet {"event": "state", "joints": {...}}
          @fleet {"event": "release_moving", "seconds": N, ...}       release_move: 쉬는 자세로 이동 시작 (약 N 초)
@@ -134,6 +135,15 @@ def load_arm_config(path, arm_id):
     if not isinstance(move, bool):
         raise ValueError(f"arms.{arm_id}.release_move 는 true/false ({move!r})")
     arm["release_move"] = move
+    # 끄기(release) 때 쉬는 자세 허용 오차. 없으면 --safe-tol. 팔마다 다르게 둔다:
+    # omx1 은 쉬는 자세에서 손목이 토크를 켠 채 3~4 처져(2026-11-23 실측 4.1)
+    # 3.0 으로는 끄기가 거절됐다.
+    # 작업 뒤 안전 자세(arm_safe) 판단은 그대로 --safe-tol 을 쓴다.
+    tol = arm.get("rest_tol")
+    bad = isinstance(tol, bool) or not isinstance(tol, (int, float)) or tol <= 0
+    if tol is not None and bad:
+        raise ValueError(f"arms.{arm_id}.rest_tol 은 0 보다 큰 수 ({tol!r})")
+    arm["rest_tol"] = float(tol) if tol is not None else None
     return arm
 
 
@@ -294,6 +304,7 @@ def main(argv=None):
                 safe_poses[name] = (omx_chain.read_pose(Path(spec["safe_pose"]).expanduser())
                                     if spec["safe_pose"] else next(iter(safe_poses.values())))
         rest_pose = omx_chain.read_pose(arm["rest_pose"]) if arm["rest_pose"] else None
+        rest_tol = arm["rest_tol"] or mine.safe_tol
         start_pose = omx_chain.read_pose(arm["start_pose"]) if arm["start_pose"] else None
     except (Exception, SystemExit) as error:  # noqa: BLE001 — omx_chain 은 SystemExit 로 알린다
         emit(event="fatal", detail=f"준비 실패: {error}")
@@ -307,7 +318,9 @@ def main(argv=None):
                           "cameras": {role: arm[role] for role in CAMERA_ROLES},
                           "state": features["observation.state"]["shape"][0],
                           "inputs": sorted(k for k in features if k.startswith("observation.")),
-                          "actions": summary, "start_pose": start_pose is not None}, ensure_ascii=False), flush=True)
+                          "actions": summary, "start_pose": start_pose is not None,
+                          "safe_tol": mine.safe_tol, "rest_tol": rest_tol},
+                         ensure_ascii=False), flush=True)
         return 0
 
     commands = queue.Queue()
@@ -337,7 +350,7 @@ def main(argv=None):
         emit(event="ready", actions=sorted(stages), joints=read_joints(robot),
              models={name: spec["meta"] for name, spec in arm["actions"].items()},
              rest_pose=plain_pose(rest_pose) if rest_pose else None, safe_tol=mine.safe_tol,
-             robot_type=robot_type)
+             rest_tol=rest_tol, robot_type=robot_type)
         print(f"[{arm_id}] 준비 완료 — 토크 유지, 일을 기다림", flush=True)
         while True:
             msg = commands.get()
@@ -363,25 +376,25 @@ def main(argv=None):
                          pose_error={}, joints=joints)
                     continue
                 error = body_error(joints, rest_pose)
-                if all(abs(e) <= mine.safe_tol for e in error.values()):
+                if all(abs(e) <= rest_tol for e in error.values()):
                     emit(event="released", pose_error=error)
                     break
                 worst = max(abs(e) for e in error.values())
                 if not arm["release_move"]:
                     emit(event="release_refused", pose_error=error, joints=joints,
-                         detail=f"쉬는 자세가 아님 (최대 오차 {worst:.1f} > {mine.safe_tol}): 현장에서 팔을 내려 주세요")
+                         detail=f"쉬는 자세가 아님 (최대 오차 {worst:.1f} > {rest_tol}): 현장에서 팔을 내려 주세요")
                     continue
                 # release_move: 쉬는 자세로 옮긴 뒤 다시 잰다. 그리퍼는 그대로 (잡은 물건을 놓지 않게).
                 # move_to_pose 는 멈춤 신호를 받지 않는다: 이동 중 hold 는 이동이 끝난 뒤에 처리된다.
                 seconds = max(args.init_min_s, worst / args.init_speed) + 0.5  # +0.5: 도착 뒤 대기
                 emit(event="release_moving", seconds=round(seconds, 1), pose_error=error, joints=joints)
-                at_rest, error, joints = retreat(robot, rest_pose, args, "끄기 전 쉬는", mine.safe_tol)
+                at_rest, error, joints = retreat(robot, rest_pose, args, "끄기 전 쉬는", rest_tol)
                 if at_rest:
                     emit(event="released", pose_error=error)
                     break
                 worst = max(abs(e) for e in error.values())
                 emit(event="release_refused", pose_error=error, joints=joints,
-                     detail=f"쉬는 자세로 옮겼지만 도착 못 함 (최대 오차 {worst:.1f} > {mine.safe_tol}): "
+                     detail=f"쉬는 자세로 옮겼지만 도착 못 함 (최대 오차 {worst:.1f} > {rest_tol}): "
                             "막힌 곳을 확인하세요. 토크 유지")
                 continue
             if cmd != "run":

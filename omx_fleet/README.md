@@ -124,7 +124,9 @@ omx_1031 번들(`Sungah/omx_1031_act_smolvla`)의 E 모델처럼 입력이 다�
 관제는 어댑터에 `ArmCommand` `CMD_START`·`CMD_RESET` 을 보낸다 (`cobot_manipulation/docs/prd.md` 5절).
 어댑터는 START 에 이 실행기를 띄우고, RESET 에 `{"cmd":"release"}` 를 보낸다.
 
-- `release`: 지금 자세가 `rest_pose` 에서 그리퍼를 뺀 관절 `--safe-tol` 안이면 `released` 를 알리고 연결을 끊는다 (토크 꺼짐).
+- `release`: 지금 자세가 `rest_pose` 에서 그리퍼를 뺀 관절 허용 오차 안이면 `released` 를 알리고 연결을 끊는다 (토크 꺼짐).
+  허용 오차는 팔 설정 `rest_tol` 이고, 없으면 `--safe-tol` (기본 3.0). 작업 뒤 안전 자세(`arm_safe`) 판단은 늘 `--safe-tol` 이다.
+  `rest_tol` 은 토크를 켠 채 쉬는 자세를 버티지 못하고 처지는 팔에만 넓힌다 (omx1 손목이 4.1 처짐, 2026-11-23).
   아니면 `release_refused` 로 거절한다. **팔을 옮기지 않는다** (관제는 팔 모션을 시작하지 않는다).
   - 예외: 팔 설정 `release_move: true` (기본 false) 면 녹화기 Servo OFF 처럼 `release_moving` (예상 시간 `seconds`) 을 알리고
     그리퍼를 뺀 관절을 쉬는 자세로 옮긴 뒤 다시 잰다. 도착했으면 `released`, 아니면 `release_refused` (토크 유지).
