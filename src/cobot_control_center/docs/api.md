@@ -10,7 +10,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 
 | 경로 | 응답 |
 |---|---|
-| `GET /` | 관제 화면 |
+| `GET /` | 관제 화면 (엔지니어용) |
+| `GET /service/` | 서비스 관리화면 (매장 직원용, [service_screen.md](service_screen.md)) |
 | `GET /api/health` | `{"ok": true, "domain_id": 백엔드의 ROS_DOMAIN_ID, "read_only": 개발용 읽기 전용 백엔드인지, "source_online": bool, "source_age": 초 또는 null, "controller_online": 작업 노드(fleet_control_node)가 켜져 있는지 (`cobot_fleet_control` 의 도커 smoke_check 도 읽음), "controller_age", "spec": 로봇별 명령 규격, "raw_cmd_enabled": 수동 명령 칸을 보일지, "commands_armed": 작업 명령이 켜져 있는지 (작업 노드가 꺼지면 false), "holds": {"pinky1": "ESTOP"} fleet 이 보류한 로봇 → 사유, "orders": [끝나지 않은 주문, 아래 형식], "routes": {"pinky1": 마지막 경로 (`GET /api/routes` 의 robots)}, "cameras": {"pinky1": {"age_sec": 마지막 영상 프레임 뒤 지난 초 또는 null, "frames": 받은 수}}, "cctv": 현장영상 중계 상태 `{"url", "connected": 원본에 붙어 있는지, "viewers": 보는 창 수, "age_sec": 마지막 장면 뒤 지난 초 또는 null, "frames": 받은 수, "error": 마지막 연결 오류}` (`cctv_url` 이 비면 null), "arm_controller_online": 로봇팔 명령 노드(arm_command_node)가 켜져 있는지}` |
 | `GET /api/fleet` | 최신 스냅샷 전체 + `source_online`, `source_age`. 아직 못 받았으면 503 |
 | `GET /api/robots` | 로봇 목록 (`robot_id` + 로봇 값) |
@@ -47,6 +48,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"?}`. UNKNOWN만 접수. 202의 작업은 UNKNOWN·`reset_pending=true`이며 로봇 해제 응답 후 FAILED로 변경. 정지 미확인은 409 |
 | `POST /api/orders/{order_id}/recover` | `{"client_request_id", "decision": "resume" \| "fail", "evidence"?, "operator"?, "note"?}`. 재개는 `MOVE_PICKUP`·`MOVE_DROPOFF`·`RETURN_HOME`·`CUSTOMER`만 가능. 로봇은 최신 정지 상태여야 함. 자원을 예약한 주문 취소는 `evidence`의 `arms_safe`·`cargo_reconciled`·`resources_clear` 모두 true 필요. 화면에서 각각 현장 확인. 취소 후에도 로봇 해제 응답 전에는 보류 유지 |
 | `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
+| `GET /api/service?finished=30` | 서비스 관리화면 값 (읽기 전용). 아래 [서비스 화면](#apiservice-서비스-화면) |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
 | `GET /api/tasks/{task_id}` | 작업 하나 `{"task_id", "robot_id", "operation", "points", "command", "spec", "state", "detail", "created_at", "updated_at", "history": [{"at", "state", "detail"}]}` |
 | `GET /api/network?history=` | 네트워크 화면 구조도 (아래 [네트워크](#네트워크-net_status_node)). `history=true` 면 대상별 최근 핑 기록도 |
@@ -124,6 +126,35 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `state`, `stage`, `completed`, `detail` | fleet 주문 상태(`WAITING`·`RUNNING`·`UNKNOWN` 등), 지금 단계(`MOVE_PICKUP` 등), 끝낸 단계 목록, 설명 |
 | `load_confirmed` | 운영자 수동 상차 확인을 이미 받았는지 |
 | `load_confirmable` | 화면에 **상차 확인** 을 보일지. `state` 가 `RUNNING`/`UNKNOWN`, `stage` 가 `PICKUP_EXIT`~`VERIFY_LOAD` 또는 `CORRECT_PICKUP`, `completed` 에 `MOVE_PICKUP`, 로봇 배정됨, 실패 없음, 아직 확인 안 함 (`fleet_api_utils.load_confirmable`). fleet 의 검사(`scenario_safety.confirm_loaded`)와 같은 조건이지만 표시용이고, 최종 검사(정지·통신·구역·예약)는 fleet 이 합니다 |
+
+### `/api/service` (서비스 화면)
+
+매장 직원용 서비스 관리화면(`web/service/`)이 1초마다 읽습니다. fleet 이 `/control_center/tasks` 에 싣는 `orders`·`stock`·`destinations`·`holds` 를 읽기만 하고 아무것도 내지 않습니다 (`fleet_api_utils.service_orders`, `TaskStore.service`).
+작업 노드가 끊겨도 마지막 주문·재고는 그대로 주고 `controller_online` 으로 알립니다. `commands_armed`·`holds` 는 끊기면 `false`·`{}` 입니다 (`/api/health` 와 같음).
+
+```json
+{"now": 1793517871.2, "read_only": false, "controller_online": true, "controller_age": 0.4,
+ "commands_armed": true, "holds": {"pinky2": "ESTOP"},
+ "steps": ["접수", "상품 준비", "이동", "전달", "회수·정리", "복귀"],
+ "active": [{"order_id": "cust-…", "sku": "SHOE-1", "destination": "P22", "robot_id": "pinky2",
+             "state": "RUNNING", "stage": "PICK", "step": 1, "step_text": "로봇팔이 상품 꺼내는 중",
+             "returning": false, "outcome": null, "blocked": false, "resumable": false,
+             "load_confirmable": true, "load_confirmed": false, "failure": null,
+             "created_at": 1793517800.0, "updated_at": 1793517860.0, "…": "ORDER_FIELDS 나머지"}],
+ "finished": [{"…": "같은 모양", "outcome": "sold", "outcome_text": "구매 완료"}],
+ "stock": [{"sku": "SHOE-1", "available": 2, "shelf_row": 1, "shelf_col": 1}],
+ "destinations": {"P22": {"name": "P22 자리"}}}
+```
+
+| 필드 | 뜻 |
+|---|---|
+| `now` | 이 서버 벽시계 [s]. 화면이 `created_at`·`updated_at` 과 빼서 경과 시간을 냅니다 |
+| `active` | 끝나지 않은 주문 전부, 접수 순(오래된 것 먼저) |
+| `finished` | 끝난 주문(`COMPLETED`·`FAILED`) 최근 `finished`(0~200, 기본 30) 건, 최신 먼저. fleet 원장에 남아 있는 것만 |
+| `step`, `step_text` | `steps` 의 위치(0 접수 … 5 복귀)와 지금 하는 일. 단계 표는 `fleet_api_utils.SERVICE_STAGE` (fleet `scenario_tree` 단계 이름을 복사). 모르는 단계면 `step` null, `step_text` 는 코드 그대로 |
+| `returning` | 고객이 사지 않았거나 시간 초과라 회수·정리 단계를 거치는지 |
+| `outcome`, `outcome_text` | 끝난 주문 결과 `sold` 구매 완료 · `declined` 구매 안 함 · `timeout` 고객 응답 없음 · `done` 완료(고객 결정 없는 주문) · `failed` 처리 못 함. 진행 중이면 null |
+| `blocked`, `resumable`, `load_confirmable`, `load_confirmed` | [`/api/health` 의 `orders`](#apihealth-의-orders) 와 같은 조건 (표시용, 최종 검사는 fleet) |
 
 ## 로봇팔 (arm_command_node)
 

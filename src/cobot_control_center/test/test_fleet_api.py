@@ -25,8 +25,8 @@ import threading
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
     active_orders, ArmStore, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
-    load_robot_params, MapError, mjpeg_part, order_events, SnapshotStore,
-    TaskStore)
+    load_robot_params, MapError, mjpeg_part, order_events, service_order, service_orders,
+    SnapshotStore, TaskStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -260,6 +260,8 @@ def test_installed_web_files_exist():
                  'commands.js', 'tasks.js', 'release.js', 'map.js', 'raw.js', 'detail.js',
                  'pose.js', 'arms.js', 'main.js'):
         assert os.path.isfile(os.path.join(web, name)), name
+    for name in ('index.html', 'service.js', 'service.css'):
+        assert os.path.isfile(os.path.join(web, 'service', name)), name
 
 
 def test_websocket_sends_latest_then_pushes_new():
@@ -1150,3 +1152,88 @@ def test_task_store_order_events_taken_once():
     assert [e['text'] for e in tasks.take_events()] == [
         '주문 o1 진행 중 RUNNING MOVE_PICKUP', '주문 o1 MOVE_PICKUP → PICK']
     assert tasks.take_events() == []
+
+
+# ---------- 서비스 화면 (/api/service) ----------
+
+def service_raw(order_id, **fields):
+    order = {'order_id': order_id, 'sku': 'SHOE-1', 'route': 'col1__P22', 'destination': 'P22',
+             'state': 'RUNNING', 'stage': 'MOVE_PICKUP', 'robot_id': 'pinky2', 'completed': [],
+             'detail': '', 'failure': None, 'created_at': 100.0, 'updated_at': 110.0,
+             'input': {'secret': 'x'}}
+    order.update(fields)
+    return order
+
+
+def test_service_order_steps_and_flags():
+    waiting = service_order(service_raw('o1', state='WAITING', robot_id=None))
+    assert (waiting['step'], waiting['step_text']) == (0, '로봇 배정 기다리는 중')
+    assert waiting['outcome'] is None and 'input' not in waiting
+    pick = service_order(service_raw('o2', stage='PICK', completed=['MOVE_PICKUP']))
+    assert pick['step'] == 1 and pick['load_confirmable'] is True and pick['blocked'] is False
+    customer = service_order(service_raw('o3', stage='CUSTOMER'))
+    assert customer['step'] == 3 and customer['destination'] == 'P22'
+    stuck = service_order(service_raw('o4', state='ESTOP', stage='MOVE_CUSTOMER'))
+    assert stuck['blocked'] is True and stuck['resumable'] is True and stuck['step'] == 2
+    stuck_pick = service_order(service_raw('o5', state='UNKNOWN', stage='PICK'))
+    assert stuck_pick['blocked'] is True and stuck_pick['resumable'] is False
+    back = service_order(service_raw('o6', stage='ARRANGE', customer_declined=True))
+    assert back['step'] == 4 and back['returning'] is True
+    odd = service_order(service_raw('o7', stage='NEW_STAGE'))
+    assert (odd['step'], odd['step_text']) == (None, 'NEW_STAGE')
+
+
+def test_service_order_outcomes():
+    def outcome(**fields):
+        return service_order(service_raw('o', **fields))['outcome']
+    assert outcome(state='COMPLETED', customer_received=True) == 'sold'
+    assert outcome(state='COMPLETED', customer_declined=True) == 'declined'
+    assert outcome(state='COMPLETED', customer_declined=True, customer_timed_out=True) == 'timeout'
+    assert outcome(state='COMPLETED') == 'done'
+    failed = service_order(service_raw('o', state='FAILED', failure='팔 응답 없음',
+                                       stage='PICK', completed=['MOVE_PICKUP']))
+    assert failed['outcome'] == 'failed' and failed['load_confirmable'] is False
+
+
+def test_service_orders_split_and_sort():
+    orders = [service_raw('a2', created_at=200.0), service_raw('a1', created_at=100.0),
+              service_raw('f1', state='COMPLETED', updated_at=300.0),
+              service_raw('f2', state='FAILED', updated_at=400.0),
+              service_raw('f3', state='COMPLETED', updated_at=350.0), 'junk', {}]
+    active, finished = service_orders(orders, 2)
+    assert [o['order_id'] for o in active] == ['a1', 'a2']
+    assert [o['order_id'] for o in finished] == ['f2', 'f3']
+    assert service_orders(None, 5) == ([], [])
+
+
+def test_api_service_view():
+    store, _ = make_store()
+    # 작업 노드가 없는 백엔드: 빈 값과 읽기 전용
+    body = TestClient(create_app(store)).get('/api/service').json()
+    assert body['read_only'] is True and body['active'] == []
+    assert body['controller_online'] is False
+    assert body['steps'][0] == '접수'
+
+    tasks, clock = make_task_store()
+    tasks.put_snapshot(json.dumps({
+        'tasks': [], 'armed': True, 'holds': {'pinky2': 'ESTOP'},
+        'orders': [service_raw('a1'),
+                   service_raw('f1', state='COMPLETED', customer_received=True)],
+        'stock': [{'sku': 'SHOE-1', 'available': 2, 'shelf_row': 1, 'shelf_col': 1}],
+        'destinations': {'P22': {'name': 'P22 자리'}}}))
+    publish, _ = fake_controller(tasks, 200, {})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    body = client.get('/api/service?finished=5').json()
+    assert body['read_only'] is False and body['controller_online'] is True
+    assert body['commands_armed'] is True and body['holds'] == {'pinky2': 'ESTOP'}
+    assert [o['order_id'] for o in body['active']] == ['a1']
+    assert body['finished'][0]['outcome'] == 'sold'
+    assert body['stock'][0]['available'] == 2 and body['destinations']['P22']['name'] == 'P22 자리'
+    assert body['now'] > 0
+    assert client.get('/api/service?finished=0').json()['finished'] == []
+    # 작업 노드가 끊기면 마지막 주문·재고는 보이고, 켜짐·보류는 거짓으로 본다
+    clock.now = 3.5
+    body = client.get('/api/service').json()
+    assert body['controller_online'] is False and body['commands_armed'] is False
+    assert body['holds'] == {} and body['stock'][0]['sku'] == 'SHOE-1'
+    assert client.get('/api/service?finished=999').status_code == 422

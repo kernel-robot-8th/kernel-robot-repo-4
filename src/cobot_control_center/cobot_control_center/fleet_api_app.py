@@ -32,9 +32,11 @@
 
 import asyncio
 import json
+import time
 import uuid
 
-from cobot_control_center.fleet_api_utils import MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose
+from cobot_control_center.fleet_api_utils import (
+    MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose, SERVICE_STEPS)
 from cobot_control_center.net_status_utils import collect_network, network_alerts
 from cobot_control_center.route_utils import FAILED, RouteError, RUNNING, split_route
 from cobot_control_center.teleop_utils import (
@@ -694,6 +696,18 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         if tasks is None:
             raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         return tasks
+
+    @app.get('/api/service')
+    def service_view(finished: int = Query(30, ge=0, le=200)):
+        # 서비스 화면(/service/, 매장 직원용): 주문 중심으로 읽기만 한다. 조치는 기존 명령 경로를 쓴다.
+        # now 는 이 서버 벽시계 [s]. 화면은 주문 created_at·updated_at 과 빼서 경과 시간을 낸다.
+        if tasks is None:
+            body = {'controller_online': False, 'controller_age': None,
+                    'commands_armed': False, 'holds': {}, 'active': [], 'finished': [],
+                    'stock': [], 'destinations': {}, 'steps': list(SERVICE_STEPS)}
+        else:
+            body = tasks.service(finished)
+        return {'now': time.time(), 'read_only': publish_request is None, **body}
 
     @app.get('/api/tasks')
     def list_tasks(robot_id: str = None, state: str = None, limit: int = 50):

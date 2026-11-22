@@ -21,7 +21,7 @@ ss -ltnp | grep -E ':8[01][0-9]{2}\b'
 
 | 포트 | 서비스 | 띄우는 것 | 도메인 | 담당 |
 |---|---|---|---|---|
-| 8080 | 실물 관제 화면 `fleet_api_node` | `cobot_bringup bringup.launch.xml` 또는 도커 `web` | 100 | 김지혜 |
+| 8080 | 실물 관제 화면 `fleet_api_node` (엔지니어 `/`, 매장 직원 `/service/`) | `cobot_bringup bringup.launch.xml` 또는 도커 `web` | 100 | 김지혜 |
 | 8081 | 고객 주문 화면 `customer_gateway` (자리 QR `:8081/?loc=<자리>`) | `cobot_gui customer_gateway.launch.xml` 또는 도커 `customer` | 100 | 김성아 |
 | 8082 | 비워 둠 (서비스용 예비) | – | – | – |
 | 8083 | 이상 감지 콘솔 `anomaly_monitor` (127.0.0.1) | `cobot_anomaly_monitor` | – | 강건한 |
