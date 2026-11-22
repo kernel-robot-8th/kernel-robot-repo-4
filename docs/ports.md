@@ -11,7 +11,11 @@
 - 8080 은 **bringup 관제와 도커 관제(web) 중 하나만** 켭니다. 8081 도 직접 켠 `customer_gateway` 와 도커 `customer` 중 하나만 켭니다.
 - 6000 등 크롬이 막는 포트(ERR_UNSAFE_PORT)는 쓰지 않습니다.
 
-지금 무엇이 떠 있는지 볼 때:
+지금 무엇이 떠 있는지 볼 때 (도커·launch·포트·관제 상태를 함께):
+```bash
+bash scripts/cobot.sh status
+```
+포트만 볼 때:
 ```bash
 ss -ltnp | grep -E ':8[01][0-9]{2}\b'
 ```

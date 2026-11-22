@@ -11,10 +11,11 @@
 |---|---|---|
 | pinky1 / pinky2 / pinky3 (192.168.45.21 / .22 / .23) | `cobot-robot` 서비스(전원 켜면 하드웨어 bringup → Nav2 → 순찰 노드 자동) | 10 / 20 / 30 |
 | Station PC (8-OMEN: omx1·omx2, OMEN-11: omx3) | `cobot-host-status`, `cobot-arm-adapter@<팔>` (systemd 사용자 서비스) | 100 |
-| 관제 PC | `cobot_bringup bringup.launch.xml` (브릿지·zone_manager·관제·웹·팔 명령 한 번에) | 100 |
-| 관제 PC (선택) | 고객 주문 화면 `customer_gateway` | 100 |
+| 관제 PC | 도커 관제 `bash scripts/cobot.sh site up --execute` (브릿지·zone_manager·fleet·관제 화면 8080·고객 주문 화면 8081) | 100 |
 
-순서: **① 로봇 전원(bringup·Nav2·순찰 노드 자동) → ② Station PC → ③ 관제 PC → ④ 화면에서 초기위치·작업 명령 켜기**
+순서: **① 로봇 전원(bringup·Nav2·순찰 노드 자동) → ② Station PC → ③ 관제 PC → ④ 화면에서 초기위치·주문 받기**
+
+관제 PC 명령은 입구 하나 `scripts/cobot.sh` 로 모았습니다 (`bash scripts/cobot.sh help`). 실물 도메인에 닿는 명령은 미리보기가 기본이고 `--execute` 를 붙여야 실행합니다.
 
 화면 포트 ([포트 표](ports.md)): 서비스용은 80xx(실물 관제 8080, 고객 주문 8081), 개발용은 81xx(개발 읽기 전용 8180, 가짜 핑키 8181, 가제보 8182)입니다.
 
@@ -22,8 +23,8 @@
 
 - **관제 PC 는 한 대만** 켭니다. 두 대가 켜지면 브릿지와 zone_manager 가 두 벌이 되어 구역 토큰이 따로 나갑니다.
 - 같은 도메인에 `fleet_control` 을 둘 띄우지 않습니다 (예: 도커 fleet 과 bringup fleet). 요청 수신자가 둘이면 명령을 거절합니다.
-  이미 무엇이 떠 있는지는 `ss -ltnp | grep -E ':8[01][0-9]{2}\b'` 로 봅니다.
-- 관제 PC 는 `.venv` 를 켠 셸에서 빌드해야 합니다 ([관제 README 처음 설치·빌드](../src/cobot_control_center/README.md#처음-설치)).
+  이미 무엇이 떠 있는지는 `bash scripts/cobot.sh status` 로 봅니다 (도커·launch·포트·관제 상태).
+- 관제 PC 는 `.venv` 파이썬으로 빌드해야 합니다. `bash scripts/cobot.sh build` 가 그렇게 합니다 (시스템 `colcon` 으로 빌드하면 관제 화면이 fastapi 를 못 찾아 뜨지 않음).
 
 ## 2. 각 로봇: 전원 켜기 (자동 기동)
 
@@ -71,8 +72,25 @@ systemctl --user status 'cobot-arm-adapter@*'
 
 원래 문서: [station_pc_services.md](station_pc_services.md)
 
-## 4. 관제 PC: bringup
+## 4. 관제 PC: 도커 관제
 
+현장은 도커 관제 하나로 켭니다. 컨테이너 다섯 개(브릿지·zone_manager·fleet·관제 화면 8080·고객 주문 화면 8081)가 지금 커밋으로 만든 이미지 하나로 뜹니다.
+```bash
+bash scripts/cobot.sh site up
+```
+미리보기에서 프로젝트 이름과 주문·재고 DB 볼륨(`<프로젝트>_fleet-data`)을 확인한 뒤 실행합니다.
+```bash
+bash scripts/cobot.sh site up --execute
+```
+- 지금 커밋 이미지가 없으면 먼저 `bash scripts/cobot.sh site rebuild --execute` (빌드 → 격리 스모크 → 켜기, 몇 분).
+- 프로젝트 이름은 떠 있는 것(없으면 가장 최근 것)을 이어 씁니다. 프로젝트마다 주문·재고 DB 가 따로라서, 바꿀 때만 `COBOT_PROJECT=<이름>` 을 줍니다.
+- 주문 받기(작업 명령)는 **꺼짐**으로 시작합니다. 로그는 `bash scripts/cobot.sh site logs fleet`.
+- 도커 자체(설치·`fleet_docker.sh` 명령)는 [`cobot_fleet_control/config/docker/README.md`](../src/cobot_navigation/cobot_fleet_control/config/docker/README.md).
+
+### 대신 bringup 으로 켤 때 (개발)
+
+도커와 같은 8080·도메인을 쓰므로 도커를 먼저 내립니다 (`bash scripts/cobot.sh site down --execute`). 고객 주문 화면은 7절처럼 따로 켭니다.
+보기만 할 때(작업 노드 없음)는 `bash scripts/cobot.sh view --execute` 입니다. 주문까지 처리하려면 아래처럼 직접 켭니다.
 ```bash
 source /opt/ros/jazzy/setup.bash && source .venv/bin/activate && source install/setup.bash
 ```
@@ -114,19 +132,20 @@ ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
 
 ## 6. 관제 화면에서 시작
 
-브라우저에서 `http://<관제 PC>:8080/` 을 엽니다 ([화면 사용법](../src/cobot_control_center/docs/screen_guide.md)).
+엔지니어 화면 `http://<관제 PC>:8080/` 에서 준비하고 ([화면 사용법](../src/cobot_control_center/docs/screen_guide.md)), 영업은 매장 관리화면 `http://<관제 PC>:8080/service/` 에서 봅니다 ([관리화면 사용법](../src/cobot_control_center/docs/service_screen.md)).
 
 1. **초기위치**: 로봇 카드의 **초기위치** 를 누르면 순찰 설정의 홈 좌표가 `/pinkyN/initialpose` 로 나갑니다. 로봇은 움직이지 않고, 작업 명령을 켜지 않아도 됩니다. 홈이 아닌 곳이면 상세 화면 **좌표 지정**으로 찍습니다.
 2. **작업 명령 켜기**: 화면 상단에서 켭니다 (현장 확인 후). 정지·비상정지는 꺼져 있어도 됩니다.
 3. 가까운 지점으로 `goto` → 이동 중 정지 → `home` 순서로 확인합니다. 끝나면 **작업 명령 끄기**.
+4. 영업: 매장 관리화면 위쪽 **주문 받기** (엔지니어 화면의 작업 명령 켜기와 같은 스위치). 멈춘 주문·상차 확인·정지 해제는 관리화면 '할 일'에서 합니다.
 
 화면의 `연결` 은 배터리나 위치를 받고 있다는 뜻까지만입니다. Nav2·순찰 노드가 떴는지는 로봇 터미널 로그로 확인합니다.
 
 원래 문서: [관제 README 실물 시험 순서](../src/cobot_control_center/README.md#실물-시험-순서), [명령 켜기](../src/cobot_control_center/README.md#명령-켜기)
 
-## 7. (선택) 고객 주문 화면
+## 7. (bringup 일 때만) 고객 주문 화면
 
-관제 PC(`fleet_control` 과 같은 PC)에서 켭니다. 먼저 `src/cobot_gui/web` 에서 `npm run build` 를 하고 `colcon build` 를 해야 화면이 install 됩니다.
+도커 관제는 고객 주문 화면(8081)을 함께 켭니다. bringup 으로 켰을 때만 관제 PC(`fleet_control` 과 같은 PC)에서 따로 켭니다. 먼저 `src/cobot_gui/web` 에서 `npm run build` 를 하고 `colcon build` 를 해야 화면이 install 됩니다.
 ```bash
 ros2 launch cobot_gui customer_gateway.launch.xml
 ```
@@ -137,8 +156,8 @@ ros2 launch cobot_gui customer_gateway.launch.xml
 1. 화면에서 **작업 명령 끄기**. 진행 중인 주문·이동이 없고 로봇이 모두 멈췄는지 봅니다.
    움직이던 로봇은 관제가 꺼지면 하트비트가 끊긴 것을 3 초 안에 알고(`central_timeout_sec`) 멈춘 뒤 **정지 잠금**이 걸립니다.
    잠금은 다음에 켤 때 화면에서 복구해야 합니다. 멈춰 있던 로봇은 잠기지 않습니다.
-2. 관제 PC bringup 을 Ctrl+C 로 끕니다. 이 PC 에서 띄운 것(bringup·가짜 핑키·가제보·tmux·도커)을 한 번에 내리려면
-   `bash draft/scripts/stop_all.sh` (미리보기) → `--execute` 를 씁니다.
+2. 관제 PC: 도커 관제는 `bash scripts/cobot.sh site down --execute` (주문·재고 DB 볼륨은 남김). 이 PC 에서 띄운 것(bringup·가짜 핑키·가제보·도커)을
+   한 번에 내리려면 `bash scripts/cobot.sh stop` (미리보기) → `--execute` 를 씁니다.
 3. 각 로봇: `ssh -t pinky1 'sudo systemctl stop cobot-robot'` 처럼 서비스를 끕니다. 서비스가 순찰 노드 → Nav2 → bringup 순서로 정리하고 다시 띄우지 않습니다.
    손으로 켠 로봇은 같은 순서로 **Ctrl+C** 로 끕니다.
    순찰 노드는 정상 종료(서비스 stop 또는 Ctrl+C)될 때 이동을 취소하고 0 속도를 보낸 뒤 **지금 위치를 `~/.pinky_last_pose.json` 에 저장**합니다.
@@ -162,8 +181,8 @@ ros2 launch cobot_gui customer_gateway.launch.xml
 
 | 방식 | 명령 | 화면 |
 |---|---|---|
-| 가짜 핑키 + 가짜 팔 3대 | `ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 launch cobot_mock mock_fleet.launch.xml` | 8181 |
-| 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드 + 관제) | `ros2 launch cobot_gazebo sim_fleet.launch.xml` (도메인 140~143 고정) | 8182 |
+| 가짜 핑키 + 가짜 팔 3대 | `bash scripts/cobot.sh mock` (도메인 101, 이 PC 안. 명령 시험은 `--manual`, 팔 빼기 `arms:=false`) | 8181 |
+| 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드 + 관제) | `bash scripts/cobot.sh sim` (도메인 140~143 고정, 화면 없이 `--headless`) | 8182 |
 | 팔 어댑터만 가짜로 | `ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake` | – |
 | 실물을 보면서 화면 개발 (읽기 전용) | `ROS_DOMAIN_ID=100 ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 8180 |
 

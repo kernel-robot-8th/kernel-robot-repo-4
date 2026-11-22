@@ -40,6 +40,7 @@
 │   ├── fms_roadmap.md          # FMS 단계 계획 S0~S6 과 단계별 출구 검사
 │   └── station_pc_services.md  # Station PC 노드 상시 실행 (systemd 사용자 서비스)
 ├── scripts/                    # 환경 설정, 보조 스크립트
+│   ├── cobot.sh                # 관제 PC 실행 입구 (현장 도커·가짜 핑키·상태·끄기, bash scripts/cobot.sh help)
 │   ├── docker/                 # 개발용 도커 스크립트 (dev_docker_guide.md 참고)
 │   ├── spikes/                 # 한 번 확인하고 끝나는 검증 스크립트 (결과는 docs/ 에 기록)
 │   └── systemd/                # Station PC 상시 실행 서비스 (station_pc_services.md 참고)
