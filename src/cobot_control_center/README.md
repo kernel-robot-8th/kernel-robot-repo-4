@@ -176,7 +176,7 @@ SSH 터미널에서 띄우면 접속이 끊길 때 같이 꺼질 수 있으므�
 
 화면 사용법은 [docs/screen_guide.md](docs/screen_guide.md) 를 봅니다.
 
-매장 직원용 **서비스 관리화면**은 같은 포트의 `/service/` 입니다 (`http://<관제 PC 주소>:8080/service/`). 주문 중심으로 보고 비상정지·주문 복구·상차 확인·정지 해제만 합니다. 사용법은 [docs/service_screen.md](docs/service_screen.md).
+매장 직원·관리자용 **매장 관리화면**(대시보드)은 같은 포트의 `/service/` 입니다 (`http://<관제 PC 주소>:8080/service/`). 오늘 숫자·할 일·주문 현황·재고·장비 요약을 보고 비상정지·주문 받기/멈추기·주문 복구·상차 확인·정지 해제만 합니다. 사용법은 [docs/service_screen.md](docs/service_screen.md).
 
 ## 화면 개발 (실물 보면서)
 

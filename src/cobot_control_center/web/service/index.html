@@ -3,8 +3,8 @@
   Copyright 2026 Pinky_Team4
   Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 
-  서비스 관리화면 (매장 직원용). 주문 중심으로 보고 기본 조치만 한다.
-  데이터: GET /api/service (주문·재고·보류), /api/fleet (로봇), /api/arms (로봇팔).
+  매장 관리화면 (매장 직원·관리자용, 대시보드형). 주문 중심으로 보고 기본 조치만 한다.
+  데이터: GET /api/service (주문·오늘 건수·재고·보류), /api/fleet (로봇), /api/arms (로봇팔).
   조치: 기존 명령 경로 (/api/commands/arm·estop, /api/orders/{id}/recover·confirm_loaded,
   /api/robots/{id}/stop·release_control). 개발·시험 기능은 엔지니어 화면(/)에 있다.
   외부 CDN 을 쓰지 않는다 (현장은 인터넷이 없다).
@@ -13,84 +13,113 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>매장 운영 화면</title>
+  <title>매장 관리</title>
   <link rel="stylesheet" href="service.css">
 </head>
 <body>
   <header class="top">
     <div class="brand">
-      <h1>매장 운영</h1>
-      <span id="mode-chip" class="chip">연결 중…</span>
+      <span class="logo" aria-hidden="true">C</span>
+      <div>
+        <h1>매장 관리</h1>
+        <p id="date-line" class="date-line"></p>
+      </div>
+      <span id="mode-chip" class="chip" hidden></span>
     </div>
-    <div class="links">
-      <span class="link-state"><i id="dot-backend" class="dot"></i>관제</span>
-      <span class="link-state"><i id="dot-controller" class="dot"></i>주문 처리기</span>
-      <span id="clock" class="clock"></span>
-    </div>
-    <div class="top-actions">
-      <button id="arm-toggle" class="btn" type="button" disabled>주문 처리 …</button>
-      <button id="estop-all" class="btn btn-estop" type="button" disabled>전체 비상정지</button>
+    <div class="top-right">
+      <div id="open-state" class="open-state" data-state="unknown">
+        <i class="pulse"></i>
+        <span id="open-text">연결 중…</span>
+        <button id="arm-toggle" class="btn btn-ghost" type="button" disabled>…</button>
+      </div>
+      <button id="estop-all" class="btn btn-estop" type="button" disabled>비상정지</button>
     </div>
   </header>
 
-  <div id="alerts" class="alerts" hidden></div>
+  <div id="banner" class="banner" hidden></div>
 
-  <main class="layout">
-    <section class="panel orders-panel">
-      <div class="panel-head">
-        <h2>진행 중 주문 <span id="active-count" class="count">0</span></h2>
-      </div>
-      <div id="active-orders" class="order-list"></div>
-      <p id="active-empty" class="empty">진행 중인 주문이 없습니다.</p>
+  <main class="page">
+    <section class="kpis" aria-label="오늘 운영">
+      <div class="kpi"><span class="kpi-label">오늘 주문</span><strong id="kpi-total">0</strong></div>
+      <div class="kpi kpi-active"><span class="kpi-label">진행 중</span><strong id="kpi-active">0</strong></div>
+      <div class="kpi kpi-good"><span class="kpi-label">판매</span><strong id="kpi-sold">0</strong></div>
+      <div class="kpi kpi-warn"><span class="kpi-label">회수</span><strong id="kpi-returned">0</strong></div>
+      <div class="kpi kpi-bad"><span class="kpi-label">실패</span><strong id="kpi-failed">0</strong></div>
     </section>
 
-    <aside class="side">
-      <section class="panel">
-        <h2>로봇</h2>
-        <div id="robots" class="mini-list"></div>
-        <p id="robots-empty" class="empty" hidden>로봇 정보를 아직 받지 못했습니다.</p>
+    <section class="card todo-card">
+      <div class="card-head">
+        <h2>할 일 <span id="todo-count" class="count">0</span></h2>
+      </div>
+      <ul id="todo" class="todo"></ul>
+      <p id="todo-empty" class="all-clear">처리할 일이 없습니다</p>
+    </section>
+
+    <div class="split">
+      <section class="card board-card">
+        <div class="card-head">
+          <h2>주문 현황</h2>
+          <span class="hint">주문을 누르면 자세히 볼 수 있습니다</span>
+        </div>
+        <div id="board" class="board"></div>
       </section>
-      <section class="panel">
-        <h2>로봇팔</h2>
-        <div id="arms" class="mini-list"></div>
-        <p id="arms-empty" class="empty" hidden>로봇팔 정보가 없습니다.</p>
-      </section>
-      <section class="panel">
-        <h2>재고</h2>
-        <table class="stock">
-          <thead><tr><th>상품</th><th>선반</th><th class="num">남은 수량</th></tr></thead>
-          <tbody id="stock"></tbody>
-        </table>
+
+      <section class="card stock-card">
+        <div class="card-head">
+          <h2>재고</h2>
+          <span id="stock-summary" class="hint"></span>
+        </div>
+        <ul id="stock" class="stock"></ul>
         <p id="stock-empty" class="empty" hidden>재고 정보가 없습니다.</p>
       </section>
-    </aside>
+    </div>
 
-    <section class="panel finished-panel">
-      <div class="panel-head">
-        <h2>끝난 주문</h2>
-        <span id="finished-summary" class="summary"></span>
+    <section class="card equip-card">
+      <button id="equip-toggle" class="equip-line" type="button" aria-expanded="false">
+        <span class="equip-title">장비</span>
+        <span id="equip-summary" class="equip-summary"></span>
+        <span class="equip-more">자세히</span>
+      </button>
+      <div id="equip-detail" class="equip-detail" hidden>
+        <div>
+          <h3>로봇</h3>
+          <div id="robots" class="equip-grid"></div>
+        </div>
+        <div>
+          <h3>로봇팔</h3>
+          <div id="arms" class="equip-grid"></div>
+        </div>
       </div>
-      <table class="finished">
-        <thead>
-          <tr><th>시각</th><th>주문</th><th>상품</th><th>자리</th><th>로봇</th><th>결과</th><th>걸린 시간</th></tr>
-        </thead>
-        <tbody id="finished"></tbody>
-      </table>
-      <p id="finished-empty" class="empty">끝난 주문이 없습니다.</p>
+    </section>
+
+    <section class="card history-card">
+      <div class="card-head">
+        <h2>최근 주문 내역</h2>
+        <span id="history-summary" class="hint"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="history">
+          <thead>
+            <tr><th>끝난 시각</th><th>주문</th><th>상품</th><th>자리</th><th>결과</th><th class="num">걸린 시간</th></tr>
+          </thead>
+          <tbody id="history"></tbody>
+        </table>
+      </div>
+      <p id="history-empty" class="empty">아직 끝난 주문이 없습니다.</p>
     </section>
   </main>
 
   <footer class="foot">
+    <span><i id="dot-backend" class="dot"></i>관제 <i id="dot-controller" class="dot"></i>주문 처리기</span>
     <a href="/">엔지니어 화면</a>
-    <span>문제가 계속되면 엔지니어에게 알려 주세요.</span>
   </footer>
 
   <dialog id="dialog" class="dialog">
-    <form method="dialog" id="dialog-form">
+    <form method="dialog">
       <h3 id="dialog-title"></h3>
-      <div id="dialog-lines" class="dialog-lines"></div>
+      <div id="dialog-body" class="dialog-body"></div>
       <div id="dialog-checks" class="dialog-checks"></div>
-      <label class="dialog-operator">처리한 사람
+      <label id="dialog-operator-row" class="dialog-operator">처리한 사람
         <input id="dialog-operator" type="text" autocomplete="name" placeholder="이름">
       </label>
       <div id="dialog-actions" class="dialog-actions"></div>

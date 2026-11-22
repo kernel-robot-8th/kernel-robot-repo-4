@@ -26,7 +26,7 @@ from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
     active_orders, ArmStore, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
     load_robot_params, MapError, mjpeg_part, order_events, service_order, service_orders,
-    SnapshotStore, TaskStore)
+    service_summary, SnapshotStore, TaskStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -1229,7 +1229,7 @@ def test_api_service_view():
     assert [o['order_id'] for o in body['active']] == ['a1']
     assert body['finished'][0]['outcome'] == 'sold'
     assert body['stock'][0]['available'] == 2 and body['destinations']['P22']['name'] == 'P22 자리'
-    assert body['now'] > 0
+    assert body['now'] > 0 and body['today']['total'] == 0  # 시험 주문은 1970년 접수
     assert client.get('/api/service?finished=0').json()['finished'] == []
     # 작업 노드가 끊기면 마지막 주문·재고는 보이고, 켜짐·보류는 거짓으로 본다
     clock.now = 3.5
@@ -1237,3 +1237,17 @@ def test_api_service_view():
     assert body['controller_online'] is False and body['commands_armed'] is False
     assert body['holds'] == {} and body['stock'][0]['sku'] == 'SHOE-1'
     assert client.get('/api/service?finished=999').status_code == 422
+
+
+def test_service_summary_counts_today_only():
+    orders = [service_raw('old', created_at=50.0, state='COMPLETED', customer_received=True),
+              service_raw('a', created_at=100.0),
+              service_raw('s', created_at=120.0, state='COMPLETED', customer_received=True),
+              service_raw('d', created_at=130.0, state='COMPLETED', customer_declined=True),
+              service_raw('t', created_at=140.0, state='COMPLETED', customer_declined=True,
+                          customer_timed_out=True),
+              service_raw('f', created_at=150.0, state='FAILED'),
+              service_raw('n', created_at=None), 'junk']
+    assert service_summary(orders, 100.0) == {
+        'total': 5, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'done': 0}
+    assert service_summary(None, 0)['total'] == 0

@@ -643,6 +643,29 @@ def service_orders(orders, finished_limit):
     return active, finished[:max(0, int(finished_limit))]
 
 
+def service_summary(orders, since):
+    """
+    관리화면 위 숫자 타일: since [s] 뒤에 접수한 주문 건수.
+
+    total 접수, active 진행 중, sold 구매 완료, returned 구매 안 함(시간 초과 포함),
+    failed 처리 못 함, done 고객 결정 없이 끝난 주문.
+    """
+    counts = {'total': 0, 'active': 0, 'sold': 0, 'returned': 0, 'failed': 0, 'done': 0}
+    if not isinstance(orders, list):
+        return counts
+    key = {None: 'active', 'sold': 'sold', 'declined': 'returned', 'timeout': 'returned',
+           'failed': 'failed', 'done': 'done'}
+    for order in orders:
+        if not isinstance(order, dict) or not order.get('order_id'):
+            continue
+        created = order.get('created_at')
+        if not isinstance(created, (int, float)) or created < since:
+            continue
+        counts['total'] += 1
+        counts[key[service_order(order)['outcome']]] += 1
+    return counts
+
+
 class TaskStore:
     """
     작업 노드(fleet_control_node)와 주고받는 값 보관: 작업 목록 캐시, 요청 응답 기다리기, 바뀐 작업 순번.
@@ -744,9 +767,11 @@ class TaskStore:
                 'holds': holds if online and isinstance(holds, dict) else {},
                 'orders': active_orders(orders) if online else []}
 
-    def service(self, finished_limit):
+    def service(self, finished_limit, today_start=0.0):
         """
-        서비스 화면 값: 주문(진행 중 전부, 끝난 것 최근 finished_limit 건)·재고·자리.
+        서비스 화면 값: 주문(진행 중 전부, 끝난 것 최근 finished_limit 건)·재고·자리·오늘 건수.
+
+        today_start 는 오늘 0시 [s] (벽시계). 그 뒤 접수한 주문을 today 에 센다.
 
         작업 노드가 끊겨도 마지막 값을 보여 주고 controller_online 으로 알린다 (재고·끝난 주문은
         끊긴 동안에도 볼 만하다). 아직 한 번도 못 받았으면 빈 목록이다.
@@ -763,6 +788,7 @@ class TaskStore:
                 'commands_armed': online and bool(snapshot.get('armed')),
                 'holds': holds if online and isinstance(holds, dict) else {},
                 'active': active, 'finished': finished,
+                'today': service_summary(snapshot.get('orders'), today_start),
                 'stock': stock if isinstance(stock, list) else [],
                 'destinations': destinations if isinstance(destinations, dict) else {},
                 'steps': list(SERVICE_STEPS)}
