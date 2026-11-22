@@ -15,7 +15,7 @@
 """
 이 PC 정보 읽기 (ROS 없음): 네트워크 연결, CPU·메모리·온도·디스크, DDS 설정.
 
-관제 PC 의 net_status_node 와 다른 PC(Station PC 등)의 host_status_node 가 함께 쓴다.
+관제 PC 의 net_status_node 와 다른 PC(팔 PC 등)의 host_status_node 가 함께 쓴다.
 리눅스 표준 파일(/proc, /sys)과 ip·nmcli 명령만 읽는다. 망에 패킷을 보내지 않는다
 (로봇망 주소는 UDP connect 로 경로만 묻는다).
 """

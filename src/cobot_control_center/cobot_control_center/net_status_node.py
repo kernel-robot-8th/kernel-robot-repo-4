@@ -21,7 +21,7 @@
   detail_period_sec(1 s)마다 핑하고, 로봇 patrol_status·팔 ArmStatus·영상 분석 근거를 구독해
   수신 주기를 잰다.
   끝나면 구독을 지우고 마지막 결과(checked_at)를 그대로 낸다.
-  팔 상태를 구독하면 Station PC 가 한 벌 더 보낼 수 있어서 평소에는 구독하지 않는다.
+  팔 상태를 구독하면 팔 PC 가 한 벌 더 보낼 수 있어서 평소에는 구독하지 않는다.
 
 - 핑: 대상마다 스레드 하나가 `ping -c1 -W<초> -n <주소>` 를 되풀이한다 (시스템 명령, 새 의존성 없음).
   ping 이 없는 환경(도커 이미지 등)이면 '측정 불가'로 낸다.
@@ -66,7 +66,7 @@ PARAMS = {
     'detail_period_sec': 1.0,
     'detail_duration_sec': 10.0,
     'ping_timeout_sec': 1,
-    'tcp_probe_port': 22,   # ping 명령이 없을 때 연결을 시도할 포트 (로봇·Station PC 는 ssh)
+    'tcp_probe_port': 22,   # ping 명령이 없을 때 연결을 시도할 포트 (로봇·팔 PC 는 ssh)
     # 유선망(영상·분석): 관제 PC 의 다른 연결. 같은 순서의 목록이고 빈 주소는 재지 않는다.
     'wired_router_host': '192.168.0.1',
     'wired_ids': ['cctv', 'broker', 'station_wired'],

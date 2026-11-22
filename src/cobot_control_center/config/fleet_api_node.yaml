@@ -29,7 +29,8 @@
     cctv_idle_sec: 10.0       # 마지막 사람이 닫고 이만큼 지나면 원본 연결을 끊음 [s]
     cctv_reconnect_sec: 2.0   # 원본이 끊기면 이 간격으로 다시 붙음 [s]
     cctv_timeout_sec: 5.0     # 원본 연결·읽기 제한 시간 [s]
-    # 네트워크 화면: Station PC 에서 도는 노드 이름 (팔 노드 arm_station.launch.xml 의 omx1~3_adapter)
+    # 네트워크 화면: 팔 노드 이름 (omx1~3_adapter). 어느 PC 의 팔인지는 site_arms.yaml 의 host 로 나눈다
+    # (관제 PC hostname 과 같으면 관제 PC 상자, 아니면 팔 PC 상자)
     station_node_patterns: ['omx*_adapter']
     # 네트워크 화면 유선망: 천장 카메라 YOLO 근거 경로 노드 (MQTT → mqtt_zone_evidence → anomaly_monitor, 강건한 님)
     vision_node_patterns: ['mqtt_zone_evidence', 'anomaly_monitor']

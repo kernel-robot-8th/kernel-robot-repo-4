@@ -102,7 +102,7 @@
         <div class="cards" id="cards"></div>
       </section>
 
-      <!-- 로봇팔 (Station PC 팔 노드). 상단 '작업 명령 켜기'와는 다른 것이다 (arms.js) -->
+      <!-- 로봇팔 (팔 노드: 관제 PC 또는 팔 PC). 상단 '작업 명령 켜기'와는 다른 것이다 (arms.js) -->
       <section class="panel" aria-label="로봇팔">
         <div class="panel-head">
           <h2>로봇팔</h2>
@@ -317,7 +317,7 @@
         <span class="muted" id="health-counts"></span>
       </div>
       <ul class="health-issues" id="health-issues"></ul>
-      <!-- 장비 줄(로봇·로봇팔), PC 줄(Station PC·관제 PC), 유선망 줄(천장 카메라·영상 분석)을 나눈다 -->
+      <!-- 장비 줄(로봇·로봇팔), PC 줄(팔 PC·관제 PC), 유선망 줄(천장 카메라·영상 분석)을 나눈다 -->
       <div class="health-cards" id="health-cards"></div>
       <div class="health-cards health-pcs" id="health-pcs"></div>
       <div class="health-cards health-pcs" id="health-wired"></div>
@@ -345,7 +345,7 @@
       <div class="net-legend" id="net-legend"></div>
     </section>
     <p class="muted net-foot">대역폭·WiFi·패킷 캡처 같은 자세한 진단은 <code>cobot_navigation/ros2_network_test</code> (따로 실행).
-      로봇·Station PC 의 DDS 종류는 ROS 로 물어볼 수 없어 데이터가 오는지로만 적습니다.</p>
+      로봇·팔 PC 의 DDS 종류는 ROS 로 물어볼 수 없어 데이터가 오는지로만 적습니다.</p>
   </main>
 
   <!-- 명령 지점 고르기. 열 때 누른 로봇 카드 위에 덮어 띄운다 (정지 줄은 가리지 않음).

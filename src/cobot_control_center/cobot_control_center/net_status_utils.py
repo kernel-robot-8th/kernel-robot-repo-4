@@ -20,7 +20,7 @@
   구조도 상자·선의 상태를 정한다.
 
 상태 이름은 화면 점 색과 같다: ok 초록, warn 주황, bad 빨강, na 회색(해당 없음·모름).
-원격 PC(로봇·Station PC)의 DDS 종류는 ROS 로 물어볼 수 없어 '데이터가 오는지'로만 적는다.
+원격 PC(로봇·팔 PC)의 DDS 종류는 ROS 로 물어볼 수 없어 '데이터가 오는지'로만 적는다.
 """
 
 import collections
@@ -462,7 +462,8 @@ def local_info(rmw, domain_id, env, node_names, station_patterns=(), vision_patt
 
     이름이 '_NODE_NAME_UNKNOWN_' 인 노드는 발행은 보이는데 이름 정보가 안 넘어온 것이다
     (Cyclone ↔ Fast DDS 처럼 DDS 구현이 다를 때). 개수만 따로 센다.
-    station_nodes 는 그중 Station PC 에서 도는 노드로 보이는 이름 (station_patterns, 예: 'omx*_adapter').
+    station_nodes 는 그중 팔 노드로 보이는 이름 (station_patterns, 예: 'omx*_adapter').
+    어느 PC 의 팔인지는 network_view 가 팔 배치(site.host)로 나눈다.
     vision_nodes 는 영상 분석·이상 감지 노드로 보이는 이름 (vision_patterns, 예: 'anomaly_monitor').
     ROS 그래프는 노드가 어느 PC 에서 도는지 알려 주지 않으므로 이름으로만 고른다.
     """
@@ -584,16 +585,20 @@ def mac_text(ping):
 
 def _station_pc_health(station, arms, net_online, local, report=None):
     """
-    Station PC 카드 (관제 PC 처럼 PC 하나): 네트워크, MAC, 팔 노드 수, 보이는 노드 이름, PC 내부.
+    팔 PC 카드 (관제 PC 처럼 PC 하나): 네트워크, MAC, 팔 노드 수, 보이는 노드 이름, PC 내부.
 
-    팔 하나하나의 상태는 팔 카드에 따로 있다. 노드 이름은 관제 PC 가 같은 도메인에서 본 것 중
-    station_node_patterns 에 맞는 것이다. 팔 상태는 오는데 이름이 안 보이면 DDS 구현이 다를 수 있다.
+    arms 는 이 PC(관제 PC 가 아닌 팔 PC)의 팔만 담은 스냅샷이다 (split_arms_by_host).
+    팔 하나하나의 상태는 팔 카드에 따로 있다. 노드 이름은 station 상자의 nodes
+    (관제 PC 팔 이름을 뺀 팔 노드)다. 팔 상태는 오는데 이름이 안 보이면 DDS 구현이 다를 수 있다.
     """
     ping = station.get('ping')
     checks = [_ping_check(ping, net_online), _check('MAC', NA, mac_text(ping))]
-    names = (local or {}).get('station_nodes') or []
+    names = station.get('nodes') or []
     if not arms or not arms.get('controller_online'):
         checks.append(_check('팔 노드', NA, '팔 명령 노드 꺼짐 (모름)'))
+        online, total = 0, 0
+    elif not arms.get('arms'):
+        checks.append(_check('팔 노드', NA, '이 PC 에 놓인 팔 없음'))
         online, total = 0, 0
     else:
         items = [a for a in arms.get('arms', []) if isinstance(a, dict)]
@@ -607,18 +612,18 @@ def _station_pc_health(station, arms, net_online, local, report=None):
         checks.append(_check('노드', WARN, '팔 상태는 오는데 이름이 안 보임 (DDS 가 다를 수 있음)'))
     else:
         checks.append(_check('노드', NA, '보이는 노드 없음'))
-    # 연결·CPU·온도 등은 Station PC 가 스스로 보내야 안다 (host_status_node)
+    # 연결·CPU·온도 등은 팔 PC 가 스스로 보내야 안다 (host_status_node host:=station)
     checks += host_report_checks(report, local)
     return checks
 
 
-def _arm_health(arm, controller_online, station):
+def _arm_health(arm, controller_online, rates):
     """
-    로봇팔 한 대의 점검 줄 (팔 자체만). 팔이 도는 Station PC 의 네트워크는 Station PC 카드에 있다.
+    로봇팔 한 대의 점검 줄 (팔 자체만). 팔이 도는 PC 의 네트워크는 그 PC 카드에 있다.
 
-    arm 은 ArmStore.snapshot() 의 팔 하나 (없으면 None).
+    arm 은 ArmStore.snapshot() 의 팔 하나 (없으면 None). rates: {arm_id: 상태 주기}.
     """
-    rate = (station.get('rates') or {}).get((arm or {}).get('arm_id'))
+    rate = (rates or {}).get((arm or {}).get('arm_id'))
     if not controller_online:
         return [_check('연결', NA, '팔 명령 노드 꺼짐 (모름)')]
     if arm is None:
@@ -643,7 +648,15 @@ def _arm_health(arm, controller_online, station):
     return checks
 
 
-def _control_health(control_boxes, local, net, net_online, report=None):
+def _arm_group_check(group):
+    """이 PC 에서 도는 팔 묶음(local_arms 상자) → '팔 노드' 점검 줄."""
+    rows = group.get('arms') or []
+    online = sum(1 for a in rows if a.get('online'))
+    names = '·'.join(a.get('alias') or a.get('arm_id') or '?' for a in rows)
+    return _check('팔 노드', group['state'], f'{names} {online}/{len(rows)} 연결')
+
+
+def _control_health(control_boxes, local, net, net_online, report=None, local_arms=None):
     nodes = [b for b in control_boxes if not b['id'].startswith('bridge_')]
     bridges = [b for b in control_boxes if b['id'].startswith('bridge_')]
     bad_nodes = [b['label'] for b in nodes if b['state'] == BAD]
@@ -658,6 +671,8 @@ def _control_health(control_boxes, local, net, net_online, report=None):
     checks.append(_check('DDS', WARN if unknown else OK,
                          f'{(local or {}).get("rmw") or "?"}'
                          + (f' · 이름 안 보이는 노드 {unknown}' if unknown else '')))
+    if local_arms:
+        checks.append(_arm_group_check(local_arms))
     checks += interface_checks((net or {}).get('interfaces') or [],
                                (net or {}).get('local_ip') or '', net_online,
                                '모름 (측정 노드 필요)')
@@ -805,13 +820,15 @@ def _vision_checks(box, net_online):
 
 
 def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, local, net,
-                net_online, hosts=None, wired=None):
+                net_online, hosts=None, wired=None, arm_rates=None, local_arms=None,
+                remote_arms=None):
     """
     헬스체크 카드: 로봇마다, 로봇팔마다, PC 두 대, 유선망 둘. 카드 상태는 그 카드 점검 중 가장 나쁜 것.
 
-    PC 는 Station PC·관제 PC, 유선망은 천장 카메라·영상 분석·이상 감지다.
+    PC 는 팔 PC(카드 id 'station')·관제 PC, 유선망은 천장 카메라·영상 분석·이상 감지다.
     kind: robot·arm (장비 줄), station·control (PC 줄), camera·vision (유선망 줄).
-    팔 카드의 select 는 'station' 이다 (구조도·자세히 칸에서는 팔을 Station PC 상자로 본다).
+    팔 카드의 select 는 그 팔이 도는 PC 상자다: 관제 PC 에서 돌면 'control', 아니면 'station'.
+    local_arms: 관제 PC 팔 묶음 상자 (없으면 None). remote_arms: 팔 PC 팔만 담은 스냅샷.
     issues 는 정상이 아닌 점검을 나쁜 것부터 (화면 '지금 볼 것' 목록).
     """
     alerts = _alerts_by_robot(snapshot)
@@ -821,20 +838,29 @@ def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, loca
              for box in robot_boxes]
     controller_online = bool(arms and arms.get('controller_online'))
     arm_list = {a.get('arm_id'): a for a in (arms or {}).get('arms', []) if isinstance(a, dict)}
-    arm_ids = list(station.get('rates') or {}) or list(arm_list)
+    if arm_rates is None:
+        arm_rates = station.get('rates') or {}
+    local_ids = {a.get('arm_id') for a in (local_arms or {}).get('arms') or []}
+    arm_ids = list(arm_rates) or list(arm_list)
     for arm_id in arm_ids:
-        cards.append({'id': arm_id, 'label': f'{arm_id} 로봇팔', 'kind': 'arm',
-                      'select': 'station',
-                      'checks': _arm_health(arm_list.get(arm_id), controller_online, station)})
+        arm = arm_list.get(arm_id)
+        zone = ((arm or {}).get('site') or {}).get('station')
+        cards.append({'id': arm_id, 'label': f'{arm_id} 로봇팔' + (f' · {zone}' if zone else ''),
+                      'kind': 'arm', 'select': 'control' if arm_id in local_ids else 'station',
+                      'checks': _arm_health(arm, controller_online, arm_rates)})
     station_report = (hosts or {}).get('station')
     station_name = ((station_report or {}).get('data') or {}).get('hostname')
-    cards.append({'id': 'station', 'label': _pc_label('Station PC', station_name),
-                  'kind': 'station', 'select': 'station',
-                  'checks': _station_pc_health(station, arms, net_online, local, station_report)})
+    label = station['label']
+    if station_name and station_name.lower() not in label.lower():
+        label = f'{label} (보고 이름 {station_name})'
+    cards.append({'id': 'station', 'label': label, 'kind': 'station', 'select': 'station',
+                  'checks': _station_pc_health(station, arms if remote_arms is None
+                                               else remote_arms, net_online, local,
+                                               station_report)})
     cards.append({'id': 'control', 'label': _pc_label('관제 PC', (local or {}).get('hostname')),
                   'kind': 'control', 'select': 'control',
                   'checks': _control_health(control_boxes, local, net, net_online,
-                                            (hosts or {}).get('control'))})
+                                            (hosts or {}).get('control'), local_arms)})
     if wired:
         cards.append({'id': 'cctv', 'label': '천장 카메라', 'kind': 'camera', 'select': 'cctv',
                       'checks': _cctv_checks(wired['cctv'], net_online)})
@@ -859,7 +885,8 @@ def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, loca
 # 이벤트 로그에 낸다. 로봇의 배터리·FAILED·끼임 등은 fleet_status 가 이미 경고로 내고,
 # 팔 상태는 로봇팔 패널에 있으므로 겹치지 않게 뺀다. 관제 노드·브릿지는 상단 점이 이미 보여 준다.
 
-_ALERT_SKIP = {'control': {'관제 노드', '브릿지'}}
+# 관제 PC 의 '팔 노드' 는 로봇팔 패널이 이미 보여 주므로 뺀다 (팔 카드를 빼는 것과 같은 이유).
+_ALERT_SKIP = {'control': {'관제 노드', '브릿지', '팔 노드'}}
 # 유선망 카드(남의 장치)는 장치가 아예 응답하지 않을 때만 경고 띠에 올린다.
 _ALERT_ONLY_BAD = {'camera': {'네트워크'}, 'vision': {'MQTT 브로커'}}
 
@@ -868,7 +895,7 @@ def network_alerts(view):
     """
     헬스체크 issues → 경고 띠 항목 [{'robot', 'code', 'level', 'text'}] (fleet_status alerts 와 같은 모양).
 
-    로봇 카드는 '네트워크' 줄만, 팔 카드는 넣지 않고, Station PC·관제 PC 는 위 _ALERT_SKIP 말고 모두,
+    로봇 카드는 '네트워크' 줄만, 팔 카드는 넣지 않고, 팔 PC·관제 PC 는 위 _ALERT_SKIP 말고 모두,
     천장 카메라·영상 분석 카드는 _ALERT_ONLY_BAD 의 줄이 빨강일 때만.
     code 는 카드와 줄 이름으로 정해져 값(지연 ms 등)이 바뀌어도 같은 경고로 본다.
     """
@@ -1005,15 +1032,68 @@ def _robot_box(robot_id, robot, fresh, ping, rate, bridge_state):
                 else '알 수 없음 (데이터 없음)')
 
 
-def _station_box(arms, ping, rates):
-    """Station PC 상자: 팔 노드 3대의 연결 상태 + 핑."""
-    ping_state = ping['state'] if ping else NA
+def split_arms_by_host(arms, hostname):
+    """
+    팔을 도는 PC 로 나눈다 → (관제 PC 팔, 다른 PC 팔, 다른 PC 이름).
+
+    팔 배치(site_arms.yaml, 스냅샷의 site.host)가 관제 PC hostname 과 같으면(대소문자 무시) 관제 PC 팔이다.
+    host 가 비었거나 hostname 을 모르면 다른 PC 팔로 둔다 (예전처럼 팔 PC 상자에 들어간다).
+    ROS 그래프는 노드가 어느 PC 에서 도는지 알려 주지 않아서 배치 표를 믿는다.
+    """
+    items = [a for a in (arms or {}).get('arms', []) if isinstance(a, dict)]
+    me = (hostname or '').strip().lower()
+    local, remote, names = [], [], []
+    for arm in items:
+        host = str((arm.get('site') or {}).get('host') or '').strip()
+        if me and host.lower() == me:
+            local.append(arm)
+        else:
+            remote.append(arm)
+            if host and host not in names:
+                names.append(host)
+    return local, remote, ' · '.join(names)
+
+
+def _arm_rows(items):
+    return [{'arm_id': a.get('arm_id'), 'alias': a.get('alias'),
+             'zone': (a.get('site') or {}).get('station'), 'online': bool(a.get('online')),
+             'state': a.get('state'), 'age': a.get('age')} for a in items]
+
+
+def _arm_nodes(names, items):
+    """팔 노드 이름 중 이 팔들(alias → '<alias>_adapter')의 것."""
+    wanted = {f'{a.get("alias")}_adapter' for a in items if a.get('alias')}
+    return [n for n in names if n in wanted]
+
+
+def _local_arms_box(arms, items, names, rates=None):
+    """관제 PC 안에서 도는 팔 묶음 상자 (핑 없음: 같은 PC). 팔이 없으면 None."""
+    if not items:
+        return None
+    rows = _arm_rows(items)
+    online = sum(1 for a in rows if a['online'])
     if not arms or not arms.get('controller_online'):
-        return _box('station', 'Station PC', NA,
+        state, text = NA, '팔 명령 노드 꺼짐 (모름)'
+    else:
+        state = OK if online == len(rows) else WARN if online else BAD
+        text = f'팔 {online}/{len(rows)} 연결'
+    return _box('local_arms', '이 PC 팔 ' + '·'.join(a['alias'] or a['arm_id'] for a in rows),
+                state, text, kind='arms', arms=rows, nodes=names, rates=rates or {})
+
+
+def _station_box(arms, ping, rates, host_name=''):
+    """팔 PC 상자 (id 'station'): 관제 PC 가 아닌 PC 에서 도는 팔의 연결 상태 + 핑."""
+    ping_state = ping['state'] if ping else NA
+    label = _pc_label('팔 PC', host_name)
+    if not arms or not arms.get('controller_online'):
+        return _box('station', label, NA,
                     '로봇팔 명령 노드 꺼짐 (팔 상태 모름)', kind='station', ping=ping,
                     rates=rates, arms=[], dds='알 수 없음')
     items = [a for a in arms.get('arms', []) if isinstance(a, dict)]
     online = [a for a in items if a.get('online')]
+    if not items:
+        return _box('station', label, NA, '이 PC 에 놓인 팔 없음', kind='station', ping=ping,
+                    rates=rates, arms=[], dds='알 수 없음')
     if items and len(online) == len(items):
         state = WARN if ping_state in (WARN, BAD) else OK
         text = f'팔 {len(online)}/{len(items)} 연결'
@@ -1025,9 +1105,8 @@ def _station_box(arms, ping, rates):
         state, text = BAD, '핑은 되는데 팔 상태 없음 (팔 노드 확인)'
     else:
         state, text = BAD, '팔 상태 없음'
-    arm_rows = [{'arm_id': a.get('arm_id'), 'online': bool(a.get('online')),
-                 'state': a.get('state'), 'age': a.get('age')} for a in items]
-    return _box('station', 'Station PC', state, text, kind='station', ping=ping,
+    arm_rows = _arm_rows(items)
+    return _box('station', label, state, text, kind='station', ping=ping,
                 rates=rates, arms=arm_rows,
                 dds='같은 도메인에서 데이터 수신됨' if online else '알 수 없음 (데이터 없음)')
 
@@ -1052,7 +1131,7 @@ def _ping_box(box_id, label, ping, ok_text, kind, **extra):
 
 def _wired_view(net, local, cctv, vision_label):
     """
-    유선망(영상·분석) 묶음: 유선 공유기, 천장 카메라, MQTT 브로커, Station PC 유선, 영상 분석 상자.
+    유선망(영상·분석) 묶음: 유선 공유기, 천장 카메라, MQTT 브로커, 팔 PC 유선, 영상 분석 상자.
 
     핑은 net_status_node 의 wired_* 대상이다. 천장 카메라는 핑과 현장영상 중계(cctv.health())를
     같이 본다. 중계는 보는 사람이 있을 때만 붙으므로 끊김 자체로는 나쁘다고 하지 않는다.
@@ -1067,8 +1146,8 @@ def _wired_view(net, local, cctv, vision_label):
     elif cctv and cctv.get('viewers') and cctv.get('error'):
         cctv_box['state'], cctv_box['text'] = BAD, '영상 못 받음'
     broker = _ping_box('broker', 'MQTT 브로커', _ping(net, 'broker'), '핑 정상', 'broker')
-    station = _ping_box('station_wired', 'Station PC 유선', _ping(net, 'station_wired'),
-                        '같은 Station PC', 'station_wired')
+    station = _ping_box('station_wired', '팔 PC 유선', _ping(net, 'station_wired'),
+                        '같은 팔 PC', 'station_wired')
     nodes = (local or {}).get('vision_nodes') or []
     rates = {k: _rate(net, k) for k in EVIDENCE_LABELS}
     local_test = str((net or {}).get('local_ip') or '').startswith('127.')
@@ -1103,12 +1182,13 @@ def _wired_view(net, local, cctv, vision_label):
 def network_view(local, snapshot, source_online, controller_online, arms, net, net_online,
                  robots, arm_ids, hosts=None, cctv=None, vision_label=None):
     """
-    구조도 데이터: 관제 PC 안 노드 상자, 공유기·로봇·Station PC 상자, 그리고 선(핑).
+    구조도 데이터: 관제 PC 안 노드·팔 상자, 공유기·로봇·팔 PC 상자, 그리고 선(핑).
 
     local: 관제 PC 자기 정보 (RMW·도메인·DDS 설정·도메인 100 노드 이름).
     snapshot: fleet_status 스냅샷 또는 None. arms: ArmStore.snapshot().
     net: net_status 측정값 또는 None, net_online: 측정 노드가 살아 있는지.
-    hosts: HostStore.get_all() (다른 PC 의 상태 보고, 'station' 이면 Station PC 카드에 쓴다) 또는 None.
+    hosts: HostStore.get_all() (다른 PC 의 상태 보고, 'station' 이면 팔 PC 카드에 쓴다) 또는 None.
+    팔은 site.host 로 나눈다 (split_arms_by_host): 관제 PC 팔은 local_arms, 나머지는 station 상자.
     robots·arm_ids: 그릴 로봇·팔 목록 (측정 노드 설정이 없어도 상자는 그린다).
     """
     snap = snapshot or {}
@@ -1155,8 +1235,19 @@ def network_view(local, snapshot, source_online, controller_online, arms, net, n
                                   _ping(net, robot_id), _rate(net, f'{robot_id}/patrol_status'),
                                   bridge_state))
     arm_rates = {arm: _rate(net, f'{arm}/status') for arm in arm_ids}
-    station = _station_box(arms, _ping(net, 'station'), arm_rates)
-    station['nodes'] = (local or {}).get('station_nodes') or []
+    local_items, remote_items, remote_name = split_arms_by_host(
+        arms, (local or {}).get('hostname'))
+    remote_arms = dict(arms, arms=remote_items) if arms else arms
+    names = (local or {}).get('station_nodes') or []
+    local_names = _arm_nodes(names, local_items)
+    local_ids = {a.get('arm_id') for a in local_items}
+    local_arms = _local_arms_box(arms, local_items, local_names,
+                                 {k: v for k, v in arm_rates.items() if k in local_ids})
+    remote_ids = {a.get('arm_id') for a in remote_items}
+    station = _station_box(remote_arms, _ping(net, 'station'),
+                           {k: v for k, v in arm_rates.items() if k in remote_ids},
+                           remote_name)
+    station['nodes'] = [n for n in names if n not in local_names]
 
     # 선: 관제 PC─공유기, 공유기─각 장치. 상태는 그 구간 대상의 핑 판정.
     links = [{'from': 'control', 'to': 'router',
@@ -1171,12 +1262,14 @@ def network_view(local, snapshot, source_online, controller_online, arms, net, n
     wired = _wired_view(net, local, cctv, vision_label)
     control_state = worst([b['state'] for b in control + bridge_boxes])
     health = health_view(snap, fresh, devices, station, arms, control + bridge_boxes, local,
-                         net, net_online, hosts, wired=wired)
+                         net, net_online, hosts, wired=wired, arm_rates=arm_rates,
+                         local_arms=local_arms, remote_arms=remote_arms)
     overall = worst([control_state, router['state'], station['state'], health['state'],
                      wired['state']]
-                    + [d['state'] for d in devices])
+                    + [d['state'] for d in devices]
+                    + ([local_arms['state']] if local_arms else []))
     return {'overall': overall, 'health': health, 'local': local, 'control': control,
-            'bridges': bridge_boxes, 'wired': wired,
+            'bridges': bridge_boxes, 'wired': wired, 'local_arms': local_arms,
             'control_state': control_state, 'router': router, 'station': station,
             'robots': devices, 'links': links, 'net_online': bool(net_online),
             'interfaces': [dict(i, summary=interface_summary(i), badges=interface_badges(i),

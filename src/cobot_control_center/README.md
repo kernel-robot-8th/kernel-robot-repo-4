@@ -39,8 +39,8 @@
 | `fleet_status_node` | `fleet_status_node.py`, `fleet_status_utils.py` | 로봇별 순찰 상태·위치·배터리와 구역 점유를 모아 1초마다 JSON 으로 발행. 위치·배터리가 8초 끊기면 offline (`stale_timeout_sec`) |
 | `fleet_api_node` | `fleet_api_node.py`, `fleet_api_app.py`, `fleet_api_utils.py`, `route_utils.py`(경로를 구간으로 나눠 차례로 보냄) | 토픽 값을 받아 웹 API·WebSocket 으로 내고, 화면(`web/`)과 지도를 서빙 |
 | `arm_command_node` | `arm_command_node.py`, `arm_command_utils.py`, `site_arms_utils.py` | 로봇팔 켜기·끄기·정지·작업 시험을 팔 노드에 내고, 팔 상태·응답·알람 기록을 모아 웹 백엔드에 넘김. 현장 팔 배치는 `config/site_arms.yaml` (`site_arms_utils.py` 가 읽음) |
-| `host_status_node` | `host_status_node.py`, `host_info.py` | **관제 PC 가 아닌 PC(Station PC 등)에서 띄운다.** 자기 PC 의 연결(유선·무선)·CPU·메모리·온도·디스크·DDS 설정을 3초마다 `/control_center/host_status` 로 보냄 → 네트워크 화면 Station PC 카드. 읽기만 함 |
-| `net_status_node` | `net_status_node.py`, `net_status_utils.py`, `host_info.py` | 네트워크 측정: 공유기·핑키 3대·Station PC, 유선망(천장 카메라·MQTT 브로커·Station PC 유선)에 평소 5초마다 핑, 관제 PC 연결(유선·Wi-Fi), 화면 [자세히 확인] 때만 10초 동안 1초 핑 + 상태·영상 분석 근거 토픽 수신 주기 → `/control_center/net_status` (화면 `#/network`). 아무것도 명령하지 않음 |
+| `host_status_node` | `host_status_node.py`, `host_info.py` | **관제 PC 가 아닌 PC(팔 PC 등)에서 띄운다.** 자기 PC 의 연결(유선·무선)·CPU·메모리·온도·디스크·DDS 설정을 3초마다 `/control_center/host_status` 로 보냄 → 네트워크 화면 팔 PC 카드. 읽기만 함 |
+| `net_status_node` | `net_status_node.py`, `net_status_utils.py`, `host_info.py` | 네트워크 측정: 공유기·핑키 3대·팔 PC(관제 PC 가 아닌 팔 PC, 지금 OMEN-11), 유선망(천장 카메라·MQTT 브로커·팔 PC 유선)에 평소 5초마다 핑, 관제 PC 연결(유선·Wi-Fi), 화면 [자세히 확인] 때만 10초 동안 1초 핑 + 상태·영상 분석 근거 토픽 수신 주기 → `/control_center/net_status` (화면 `#/network`). 아무것도 명령하지 않음 |
 
 작업 노드 `fleet_control_node` 는 이 패키지가 아니라 `src/cobot_navigation/cobot_fleet_control/` 에 있습니다 ([README](../cobot_navigation/cobot_fleet_control/README.md)).
 
@@ -143,23 +143,23 @@ ros2 launch cobot_control_center fleet_api.launch.xml map_yaml:=<지도.yaml>
 `real`(기본, `config/net_status_node.yaml` 의 실물 주소로 핑) / `local`(모든 핑을 127.0.0.1 로, 가짜 핑키·가제보가 씀) /
 `off`(띄우지 않음, 개발 백엔드 8180 이 씀 — 실물 bringup 의 측정값을 같이 본다).
 관제 PC 자기 상태 보고(`host_status_node`, `host:=control`)도 같은 조건으로 함께 뜹니다 (`off` 면 안 뜸).
-`host` 는 보고에 붙이는 이름표입니다. 화면이 `control` 이면 관제 PC 카드, `station` 이면 Station PC 카드에 넣습니다 (IP·컴퓨터 이름 아님).
+`host` 는 보고에 붙이는 이름표입니다. 화면이 `control` 이면 관제 PC 카드, `station` 이면 팔 PC 카드에 넣습니다 (IP·컴퓨터 이름 아님).
 
-### Station PC 상태 보고 (관제는 띄우지 않음)
+### 팔 PC 상태 보고 (관제는 띄우지 않음)
 
-관제 PC 는 남의 PC 안쪽(연결·CPU·온도·DDS 설정)을 읽을 수 없어서, Station PC 가 스스로 읽어 보냅니다.
-Station PC 에서는 **관제(fleet_api 등)를 띄우지 않고 이 노드 하나만** 띄웁니다. 이 패키지를 빌드는 해야 하지만
+관제 PC 는 남의 PC 안쪽(연결·CPU·온도·DDS 설정)을 읽을 수 없어서, 팔 PC 가 스스로 읽어 보냅니다.
+팔 PC 에서는 **관제(fleet_api 등)를 띄우지 않고 이 노드 하나만** 띄웁니다. 이 패키지를 빌드는 해야 하지만
 이 노드는 `rclpy`·`std_msgs` 만 씁니다 (fastapi 같은 웹 의존성 불필요).
 
 ```bash
-# Station PC (관제와 같은 도메인 100)
+# 팔 PC (관제와 같은 도메인 100)
 colcon build --symlink-install --packages-select cobot_control_center
 source install/setup.bash
 export ROS_DOMAIN_ID=100
 ros2 launch cobot_control_center host_status.launch.xml host:=station
 ```
 
-관제 화면 네트워크 페이지의 Station PC 카드에 보고 노드(호스트 이름), DDS·도메인(관제와 다르면 주황), 연결(유선·무선, [로봇망]),
+관제 화면 네트워크 페이지의 팔 PC 카드에 보고 노드(호스트 이름), DDS·도메인(관제와 다르면 주황), 연결(유선·무선, [로봇망]),
 CPU·메모리·온도·디스크·켜진 시간이 나옵니다. 보고가 10초 넘게 끊기면 빨강 "끊김"입니다 (`host_stale_sec`).
 읽기만 합니다 (`/proc`, `/sys`, `ip`·`nmcli` 다시 찾기 없이). 로봇·팔 토픽을 구독하지 않고 명령을 내지 않습니다.
 
@@ -260,7 +260,7 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 ## 실물 시험 순서
 
 2026-11-02 실물 pinky1~3 으로 처음 돌려 보며 정리한 순서입니다. 처음에는 로봇 한 대로 시작합니다.
-Station PC 팔·고객 화면까지 포함한 전체 켜는 순서는 [`docs/system_startup.md`](../../docs/system_startup.md) 에 모았습니다.
+로봇팔·고객 화면까지 포함한 전체 켜는 순서는 [`docs/system_startup.md`](../../docs/system_startup.md) 에 모았습니다.
 
 1. **각 로봇: bringup → Nav2.** 명령과 도메인(10/20/30)은 [`cobot_navigation/README.md`](../cobot_navigation/README.md#로봇-기동) 를 따릅니다.
 2. **관제 PC: bringup** ([실행](#실행)). 쓰는 로봇만 켭니다 (`pinky2:=false` 등).
@@ -293,7 +293,7 @@ Station PC 팔·고객 화면까지 포함한 전체 켜는 순서는 [`docs/sys
 
 ## 현장 팔 배치
 
-어느 자리(ZA·ZB·ZC)를 어느 팔(omx1~3)이 맡고, 그 팔이 어느 보드·어느 Station PC 에 붙는지는
+어느 자리(ZA·ZB·ZC)를 어느 팔(omx1~3)이 맡고, 그 팔이 어느 보드·어느 PC 에 붙는지는
 [`config/site_arms.yaml`](config/site_arms.yaml) 한 곳에 적습니다. 팔 이름은 자리 순서와 1:1 로 고정합니다 (ZA = omx1, ZB = omx2, ZC = omx3).
 
 - 로봇팔 명령 노드가 팔 목록을 여기서 정하고, 화면 카드에 `ZA 상차 · 8-OMEN` 처럼 보여 줍니다 (마우스를 올리면 보드 시리얼).

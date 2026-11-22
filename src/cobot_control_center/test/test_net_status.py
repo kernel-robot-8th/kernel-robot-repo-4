@@ -605,3 +605,86 @@ def test_local_net_hosts_never_ping_real_wired_devices():
     params = {p.get('name'): p.get('value') for p in local[0].iter('param') if p.get('name')}
     assert params['wired_router_host'] == '127.0.0.1'
     assert params['wired_hosts'] == '[127.0.0.1, 127.0.0.1, 127.0.0.1]'
+
+
+def site_arm(arm_id, alias, host, zone, online=True):
+    return {'arm_id': arm_id, 'alias': alias, 'online': online, 'age': 0.1, 'state': 'READY',
+            'status': {'power_present': True}, 'site': {'station': zone, 'host': host}}
+
+
+SITE_ARMS = {'controller_online': True, 'arms': [
+    site_arm('omx_1', 'omx1', '8-OMEN', 'ZA'), site_arm('omx_2', 'omx2', '8-OMEN', 'ZB'),
+    site_arm('omx_3', 'omx3', 'OMEN-11', 'ZC')]}
+
+
+def test_split_arms_by_host():
+    local, remote, name = nu.split_arms_by_host(SITE_ARMS, '8-omen')   # 대소문자 무시
+    assert [a['arm_id'] for a in local] == ['omx_1', 'omx_2']
+    assert [a['arm_id'] for a in remote] == ['omx_3'] and name == 'OMEN-11'
+    # hostname 을 모르거나 host 가 비면 다른 PC 팔 (예전처럼 팔 PC 상자)
+    local, remote, name = nu.split_arms_by_host(SITE_ARMS, None)
+    assert not local and len(remote) == 3 and name == '8-OMEN · OMEN-11'
+    _, remote, name = nu.split_arms_by_host({'arms': [{'arm_id': 'x'}]}, '8-OMEN')
+    assert len(remote) == 1 and name == ''
+    assert nu.split_arms_by_host(None, '8-OMEN') == ([], [], '')
+
+
+def site_view(arms=SITE_ARMS, hostname='8-OMEN', nodes=('omx1_adapter', 'omx2_adapter',
+                                                        'omx3_adapter')):
+    local = {'rmw': 'r', 'hostname': hostname, 'station_nodes': list(nodes)}
+    return nu.network_view(local, SNAP, True, True, arms, net_data(), True, ROBOTS,
+                           ['omx_1', 'omx_2', 'omx_3'])
+
+
+def test_arms_on_control_pc_leave_arm_pc_box():
+    result = site_view()
+    station = result['station']
+    # 팔 PC 상자에는 다른 PC(OMEN-11) 팔만
+    assert station['label'] == '팔 PC · OMEN-11' and station['text'] == '팔 1/1 연결'
+    assert [a['arm_id'] for a in station['arms']] == ['omx_3']
+    assert station['nodes'] == ['omx3_adapter'] and list(station['rates']) == ['omx_3']
+    local = result['local_arms']
+    assert local['label'] == '이 PC 팔 omx1·omx2' and local['state'] == nu.OK
+    assert local['nodes'] == ['omx1_adapter', 'omx2_adapter']
+    assert [a['zone'] for a in local['arms']] == ['ZA', 'ZB']
+    _, ctl = health_of(result, 'control')
+    assert ctl['팔 노드']['value'] == 'omx1·omx2 2/2 연결'
+    _, st = health_of(result, 'station')
+    assert st['팔 노드']['value'] == '1/1 연결' and st['노드']['value'] == '1개: omx3_adapter'
+    cards = {c['id']: c for c in result['health']['cards']}
+    assert cards['omx_1']['select'] == 'control' and cards['omx_3']['select'] == 'station'
+    assert cards['omx_1']['label'] == 'omx_1 로봇팔 · ZA'
+    # 팔 PC 핑이 끊겨도 관제 PC 팔은 정상으로 남는다
+    cut = nu.network_view({'rmw': 'r', 'hostname': '8-OMEN'}, SNAP, True, True,
+                          {'controller_online': True, 'arms': [
+                              site_arm('omx_1', 'omx1', '8-OMEN', 'ZA'),
+                              site_arm('omx_3', 'omx3', 'OMEN-11', 'ZC', online=False)]},
+                          net_data(station=nu.BAD), True, ROBOTS, ['omx_1', 'omx_3'])
+    assert cut['station']['state'] == nu.BAD and cut['local_arms']['state'] == nu.OK
+
+
+def test_local_arm_problems_go_to_control_card_not_alert_strip():
+    arms = {'controller_online': True, 'arms': [
+        site_arm('omx_1', 'omx1', '8-OMEN', 'ZA', online=False),
+        site_arm('omx_2', 'omx2', '8-OMEN', 'ZB')]}
+    result = site_view(arms=arms)
+    assert result['local_arms']['state'] == nu.WARN
+    _, ctl = health_of(result, 'control')
+    assert ctl['팔 노드']['state'] == nu.WARN
+    # 다른 PC 팔이 없으면 팔 PC 상자는 회색 (핑만 보인다)
+    assert result['station']['state'] == nu.NA and result['station']['label'] == '팔 PC'
+    _, st = health_of(result, 'station')
+    assert st['팔 노드']['state'] == nu.NA
+    issue = [i for i in result['health']['issues'] if i['card'] == 'omx_1'][0]
+    assert issue['select'] == 'control'
+    codes = [a['code'] for a in nu.network_alerts(result)]
+    assert 'net:control:팔 노드' not in codes            # 팔 패널이 이미 보여 준다
+
+
+def test_arm_pc_card_shows_reported_hostname_when_different():
+    hosts = {'station': {'online': True, 'age': 1.0, 'data': {'hostname': '11Ubuntu'}}}
+    local = {'rmw': 'r', 'hostname': '8-OMEN'}
+    result = nu.network_view(local, SNAP, True, True, SITE_ARMS, net_data(), True, ROBOTS,
+                             ['omx_1', 'omx_2', 'omx_3'], hosts=hosts)
+    card, _ = health_of(result, 'station')
+    assert card['label'] == '팔 PC · OMEN-11 (보고 이름 11Ubuntu)'

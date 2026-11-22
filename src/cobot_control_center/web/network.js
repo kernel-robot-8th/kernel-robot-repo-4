@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 //
 // 네트워크 상태 화면 (주소 #/network).
-// 전체 화면(.layout)을 숨기고: 헬스체크 카드 → 구조도(관제 PC 안 노드·브릿지 → 공유기 → Station PC·핑키)
+// 전체 화면(.layout)을 숨기고: 헬스체크 카드 → 구조도(관제 PC 안 노드·팔·브릿지 → 공유기 → 팔 PC·핑키)
 //   → 자세히 → 핑 지연 그래프(최근 5분).
 // 데이터는 /api/network 하나만 본다. 상단 바 '네트워크 상태보기' 버튼 옆 점은 화면 밖에서도 2초마다 갱신한다.
 // 서버가 준 문자열(노드 이름 등)은 textContent 로만 넣는다.
@@ -185,7 +185,7 @@ function drawDiagram(d) {
     netBox(svg, box.id, 36 + i * (cw + 12), 66, cw, 56, box.label, box.text, box.state);
   });
 
-  // 장치 줄 위치: Station PC + 로봇, 가운데 맞춤
+  // 장치 줄 위치: 팔 PC + 로봇, 가운데 맞춤
   const bw = 190;
   const gap = 20;
   const start = (W - (n * bw + (n - 1) * gap)) / 2;
@@ -197,6 +197,11 @@ function drawDiagram(d) {
     if (i < 0) return;
     netBox(svg, box.id, xs[i], 150, bw, 56, box.label, box.text, box.state);
   });
+  // 관제 PC 안에서 도는 팔 (site_arms.yaml 의 host 가 이 PC). 팔 PC 자리 바로 위 (그 자리에는 브릿지가 없다)
+  if (d && d.local_arms) {
+    const a = d.local_arms;
+    netBox(svg, a.id, xs[0], 150, bw, 56, a.label, a.text, a.state);
+  }
 
   // 공유기
   const rx = 330;
@@ -225,14 +230,18 @@ function drawDiagram(d) {
   devices.forEach((dev, i) => {
     const addr = dev.ping && dev.ping.host ? ` ${dev.ping.host}` : "";
     netBox(svg, dev.id, xs[i], 370, bw, 84, `${dev.label}${addr}`, dev.text, dev.state,
-      dev.kind === "station" ? "관제와 같은 도메인 · 브릿지 없음" : "브릿지 경유");
+      dev.kind === "station" ? `관제와 같은 도메인 · 브릿지 없음${armNames(dev.arms)}` : "브릿지 경유");
   });
   if (wired) drawWired(svg, wired, W, xs, bw, devices);
   host.appendChild(svg);
 }
 
-// 유선망(영상·분석) 줄: 관제 PC 오른쪽 가장자리에서 내려와 유선 공유기 → 장치. Station PC 는 두 망에 붙은 같은 PC 라
-// 로봇망 줄의 Station PC 상자와 점선으로 잇는다. 영상 분석 상자는 브로커 → 관제 PC 수신기 → 이상 감지다.
+function armNames(arms) {
+  return arms && arms.length ? ` · 팔 ${arms.map((a) => a.alias || a.arm_id).join("·")}` : "";
+}
+
+// 유선망(영상·분석) 줄: 관제 PC 오른쪽 가장자리에서 내려와 유선 공유기 → 장치. 팔 PC 는 두 망에 붙은 같은 PC 라
+// 로봇망 줄의 팔 PC 상자와 점선으로 잇는다. 영상 분석 상자는 브로커 → 관제 PC 수신기 → 이상 감지다.
 function drawWired(svg, wired, W, xs, bw, devices) {
   const linkTo = (id) => wired.links.find((l) => l.to === id) || null;
   svg.appendChild(svgEl("text", { x: 40, y: 480, class: "nb-sub start" },
@@ -246,7 +255,7 @@ function drawWired(svg, wired, W, xs, bw, devices) {
   if (top && top.ms !== null) svg.appendChild(svgEl("text", { x: W - 84, y: 472, class: "nl-ms" }, msText(top.ms)));
   netBox(svg, "wired_router", rx, 490, rw, 44, wired.router.label, wired.router.text, wired.router.state);
 
-  // 장치 줄: Station PC 유선(로봇망 Station PC 바로 아래), 천장 카메라, MQTT 브로커, 영상 분석
+  // 장치 줄: 팔 PC 유선(로봇망 팔 PC 바로 아래), 천장 카메라, MQTT 브로커, 영상 분석
   const order = [wired.station, wired.cctv, wired.broker];
   const stationIdx = Math.max(0, devices.findIndex((dev) => dev.kind === "station"));
   const x0 = xs[stationIdx] ?? 40;
@@ -260,12 +269,12 @@ function drawWired(svg, wired, W, xs, bw, devices) {
                                     "data-state": netDot(link ? link.state : "na") }));
     if (link && link.ms !== null) svg.appendChild(svgEl("text", { x: cx + 8, y: y - 8, class: "nl-ms" }, msText(link.ms)));
     const addr = box.ping && box.ping.host ? ` ${box.ping.host}` : "";
-    const third = box.kind === "station_wired" ? "로봇망 Station PC 와 같은 PC"
+    const third = box.kind === "station_wired" ? "로봇망 팔 PC 와 같은 PC"
       : box.kind === "camera" ? "MJPEG 영상 원본"
       : "YOLO 판정 근거 (MQTT)";
     netBox(svg, box.id, gx[i], y, bw, 70, `${box.label}${addr}`, box.text, box.state, third);
   });
-  // 같은 Station PC: 로봇망 상자 아래 → 유선 상자 위 (점선, 상태 없음)
+  // 같은 팔 PC: 로봇망 상자 아래 → 유선 상자 위 (점선, 상태 없음)
   const scx = gx[0] + bw / 2 - 30;
   svg.appendChild(svgEl("path", { d: `M${scx} 454 L${scx} ${y}`, class: "nl same-pc" }));
 
@@ -328,7 +337,7 @@ async function startNetCheck() {
 }
 
 // ---------- 헬스체크 (구조도 위) ----------
-// 로봇·Station PC·관제 PC 마다 카드 하나, 점검 줄은 백엔드(net_status_utils.health_view)가 정한다.
+// 로봇·팔·팔 PC·관제 PC 마다 카드 하나, 점검 줄은 백엔드(net_status_utils.health_view)가 정한다.
 // 로봇 판정은 fleet_status 경고와 같은 기준이라 상단 경고 띠와 말이 같다.
 
 function renderHealth(d) {
@@ -362,7 +371,7 @@ function renderHealth(d) {
     const who = document.createElement("strong");
     who.textContent = `${issue.label} · ${issue.name}`;
     li.append(who, document.createTextNode(` ${issue.value}`));
-    // 팔 카드는 구조도의 Station PC 상자를 연다 (select)
+    // 팔 카드는 그 팔이 도는 PC 상자를 연다 (select: 관제 PC 또는 팔 PC)
     li.addEventListener("click", () => selectNet(issue.select || issue.card));
     issues.appendChild(li);
   });
@@ -370,7 +379,7 @@ function renderHealth(d) {
     const el = netCard(card.select || card.id, card.label, card.state,
       card.checks.map((check) => [check.name, check.value, check.state]));
     el.dataset.kind = card.kind;
-    // PC(Station PC·관제 PC)와 유선망(천장 카메라·영상 분석)은 장비 카드와 따로 아래 줄에 둔다
+    // PC(팔 PC·관제 PC)와 유선망(천장 카메라·영상 분석)은 장비 카드와 따로 아래 줄에 둔다
     const row = card.kind === "station" || card.kind === "control" ? pcs
       : card.kind === "camera" || card.kind === "vision" ? wired : cards;
     row.appendChild(el);
@@ -414,7 +423,8 @@ function rateText(rate) {
 function findNetBox(d, id) {
   if (!d) return null;
   const wired = d.wired ? [d.wired.router, ...d.wired.devices, d.wired.vision] : [];
-  return [...d.control, ...d.bridges, d.router, d.station, ...d.robots, ...wired]
+  return [...d.control, ...d.bridges, d.router, d.station, ...d.robots, ...wired,
+    ...(d.local_arms ? [d.local_arms] : [])]
     .find((b) => b.id === id) || null;
 }
 
@@ -457,6 +467,16 @@ function renderNetInfo(d) {
         }
       });
     });
+    // 이 PC 에서 도는 팔 (팔 카드가 관제 PC 를 열 때 여기서 본다)
+    const la = d.local_arms;
+    if (la) {
+      addHeading(dl, `이 PC 팔 (${la.text})`);
+      la.arms.forEach((arm) => {
+        const rate = (la.rates || {})[arm.arm_id];
+        addRow(dl, `${arm.arm_id}${arm.zone ? ` · ${arm.zone}` : ""}`, `${arm.state || "?"} · ${rateText(rate)}`,
+          arm.online ? (rate ? rate.state : "ok") : "bad");
+      });
+    }
     addRow(dl, `도메인 ${l.domain_id ?? "?"} 노드`, l.nodes ? `${l.nodes.length}개: ${l.nodes.join(", ")}` : "모름");
     if (l.unknown_nodes) {
       addRow(dl, "이름 안 보이는 노드", `${l.unknown_nodes}개 · 발행은 보이는데 이름 정보가 안 옴 → DDS 구현이 다를 수 있음 (Cyclone ↔ Fast DDS)`, "warn");
@@ -492,7 +512,7 @@ function renderNetInfo(d) {
   }
   (box.arms || []).forEach((arm) => {
     const rate = box.rates ? box.rates[arm.arm_id] : null;
-    addRow(dl, arm.arm_id, `${arm.state || "?"} · ${rateText(rate)}`, arm.online ? (rate ? rate.state : "ok") : "bad");
+    addRow(dl, `${arm.arm_id}${arm.zone ? ` · ${arm.zone}` : ""}`, `${arm.state || "?"} · ${rateText(rate)}`, arm.online ? (rate ? rate.state : "ok") : "bad");
   });
   if (box.relay !== undefined) {
     // 현장영상 중계는 보는 사람이 있을 때만 원본에 붙는다
@@ -542,7 +562,7 @@ function netCard(id, title, state, rows) {
 function netSeries(d) {
   if (!d) return [];
   const list = [{ key: "router", label: "공유기", color: css(NET_SERIES_COLOR.router) },
-    { key: "station", label: "Station PC", color: css(NET_SERIES_COLOR.station) }];
+    { key: "station", label: d.station ? d.station.label : "팔 PC", color: css(NET_SERIES_COLOR.station) }];
   d.robots.forEach((r, i) => list.push({ key: r.id, label: r.label, color: css(robotColorVar(i)) }));
   return list;
 }

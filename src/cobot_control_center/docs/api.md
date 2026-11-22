@@ -161,7 +161,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 ## 로봇팔 (arm_command_node)
 
 웹은 팔 토픽을 모릅니다. `fleet_api_node` 가 요청을 `/control_center/arm_request` 로 넘기고, `arm_command_node` 가
-`ArmCommand` 로 바꿔 Station PC 의 팔 노드(`cobot_manipulation` 의 `arm_adapter_node`, 브랜치 `feature/manipulation-station-adapter`)에 냅니다.
+`ArmCommand` 로 바꿔 그 팔이 꽂힌 PC(관제 PC 또는 팔 PC)의 팔 노드(`cobot_manipulation` 의 `arm_adapter_node`, 브랜치 `feature/manipulation-station-adapter`)에 냅니다.
 `ArmCommand` 로는 팔 모션을 시작하지 않습니다 (`ArmCommand.msg`). 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기, 나머지는 정지·해제입니다.
 주문의 작업(pick·load)은 `fleet_control_node` 가 `/fleet/work_request` 로 보냅니다. 개발용 [작업 시험](#작업-시험-개발용)은 이 노드가 같은 토픽으로 한 건씩 보냅니다.
 
@@ -307,7 +307,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 ## 네트워크 (net_status_node)
 
-관제 PC 에서 잴 수 있는 것만 잽니다. 로봇·Station PC 의 DDS 종류는 ROS 로 물어볼 수 없어
+관제 PC 에서 잴 수 있는 것만 잽니다. 로봇·팔 PC 의 DDS 종류는 ROS 로 물어볼 수 없어
 데이터가 오는지로만 적습니다 (`dds` 칸).
 
 **빠르기 두 가지** (헬스체크는 가볍게 계속, 자세한 확인은 필요할 때만):
@@ -317,13 +317,13 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | 평소 | 대상마다 5 s 에 한 번 (장치 5대 → 초당 약 80 바이트) | 재지 않음 (구독 안 함) |
 | 자세히 확인 (`POST /api/network/check`, 화면 버튼) | 10 s 동안 1 s 마다 | 10 s 동안 구독해서 잼. 끝나면 구독을 지우고 결과를 `checked_at` 과 함께 그대로 냄 |
 
-팔 상태(10 Hz)를 관제 PC 가 하나 더 구독하면 Station PC 가 한 벌 더 보낼 수 있어서 평소에는 구독하지 않습니다.
+팔 상태(10 Hz)를 관제 PC 가 하나 더 구독하면 팔 PC 가 한 벌 더 보낼 수 있어서 평소에는 구독하지 않습니다.
 
 `/control_center/host_status` (std_msgs/String JSON, 3 s, RELIABLE, 각 PC 의 `host_status_node` → `fleet_api_node`):
-관제 PC 가 아닌 PC 가 자기 상태를 보낸다. 여러 PC 가 같은 토픽에 내고 `host` 로 나눈다 (`station` 이면 Station PC 카드).
+관제 PC 가 아닌 PC 가 자기 상태를 보낸다. 여러 PC 가 같은 토픽에 내고 `host` 로 나눈다 (`station` 이면 팔 PC 카드).
 
 ```json
-{"host": "station", "label": "Station PC", "hostname": "station-pc", "time": 1794763662.3, "period_sec": 3.0,
+{"host": "station", "label": "팔 PC", "hostname": "station-pc", "time": 1794763662.3, "period_sec": 3.0,
  "local_ip": "192.168.45.10",
  "dds": {"rmw": "rmw_cyclonedds_cpp", "domain_id": 100, "rmw_env": "rmw_cyclonedds_cpp",
          "cyclonedds_uri": null, "discovery_range": null},
@@ -382,18 +382,19 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | 키 | 내용 |
 |---|---|
 | `overall` | 전체에서 가장 나쁜 상태, 헬스체크 포함 (상단 바 '네트워크 상태보기' 점 색) |
-| `health` | 헬스체크 `{"state", "counts": {"ok", "warn", "bad", "na"}, "cards": [{"id", "label", "kind": "robot"\|"arm" (장비 줄) \| "station"\|"control" (PC 줄) \| "camera"\|"vision" (유선망 줄), "select": 구조도에서 열 상자(팔은 "station"), "state", "checks": [{"name", "state", "value"}]}], "issues": [정상이 아닌 점검, 나쁜 것부터 + "card", "select", "label"]}`. 관제 PC 카드의 연결 줄은 유선 → 무선 → VPN·기타 순서이고 판정은 로봇망 연결만 한다. 로봇 점검은 `fleet_status` 의 `alerts`(배터리·FAILED·끼임·시계)를 그대로 써서 경고 띠와 기준이 같다 |
+| `health` | 헬스체크 `{"state", "counts": {"ok", "warn", "bad", "na"}, "cards": [{"id", "label", "kind": "robot"\|"arm" (장비 줄) \| "station"\|"control" (PC 줄) \| "camera"\|"vision" (유선망 줄), "select": 구조도에서 열 상자(팔은 그 팔이 도는 PC: 관제 PC 면 "control", 아니면 "station"), "state", "checks": [{"name", "state", "value"}]}], "issues": [정상이 아닌 점검, 나쁜 것부터 + "card", "select", "label"]}`. 관제 PC 카드의 연결 줄은 유선 → 무선 → VPN·기타 순서이고 판정은 로봇망 연결만 한다. 로봇 점검은 `fleet_status` 의 `alerts`(배터리·FAILED·끼임·시계)를 그대로 써서 경고 띠와 기준이 같다 |
 | `local` | 이 PC: `rmw`(직접 확인), `rmw_env`, `domain_id`, `cyclonedds_uri`, `discovery_range`, `static_peers`, `nodes`(도메인에서 이름이 보이는 노드), `unknown_nodes`(이름이 안 보이는 노드 수, DDS 가 다를 때), `hostname`(이 PC 이름, 예: 8-OMEN), `station_nodes`, `vision_nodes`(`vision_node_patterns` 에 맞는 노드) |
 | `control` | 관제 PC 안 노드 상자 `[{"id", "label", "state", "text"}]`: fleet_api, fleet_status, fleet_control, zone_manager, arm_command, net_status |
 | `bridges` | 로봇별 브릿지 상자 (`fleet_status` 의 `infra` 판정, `node`, `note`) |
-| `router` · `station` · `robots` | 장치 상자. `ping`(위 핑 요약), 로봇은 `rate`(patrol_status)·`topic_age`, Station PC 는 `arms`·`rates`(팔별 ArmStatus 주기). `text` 는 끊긴 곳 설명 (예: "핑은 되는데 데이터 없음 (브릿지 확인)") |
+| `router` · `station` · `robots` | 장치 상자. `ping`(위 핑 요약), 로봇은 `rate`(patrol_status)·`topic_age`, 팔 PC(`station`)는 관제 PC 가 아닌 PC 의 팔만 `arms`·`rates`(팔별 ArmStatus 주기)·`nodes` 로, `label` 은 `팔 PC · <site.host>`. `text` 는 끊긴 곳 설명 (예: "핑은 되는데 데이터 없음 (브릿지 확인)") |
 | `links` | 선 `[{"from", "to", "state", "ms"}]`: 관제 PC─공유기, 공유기─각 장치 |
+| `local_arms` | 관제 PC 에서 도는 팔 상자 `{"id": "local_arms", "label", "state", "text", "arms": [{"arm_id", "alias", "zone", "online", "state", "age"}], "nodes", "rates"}` 또는 null. 팔을 `site.host` 와 `local.hostname` 으로 나눈다 (대소문자 무시, 비었으면 팔 PC 쪽) |
 | `wired` | 유선망(영상·분석) `{"state", "router", "devices": [cctv, broker, station_wired], "cctv", "broker", "station", "vision", "links"}`. 상자는 `ping` 을 가진다. `cctv.relay` 는 현장영상 중계 상태(`/api/health` 의 `cctv` 와 같음, 보는 사람이 있을 때만 원본에 붙으므로 끊김 자체는 나쁘지 않음). `vision` 은 `nodes`(보이는 근거 수신기·이상 감지 노드), `rates`(자세히 확인 때 근거 주기), `broker_ping`, `pc_label`(YOLO PC 표시) |
 | `net_online` | 측정 노드 값이 `net_stale_sec`(3 s) 안에 왔는지. 거짓이면 핑 칸이 비고 나머지는 그대로 그림 |
 | `interfaces` | 측정 노드 값 + `summary`(화면 한 줄, 예: "연결됨 · 192.168.45.9/24 · SK_D490_5G · 77% · 5 GHz ch44 · 270 Mbit/s"), `badges`(["로봇망", "기본 경로", "VPN"] 중), `kind_text`(유선·무선·VPN·기타) |
 | `detail` · `local_ip` · `ping_available` · `thresholds` | 측정 노드 값 그대로 |
 | `history` | (`history=true` 일 때) 대상별 `[[UNIX 시각, rtt ms 또는 null], ..]` 최근 300개 |
-| `alerts` | 상단 경고 띠에 더할 네트워크·PC 경고 `[{"robot", "code": "net:<카드>:<줄>", "level", "text"}]` (`fleet_status` alerts 와 같은 모양). 로봇은 '네트워크' 줄만, 팔은 빼고(로봇팔 패널에 있음), Station PC·관제 PC 는 관제 노드·브릿지(상단 점) 말고 모두, 천장 카메라는 '네트워크'·영상 분석은 'MQTT 브로커' 줄이 빨강일 때만 |
+| `alerts` | 상단 경고 띠에 더할 네트워크·PC 경고 `[{"robot", "code": "net:<카드>:<줄>", "level", "text"}]` (`fleet_status` alerts 와 같은 모양). 로봇은 '네트워크' 줄만, 팔은 빼고(로봇팔 패널에 있음), 팔 PC·관제 PC 는 관제 노드·브릿지(상단 점) 말고 모두, 천장 카메라는 '네트워크'·영상 분석은 'MQTT 브로커' 줄이 빨강일 때만 |
 
 네트워크·PC 경고가 생기고 풀릴 때는 `fleet_api_node` 가 2 초마다 비교해 이벤트(`kind: "network"`, 풀림은
 `level: "info"`, `"… 회복"`)를 `/api/events` 와 `/ws/fleet` 스냅샷 `events` 에 넣습니다. 값(지연 ms 등)만 바뀌면 새 이벤트를 내지 않습니다.
@@ -405,7 +406,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | 이름 | 기본값 | 뜻 |
 |---|---|---|
 | `robots` · `robot_hosts` | `[pinky1..3]` · `[192.168.45.21..23]` | 핑할 로봇과 주소 (같은 순서) |
-| `station_host` · `router_host` | `192.168.45.10` · `192.168.45.1` | Station PC · 공유기. 비우면 재지 않음 |
+| `station_host` · `router_host` | `192.168.45.10` · `192.168.45.1` | 팔 PC · 공유기. 비우면 재지 않음 |
 | `wired_router_host` | `192.168.0.1` | 유선망(영상·분석) 공유기. 비우면 재지 않음 |
 | `wired_ids` · `wired_hosts` · `wired_probe_ports` | `[cctv, broker, station_wired]` · `[192.168.0.7, .8, .4]` · `[18086, 1883, 22]` | 유선망 장치 (같은 순서). 포트는 ping 이 없을 때(도커) 대상별 TCP 연결 시도 포트. 2026-11-22 확인 |
 | `evidence_topics` · `evidence_expect_hz` · `evidence_stale_sec` | `[/anomaly_monitor/zone_evidence, /anomaly_monitor/box_evidence]` · `10.0` · `1.0` | 자세히 확인 때 수신 주기를 잴 영상 분석 근거 토픽 (`String`), 기대 주기 [Hz], 끊긴 것으로 볼 시간 [s] |
@@ -426,7 +427,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 `fleet_api_node` 경로: `route_retry_sec`(8.0, 작업이 안 만들어진 일시 거절을 다시 보내 보는 시간 [s]), `route_period_sec`(0.5, 구간 결과를 보는 주기 [s]). 읽기 전용 백엔드에는 경로가 없음.
 
 `fleet_api_node` 쪽: `host_status_topic`, `host_stale_sec`(10.0), `net_stale_sec`(3.0), `network_robots`, `network_arms`(구조도에 그릴 목록), `net_status_topic`, `net_check_topic`,
-`station_node_patterns`(`['omx*_adapter']`, Station PC 노드로 볼 이름. ROS 그래프는 노드가 어느 PC 에 있는지 모르므로 이름으로 고른다 → `local.station_nodes`, `station.nodes`),
+`station_node_patterns`(`['omx*_adapter']`, 팔 노드로 볼 이름. ROS 그래프는 노드가 어느 PC 에 있는지 모르므로 이름으로 고르고, 팔 별칭(`<alias>_adapter`)으로 `local_arms.nodes`·`station.nodes` 에 나눈다),
 `vision_node_patterns`(`['mqtt_zone_evidence', 'anomaly_monitor']`, 영상 분석 근거 경로 노드 → `local.vision_nodes`. 비우면 영상 분석 상자는 노드를 보지 않음),
 `vision_pc_label`(YOLO 가 도는 PC 표시 글자. YOLO 는 ROS 를 쓰지 않아 관제가 위치를 모른다).
 

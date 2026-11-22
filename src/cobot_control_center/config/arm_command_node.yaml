@@ -1,4 +1,4 @@
-# 로봇팔 명령 노드 파라미터 (관제 PC). 팔 노드는 Station PC 의 cobot_manipulation arm_adapter_node.
+# 로봇팔 명령 노드 파라미터 (관제 PC). 팔 노드는 그 팔이 꽂힌 PC(site_arms.yaml host)의 cobot_manipulation arm_adapter_node.
 # 토픽 이름은 팔 노드 기본값(arm_adapter.yaml 의 비운 command_topic·status_topic·ack_topic)과 같다.
 /**:
   ros__parameters:

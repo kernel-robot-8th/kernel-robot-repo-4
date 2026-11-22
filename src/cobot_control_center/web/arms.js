@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 //
 // 로봇팔 패널: 팔 상태(/api/arms)를 보여 주고 켜기·끄기·정지를 보낸다 (/api/arms/{arm_id}/command).
-// 명령은 로봇팔 명령 노드(arm_command_node)가 ArmCommand 로 바꿔 Station PC 팔 노드에 낸다.
+// 명령은 로봇팔 명령 노드(arm_command_node)가 ArmCommand 로 바꿔 팔 노드(관제 PC 또는 팔 PC)에 낸다.
 // 켜기는 연결·토크, 끄기는 쉬는 자세에서 토크 끄기뿐이다 (팔을 움직이지 않음).
 // 작업 시험(/api/arms/{arm_id}/work)은 개발용으로 팔 하나에 작업 한 건을 시킨다. 실제 팔이 움직이므로
 // 상단 '작업 명령 켜기'(commands.js renderArmToggle)가 켜져 있어야 한다. 켜기·끄기·정지는 스위치와 상관없다.
@@ -15,7 +15,7 @@ const ARM_LOG_MAX = 300;   // 화면에 들고 있을 알람 기록 수 (백엔�
 
 // arm_command_utils.py 의 화면 상태 → 배지 글·색 묶음
 const ARM_STATE = {
-  STALE: { text: "미연결", level: "na", hint: "팔 노드 상태가 안 들어옴 (Station PC 노드·도메인 확인)" },
+  STALE: { text: "미연결", level: "na", hint: "팔 노드 상태가 안 들어옴 (그 팔 PC 의 팔 노드·도메인 확인)" },
   OFF: { text: "꺼짐", level: "idle", hint: "토크 꺼짐. 켜기만 됨 (고장이면 켜기가 거절되고 '고장'으로 바뀜)" },
   FAULT: { text: "고장", level: "bad", hint: "팔 실행기가 멈춤 (팔 노드 전원 FAULT). 원인을 고치고 고장 해제 → 켜기" },
   READY: { text: "대기", level: "good", hint: "켜짐, 작업을 받을 수 있음" },

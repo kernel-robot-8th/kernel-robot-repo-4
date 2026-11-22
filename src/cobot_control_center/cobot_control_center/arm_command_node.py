@@ -16,7 +16,7 @@
 로봇팔 명령 노드: 웹 요청을 ArmCommand 로 바꿔 팔 노드에 내고, 응답·상태를 웹 백엔드에 돌려준다.
 
 fleet_api_node 는 로봇 토픽에 발행하지 않는다. 팔 켜기·끄기·정지는 이 노드가 받아
-/control_center/<arm>/command (ArmCommand) 로 낸다. 받는 쪽은 Station PC 의 팔 노드
+/control_center/<arm>/command (ArmCommand) 로 낸다. 받는 쪽은 그 팔이 꽂힌 PC 의 팔 노드
 (cobot_manipulation arm_adapter_node) 이고, 판정 결과는 CommandAck, 상태는 ArmStatus 로 온다.
 
   /control_center/arm_request (String JSON) ← fleet_api_node

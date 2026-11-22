@@ -3,19 +3,19 @@
   Copyright 2026 Pinky_Team4
   Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 
-  PC 상태 보고 노드 하나만 띄운다. 관제 PC 가 아닌 PC(Station PC 등)에서 쓴다.
+  PC 상태 보고 노드 하나만 띄운다. 관제 PC 가 아닌 PC(팔 PC 등, 예: omx3 이 도는 OMEN-11)에서 쓴다.
   관제 백엔드·웹(fleet_api)은 띄우지 않으므로 fastapi 같은 웹 의존성이 필요 없다 (rclpy, std_msgs 만).
 
-    # Station PC (관제와 같은 도메인 100)
+    # 팔 PC (관제와 같은 도메인 100)
     export ROS_DOMAIN_ID=100
     ros2 launch cobot_control_center host_status.launch.xml host:=station
 
-  관제 화면 네트워크 페이지(#/network)의 Station PC 카드에 연결·CPU·메모리·온도·디스크·DDS 가 나온다.
+  관제 화면 네트워크 페이지(#/network)의 팔 PC 카드에 연결·CPU·메모리·온도·디스크·DDS 가 나온다.
   읽기만 한다 (/proc, /sys, ip·nmcli). 로봇·팔 토픽을 구독하지 않고 명령을 내지 않는다.
 -->
 <launch>
   <arg name="host" default="station" description="관제 화면에서 이 PC 를 찾는 이름 (station 등)"/>
-  <arg name="label" default="Station PC" description="화면에 보일 이름"/>
+  <arg name="label" default="팔 PC" description="화면에 보일 이름"/>
   <arg name="router_host" default="192.168.45.1" description="이 주소로 가는 연결을 로봇망으로 본다"/>
 
   <node pkg="cobot_control_center" exec="host_status_node" name="host_status_$(var host)"

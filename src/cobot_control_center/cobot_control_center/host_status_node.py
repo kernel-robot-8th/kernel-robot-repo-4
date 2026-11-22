@@ -15,7 +15,7 @@
 """
 PC 상태 보고 노드: 이 PC 의 연결·CPU·메모리·온도·디스크·DDS 설정을 주기마다 관제에 보낸다.
 
-관제 PC 가 아닌 PC(Station PC 등)에서 이것 하나만 띄운다 (관제 백엔드·웹은 띄우지 않는다).
+관제 PC 가 아닌 PC(팔 PC 등)에서 이것 하나만 띄운다 (관제 백엔드·웹은 띄우지 않는다).
 관제 PC 는 남의 PC 안쪽을 읽을 수 없어서, 각 PC 가 자기 것을 읽어 보내는 방식이다.
   ROS_DOMAIN_ID=100 ros2 launch cobot_control_center host_status.launch.xml host:=station
 
@@ -36,7 +36,7 @@ from std_msgs.msg import String
 
 PARAMS = {
     'host': 'station',            # 화면에서 이 PC 를 찾는 이름 (관제 network_hosts 와 같게)
-    'label': 'Station PC',
+    'label': '팔 PC',
     'router_host': '192.168.45.1',  # 이 주소로 가는 연결을 '로봇망'으로 본다
     'publish_topic': '/control_center/host_status',
     'publish_period_sec': 3.0,

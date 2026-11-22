@@ -1,9 +1,9 @@
-# PC 상태 보고 노드 파라미터. 관제 PC 가 아닌 PC(Station PC 등)에서 이 노드만 띄운다.
+# PC 상태 보고 노드 파라미터. 관제 PC 가 아닌 PC(팔 PC 등)에서 이 노드만 띄운다.
 # 읽기만 한다 (/proc, /sys, ip·nmcli). 다른 토픽을 구독하지 않고 명령을 내지 않는다.
 /**:
   ros__parameters:
     host: station                  # 관제 화면에서 이 PC 를 찾는 이름. launch 인자 host 가 덮어쓴다
-    label: Station PC
+    label: 팔 PC
     router_host: 192.168.45.1      # 이 주소로 가는 연결을 '로봇망'으로 본다 (패킷은 보내지 않음)
     publish_topic: /control_center/host_status
     publish_period_sec: 3.0        # [s] 관제 fleet_api 의 host_stale_sec(10 s) 보다 짧게
