@@ -164,6 +164,38 @@ ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00
 
 `omx_chain.py` 의 다른 옵션(`--device`, `--n-action-steps`, `--max-relative-target` 등)은 뒤에 붙이면 그대로 넘어간다.
 
+## 핑키 정차 위치 맞추기 (`align_view.py`)
+
+팔 모델은 지도 좌표가 아니라 **위쪽 카메라 화면 속 자리**로 학습됐다.
+- `omx_1031`(omx2, ZB)은 흰 받침대 위의 접시에 놓도록 학습됐다.
+- `omx_1119`(omx1, ZA)는 학습 영상에 실제 핑키가 있다.
+
+그래서 학습 화면과 지금 화면을 겹쳐 보고, 핑키를 손으로 밀어 맞춘다. 맞춘 뒤 `/pinkyN/amcl_pose` 를 읽어 구역 좌표(`cobot_pinky_patrol/config/sites/*.yaml` 의 `ZA`·`ZB`)로 적는다.
+이 도구는 화면만 읽는다. 팔 포트를 열지 않고 ROS 토픽도 내지 않는다.
+
+```bash
+# 학습 데이터 받기 (위쪽 영상 + 메타 + 관절값, 약 180 MB)
+hf download Sungah/omx_1031_JH_v1_success --repo-type dataset \
+  --include "meta/*" "meta/episodes/*/*" "data/*/*" "videos/observation.images.top/*/*" \
+  --local-dir ~/il_ws/datasets/omx_1031_JH_v1_success
+# 그 팔 실행기를 먼저 끈다 (카메라를 같이 열 수 없다. 켜져 있으면 pid 를 알려 주고 멈춘다)
+~/venv/il/bin/python align_view.py --arm omx2 --dataset ~/il_ws/datasets/omx_1031_JH_v1_success --at start
+~/venv/il/bin/python align_view.py --arm omx1 --ref ~/outputs/train/omx_1119_act/reference_top_demo5.jpg
+```
+
+- `--at start`: 에피소드 첫 화면이다 (빈 접시나 박스를 실은 핑키).
+- `--at release`: 박스를 놓는 순간이다 (그리퍼 전류 ≤ -150 mA 의 마지막 프레임).
+- `--at <초>`: 에피소드 안의 시각을 직접 준다.
+- 창에서 **핑키·접시만 들어가게** 영역을 끌어 고른다. 바닥 테이프나 선반이 들어가면 그쪽에 맞춰져 0 에 가깝게 나온다.
+- 화면에 dx, dy [px] 가 나온다. 둘 다 ±3 px 안이고 conf ≥ 0.1 이면 초록색이 된다.
+  - dx > 0 이면 지금 핑키가 학습 때보다 화면 오른쪽에 있다는 뜻이다.
+  - conf 가 0.1 아래면 영역이 너무 다르거나 무늬가 적다는 뜻이다.
+- 먼저 선반 같은 고정물에 영역을 잡아 0 근처인지 본다. 0 근처가 아니면 카메라 자체가 학습 때와 달라진 것이다. 그때는 핑키보다 카메라를 먼저 맞춘다.
+- 키: `m` 보기(겹치기 / 기준 윤곽 / 차이), `[` `]` 투명도, `r` 영역 지우기, `s` 저장(`~/il_ws/align/`), `q` 끝.
+- 창 없이 확인하려면 `--once --roi x,y,w,h [--out 파일]` 를 쓴다. JSON 한 줄을 출력한다.
+- 카메라 없이 시험하려면 `--cam <영상> --cam-at <초> --shift=dx,dy` 를 쓴다. 음수가 있으면 `=` 를 붙여 써야 한다.
+- 시험: `python3 -m pytest test_align_view.py`
+
 ## 주의
 
 - 연결할 때 lerobot `configure()` 가 토크를 잠깐 껐다 켠다. 켜고 끌 때 팔은 쉬는 자세로 둔다.
