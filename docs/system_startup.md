@@ -1,6 +1,6 @@
 # 전체 시스템 켜는 순서
 
-2026-11-21 기준입니다. 로봇 3대, Station PC(팔), 관제 PC 를 어떤 순서로 켜는지 한곳에 모았습니다.
+2026-11-22 기준입니다. 로봇 3대, Station PC(팔), 관제 PC 를 어떤 순서로 켜는지 한곳에 모았습니다.
 자세한 설명은 각 절 끝의 원래 문서를 봅니다. 이 문서는 순서와 명령만 적습니다.
 
 > 이 문서의 명령은 실제 로봇과 팔을 움직일 수 있습니다. 현장에 사람이 있고 주변이 안전한지 확인한 뒤 켭니다.
@@ -9,12 +9,12 @@
 
 | 어디서 | 무엇 | `ROS_DOMAIN_ID` |
 |---|---|---|
-| pinky1 / pinky2 / pinky3 (192.168.45.21 / .22 / .23) | 하드웨어 bringup → Nav2 → 순찰 노드 | 10 / 20 / 30 |
+| pinky1 / pinky2 / pinky3 (192.168.45.21 / .22 / .23) | `cobot-robot` 서비스(전원 켜면 하드웨어 bringup → Nav2 → 순찰 노드 자동) | 10 / 20 / 30 |
 | Station PC (8-OMEN: omx1·omx2, OMEN-11: omx3) | `cobot-host-status`, `cobot-arm-adapter@<팔>` (systemd 사용자 서비스) | 100 |
 | 관제 PC | `cobot_bringup bringup.launch.xml` (브릿지·zone_manager·관제·웹·팔 명령 한 번에) | 100 |
 | 관제 PC (선택) | 고객 주문 화면 `customer_gateway` | 100 |
 
-순서: **① 로봇 bringup·Nav2 → ② Station PC → ③ 관제 PC → ④ 순찰 노드 → ⑤ 화면에서 초기위치·작업 명령 켜기**
+순서: **① 로봇 전원(bringup·Nav2·순찰 노드 자동) → ② Station PC → ③ 관제 PC → ④ 화면에서 초기위치·작업 명령 켜기**
 
 화면 포트 ([포트 표](ports.md)): 서비스용은 80xx(실물 관제 8080, 고객 주문 8081), 개발용은 81xx(개발 읽기 전용 8180, 가짜 핑키 8181, 가제보 8182)입니다.
 
@@ -25,20 +25,34 @@
   이미 무엇이 떠 있는지는 `ss -ltnp | grep -E ':8[01][0-9]{2}\b'` 로 봅니다.
 - 관제 PC 는 `.venv` 를 켠 셸에서 빌드해야 합니다 ([관제 README 처음 설치·빌드](../src/cobot_control_center/README.md#처음-설치)).
 
-## 2. 각 로봇: bringup → Nav2
+## 2. 각 로봇: 전원 켜기 (자동 기동)
 
-로봇마다 SSH 로 들어가서 차례로 켭니다 (pinky1 예시).
+로봇 3대에는 `cobot-robot` systemd 서비스가 깔려 있습니다. 전원을 켜면 `robot_startup` 이 하드웨어 bringup → Nav2(기본 `pinky_navigation`) → 순찰 노드를 차례로 띄웁니다.
+로봇별 ID·도메인·지도·사이클론 DDS 설정은 로봇의 `/etc/cobot/robot.env` 에 있습니다.
+
+상태와 로그는 로봇에서 봅니다. 준비가 끝나면 로그에 `COBOT_ROBOT_READY` 가 찍힙니다.
+```bash
+ssh pinky1 'systemctl status cobot-robot --no-pager'
+```
+```bash
+ssh pinky1 'journalctl -u cobot-robot -f'
+```
+- 다시 떠도 혼자 움직이지 않습니다. 관제 하트비트·세션이 확인되기 전에는 이동 명령을 거절합니다.
+- 실패하면 10초 뒤 다시 시도하고, 10분에 5번 넘게 실패하면 멈춥니다. 로그를 보고 고친 뒤 `sudo systemctl restart cobot-robot` 합니다.
+- **자동 기동하는 로봇에는 손으로 bringup·Nav2·순찰 노드를 띄우지 않습니다.** 관제의 SSH 기동(`fleet_startup execute:=true`)도 같은 기동기 잠금에 걸려 실패하므로 쓰지 않습니다.
+- 서비스 설치·끄기·자동 기동 해제 방법: [순찰 README 자동 기동](../src/cobot_navigation/cobot_pinky_patrol/README.md#전원을-켜면-자동-기동-systemd)
+
+### 서비스를 끈 로봇에서 손으로 켤 때
+
+`sudo systemctl stop cobot-robot` 으로 서비스를 끈 로봇에서만 씁니다. SSH 로 들어가서 차례로 켭니다 (pinky1 예시).
 ```bash
 ros2 launch pinky_bringup bringup_robot.launch.xml
 ```
 ```bash
 ros2 launch pinky_navigation bringup_launch.xml map:="$HOME/cobot_map_v9.yaml"
 ```
-- 장애물 회피나 사람 정지까지 쓰려면 Nav2 대신 `cobot_obstacle_avoidance bringup.launch.xml` 을 씁니다 ([launch 머리말](../src/cobot_navigation/cobot_obstacle_avoidance/launch/bringup.launch.xml)).
-- 관제 PC 에서 SSH 로 로봇 3대를 차례로 켤 수도 있습니다. 아래 명령은 미리보기만 하고, `execute:=true` 를 붙여야 실제로 켭니다 ([fleet README](../src/cobot_navigation/cobot_fleet_control/README.md#관제에서-로봇까지-ssh-순차-기동)).
-  ```bash
-  ros2 launch cobot_fleet_control fleet_startup.launch.xml
-  ```
+- 장애물 회피나 사람 정지까지 쓰려면 Nav2 대신 `cobot_obstacle_avoidance bringup.launch.xml` 을 씁니다 ([launch 머리말](../src/cobot_navigation/cobot_obstacle_avoidance/launch/bringup.launch.xml)). 지금 서비스는 기본 Nav2 로만 띄웁니다.
+- 순찰 노드는 5절 명령으로 켭니다.
 
 원래 문서: [주행 README 로봇 기동](../src/cobot_navigation/README.md#로봇-기동)
 
@@ -85,6 +99,7 @@ ros2 launch cobot_bringup bringup.launch.xml
 
 ## 5. 각 로봇: 순찰 노드
 
+자동 기동하는 로봇은 서비스가 이미 띄웠으므로 아래 명령을 쓰지 않습니다. 서비스를 끈 로봇에서만 손으로 켭니다.
 ```bash
 source ~/ws/kernel-robot-repo-4/install/setup.bash
 ```
@@ -124,9 +139,10 @@ ros2 launch cobot_gui customer_gateway.launch.xml
    잠금은 다음에 켤 때 화면에서 복구해야 합니다. 멈춰 있던 로봇은 잠기지 않습니다.
 2. 관제 PC bringup 을 Ctrl+C 로 끕니다. 이 PC 에서 띄운 것(bringup·가짜 핑키·가제보·tmux·도커)을 한 번에 내리려면
    `bash draft/scripts/stop_all.sh` (미리보기) → `--execute` 를 씁니다.
-3. 각 로봇: 순찰 노드 → Nav2 → bringup 순서로 **Ctrl+C** 로 끕니다.
-   순찰 노드는 Ctrl+C 로 꺼질 때 이동을 취소하고 0 속도를 보낸 뒤 **지금 위치를 `~/.pinky_last_pose.json` 에 저장**합니다.
-   다음에 켜서 첫 명령을 받을 때 이 위치를 되살립니다 (5절). Ctrl+C 없이 전원부터 끄면 위치가 저장되지 않아
+3. 각 로봇: `ssh -t pinky1 'sudo systemctl stop cobot-robot'` 처럼 서비스를 끕니다. 서비스가 순찰 노드 → Nav2 → bringup 순서로 정리하고 다시 띄우지 않습니다.
+   손으로 켠 로봇은 같은 순서로 **Ctrl+C** 로 끕니다.
+   순찰 노드는 정상 종료(서비스 stop 또는 Ctrl+C)될 때 이동을 취소하고 0 속도를 보낸 뒤 **지금 위치를 `~/.pinky_last_pose.json` 에 저장**합니다.
+   다음에 켜서 첫 명령을 받을 때 이 위치를 되살립니다 (5절). 서비스를 끄지 않고 전원부터 끄면 위치가 저장되지 않아
    그 전에 저장된 위치가 남고, 다음 첫 명령 때 엉뚱한 위치로 덮어쓸 수 있습니다.
    (코드: `cobot_pinky_patrol/pinky_patrol_node.py` 의 `close`, `_save_pose`)
 4. Station PC 팔: 켜져 있던 팔은 끌 때 토크가 꺼지므로 팔을 받칩니다.
