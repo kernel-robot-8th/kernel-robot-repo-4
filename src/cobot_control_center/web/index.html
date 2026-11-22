@@ -18,7 +18,7 @@
   <header class="topbar">
     <div class="title">
       <h1>관제 엔지니어링 콘솔</h1>
-      <span class="console-tag" title="개발·시험·진단용 엔지니어 화면. 운영자용 서비스 화면은 따로 만든다">엔지니어 전용</span>
+      <span class="console-tag" title="개발·시험·진단용 엔지니어 화면. 매장 직원은 매장 관리화면(/service/)을 쓴다">엔지니어 전용</span>
       <span class="mode" id="mode" data-mode="unknown">도메인 ?</span>
     </div>
     <div class="links">
@@ -35,6 +35,8 @@
       <a class="link net-btn wp-btn" href="#/waypoints" title="로봇 위치로 저장한 관제 웨이포인트와 묶음">웨이포인트</a>
       <!-- 현장영상: 천장 CCTV 를 창으로 띄운다 (cctv.js, 백엔드 /api/cctv 중계) -->
       <button type="button" class="link net-btn cctv-btn" id="cctv-btn" title="천장 CCTV 영상을 창으로 본다">현장영상</button>
+      <!-- 매장 관리화면 (web/service/, 대시보드형) -->
+      <a class="link net-btn" href="/service/" title="매장 직원·관리자용 대시보드">매장 관리화면</a>
       <span class="updated" id="updated">수신 대기</span>
       <button type="button" class="estop-all" id="stop-all" disabled
               title="모든 로봇을 그 자리에 세운다 (비상정지, 확인 창 없음)">전체 비상정지</button>

@@ -564,6 +564,108 @@ def active_orders(orders):
     return result
 
 
+# ---------- 서비스 화면 (/api/service, 매장 직원용) ----------
+
+# 서비스 화면의 큰 단계. 단계 번호는 이 순서의 위치다 (0 접수 ... 5 복귀).
+SERVICE_STEPS = ('접수', '상품 준비', '이동', '전달', '회수·정리', '복귀')
+# fleet 주문 단계(cobot_fleet_control scenario_tree.STAGES·CUSTOMER_STAGES) → (큰 단계 번호, 직원용 설명).
+# 패키지끼리 import 하지 않으므로 이름만 복사한다. 모르는 단계는 코드 그대로 보인다.
+SERVICE_STAGE = {
+    'MOVE_PICKUP': (1, '상차장으로 이동 중'),
+    'PICKUP_EXIT': (1, '상차장 도착 확인'), 'DOCK_PICKUP': (1, '상차장 자리 맞추는 중'),
+    'CORRECT_PICKUP': (1, '상차장 자리 맞추는 중'), 'MARKER': (1, '상품 확인 중'),
+    'PICK': (1, '로봇팔이 상품 꺼내는 중'), 'LOAD': (1, '로봇에 싣는 중'),
+    'VERIFY_LOAD': (1, '실은 상품 확인 중'), 'LEAVE_PICKUP': (1, '상차장 나가는 중'),
+    'MOVE_CUSTOMER': (2, '고객 자리로 이동 중'), 'MOVE_DROPOFF': (2, '하차장으로 이동 중'),
+    'PATH_EXIT': (3, '하차장 도착 확인'), 'DOCK_DROPOFF': (3, '하차장 자리 맞추는 중'),
+    'CORRECT_DROPOFF': (3, '하차장 자리 맞추는 중'), 'QR': (3, '하차 상품 확인 중'),
+    'PICK_DROPOFF': (3, '로봇팔이 상품 내리는 중'), 'UNLOAD': (3, '내려놓는 중'),
+    'VERIFY_UNLOAD': (3, '내려놓은 상품 확인 중'), 'LEAVE_DROPOFF': (3, '하차장 나가는 중'),
+    'CUSTOMER': (3, '고객이 고르는 중 (구매/회수)'),
+    'MOVE_ARRANGE': (4, '정리 구역으로 이동 중'), 'ARRANGE': (4, '로봇팔이 신발 정리 중'),
+    'LEAVE_ARRANGE': (4, '정리 구역 나가는 중'), 'MOVE_RESTOCK': (4, '선반 구역으로 이동 중'),
+    'RESTOCK': (4, '로봇팔이 선반에 되돌리는 중'), 'LEAVE_RESTOCK': (4, '선반 구역 나가는 중'),
+    'RETURN_HOME': (5, '대기 자리로 돌아가는 중'), 'RETURN_EXIT': (5, '대기 자리 도착 확인'),
+}
+# 끝난 주문 결과 → (결과 코드, 직원용 글). 위에서부터 먼저 맞는 것.
+SERVICE_OUTCOMES = (
+    ('customer_received', 'sold', '구매 완료'),
+    ('customer_timed_out', 'timeout', '고객 응답 없음 (시간 초과)'),
+    ('customer_declined', 'declined', '구매 안 함 (회수)'),
+)
+
+
+def service_order(order):
+    """
+    주문 원장 사본 하나를 서비스 화면용으로 줄인다.
+
+    step 은 SERVICE_STEPS 위치, step_text 는 지금 하는 일, outcome 은 끝난 주문의 결과 코드
+    (sold·timeout·declined·done·failed, 진행 중이면 None)다. 조치 표시(blocked·resumable·
+    load_confirmable)는 active_orders 와 같은 조건이고 최종 검사는 fleet 이 한다.
+    """
+    state, stage = order.get('state'), order.get('stage')
+    item = {key: order.get(key) for key in ORDER_FIELDS}
+    item.update({key: order.get(key) for key in (
+        'destination', 'failure', 'created_at', 'updated_at')})
+    item['returning'] = bool(order.get('customer_declined') or order.get('customer_timed_out'))
+    if state == 'WAITING' and not order.get('robot_id'):
+        item['step'], item['step_text'] = 0, '로봇 배정 기다리는 중'
+    else:
+        item['step'], item['step_text'] = SERVICE_STAGE.get(stage, (None, stage or ''))
+    item['outcome'] = item['outcome_text'] = None
+    if state == 'FAILED':
+        item['outcome'], item['outcome_text'] = 'failed', '처리 못 함'
+    elif state in ORDER_TERMINAL:
+        item['outcome'], item['outcome_text'] = 'done', '완료'
+        for key, code, text in SERVICE_OUTCOMES:
+            if order.get(key):
+                item['outcome'], item['outcome_text'] = code, text
+                break
+    if state in ORDER_TERMINAL:
+        item['step'] = len(SERVICE_STEPS) - 1
+    item['load_confirmed'] = bool(order.get('operator_load_confirmation')
+                                  or order.get('manual_load_pending'))
+    item['load_confirmable'] = state not in ORDER_TERMINAL and load_confirmable(order)
+    item['blocked'] = state in ORDER_BLOCKED and bool(order.get('robot_id'))
+    item['resumable'] = item['blocked'] and stage in ORDER_RESUME_STAGES
+    return item
+
+
+def service_orders(orders, finished_limit):
+    """진행 중 주문 전부(오래된 것부터)와 끝난 주문 최근 finished_limit 건(최신부터)."""
+    if not isinstance(orders, list):
+        return [], []
+    items = [service_order(o) for o in orders if isinstance(o, dict) and o.get('order_id')]
+    active = [o for o in items if o['outcome'] is None]
+    finished = [o for o in items if o['outcome'] is not None]
+    active.sort(key=lambda o: o.get('created_at') or 0)
+    finished.sort(key=lambda o: o.get('updated_at') or 0, reverse=True)
+    return active, finished[:max(0, int(finished_limit))]
+
+
+def service_summary(orders, since):
+    """
+    관리화면 위 숫자 타일: since [s] 뒤에 접수한 주문 건수.
+
+    total 접수, active 진행 중, sold 구매 완료, returned 구매 안 함(시간 초과 포함),
+    failed 처리 못 함, done 고객 결정 없이 끝난 주문.
+    """
+    counts = {'total': 0, 'active': 0, 'sold': 0, 'returned': 0, 'failed': 0, 'done': 0}
+    if not isinstance(orders, list):
+        return counts
+    key = {None: 'active', 'sold': 'sold', 'declined': 'returned', 'timeout': 'returned',
+           'failed': 'failed', 'done': 'done'}
+    for order in orders:
+        if not isinstance(order, dict) or not order.get('order_id'):
+            continue
+        created = order.get('created_at')
+        if not isinstance(created, (int, float)) or created < since:
+            continue
+        counts['total'] += 1
+        counts[key[service_order(order)['outcome']]] += 1
+    return counts
+
+
 class TaskStore:
     """
     작업 노드(fleet_control_node)와 주고받는 값 보관: 작업 목록 캐시, 요청 응답 기다리기, 바뀐 작업 순번.
@@ -664,6 +766,32 @@ class TaskStore:
                 'raw_cmd_enabled': online and raw, 'commands_armed': online and armed,
                 'holds': holds if online and isinstance(holds, dict) else {},
                 'orders': active_orders(orders) if online else []}
+
+    def service(self, finished_limit, today_start=0.0):
+        """
+        서비스 화면 값: 주문(진행 중 전부, 끝난 것 최근 finished_limit 건)·재고·자리·오늘 건수.
+
+        today_start 는 오늘 0시 [s] (벽시계). 그 뒤 접수한 주문을 today 에 센다.
+
+        작업 노드가 끊겨도 마지막 값을 보여 주고 controller_online 으로 알린다 (재고·끝난 주문은
+        끊긴 동안에도 볼 만하다). 아직 한 번도 못 받았으면 빈 목록이다.
+        """
+        with self._cond:
+            age = None if self._received is None else round(self.clock() - self._received, 3)
+            snapshot = self._snapshot or {}
+        active, finished = service_orders(snapshot.get('orders'), finished_limit)
+        stock = snapshot.get('stock')
+        destinations = snapshot.get('destinations')
+        holds = snapshot.get('holds')
+        online = age is not None and age <= self.stale_sec
+        return {'controller_online': online, 'controller_age': age,
+                'commands_armed': online and bool(snapshot.get('armed')),
+                'holds': holds if online and isinstance(holds, dict) else {},
+                'active': active, 'finished': finished,
+                'today': service_summary(snapshot.get('orders'), today_start),
+                'stock': stock if isinstance(stock, list) else [],
+                'destinations': destinations if isinstance(destinations, dict) else {},
+                'steps': list(SERVICE_STEPS)}
 
     def request(self, payload, publish):
         """요청을 내고 응답을 기다린다. (상태, 본문) 또는 응답이 없으면 None."""
