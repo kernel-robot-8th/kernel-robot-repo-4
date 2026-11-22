@@ -12,7 +12,7 @@
   backend:=fake 로 띄운 것이라 판단(켜기·끄기·정지·작업 요청 검사)은 진짜이고, 팔을 움직이는 부분만 가짜다:
   작업은 arm_fake_duration_sec 뒤 늘 성공, 실패는 작업 중 정지로만 나고, 관절 값은 없다.
   팔 노드에는 도메인 검사가 없어서, 실물 도메인이면 이 launch 가 팔 노드를 띄우지 않는다.
-  관제 화면은 http://localhost:8081/ 이다. 실물 관제(8080)와 한 PC 에서 함께 띄워도 포트가 겹치지 않는다.
+  관제 화면은 http://localhost:8181/ 이다. 실물 관제(8080)와 한 PC 에서 함께 띄워도 포트가 겹치지 않는다.
   내부망 다른 PC 에서 보려면 host:=0.0.0.0 (로그인 기능이 없어 같은 망 누구나 버튼을 누를 수 있다.
   ROS 통신은 그대로 이 PC 안(LOCALHOST)이라 실물에는 닿지 않는다).
   지점·구역 좌표는 실제 순찰·zone_manager 설정 파일을 그대로 읽는다.
@@ -27,7 +27,7 @@
        description="가짜 핑키가 스스로 돌아다닐지 (중앙 모드라 실제로는 꺼진다. fleet 만 명령한다)"/>
   <arg name="dropout_robot" default="" description="주기적으로 끊기는 로봇 (끊김 화면 시험용, 기본 없음)"/>
   <arg name="with_control_center" default="true" description="fleet_status·fleet_api·작업 노드도 함께 띄울지"/>
-  <arg name="port" default="8081" description="관제 화면 포트 (실물 관제 8080 과 겹치지 않게)"/>
+  <arg name="port" default="8181" description="관제 화면 포트 (개발용 81xx. 표: docs/ports.md)"/>
   <arg name="host" default="127.0.0.1" description="웹 서버 주소 (127.0.0.1 이 PC 만, 0.0.0.0 내부망 공개)"/>
   <arg name="allow_raw_cmd" default="true" description="관제 화면의 개발용 수동 명령 칸 (가짜 핑키라 기본 켬)"/>
   <arg name="arms" default="true" description="가짜 팔 3대(omx1~3, 실제 팔 노드 + fake 백엔드)도 띄울지"/>

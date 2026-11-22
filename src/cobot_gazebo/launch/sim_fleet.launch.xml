@@ -4,7 +4,7 @@
   Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 
   가제보 시뮬 전체: 월드 + 핑키 3대(각자 도메인, Nav2 + 실제 순찰 노드) + 관제 도메인(브릿지, zone_manager, 관제).
-    ros2 launch cobot_gazebo sim_fleet.launch.xml                  # 가제보 화면 + 관제 화면 http://localhost:8082/
+    ros2 launch cobot_gazebo sim_fleet.launch.xml                  # 가제보 화면 + 관제 화면 http://localhost:8182/
     ros2 launch cobot_gazebo sim_fleet.launch.xml headless:=true   # 화면 없이
     ros2 launch cobot_gazebo sim_fleet.launch.xml pinky3:=false    # 2대만
   관제 쪽 토픽 보기:  ROS_DOMAIN_ID=140 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 topic echo /pinky1/patrol_status
@@ -19,7 +19,7 @@
   <arg name="pinky3" default="true" description="pinky3 를 띄울지"/>
   <arg name="headless" default="false" description="true 면 가제보 화면 없이"/>
   <arg name="with_control_center" default="true" description="관제(fleet_status·fleet_api·작업 노드)도 띄울지"/>
-  <arg name="port" default="8082" description="관제 화면 포트 (실물 8080, 가짜 핑키 8081 과 겹치지 않게)"/>
+  <arg name="port" default="8182" description="관제 화면 포트 (개발용 81xx. 표: docs/ports.md)"/>
 
   <let name="control_domain" value="140"/>
   <let name="pinky1_domain" value="141"/>

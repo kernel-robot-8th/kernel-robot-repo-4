@@ -16,13 +16,13 @@
 
 순서: **① 로봇 bringup·Nav2 → ② Station PC → ③ 관제 PC → ④ 순찰 노드 → ⑤ 화면에서 초기위치·작업 명령 켜기**
 
-화면 포트: 실물 8080 / 가짜 핑키 8081 / 가제보 8082 / 개발(읽기 전용) 8083.
+화면 포트 ([포트 표](ports.md)): 서비스용은 80xx(실물 관제 8080, 고객 주문 8081), 개발용은 81xx(개발 읽기 전용 8180, 가짜 핑키 8181, 가제보 8182)입니다.
 
 ## 1. 켜기 전에
 
 - **관제 PC 는 한 대만** 켭니다. 두 대가 켜지면 브릿지와 zone_manager 가 두 벌이 되어 구역 토큰이 따로 나갑니다.
 - 같은 도메인에 `fleet_control` 을 둘 띄우지 않습니다 (예: 도커 fleet 과 bringup fleet). 요청 수신자가 둘이면 명령을 거절합니다.
-  이미 무엇이 떠 있는지는 `ss -ltnp | grep -E ':808[0-9]'` 로 봅니다.
+  이미 무엇이 떠 있는지는 `ss -ltnp | grep -E ':8[01][0-9]{2}\b'` 로 봅니다.
 - 관제 PC 는 `.venv` 를 켠 셸에서 빌드해야 합니다 ([관제 README 처음 설치·빌드](../src/cobot_control_center/README.md#처음-설치)).
 
 ## 2. 각 로봇: bringup → Nav2
@@ -115,6 +115,7 @@ ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pinky1 site:=lab
 ```bash
 ros2 launch cobot_gui customer_gateway.launch.xml
 ```
+- 화면은 `http://<관제 PC>:8081/` 입니다 (자리 QR 은 `:8081/?loc=<자리>`). 도커 관제(`fleet_docker.sh up`)는 같은 8081 로 이미 켜 두므로 둘을 함께 켜지 않습니다.
 
 ## 8. 끄는 순서
 
@@ -145,9 +146,9 @@ ros2 launch cobot_gui customer_gateway.launch.xml
 
 | 방식 | 명령 | 화면 |
 |---|---|---|
-| 가짜 핑키 + 가짜 팔 3대 | `ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 launch cobot_mock mock_fleet.launch.xml` | 8081 |
-| 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드 + 관제) | `ros2 launch cobot_gazebo sim_fleet.launch.xml` (도메인 140~143 고정) | 8082 |
+| 가짜 핑키 + 가짜 팔 3대 | `ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 launch cobot_mock mock_fleet.launch.xml` | 8181 |
+| 가제보 시뮬 (핑키 3대 + Nav2 + 실제 순찰 노드 + 관제) | `ros2 launch cobot_gazebo sim_fleet.launch.xml` (도메인 140~143 고정) | 8182 |
 | 팔 어댑터만 가짜로 | `ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST ros2 launch cobot_manipulation arm_station.launch.xml backend:=fake` | – |
-| 실물을 보면서 화면 개발 (읽기 전용) | `ROS_DOMAIN_ID=100 ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 8083 |
+| 실물을 보면서 화면 개발 (읽기 전용) | `ROS_DOMAIN_ID=100 ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 8180 |
 
 원래 문서: [관제 README 로봇 없이 시험하기](../src/cobot_control_center/README.md#로봇-없이-시험하기)

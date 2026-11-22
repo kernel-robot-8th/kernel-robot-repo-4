@@ -125,7 +125,7 @@ function renderMode(infra) {
   el.dataset.mode = mode;
   const text = domain === null || domain === undefined ? "도메인 ?"
     : MODE_TEXT[mode] ? `도메인 ${domain} · ${MODE_TEXT[mode]}` : `도메인 ${domain}`;
-  // 개발 화면(8083)은 실물 화면(8080)과 똑같이 생겼으므로 칩에 꼭 적는다.
+  // 개발 화면(8180)은 실물 화면(8080)과 똑같이 생겼으므로 칩에 꼭 적는다.
   el.textContent = view.readOnly ? `${text} · 개발(읽기 전용)` : text;
   el.dataset.readOnly = String(view.readOnly);
   el.title = view.readOnly ? "개발용 읽기 전용 화면입니다. 명령은 실물 관제 화면(8080)에서"

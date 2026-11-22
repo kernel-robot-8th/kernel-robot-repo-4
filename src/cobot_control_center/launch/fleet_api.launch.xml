@@ -14,13 +14,13 @@
   다른 지도나 배치면 map_yaml:=<경로> 로 바꾼다.
   host 기본값 127.0.0.1 은 이 PC 에서만 열린다. 내부망 다른 PC 에서 보려면 host:=0.0.0.0
   (로그인 기능이 없어 같은 망 누구나 명령 버튼을 누를 수 있다. 방화벽에서 포트도 열어야 한다).
-  port 는 실물(8080)과 가짜 핑키(cobot_mock, 8081)를 한 PC 에서 함께 띄울 때 겹치지 않게 나눈다.
+  port 는 실물(8080)과 가짜 핑키(cobot_mock, 8181)를 한 PC 에서 함께 띄울 때 겹치지 않게 나눈다.
   구역 표시(points_dir, zone_params)도 같은 방식으로 주행 설정 파일을 읽기만 한다
   (cobot_navigation 패키지에 의존하지 않으려고 find-pkg-share 대신 src 상대 경로를 쓴다).
 -->
 <launch>
   <arg name="host" default="127.0.0.1" description="웹 서버 주소 (127.0.0.1 이 PC 만, 0.0.0.0 내부망 공개)"/>
-  <arg name="port" default="8080" description="웹 서버 포트 (실물 8080, 가짜 핑키 8081)"/>
+  <arg name="port" default="8080" description="웹 서버 포트 (실물 8080, 개발용은 81xx. 표: docs/ports.md)"/>
   <arg name="map_yaml"
        default="$(find-pkg-share cobot_control_center)/../../../../src/cobot_navigation/map_view_pc/maps/cobot_map_v9.yaml"
        description="관제 화면 지도 YAML (로봇 amcl 과 같은 지도)"/>
@@ -85,7 +85,7 @@
   </node>
 
   <!-- 관제 PC 자기 상태 보고 (CPU·메모리·온도·디스크). Station PC 의 host_status.launch.xml 과 같은 노드.
-       측정 노드처럼 net_hosts:=off (개발 백엔드 8083) 면 띄우지 않는다 (실물 bringup 것을 같이 본다).
+       측정 노드처럼 net_hosts:=off (개발 백엔드 8180) 면 띄우지 않는다 (실물 bringup 것을 같이 본다).
        패킷을 보내지 않고 이 PC 의 /proc·/sys 만 읽는다. -->
   <node pkg="cobot_control_center" exec="host_status_node" name="host_status_control" output="screen"
         if="$(eval '\'$(var net_hosts)\' != \'off\'')">

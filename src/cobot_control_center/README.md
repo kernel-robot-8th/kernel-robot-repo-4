@@ -137,7 +137,7 @@ ros2 launch cobot_control_center fleet_api.launch.xml map_yaml:=<지도.yaml>
 
 `fleet_api.launch.xml` 은 네트워크 측정 노드(`net_status_node`)도 함께 띄웁니다. 인자 `net_hosts`:
 `real`(기본, `config/net_status_node.yaml` 의 실물 주소로 핑) / `local`(모든 핑을 127.0.0.1 로, 가짜 핑키·가제보가 씀) /
-`off`(띄우지 않음, 개발 백엔드 8083 이 씀 — 실물 bringup 의 측정값을 같이 본다).
+`off`(띄우지 않음, 개발 백엔드 8180 이 씀 — 실물 bringup 의 측정값을 같이 본다).
 관제 PC 자기 상태 보고(`host_status_node`, `host:=control`)도 같은 조건으로 함께 뜹니다 (`off` 면 안 뜸).
 `host` 는 보고에 붙이는 이름표입니다. 화면이 `control` 이면 관제 PC 카드, `station` 이면 Station PC 카드에 넣습니다 (IP·컴퓨터 이름 아님).
 
@@ -183,24 +183,28 @@ SSH 터미널에서 띄우면 접속이 끊길 때 같이 꺼질 수 있으므�
 ```bash
 source /opt/ros/jazzy/setup.bash && source .venv/bin/activate && source install/setup.bash
 export ROS_DOMAIN_ID=100
-ros2 launch cobot_control_center fleet_api_dev.launch.xml      # 화면 http://<관제 PC>:8083/
+ros2 launch cobot_control_center fleet_api_dev.launch.xml      # 화면 http://<관제 PC>:8180/
 ```
 
-- **읽기 전용**: 상태·지도·작업 목록·카메라는 실물 그대로 보입니다. 명령 경로는 `503` 이고 `task_request` 발행자도 만들지 않아, 고치던 코드가 실물 로봇을 움직이지 않습니다. 화면 칩에 `개발(읽기 전용)` 이 붙고 명령 버튼은 모두 꺼집니다. 명령 화면을 고칠 때는 [가짜 핑키](#로봇-없이-시험하기)(8081)를 씁니다.
+- **읽기 전용**: 상태·지도·작업 목록·카메라는 실물 그대로 보입니다. 명령 경로는 `503` 이고 `task_request` 발행자도 만들지 않아, 고치던 코드가 실물 로봇을 움직이지 않습니다. 화면 칩에 `개발(읽기 전용)` 이 붙고 명령 버튼은 모두 꺼집니다. 명령 화면을 고칠 때는 [가짜 핑키](#로봇-없이-시험하기)(8181)를 씁니다.
 - **고친 것 반영**: 화면(`web/`)은 `src` 를 바로 읽으므로 새로 고침만 하면 됩니다 (새 js 파일도). 파이썬 백엔드를 고쳤으면 이 launch 만 Ctrl+C 후 다시 띄웁니다. 실물 bringup 은 재시작하지 않아도 됩니다.
 - 처음 한 번, 그리고 `setup.py`·`package.xml`·launch 파일을 새로 만들었을 때는 다시 빌드합니다.
 
 | 포트 | 용도 | 띄우는 명령 | 도메인 |
 |---|---|---|---|
-| 8080 | 실물 관제 | `ros2 launch cobot_bringup bringup.launch.xml` | 100 |
-| 8081 | 가짜 핑키 | `ros2 launch cobot_mock mock_fleet.launch.xml` | 101 |
-| 8082 | 가제보 시뮬 | `ros2 launch cobot_gazebo sim_fleet.launch.xml` | 140 |
-| 8083 | 개발 (읽기 전용) | `ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 100 |
+서비스용은 80xx, 개발용은 81xx 입니다. 다른 담당의 포트까지 모은 표는 [docs/ports.md](../../docs/ports.md) 에 있습니다.
+
+| 포트 | 용도 | 띄우는 명령 | 도메인 |
+|---|---|---|---|
+| 8080 | 실물 관제 (서비스) | `ros2 launch cobot_bringup bringup.launch.xml` | 100 |
+| 8180 | 개발 (읽기 전용, 8080 의 개발 짝) | `ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 100 |
+| 8181 | 가짜 핑키 | `ros2 launch cobot_mock mock_fleet.launch.xml` | 101 |
+| 8182 | 가제보 시뮬 | `ros2 launch cobot_gazebo sim_fleet.launch.xml` | 140 |
 
 어느 포트를 누가 띄웠는지 모르겠으면:
 
 ```bash
-ss -ltnp | grep -E ':808[0-9]'                 # 포트별 프로세스·PID
+ss -ltnp | grep -E ':8[01][0-9]{2}\b'         # 포트별 프로세스·PID
 ps -o pid,tty,lstart,cmd -p <PID>              # 언제, 어떤 명령으로 (tty 가 ? 면 터미널 밖)
 pstree -s -p -a <PID> | cut -c1-150            # 누가 띄웠는지 (terminator, sshd, .claude/remote 등)
 ```
@@ -211,7 +215,7 @@ pstree -s -p -a <PID> | cut -c1-150            # 누가 띄웠는지 (terminator
 
 ```bash
 export ROS_DOMAIN_ID=101 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-ros2 launch cobot_mock mock_fleet.launch.xml        # 화면 http://localhost:8081/
+ros2 launch cobot_mock mock_fleet.launch.xml        # 화면 http://localhost:8181/
 ```
 
 **실물 (도메인 100)**: [bringup](#실행) 이 작업 노드 `fleet_control_node` 를 함께 띄웁니다. 처음에는 작업 명령이 꺼져 있으므로, **현장·사용자 확인 후** 화면 상단 **작업 명령 켜기**를 눌러 확인 창에서 켭니다. 끌 때는 같은 자리의 **작업 명령 끄기**를 누릅니다. 작업 노드가 재시작하면 다시 꺼집니다. 로봇 하나를 정지하면 멈추기만 하고(잠그지 않음), 비상정지하면 그 로봇만 보류되며(복구 필요), 상단 **전체 비상정지**를 누르면 작업 명령 전체가 꺼지므로 다시 켜야 합니다. 기록은 `~/.cobot/fleet_control.sqlite3` 이고, 누가(접속 IP, `source`) 언제 켜고 껐는지 사건 `operator_arm` 으로 남습니다. 실물에서는 수동 명령 칸이 꺼져 있습니다(`allow_raw_cmd: false`).

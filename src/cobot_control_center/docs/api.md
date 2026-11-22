@@ -217,7 +217,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 ### 작업 시험 (개발용)
 
-가짜 팔로 시험하려면 도메인 101 에서 `ros2 launch cobot_mock mock_fleet.launch.xml` 을 띄웁니다 (가짜 핑키·관제·가짜 팔 3대, 화면 8081). [cobot_mock README](../../cobot_mock/README.md#가짜-팔).
+가짜 팔로 시험하려면 도메인 101 에서 `ros2 launch cobot_mock mock_fleet.launch.xml` 을 띄웁니다 (가짜 핑키·관제·가짜 팔 3대, 화면 8181). [cobot_mock README](../../cobot_mock/README.md#가짜-팔).
 
 이 화면은 기능별 시험용 개발 대시보드라, 팔 하나에 작업 한 건을 바로 시켜 볼 수 있습니다. 주문 흐름은 나중에 서비스용 화면에서 다룹니다.
 **실제 팔이 움직입니다.** 그래서 주행 명령처럼 상단 **작업 명령 켜기**(`commands_armed`)가 켜져 있어야 하고, 팔이 `READY` 여야 합니다. 서버(`fleet_api_app`)와 `arm_command_node` 가 둘 다 검사합니다.
@@ -414,7 +414,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | 이름 | 기본값 | 뜻 |
 |---|---|---|
 | `host` | `127.0.0.1` | 바인드 주소. 다른 PC 에서 직접 접속하려면 `0.0.0.0` (로그인 없음 주의) |
-| `port` | `8080` | launch 인자 `port:=` 로 바꿈. 가짜 핑키(`cobot_mock`)는 8081 을 써서 한 PC 에서 함께 띄울 수 있음 |
+| `port` | `8080` | launch 인자 `port:=` 로 바꿈. 가짜 핑키(`cobot_mock`)는 8181 을 써서 한 PC 에서 함께 띄울 수 있음 |
 | `source_stale_sec` | `3.0` | `fleet_status` 가 이만큼 끊기면 `source_online=false` [s] |
 | `map_yaml` | launch 인자가 채움 | 지도 YAML. 비거나 읽지 못하면 지도 없이 시작 |
 | `web_dir` | `share/cobot_control_center/web` | 화면 정적 파일 폴더 |
@@ -423,7 +423,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `events_max` | `500` | 이벤트 로그 보관 개수. 메모리에만 두므로 백엔드를 다시 켜면 지워짐 |
 | `task_stale_sec` | `3.0` | 작업 노드 목록이 이만큼 끊기면 명령을 받지 않음 (503) [s] |
 | `reply_timeout_sec` | `2.0` | 명령 요청에 작업 노드가 답하기를 기다리는 시간 [s] |
-| `read_only` | `false` | `true` 면 명령 경로가 모두 503 이고 `task_request` 발행자를 만들지 않음. `fleet_api_dev.launch.xml` 이 켬 (노드 이름 `fleet_api_node_dev`, 포트 8083) |
+| `read_only` | `false` | `true` 면 명령 경로가 모두 503 이고 `task_request` 발행자를 만들지 않음. `fleet_api_dev.launch.xml` 이 켬 (노드 이름 `fleet_api_node_dev`, 포트 8180) |
 | `arm_stale_sec` | `3.0` | 로봇팔 명령 노드의 상태 모음이 이만큼 끊기면 로봇팔 명령을 받지 않음 (503) [s] |
 | `arm_events_max` | `300` | 로봇팔 알람 기록 보관 개수 (메모리) |
 | `arm_reply_timeout_sec` | `10.0` | 로봇팔 명령 응답을 기다리는 시간 [s]. `arm_command_node` 의 `ack_timeout_sec` 보다 길어야 504 가 화면까지 감 |

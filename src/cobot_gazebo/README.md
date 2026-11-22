@@ -18,7 +18,7 @@
 |---|---|
 | 관제 PC `ROS_DOMAIN_ID=100` | 140 |
 | pinky1/2/3 = 10/20/30 | 141/142/143 |
-| 관제 화면 8080 (가짜 핑키 8081) | 8082 |
+| 관제 화면 8080 (가짜 핑키 8181) | 8182 |
 
 도메인은 `launch/sim_fleet.launch.xml` 에 고정되어 있고 `config/domain_bridge_pinkyN.yaml` 과 숫자가 같아야 합니다 (`test_sim_guard_utils` 가 확인).
 모든 통신은 이 PC 안에서만 돕니다 (`ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`). 실물 도메인이면 `sim_guard_node` 가 시뮬 전체를 내립니다.
@@ -46,7 +46,7 @@ venv 없이 빌드했다면 `fleet_api_node` 가 `No module named 'fastapi'` 로
 ## 실행
 
 ```bash
-ros2 launch cobot_gazebo sim_fleet.launch.xml                  # 가제보 화면 + 관제 화면 http://localhost:8082/
+ros2 launch cobot_gazebo sim_fleet.launch.xml                  # 가제보 화면 + 관제 화면 http://localhost:8182/
 ros2 launch cobot_gazebo sim_fleet.launch.xml headless:=true   # 화면 없이
 ros2 launch cobot_gazebo sim_fleet.launch.xml pinky3:=false    # 2대만
 ros2 launch cobot_gazebo sim_fleet.launch.xml with_control_center:=false   # 관제 노드 없이

@@ -23,7 +23,7 @@
 | 자리·선반·재고 | fleet_control 이 가진다. 자리와 선반 열은 `cobot_fleet_control/config/scenario.yaml` 의 `destinations`, `shelf`. 재고와 선반 칸은 `type=inventory` 요청 |
 | launch | `launch/customer_gateway.launch.xml` |
 
-- 게이트웨이는 `customer.html` 과 `assets/`, `customer/` 만 내보낸다. 관제 화면(`index.html`)은 이 포트(8080)로 열리지 않는다. 같은 PC 라도 고객 핸드폰이 관제 화면에 닿지 않게 하기 위해서다.
+- 게이트웨이는 `customer.html` 과 `assets/`, `customer/` 만 내보낸다. 관제 화면(`index.html`)은 이 포트(8081)로 열리지 않는다. 같은 PC 라도 고객 핸드폰이 관제 화면에 닿지 않게 하기 위해서다.
 - 새 의존성은 없다 (React·lucide 는 이미 있는 것, 서버는 표준 라이브러리).
 
 ## 2. 자리 QR
@@ -31,12 +31,12 @@
 QR 내용은 주소 하나다.
 
 ```
-http://<관제 PC IP>:8080/?loc=P22
+http://<관제 PC IP>:8081/?loc=P22
 ```
 
 - 핸드폰과 관제 PC 는 같은 Wi-Fi 에 있어야 한다. `localhost` 는 핸드폰 자신이라 쓸 수 없다.
 - IP 가 QR 에 인쇄되므로 공유기에서 관제 PC IP 를 고정한다 (DHCP 예약).
-- 포트 6000 은 크롬이 막는다. 8080 을 쓴다.
+- 포트는 8081 이다. 관제 화면 8080 과 겹치지 않는 서비스용 번호다 ([포트 표](../../../docs/ports.md)). 6000 은 크롬이 막는다.
 - 좌표는 QR 에 넣지 않는다. 위치 ID → 로봇이 갈 지점은 fleet_control 의 `scenario.yaml` `destinations` 에 있다 (`{point: P22, lane}`, 지점 좌표는 로봇 순찰 설정 `sites/<현장>.yaml`). 맵이 바뀌어도 QR 을 다시 인쇄하지 않는다.
 - 자리를 늘리려면 `destinations` 에만 한 줄 더하고 QR 을 인쇄한다. 게이트웨이는 자리 목록을 `/control_center/tasks` 스냅숏에서 받는다.
   지금은 `P22` 하나만 있다 (자리 ID = 지점 이름).
@@ -93,8 +93,8 @@ ros2 launch cobot_gui customer_gateway.launch.xml          # 고객 화면
 
 - 두 노드는 같은 관제 PC, 같은 `ROS_DOMAIN_ID` 에서 돈다 (값은 `docs/fms_interfaces.md`, 임의로 바꾸지 않는다).
 - `--symlink-install` 빌드도 된다. 게이트웨이는 설치 폴더의 바로가기를 풀지 않고 경로로만 허용 범위를 본다.
-- **관제 도커(`cobot_fleet_control/config/docker`)의 `fleet_docker.sh up` 은 게이트웨이도 같이 켠다** (`customer` 서비스, 포트 8081, 웹 빌드는 이미지 안에서 한다). 이때 자리 QR 은 `http://<관제 PC IP>:8081/?loc=P22` 이다. 도커 관제 web 이 8080 을 쓰기 때문이다.
-- 위 `ros2 launch` 직접 실행은 개발용이다. 도커 fleet_control 에 붙일 때는 같은 DDS 설정(`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `CYCLONEDDS_URI=file://<저장소>/src/cobot_navigation/cobot_fleet_control/config/docker/cyclonedds.xml`)과 8080 이 아닌 포트를 준다. 도커 `customer` 와 같은 포트를 동시에 쓰지 않는다.
+- **관제 도커(`cobot_fleet_control/config/docker`)의 `fleet_docker.sh up` 은 게이트웨이도 같이 켠다** (`customer` 서비스, 포트 8081, 웹 빌드는 이미지 안에서 한다). 직접 실행할 때와 같은 8081 이라 자리 QR 도 같다.
+- 위 `ros2 launch` 직접 실행은 개발용이다. 도커 fleet_control 에 붙일 때는 같은 DDS 설정(`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, `CYCLONEDDS_URI=file://<저장소>/src/cobot_navigation/cobot_fleet_control/config/docker/cyclonedds.xml`)을 준다. 도커 `customer` 와 직접 실행은 같은 8081 을 쓰므로 둘을 함께 켜지 않는다.
 - 주문하려면 fleet_control 에 재고와 선반 칸이 있어야 한다. 예 (1행 1열에 3켤레):
   ```bash
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \

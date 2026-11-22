@@ -31,8 +31,8 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 ```
 
 가짜 핑키 3대와 관제 노드(`fleet_status_node`, `fleet_api_node`, 작업 노드 `fleet_control_node`)가 함께 뜹니다.
-작업 노드는 **실물과 같은 fleet_control** 이고, 가짜 핑키도 실물 순찰 노드처럼 하트비트·세션·순번을 통과한 명령만 받습니다 (시계 비교·TTL 은 실물처럼 하지 않음) (`central_controlled: true`). 작업 명령은 켜진 채로 시작합니다 (격리 도메인이라). 화면은 `http://localhost:8081/` 입니다 (실물 관제 8080 과 겹치지 않게 나눔, `port:=` 로 바꿀 수 있음)
-(노트북에서는 `ssh -N -L 8081:127.0.0.1:8081 <사용자>@<관제 PC>` 후 같은 주소).
+작업 노드는 **실물과 같은 fleet_control** 이고, 가짜 핑키도 실물 순찰 노드처럼 하트비트·세션·순번을 통과한 명령만 받습니다 (시계 비교·TTL 은 실물처럼 하지 않음) (`central_controlled: true`). 작업 명령은 켜진 채로 시작합니다 (격리 도메인이라). 화면은 `http://localhost:8181/` 입니다 (실물 관제 8080 과 겹치지 않게 나눔, `port:=` 로 바꿀 수 있음)
+(노트북에서는 `ssh -N -L 8181:127.0.0.1:8181 <사용자>@<관제 PC>` 후 같은 주소).
 
 | 인자 | 기본값 | 뜻 |
 |---|---|---|
@@ -40,7 +40,7 @@ ros2 launch cobot_mock mock_fleet.launch.xml
 | `dropout_robot` | `''` | 주기적으로 끊기는 로봇 ('끊김' 화면 시험 때 `pinky3`) |
 | `with_control_center` | `true` | 관제 노드를 함께 띄울지 |
 | `allow_raw_cmd` | `true` | 관제 화면의 개발용 수동 명령 칸 (검사 없이 `patrol_cmd` 에 문자열, fleet 이 세션 봉투를 붙임). 실물 관제는 기본 꺼짐 |
-| `port` | `8081` | 관제 화면 포트. 실물 관제(8080)와 한 PC 에서 함께 띄울 수 있게 나눔 |
+| `port` | `8181` | 관제 화면 포트. 실물 관제(8080)와 한 PC 에서 함께 띄울 수 있게 나눔 |
 | `points_dir` | `cobot_pinky_patrol/config` (install) | 순찰 설정 폴더 (`common.yaml`·`sites/`·`robots/`, 또는 합친 `pinkyN.yaml`) |
 | `site` | `lab` | `sites/` 의 현장 이름 |
 | `zone_params` | `cobot_zone_traffic_control/config/zone_params.yaml` (install) | 구역 대기 슬롯 설정 |
@@ -107,12 +107,12 @@ v2 로 거절된 명령은 v1 `FAILED` 상태를 내지 않습니다 (ack 가 �
 
 ## 명령 보내 보기
 
-가짜 핑키는 실물처럼 중앙 모드라, `patrol_cmd` 에 봉투 없는 글자 명령을 바로 내면 거절합니다. 명령은 화면(8081)이나 관제 API 로 보냅니다 (작업 명령은 켜진 채로 시작):
+가짜 핑키는 실물처럼 중앙 모드라, `patrol_cmd` 에 봉투 없는 글자 명령을 바로 내면 거절합니다. 명령은 화면(8181)이나 관제 API 로 보냅니다 (작업 명령은 켜진 채로 시작):
 
 ```bash
-curl -s -X POST localhost:8081/api/tasks -H 'Content-Type: application/json' \
+curl -s -X POST localhost:8181/api/tasks -H 'Content-Type: application/json' \
   -d '{"client_request_id": "t1", "robot_id": "pinky1", "operation": "zone", "points": ["ZA"]}'
-curl -s -X POST localhost:8081/api/tasks -H 'Content-Type: application/json' \
+curl -s -X POST localhost:8181/api/tasks -H 'Content-Type: application/json' \
   -d '{"client_request_id": "t2", "robot_id": "pinky1", "operation": "leave"}'
 ros2 topic echo /pinky1/patrol_status
 ```

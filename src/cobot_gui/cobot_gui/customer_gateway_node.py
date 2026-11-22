@@ -47,7 +47,7 @@ class CustomerGatewayNode(Node):
         super().__init__('customer_gateway')
         share = get_package_share_directory('cobot_gui')
         self.declare_parameter('host', '0.0.0.0')
-        self.declare_parameter('port', 8080)
+        self.declare_parameter('port', 8081)
         self.declare_parameter('web_root', os.path.join(share, 'web', 'dist'))
         self.declare_parameter('catalog_file', os.path.join(share, 'config',
                                                             'customer_catalog.yaml'))

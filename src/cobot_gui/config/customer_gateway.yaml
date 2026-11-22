@@ -3,8 +3,9 @@ customer_gateway:
   ros__parameters:
     # 핸드폰이 같은 Wi-Fi 에서 붙는다. 0.0.0.0 = 관제 PC 의 모든 네트워크 주소에서 받는다.
     host: "0.0.0.0"
-    # 6000 은 크롬이 막는 포트(ERR_UNSAFE_PORT)라 쓰지 않는다.
-    port: 8080
+    # 서비스용 80xx 중 고객 화면 자리 (표: docs/ports.md). 관제 화면 8080 과 겹치지 않게 하고 도커 customer 와 같은 번호를 쓴다.
+    # 자리 QR 주소에 인쇄되므로 바꾸지 않는다. 6000 은 크롬이 막는 포트(ERR_UNSAFE_PORT)라 쓰지 않는다.
+    port: 8081
     # cobot_fleet_control 의 관제 토픽 (그 패키지의 config/fleet_control.yaml 과 같게 둔다)
     request_topic: /control_center/task_request
     events_topic: /control_center/task_events
