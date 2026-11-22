@@ -16,7 +16,7 @@
 
 순서: **① 로봇 전원(bringup·Nav2·순찰 노드 자동) → ② Station PC → ③ 관제 PC → ④ 화면에서 초기위치·주문 받기**
 
-관제 PC 명령은 입구 하나 `scripts/cobot.sh` 로 모았습니다 (`bash scripts/cobot.sh help`). 실물 도메인에 닿는 명령은 미리보기가 기본이고 `--execute` 를 붙여야 실행합니다.
+관제 PC 명령은 입구 하나 `scripts/cobot.sh` 로 모았습니다. 전체 명령·환경변수·상태 읽는 법은 [10절](#10-관제-pc-명령-입구-scriptscobotsh-한눈에)에 있습니다. 실물 도메인에 닿는 명령은 미리보기가 기본이고 `--execute` 를 붙여야 실행합니다.
 
 화면 포트 ([포트 표](ports.md)): 서비스용은 80xx(실물 관제 8080, 고객 주문 8081), 개발용은 81xx(개발 읽기 전용 8180, 가짜 핑키 8181, 가제보 8182)입니다.
 
@@ -189,3 +189,61 @@ ros2 launch cobot_gui customer_gateway.launch.xml
 | 실물을 보면서 화면 개발 (읽기 전용) | `ROS_DOMAIN_ID=100 ros2 launch cobot_control_center fleet_api_dev.launch.xml` | 8180 |
 
 원래 문서: [관제 README 로봇 없이 시험하기](../src/cobot_control_center/README.md#로봇-없이-시험하기)
+
+## 10. 관제 PC 명령 입구 `scripts/cobot.sh` 한눈에
+
+관제 PC 에서 켜기·끄기·상태 보기를 모은 스크립트입니다. 저장소 최상위에서 `bash scripts/cobot.sh <명령>` 으로 씁니다 (`help` 로 같은 목록).
+로봇에는 접속하지 않습니다 (로봇은 2절 자동 기동). 도커 관제는 `fleet_docker.sh` 를 그대로 부르고, 그 파일·`versions.env` 는 고치지 않습니다.
+
+### 명령
+
+| 명령 | 하는 일 | 실물 영향 | 자세히 |
+|---|---|---|---|
+| `setup` | `.venv` 만들기, 고정 버전 설치 (fastapi·uvicorn·websockets·httpx·py_trees). 처음 한 번 | 없음 | [관제 README 처음 설치](../src/cobot_control_center/README.md#처음-설치) |
+| `build [--no-test]` | 관제 관련 패키지를 `.venv` 파이썬으로 빌드 (+ 시험) | 없음 | 1절 |
+| `status` | 지금 떠 있는 것과 주문 준비 여부 (아래 '상태 읽는 법') | 없음 (읽기만) | 1절 |
+| `site up` | 지금 커밋 이미지로 도커 관제 켜기 | 도메인 100 | 4절 |
+| `site rebuild` | 지금 커밋으로 이미지 빌드 → 격리 스모크 → 켜기 (몇 분) | 도메인 100 | 4절 |
+| `site down` | 도커 관제 내리기 (주문·재고 DB 볼륨은 남김) | 관제 멈춤 | 8절 |
+| `site logs [서비스]` | 도커 로그 따라 보기 (`fleet`, `web`, `customer`, `bridge`, `zone-manager`) | 없음 | 4절 |
+| `view` | 실물을 보기만 (bringup, 작업 노드 없음, 8080). 도커와 함께 못 켬 | 도메인 100 (명령 없음) | 4절 |
+| `stop [--down \| --keep-docker]` | 이 PC 에서 띄운 관제·가짜 핑키·가제보·도커 끄기. 기본은 도커 `docker stop`, `--down` 은 컨테이너 지움(볼륨은 남김), `--keep-docker` 는 도커 그대로 | 관제 멈춤 | 8절 |
+| `mock [--manual] [launch 인자]` | 가짜 핑키 3대 + 관제 (8181, 도메인 101, 이 PC 안). `--manual` 자동 순찰 끔, `arms:=false` 가짜 팔 뺌 | 없음 | 9절 |
+| `sim [--headless] [launch 인자]` | 가제보 시뮬 (8182, 도메인 140~143) | 없음 | 9절 |
+
+- **실물 영향이 있는 명령**(`site up/rebuild/down`, `view`, `stop`)은 그냥 치면 미리보기만 합니다. `--execute` 를 붙이면 한 번 묻고 실행하고, `--yes` 를 더하면 묻지 않습니다.
+- `site rebuild` 는 화면 패키지(`cobot_control_center`·`cobot_patrol_interfaces`·`cobot_interfaces`·`cobot_gui`)에 커밋 안 한 변경이 있으면 멈춥니다. `src/cobot_navigation` 의 커밋 안 한 변경은 알리기만 하고 그대로 이미지에 넣습니다.
+- 띄운 뒤 화면: 매장 관리 `http://<관제 PC>:8080/service/`, 엔지니어 `http://<관제 PC>:8080/`, 고객 주문 `http://<관제 PC>:8081/?loc=P22`.
+
+### 환경변수
+
+| 이름 | 기본값 | 쓰임 |
+|---|---|---|
+| `COBOT_PROJECT` | 떠 있는 `cobot-fleet*` 프로젝트 → 없으면 가장 최근 것 → `cobot-fleet` | 도커 관제 프로젝트 이름. **프로젝트마다 주문·재고 DB 볼륨(`<프로젝트>_fleet-data`)이 따로**라서, 다른 원장으로 띄울 때만 줍니다 |
+| `COBOT_IMAGE` | `cobot-fleet:dev-<지금 커밋 7자리>` | 도커 이미지. 예전 이미지로 되돌릴 때 `COBOT_IMAGE=cobot-fleet:dev-<커밋> bash scripts/cobot.sh site up --execute` |
+| `MOCK_DOMAIN_ID` | `101` | 가짜 핑키 도메인 |
+
+### 상태 읽는 법 (`status`)
+
+| 줄 | 보는 것 | 이상할 때 |
+|---|---|---|
+| 도커 관제 | 컨테이너 다섯 개와 이미지. 다섯 개가 같은 이미지여야 함 | 섞여 있으면 `site rebuild` |
+| 이 PC 에서 띄운 launch / tmux 세션 | 도커와 같은 도메인·포트를 다투는 것 | 현장 운영 중이면 비어 있어야 함. `stop --keep-docker` |
+| 화면 포트 | 8080 관제(도메인·관제 노드·주문 처리기·주문 받기), 8081 고객, 8083 이상 감지 콘솔, 818x 개발용 | 8080 의 `주문 처리기 끊김` → `site logs fleet` |
+| 로봇팔 서비스 | 이 PC 의 `cobot-arm-adapter@*` | `inactive` 면 3절 `systemctl --user start ...` |
+| 이상 감지 | `monitor_node`(주문 확인 단계에 답함), `mqtt_zone_evidence`(비전 근거) | `monitor_node 없음` 이면 주문이 확인 단계에서 멈춤. 담당(강건한 님)에게 켜 달라고 함 |
+| 현장 장비 | 관제 API 로 본 로봇 3대·팔 3대 (다른 PC 의 팔 포함) | 로봇 `끊김` → 2절, 팔 `STALE`·`OFF` → 3절·관제 화면 팔 카드 |
+| 주문 준비 | 위가 모두 정상이면 `됨`, 아니면 `안 됨 (이유)` 와 주문 받기 켜짐/꺼짐 | `됨` 이고 현장 확인이 끝났으면 매장 관리화면에서 **주문 받기** |
+
+### 자주 쓰는 순서
+
+```bash
+bash scripts/cobot.sh status
+```
+```bash
+bash scripts/cobot.sh site up --execute
+```
+```bash
+bash scripts/cobot.sh status
+```
+마지막 줄이 `주문 준비: 됨` 이면 매장 관리화면에서 **주문 받기** 를 누릅니다. 코드를 고친 뒤 현장에 올릴 때는 커밋하고 `site rebuild` (미리보기) → `site rebuild --execute` 입니다.

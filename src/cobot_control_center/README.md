@@ -109,7 +109,7 @@ python -m colcon test-result --verbose
 
 ## 실행
 
-관제 PC 실행 명령은 입구 하나 [`scripts/cobot.sh`](../../scripts/cobot.sh) 로 모았습니다 (`bash scripts/cobot.sh help`).
+관제 PC 실행 명령은 입구 하나 [`scripts/cobot.sh`](../../scripts/cobot.sh) 로 모았습니다. 명령 표·환경변수·상태 읽는 법: [docs/system_startup.md 10절](../../docs/system_startup.md#10-관제-pc-명령-입구-scriptscobotsh-한눈에).
 현장은 도커 관제(`site up`), 로봇 없이 시험은 `mock`, 상태 보기는 `status` 입니다. 순서는 [docs/system_startup.md](../../docs/system_startup.md).
 빌드도 `bash scripts/cobot.sh build` 로 합니다 (`.venv` 파이썬으로 빌드해야 `fleet_api_node` 가 fastapi 를 찾음).
 
