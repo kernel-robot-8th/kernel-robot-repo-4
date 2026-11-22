@@ -72,6 +72,7 @@ PARAMS = {
     'wired_ids': ['cctv', 'broker', 'station_wired'],
     'wired_hosts': ['192.168.0.7', '192.168.0.8', '192.168.0.4'],
     'wired_probe_ports': [18086, 1883, 22],   # ping 이 없을 때 대상별 TCP 연결 포트
+    'wired_router_probe_port': 80,   # 유선 공유기는 ssh 가 없어 관리 화면 80 (0 이면 tcp_probe_port)
     # 자세히 확인 때만 수신 주기를 잴 영상 분석 근거 토픽 (std_msgs/String)
     'evidence_topics': ['/anomaly_monitor/zone_evidence', '/anomaly_monitor/box_evidence'],
     'evidence_expect_hz': 10.0,
@@ -109,14 +110,14 @@ class NetStatusNode(Node):
         targets.update(zip(robots, hosts))
         wired_ids = list(c['wired_ids'])
         wired_hosts = list(c['wired_hosts'])
-        wired_ports = list(c['wired_probe_ports'])
-        if not len(wired_ids) == len(wired_hosts) == len(wired_ports):
-            raise ValueError('wired_ids, wired_hosts, wired_probe_ports 의 개수가 다름')
+        if len(wired_ids) != len(wired_hosts):
+            raise ValueError('wired_ids 와 wired_hosts 의 개수가 다름')
         targets['wired_router'] = c['wired_router_host']
         targets.update(zip(wired_ids, wired_hosts))
         self.targets = {k: h for k, h in targets.items() if k and h}
         # ping 이 없을 때 대상별로 연결을 시도할 TCP 포트 (나머지는 tcp_probe_port)
-        self.probe_ports = {k: int(p) for k, p in zip(wired_ids, wired_ports)}
+        self.probe_ports = nu.probe_port_table(wired_ids, list(c['wired_probe_ports']),
+                                               c['wired_router_probe_port'])
         self.ping_cmd = shutil.which('ping')
         self.host = HostReader(c)   # 이 PC 연결 읽기 (host_status_node 와 같은 코드)
         self._lock = threading.Lock()

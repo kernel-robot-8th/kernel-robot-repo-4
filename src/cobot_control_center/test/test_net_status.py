@@ -20,6 +20,7 @@ from cobot_control_center import net_status_utils as nu
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import ArmStore, SnapshotStore, TaskStore
 from fastapi.testclient import TestClient
+import pytest
 
 PING_OK = ('PING 192.168.45.21 (192.168.45.21) 56(84) bytes of data.\n'
            '64 bytes from 192.168.45.21: icmp_seq=1 ttl=64 time=2.43 ms\n')
@@ -688,3 +689,12 @@ def test_arm_pc_card_shows_reported_hostname_when_different():
                              ['omx_1', 'omx_2', 'omx_3'], hosts=hosts)
     card, _ = health_of(result, 'station')
     assert card['label'] == '팔 PC · OMEN-11 (보고 이름 11Ubuntu)'
+
+
+def test_probe_port_table_gives_wired_router_its_own_port():
+    table = nu.probe_port_table(['cctv', 'broker', 'station_wired'], [18086, 1883, 22], 80)
+    assert table == {'cctv': 18086, 'broker': 1883, 'station_wired': 22, 'wired_router': 80}
+    # 0 이면 표에 넣지 않는다 → tcp_probe_port(22) 를 쓴다
+    assert nu.probe_port_table(['cctv'], [0], 0) == {}
+    with pytest.raises(ValueError):
+        nu.probe_port_table(['cctv', 'broker'], [18086], 80)

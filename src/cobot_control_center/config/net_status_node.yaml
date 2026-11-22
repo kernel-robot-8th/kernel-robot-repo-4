@@ -17,6 +17,7 @@
     wired_ids: [cctv, broker, station_wired]                   # 천장 카메라, MQTT 브로커(중계 노트북), 팔 PC 유선
     wired_hosts: [192.168.0.7, 192.168.0.8, 192.168.0.4]       # wired_ids 와 같은 순서
     wired_probe_ports: [18086, 1883, 22]                       # ping 이 없을 때 대상별 TCP 연결 포트
+    wired_router_probe_port: 80    # 유선 공유기: ssh(22) 가 닫혀 있고 관리 화면 80 만 열림 (2026-11-23 확인)
     # 영상 분석 근거 (브로커 → mqtt_zone_evidence → anomaly_monitor). 자세히 확인 때만 구독
     evidence_topics: [/anomaly_monitor/zone_evidence, /anomaly_monitor/box_evidence]
     evidence_expect_hz: 10.0     # [Hz] 이 값의 절반 미만이면 주황

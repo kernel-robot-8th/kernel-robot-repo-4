@@ -1032,6 +1032,21 @@ def _robot_box(robot_id, robot, fresh, ping, rate, bridge_state):
                 else '알 수 없음 (데이터 없음)')
 
 
+def probe_port_table(wired_ids, wired_ports, router_port):
+    """
+    도커처럼 ping 명령이 없을 때 대상별로 TCP 연결을 시도할 포트 {대상 키: 포트}.
+
+    표에 없는 대상(로봇·팔 PC·로봇망 공유기)은 net_status_node 의 tcp_probe_port(ssh 22)를 쓴다.
+    유선 공유기는 ssh 가 없어 관리 화면(80) 같은 열린 포트를 따로 준다. 0 이하 포트는 넣지 않는다.
+    """
+    if len(wired_ids) != len(wired_ports):
+        raise ValueError('wired_ids 와 wired_probe_ports 의 개수가 다름')
+    table = {key: int(port) for key, port in zip(wired_ids, wired_ports) if int(port) > 0}
+    if int(router_port or 0) > 0:
+        table['wired_router'] = int(router_port)
+    return table
+
+
 def split_arms_by_host(arms, hostname):
     """
     팔을 도는 PC 로 나눈다 → (관제 PC 팔, 다른 PC 팔, 다른 PC 이름).

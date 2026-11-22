@@ -409,6 +409,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `station_host` · `router_host` | `192.168.45.10` · `192.168.45.1` | 팔 PC · 공유기. 비우면 재지 않음 |
 | `wired_router_host` | `192.168.0.1` | 유선망(영상·분석) 공유기. 비우면 재지 않음 |
 | `wired_ids` · `wired_hosts` · `wired_probe_ports` | `[cctv, broker, station_wired]` · `[192.168.0.7, .8, .4]` · `[18086, 1883, 22]` | 유선망 장치 (같은 순서). 포트는 ping 이 없을 때(도커) 대상별 TCP 연결 시도 포트. 2026-11-22 확인 |
+| `wired_router_probe_port` | `80` | 유선 공유기를 ping 없이(도커) 잴 때의 TCP 포트. 공유기는 ssh(22)가 닫혀 있고 관리 화면 80 만 열림 (2026-11-23 확인). 0 이면 `tcp_probe_port` |
 | `evidence_topics` · `evidence_expect_hz` · `evidence_stale_sec` | `[/anomaly_monitor/zone_evidence, /anomaly_monitor/box_evidence]` · `10.0` · `1.0` | 자세히 확인 때 수신 주기를 잴 영상 분석 근거 토픽 (`String`), 기대 주기 [Hz], 끊긴 것으로 볼 시간 [s] |
 | `arm_ids` | `[omx_1, omx_2, omx_3]` | 수신 주기를 볼 팔 (`/manipulation/{arm}/status`) |
 | `ping_period_sec` · `ping_timeout_sec` · `ping_window` | `5.0` · `1` · `12` | 평소 대상마다 핑 주기 [s], `ping -W` [s], 손실률·평균을 낼 최근 횟수 |
