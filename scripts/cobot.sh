@@ -35,6 +35,7 @@ PORT_SITE=8080      # 실물 관제 (도커 web 또는 bringup)
 PORT_CUSTOMER=8081  # 고객 주문 화면 (도커 customer)
 PORT_MOCK=8181      # 가짜 핑키
 PORT_SIM=8182       # 가제보
+PORT_ANOMALY=8083   # 이상 감지 콘솔 (127.0.0.1, 강건한 님)
 REAL_DOMAIN=100
 MOCK_DOMAIN="${MOCK_DOMAIN_ID:-101}"
 HEALTH_WAIT_SEC=60  # site up 뒤 작업 노드 응답을 기다리는 최대 시간 [s]
@@ -89,7 +90,7 @@ usage() {
                                      이 PC 에서 띄운 관제·가짜 핑키·가제보·도커를 끄기
 
 보기
-  status        지금 떠 있는 것 (도커·launch·포트·관제 상태)
+  status        지금 떠 있는 것 (도커·launch·포트, 로봇팔 서비스, 이상 감지, 로봇·팔 연결, 주문 준비 여부)
 
 환경변수
   COBOT_PROJECT   도커 프로젝트 이름 (기본: 떠 있는 것 → 가장 최근 것 → ${PROJECT_PREFIX})
@@ -309,15 +310,106 @@ cmd_status() {
   fi
   log "화면 포트:"
   local port
-  for port in "${PORT_SITE}" "${PORT_CUSTOMER}" 8180 "${PORT_MOCK}" "${PORT_SIM}"; do
+  for port in "${PORT_SITE}" "${PORT_CUSTOMER}" 8180 "${PORT_MOCK}" "${PORT_SIM}" "${PORT_ANOMALY}"; do
     if port_in_use "${port}"; then
       if [[ "${port}" == "${PORT_CUSTOMER}" ]]; then
         log "  ${port} 열림 (고객 화면)"
+      elif [[ "${port}" == "${PORT_ANOMALY}" ]]; then
+        log "  ${port} 열림 (이상 감지 콘솔)"
       else
         log "  ${port} 열림 · $(health_line "${port}")"
       fi
     fi
   done
+
+  log "로봇팔 서비스 (이 PC, systemd 사용자 서비스):"
+  local units
+  units="$(systemctl --user list-units 'cobot-arm-adapter@*' --type=service --all --no-legend \
+    2>/dev/null | awk '{print $1, $3, $4}' || true)"
+  if [[ -n "${units}" ]]; then
+    echo "${units}" | sed "s/^/[${TAG}]   /"
+  else
+    log "  없음 (이 PC 에 팔이 없거나 서비스를 설치하지 않음)"
+  fi
+
+  # 이상 감지(cobot_anomaly_monitor, 강건한 님): 수동 어댑터가 주문의 확인 단계(도착·마커·적재·출구)에
+  # 답한다. 꺼져 있으면 주문이 그 단계에서 멈춘다. 누가 띄웠든 이 PC 의 프로세스를 찾는다.
+  log "이상 감지 (이 PC):"
+  local name pids
+  for name in monitor_node mqtt_zone_evidence; do
+    pids="$({ pgrep -f "cobot_anomaly_monitor/lib/cobot_anomaly_monitor/${name}" 2>/dev/null || true; } | xargs)"
+    if [[ -n "${pids}" ]]; then
+      log "  ${name} 떠 있음 (pid ${pids})"
+    elif [[ "${name}" == monitor_node ]]; then
+      log "  ${name} 없음 → 주문이 확인 단계에서 멈춤. 담당(강건한 님) 실행법: cobot_anomaly_monitor anomaly_monitor.launch.xml"
+    else
+      log "  ${name} 없음 (비전 근거 수신. 지금은 판정 없이 자동 통과라 주문에는 영향 없음)"
+    fi
+  done
+
+  # 관제가 떠 있으면 로봇·팔 전체(다른 PC 의 팔 포함)를 관제 API 로 본다.
+  if port_in_use "${PORT_SITE}"; then
+    log "현장 장비 (관제 ${PORT_SITE} 기준):"
+    site_equipment "${PORT_SITE}"
+  fi
+}
+
+# 관제 API 로 로봇·로봇팔 연결과 주문 준비 여부를 한 번에 본다 (읽기만).
+site_equipment() {
+  local base="http://127.0.0.1:$1" robots arms health
+  robots="$(curl -s -m 3 "${base}/api/robots" 2>/dev/null || true)"
+  arms="$(curl -s -m 3 "${base}/api/arms" 2>/dev/null || true)"
+  health="$(curl -s -m 3 "${base}/api/health" 2>/dev/null || true)"
+  local anomaly=false
+  pgrep -f "cobot_anomaly_monitor/lib/cobot_anomaly_monitor/monitor_node" >/dev/null 2>&1 && anomaly=true
+  python3 - "${robots}" "${arms}" "${health}" "${anomaly}" "${TAG}" <<'PY'
+import json
+import sys
+
+def load(text, default):
+    try:
+        return json.loads(text)
+    except ValueError:
+        return default
+
+robots = load(sys.argv[1], [])
+arms = load(sys.argv[2], {}).get('arms', []) if sys.argv[2] else []
+health = load(sys.argv[3], {})
+anomaly = sys.argv[4] == 'true'
+tag = sys.argv[5]
+problems = []
+for robot in robots if isinstance(robots, list) else []:
+    rid = robot.get('robot_id')
+    online = robot.get('online')
+    battery = robot.get('battery_percent')
+    hold = (health.get('holds') or {}).get(rid)
+    text = '연결' if online else '끊김'
+    print(f'[{tag}]   {rid}: {text} · {robot.get("state") or "상태 없음"}'
+          f' · 배터리 {"—" if battery is None else round(battery)}%' + (f' · 정지 잠금 {hold}' if hold else ''))
+    if not online:
+        problems.append(f'{rid} 끊김')
+    elif hold:
+        problems.append(f'{rid} 정지 잠금')
+for arm in arms:
+    site = arm.get('site') or {}
+    alarms = ', '.join(a.get('code', '') for a in arm.get('alarms') or [])
+    print(f'[{tag}]   {arm.get("alias") or arm.get("arm_id")} ({site.get("station") or "-"}, '
+          f'{site.get("host") or "-"}): {"연결" if arm.get("online") else "끊김"} · {arm.get("state")}'
+          + (f' · 알람 {alarms}' if alarms else ''))
+    if arm.get('state') not in ('READY', 'BUSY'):
+        problems.append(f'{arm.get("alias") or arm.get("arm_id")} {arm.get("state")}')
+if not health.get('controller_online'):
+    problems.append('주문 처리기 끊김')
+if not anomaly:
+    problems.append('이상 감지 없음')
+if not robots:
+    problems.append('로봇 정보 없음')
+armed = '켜짐' if health.get('commands_armed') else '꺼짐'
+if problems:
+    print(f'[{tag}] 주문 준비: 안 됨 ({", ".join(problems)}) · 주문 받기 {armed}')
+else:
+    print(f'[{tag}] 주문 준비: 됨 (로봇·로봇팔·주문 처리기·이상 감지 모두 정상) · 주문 받기 {armed}')
+PY
 }
 
 # ---------- 현장 도커 ----------

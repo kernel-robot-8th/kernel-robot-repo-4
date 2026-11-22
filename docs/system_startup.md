@@ -12,6 +12,7 @@
 | pinky1 / pinky2 / pinky3 (192.168.45.21 / .22 / .23) | `cobot-robot` 서비스(전원 켜면 하드웨어 bringup → Nav2 → 순찰 노드 자동) | 10 / 20 / 30 |
 | Station PC (8-OMEN: omx1·omx2, OMEN-11: omx3) | `cobot-host-status`, `cobot-arm-adapter@<팔>` (systemd 사용자 서비스) | 100 |
 | 관제 PC | 도커 관제 `bash scripts/cobot.sh site up --execute` (브릿지·zone_manager·fleet·관제 화면 8080·고객 주문 화면 8081) | 100 |
+| 관제 PC | 이상 감지 `cobot_anomaly_monitor` (강건한 님, 지금은 손으로 실행). 수동 어댑터가 주문의 확인 단계(도착·마커·적재·출구)에 답하므로 **꺼져 있으면 주문이 멈춤** | 100 |
 
 순서: **① 로봇 전원(bringup·Nav2·순찰 노드 자동) → ② Station PC → ③ 관제 PC → ④ 화면에서 초기위치·주문 받기**
 
@@ -23,7 +24,8 @@
 
 - **관제 PC 는 한 대만** 켭니다. 두 대가 켜지면 브릿지와 zone_manager 가 두 벌이 되어 구역 토큰이 따로 나갑니다.
 - 같은 도메인에 `fleet_control` 을 둘 띄우지 않습니다 (예: 도커 fleet 과 bringup fleet). 요청 수신자가 둘이면 명령을 거절합니다.
-  이미 무엇이 떠 있는지는 `bash scripts/cobot.sh status` 로 봅니다 (도커·launch·포트·관제 상태).
+  이미 무엇이 떠 있는지는 `bash scripts/cobot.sh status` 로 봅니다. 도커·launch·포트, 이 PC 의 로봇팔 서비스, 이상 감지,
+  관제가 떠 있으면 로봇·팔 전체 연결까지 보여 주고 마지막 줄에 `주문 준비: 됨 / 안 됨 (이유)` 을 냅니다.
 - 관제 PC 는 `.venv` 파이썬으로 빌드해야 합니다. `bash scripts/cobot.sh build` 가 그렇게 합니다 (시스템 `colcon` 으로 빌드하면 관제 화면이 fastapi 를 못 찾아 뜨지 않음).
 
 ## 2. 각 로봇: 전원 켜기 (자동 기동)
