@@ -18,6 +18,9 @@ stdin 의 "next": 실행 중이면 그 단계를 끝내고 대기, 대기 중이
 YOLO 로 보고 성공(예: closed_box 5초 유지)이 나오면 시간 전에 끝냄. 시간 안에 성공이 안 나오면 자동 넘김이 켜져 있어도
 넘기지 않고 버튼을 기다림. success.json 이 없거나 model 이 비어 있으면 지금처럼 시간 기준. --no-success 로 끔.
 마지막 단계가 끝나면 lerobot-record 와 같이 토크를 끄므로 팔이 내려앉을 수 있음.
+녹화 (--record 를 줄 때만, 기본 꺼짐): 단계마다 카메라 영상(--record-cams, 기본 top)을 mp4 로 저장.
+~/il_ws/chain_videos/<시작시각>/ 에 stage1_<모델>_top.mp4 · stage2_… · frames.csv(프레임별 시각·성공 판단) · run.json.
+쓰기는 별도 스레드라 제어 주기에 영향 없음 (밀리면 프레임을 버리고 run.json 에 dropped 로 남김).
 
   python omx_chain.py --port /dev/ttyACM0 --top /dev/video6 --wrist /dev/video4 --mjpg \
       --stage <모델폴더> 90 --stage <모델폴더> 90
@@ -59,7 +62,123 @@ def parse_args(argv=None):
     a.add_argument("--init-speed", type=float, default=10.0, help="초기 자세 이동 속도 (단위/초, 관절 1 ≈ 1.8°)")
     a.add_argument("--init-min-s", type=float, default=2.0, help="초기 자세 이동 최소 시간")
     a.add_argument("--no-success", action="store_true", help="번들의 success.json 성공 판단을 쓰지 않음 (시간 기준)")
+    a.add_argument("--record", action="store_true", help="단계별 카메라 영상 녹화 켜기 (예: omx_shoebox_d/rec_d5000.sh)")
+    a.add_argument("--record-dir", default=os.environ.get("OMX_CHAIN_REC_DIR", "~/il_ws/chain_videos"),
+                   help="녹화 저장 위치 (실행마다 <시작시각> 폴더가 생김)")
+    a.add_argument("--record-cams", default="top", help="녹화할 카메라, 쉼표로 구분 (예: top,wrist)")
     return a.parse_args(argv)
+
+
+class ChainRecorder:
+    """단계마다 카메라 영상을 mp4 로 저장. 쓰기(색 변환·인코딩)는 별도 스레드에서 해서 제어 루프를 막지 않음."""
+
+    def __init__(self, root, fps, cams, meta):
+        self.root, self.fps, self.cams, self.meta = Path(root).expanduser(), fps, cams, meta
+        self.dir = None
+        self.stages = []
+        self.cur = None
+
+    def _ensure_dir(self):
+        if self.dir is None:
+            self.dir = self.root / time.strftime("%Y%m%d_%H%M%S")
+            self.dir.mkdir(parents=True, exist_ok=True)
+            self.csv = open(self.dir / "frames.csv", "w", buffering=1, encoding="utf-8")
+            self.csv.write("stage,model,camera,frame,video_frame,t_s,wall,judge_success\n")
+            print(f"[녹화] 저장 위치: {self.dir}", flush=True)
+
+    def start(self, index, name, seconds):
+        import queue
+
+        self._ensure_dir()
+        cur = {"index": index, "name": name, "seconds": seconds, "files": {}, "frames": {}, "captured": {}, "dropped": 0,
+               "started": time.strftime("%Y-%m-%d %H:%M:%S"), "q": queue.Queue(maxsize=90), "missing": set()}
+        cur["thread"] = threading.Thread(target=self._writer, args=(cur,), daemon=True)
+        cur["thread"].start()
+        self.cur = cur
+
+    def add(self, obs, t_s, judge_ok):
+        import queue
+
+        cur = self.cur
+        if cur is None:
+            return
+        wall = time.time()
+        for cam in self.cams:
+            img = obs.get(cam)
+            if img is None:
+                if cam not in cur["missing"]:
+                    cur["missing"].add(cam)
+                    print(f"[녹화] '{cam}' 카메라가 관측에 없음 — 이 카메라는 건너뜀", flush=True)
+                continue
+            try:
+                cur["q"].put_nowait((cam, img.copy(), t_s, wall, judge_ok))
+            except queue.Full:
+                cur["dropped"] += 1
+
+    def _writer(self, cur):
+        import datetime as dt
+
+        import cv2
+
+        writers = {}
+        try:
+            while True:
+                item = cur["q"].get()
+                if item is None:
+                    break
+                cam, img, t_s, wall, judge_ok = item
+                w = writers.get(cam)
+                if w is None:
+                    fname = f"stage{cur['index']}_{cur['name']}_{cam}.mp4"
+                    h, wd = img.shape[:2]
+                    w = cv2.VideoWriter(str(self.dir / fname), cv2.VideoWriter_fourcc(*"mp4v"), self.fps, (wd, h))
+                    if not w.isOpened():
+                        print(f"[녹화] mp4 를 못 열었음: {fname}", flush=True)
+                    writers[cam] = w
+                    cur["files"][cam] = fname
+                    cur["frames"][cam] = 0
+                # 제어 루프가 fps 보다 느려도 영상 길이가 실제 시간과 같도록, 받은 시각 기준으로 프레임을 채워 씀
+                # (느리면 같은 프레임을 반복, 빠르면 건너뜀). frames.csv 의 video_frame = 이 프레임이 마지막으로 쓰인 영상 프레임 번호
+                n = cur["captured"].get(cam, 0)
+                cur["captured"][cam] = n + 1
+                target = int(t_s * self.fps) + 1
+                bgr = None
+                while cur["frames"][cam] < target:
+                    if bgr is None:
+                        bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)  # lerobot 카메라 프레임은 RGB
+                    w.write(bgr)
+                    cur["frames"][cam] += 1
+                vf = cur["frames"][cam] - 1 if bgr is not None else -1
+                ts = dt.datetime.fromtimestamp(wall).isoformat(timespec="milliseconds")
+                self.csv.write(f"{cur['index']},{cur['name']},{cam},{n},{vf},{t_s:.3f},{ts},{int(judge_ok)}\n")
+        finally:
+            for w in writers.values():
+                w.release()
+
+    def stop(self, reason, elapsed):
+        cur, self.cur = self.cur, None
+        if cur is None:
+            return
+        cur["q"].put(None)
+        cur["thread"].join(timeout=30)
+        info = {k: cur[k] for k in ("index", "name", "seconds", "started", "files", "frames", "captured", "dropped")}
+        info.update(reason=reason, duration_s=round(elapsed, 2))
+        self.stages.append(info)
+        self._write_json()
+        files = ", ".join(cur["files"].values()) or "없음"
+        got = sum(cur["captured"].values())
+        print(f"[녹화] {cur['name']}: {files} (카메라에서 {got} 프레임 = 평균 {got / max(elapsed, 1e-6):.1f}fps, "
+              f"영상 {sum(cur['frames'].values())} 프레임 @ {self.fps}fps, 버림 {cur['dropped']})", flush=True)
+
+    def _write_json(self):
+        import json
+
+        (self.dir / "run.json").write_text(json.dumps({**self.meta, "stages": self.stages}, ensure_ascii=False, indent=2))
+
+    def close(self):
+        if self.dir is not None:
+            self.csv.close()
+            print(f"[녹화] 끝 — {self.dir}", flush=True)
 
 
 def make_robot(args):
@@ -179,9 +298,14 @@ def check_inputs(stage, features):
     judge = stage.get("judge")
     if judge and f"observation.images.{judge.cfg['camera']}" not in have:
         raise SystemExit(f"[성공 판단] {stage['name']}: 로봇에 '{judge.cfg['camera']}' 카메라가 없음")
+    if judge and judge.cfg.get("still_speed", 0) > 0 and judge.cfg.get("rest_pose"):
+        names = list(features.get("observation.state", {}).get("names") or [])
+        want = [f"{m}.pos" for m in ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper")]
+        if names != want:
+            raise SystemExit(f"[성공 판단] {stage['name']}: 관절 순서가 rest_pose 와 다름 — 로봇 {names} / 기대 {want}")
 
 
-def run_stage(robot, stage, features, args, next_evt, ramp):
+def run_stage(robot, stage, features, args, next_evt, ramp, rec=None, index=1):
     """한 단계 실행. 반환: 끝난 이유 'timeout' | 'next' | 'success'."""
     from lerobot.datasets.utils import build_dataset_frame
     from lerobot.policies.utils import make_robot_action
@@ -199,8 +323,11 @@ def run_stage(robot, stage, features, args, next_evt, ramp):
     reason = "timeout"
     t0 = time.perf_counter()
     steps = slow = 0
+    rec_reason = "stopped"  # Ctrl+C·오류로 빠져나가면 이대로 남음
     if judge:
         judge.begin()
+    if rec:
+        rec.start(index, stage["name"], stage["seconds"])
     try:
         while (elapsed := time.perf_counter() - t0) < stage["seconds"]:
             if next_evt.is_set():
@@ -214,7 +341,12 @@ def run_stage(robot, stage, features, args, next_evt, ramp):
             obs = robot.get_observation()
             if judge:
                 judge.feed(obs[judge.cfg["camera"]])  # 검출은 판단기 스레드가 함 (제어 주기에 영향 없음)
+            if rec:
+                rec.add(obs, time.perf_counter() - t0, bool(judge and judge.succeeded.is_set()))
             frame = build_dataset_frame(features, obs, prefix=OBS_STR)
+            if judge and hasattr(judge, "feed_state"):
+                # 팔 멈춤 조건용 관절 값: 모델에 들어가는 observation.state 그대로 (순서·단위가 녹화 데이터와 같음)
+                judge.feed_state(frame[f"{OBS_STR}.state"])
             values = predict_action(
                 observation=frame, policy=policy, device=device, preprocessor=pre, postprocessor=post,
                 use_amp=args.use_amp, task=args.task, robot_type=robot.robot_type,
@@ -224,10 +356,13 @@ def run_stage(robot, stage, features, args, next_evt, ramp):
             left = 1 / args.fps - (time.perf_counter() - start)
             slow += left < 0
             precise_sleep(max(left, 0.0))
+        rec_reason = reason
     finally:
         robot.config.max_relative_target = normal_max
         if judge:
             judge.end(reason)
+        if rec:
+            rec.stop(rec_reason, time.perf_counter() - t0)
     why = {"timeout": "시간", "next": "버튼", "success": "성공 판단"}[reason]
     print(f"  {stage['name']}: {time.perf_counter() - t0:.1f}s, {steps} 스텝, 목표 주기 초과 {slow}회, 끝난 이유: {why}", flush=True)
     return reason
@@ -250,7 +385,7 @@ def wait_for_next(next_evt, min_hold_s, next_name, auto_evt, manual=False):
             return
 
 
-def run_stages(robot, stages, features, args, next_evt, auto_evt):
+def run_stages(robot, stages, features, args, next_evt, auto_evt, rec=None):
     manual = False
     for i, st in enumerate(stages):
         if i:
@@ -261,7 +396,7 @@ def run_stages(robot, stages, features, args, next_evt, auto_evt):
             print(f"[초기 자세] {st['name']}: init_pose.json 없음 — 이동 없이 시작", flush=True)
         next_evt.clear()
         print(f"[단계 {i + 1}/{len(stages)}] {st['name']} 시작 (최대 {st['seconds']:.0f}s)", flush=True)
-        reason = run_stage(robot, st, features, args, next_evt, ramp=i > 0)
+        reason = run_stage(robot, st, features, args, next_evt, ramp=i > 0, rec=rec, index=i + 1)
         manual = bool(st.get("judge")) and reason == "timeout"
     print("[완료] 모든 단계 끝 — 토크를 끄므로 팔이 내려앉을 수 있음", flush=True)
 
@@ -320,6 +455,13 @@ def main(argv=None):
 
     threading.Thread(target=read_stdin, daemon=True).start()
 
+    rec = None
+    if args.record:
+        cams = [c.strip() for c in args.record_cams.split(",") if c.strip()]
+        meta = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "fps": args.fps, "cameras": cams,
+                "auto": args.auto, "device": args.device, "top": args.top, "wrist": args.wrist}
+        rec = ChainRecorder(args.record_dir, args.fps, cams, meta)
+
     robot.connect()
     try:
         if prep_pose:
@@ -332,8 +474,10 @@ def main(argv=None):
                 except queue.Empty:
                     pass
             stages = load_all(specs, features, args, "토크 유지, 초기 자세에서 대기 중")
-        run_stages(robot, stages, features, args, next_evt, auto_evt)
+        run_stages(robot, stages, features, args, next_evt, auto_evt, rec=rec)
     finally:
+        if rec:
+            rec.close()
         if robot.is_connected:
             robot.disconnect()
 

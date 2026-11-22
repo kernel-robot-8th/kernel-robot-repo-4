@@ -7,6 +7,12 @@
   2. 성공: target(closed_box)이 처음 보인 뒤로 hold_s(5초) 이상 이어지고, 최근 hold_s 동안
        target 이 보인 비율 >= min_ratio(0.8), forbid 의 각 클래스(inside_box, shoe)가 보인 비율 <= 그 값(0.1)
      target 이 gap_s(1초) 넘게 안 보이면 처음부터 다시 셈 (팔이 잠깐 가리는 정도는 봐줌)
+  3. 팔 멈춤 (still_speed > 0 일 때만): 위 2 가 채워져도, 관절이 still_s(1초) 동안 거의 안 움직여야 성공.
+     화면은 '닫혔다'를, 관절은 '팔 동작이 끝났다'를 본다. 관절 값은 feed_state() 로 넣는다 (제어 루프에서 매번).
+     속도 = 최근 still_win_s(0.3초) 동안 가장 많이 변한 관절의 변화량 / 시간 (observation.state 단위/초).
+     rest_pose 를 주면 '멈춤'은 그 자세 근처(모든 관절이 rest_tol 안)에 있을 때만 센다.
+     (뚜껑을 누르며 잠깐 멈추는 것과, 동작을 끝내고 물러나 멈춘 것을 가르기 위함)
+     관절 값이 한 번도 안 들어오면 성공이 안 뜬다 (시간 초과로 넘어감).
 
 구성:
   SuccessRule  — 판단 규칙만 (시간, 보인 클래스 목록) → 상태. 모델 없이 시험 가능
@@ -33,6 +39,11 @@ DEFAULTS = {
     "min_ratio": 0.8,
     "forbid": {"inside_box": 0.1, "shoe": 0.1},
     "gap_s": 1.0,
+    "still_speed": 0.0,  # 관절 속도가 이 값 미만이어야 '멈춤' (observation.state 단위/초). 0 이면 팔 멈춤 조건 끔
+    "still_s": 1.0,  # 멈춤이 이만큼 이어져야 함
+    "still_win_s": 0.3,  # 속도를 재는 구간
+    "rest_pose": [],  # 동작을 끝낸 뒤의 팔 자세 (observation.state 순서). 비우면 자세는 안 봄
+    "rest_tol": 18.0,  # rest_pose 에서 관절마다 이만큼 안이면 '근처'
 }
 
 
@@ -52,8 +63,12 @@ def load_config(bundle_dir):
 
 def describe(cfg) -> str:
     forbid = ", ".join(f"{k} ≤{v:.0%}" for k, v in cfg["forbid"].items())
+    still = ""
+    if cfg.get("still_speed", 0) > 0:
+        pose = f", 끝 자세에서 {cfg['rest_tol']:g} 안" if cfg.get("rest_pose") else ""
+        still = f" + 팔 멈춤 {cfg['still_s']:g}초 (속도 <{cfg['still_speed']:g}{pose})"
     return (f"{cfg['camera']} 카메라 · {cfg['arm_class']} 확인 후 {cfg['target']} {cfg['hold_s']:g}초 유지 "
-            f"(≥{cfg['min_ratio']:.0%}" + (f", {forbid}" if forbid else "") + ")")
+            f"(≥{cfg['min_ratio']:.0%}" + (f", {forbid}" if forbid else "") + ")" + still)
 
 
 class SuccessRule:
@@ -69,6 +84,43 @@ class SuccessRule:
         self.last_target_t = None
         self.samples = deque()  # (t, 보인 클래스 set)
         self.done = False
+        self.states = deque()  # (t, 관절 값 tuple) — 최근 still_win_s 만
+        self.speed = None  # 최근 관절 속도 (단위/초). 관절 값이 아직 없으면 None
+        self.still_since = None  # 멈춤이 시작된 시각
+        self.rest_dist = None  # rest_pose 까지 거리 (가장 먼 관절)
+        self.last_state_t = None
+
+    def feed_state(self, t, q):
+        """관절 값(observation.state)을 넣음. 제어 루프에서 매번 불러도 됨 (가벼움)."""
+        c = self.c
+        if c.get("still_speed", 0) <= 0:
+            return
+        q = tuple(float(x) for x in q)
+        self.states.append((t, q))
+        while len(self.states) > 2 and self.states[1][0] <= t - c["still_win_s"]:
+            self.states.popleft()
+        t0, q0 = self.states[0]
+        self.last_state_t = t
+        if t - t0 < 0.5 * c["still_win_s"]:
+            return  # 아직 구간이 덜 참
+        self.speed = max(abs(a - b) for a, b in zip(q, q0)) / (t - t0)
+        rest = c.get("rest_pose") or []
+        self.rest_dist = max(abs(a - b) for a, b in zip(q, rest)) if rest else None
+        if self.speed < c["still_speed"] and (self.rest_dist is None or self.rest_dist <= c["rest_tol"]):
+            if self.still_since is None:
+                self.still_since = t0
+        else:
+            self.still_since = None
+
+    def still_for(self) -> float:
+        """팔이 멈춘 지 몇 초 (안 멈췄거나 관절 값이 없으면 0)."""
+        if self.still_since is None or self.last_state_t is None:
+            return 0.0
+        return self.last_state_t - self.still_since
+
+    def still_ok(self) -> bool:
+        c = self.c
+        return c.get("still_speed", 0) <= 0 or self.still_for() >= c["still_s"]
 
     def update(self, t, present):
         """한 번 검출한 결과를 넣음. 반환: 이번에 생긴 일 ('armed' | 'start' | 'lost' | 'success' | None)."""
@@ -101,7 +153,8 @@ class SuccessRule:
 
         if self.streak_start is not None and self.progress() >= c["hold_s"]:
             r = self.ratios()
-            if r[c["target"]] >= c["min_ratio"] and all(r[k] <= v for k, v in c["forbid"].items()):
+            if (r[c["target"]] >= c["min_ratio"] and all(r[k] <= v for k, v in c["forbid"].items())
+                    and self.still_ok()):
                 self.done = True
                 return "success"
         return event
@@ -126,6 +179,11 @@ class SuccessRule:
         c = self.c
         r = self.ratios()
         parts = [f"{k} {v:.0%}" for k, v in r.items()]
+        if c.get("still_speed", 0) > 0:
+            sp = "관절 값 없음" if self.speed is None else f"속도 {self.speed:.0f}"
+            if self.rest_dist is not None:
+                sp += f", 자세 거리 {self.rest_dist:.0f}"
+            parts.append(f"팔 멈춤 {min(self.still_for(), c['still_s']):.1f}/{c['still_s']:g}s ({sp})")
         return f"진행 {min(self.progress(), c['hold_s']):.1f}/{c['hold_s']:g}s · " + " · ".join(parts)
 
 
@@ -180,6 +238,11 @@ class SuccessJudge:
     def feed(self, frame):
         with self._lock:
             self._frame = (frame, time.perf_counter())
+
+    def feed_state(self, q):
+        """관절 값(observation.state, 숫자 목록)을 넣음. 제어 루프에서 feed() 와 같이 부름. still_speed 가 0 이면 아무 일도 안 함."""
+        if self.t0 is not None:
+            self.rule.feed_state(time.perf_counter() - self.t0, q)
 
     def begin(self):
         self.rule.reset()

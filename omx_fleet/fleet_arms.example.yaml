@@ -5,9 +5,10 @@
 bundles_dir: ~/il_ws/bundles
 arms:
   omx1:
-    # /dev/videoN 은 다시 꽂으면 바뀐다. /dev/v4l/by-id (또는 by-path) 경로를 쓴다.
-    top: /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0
-    wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
+    # 카메라 모델 ID (vid:pid). 이 팔 보드와 같은 USB 허브에서 찾는다 (README '팔에 딸린 값').
+    # 경로로 적어도 된다: top: /dev/v4l/by-path/... (top 과 top_model 중 하나만)
+    top_model: "4c4a:4a55"     # Jieli USB Composite Device
+    wrist_model: "0c45:6367"   # Innomaker U20CAM-720P
     mjpg: true            # 두 카메라가 같은 USB 허브면 MJPG 라야 대역폭이 버틴다
     robot_id: omx_follower  # 캘리브레이션 파일 이름 (~/.cache/huggingface/lerobot/calibration/robots/omx_follower/<이 값>.json)
     # 쉬는 자세 (init_pose.json 과 같은 형식). 관제가 끄기(release)를 할 때 지금 자세가 여기서
@@ -19,6 +20,9 @@ arms:
     # 위험: 충돌 검사 없이 관절 보간으로 움직이고, 이동 중에는 hold 로 멈추지 않는다 (비상은 12 V 차단).
     # rest_pose 를 실제 팔로 잰 값으로 바꾼 뒤에만 켠다 (틀린 자세로 옮겨 토크를 끄면 팔이 떨어진다).
     release_move: false
+    # (선택) 켤 때 연결 직후 이 자세로 천천히 옮김 (그리퍼는 파일에 gripper 값이 있을 때만). action 이름(그 첫 단계 번들 init_pose.json) 또는 파일 경로.
+    # 없으면 지금 자세 유지. release_move 처럼 팔 모션이므로 현장에서 정해서 켠다.
+    # start_pose: pick
     actions:
       # 관제 action → 모델 번들·버전·최대 시간[s]·안전 자세.
       # bundle·version: <bundles_dir>/<bundle>/<version>/models/ 아래 폴더가 하나면 그것을 쓴다 (여럿이면 model 로 고름).
@@ -34,7 +38,44 @@ arms:
         seconds: 90
         # model: act            # models/ 아래 폴더가 여럿일 때 고름
         # safe_pose: ~/il_ws/poses/load_safe_omx1.json
+      # 명령 하나로 모델 여러 개를 이어서 (stages). 단계마다 init_pose 이동 → 실행, 사이에 1초 멈춤.
+      # 성공 판단이 있는 단계가 성공을 못 내면 다음 단계로 가지 않는다. 안전 자세 기본값은 마지막 단계 번들 것.
+      # arrange_shoe:
+      #   stages:
+      #     - bundle: omx_arrange_shoe_zc
+      #       version: v1
+      #       seconds: 90
+      #       label: 신발 정리   # 관제 화면 진행 표시 이름 (progress 이벤트). 없으면 모델 폴더 이름
+      #     - bundle: omx_load_zc
+      #       version: v1
+      #       seconds: 35
+      #       label: 신발 상차
+      # 단계마다 judge 칸으로 이 팔에서만 success.json 값을 바꿀 수 있다 (README "다른 팔에 YOLO 흐름 붙이기"):
+      #       judge:
+      #         rest_pose: ~/il_ws/poses/arrange_end_omx1.json   # 팔 멈춤 끝 자세 (캘리브레이션마다 다름)
+      #         conf: 0.6
+      #       judge: false                                       # 이 팔에서는 판단 끄고 시간 기준
+      # 끝난 뒤 쉬는 자세로 돌아가게 하려면 action 에 safe_pose: <rest_pose 와 같은 파일> (관제 '끄기'가 되게)
       # 경로로 적어도 된다 (받은 위치 상관없음. 관제에는 버전 없이 폴더 이름만 보인다):
       # pick:
       #   model: ~/il_ws/omx_shoebox_d/models/act_shoebox_d_5000step
       #   seconds: 90
+
+  # omx_1031 E 모델 예 (그리퍼 전류 + MoGe depth + 박스 원핫). 위 omx1 대신 쓸 때 이름을 omx1 로 바꾼다.
+  omx1_e_example:
+    top: /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0
+    wrist: /dev/v4l/by-id/usb-Innomaker_Innomaker-U20CAM-720P_SN0001-video-index0
+    mjpg: true
+    robot_id: omx_follower
+    robot_type: omx_follower_grip_depth
+    robot_code_dir: ~/outputs/train/omx_1031_act_smolvla   # omx_grip_robot.py·omx_depth_robot.py
+    start_pose: ~/outputs/train/omx_1031_act_smolvla/init_pose.json   # 켜질 때 학습 첫 자세로
+    release_move: false
+    actions:
+      pick:
+        # 시작 자세는 번들 폴더의 init_pose.json (<번들>/models/<모델> 의 두 단계 위)
+        model: ~/outputs/train/omx_1031_act_smolvla/models/act_1031_E_all_5000step
+        seconds: 90
+        success_motion: true    # 기본값 사용. 바꾸려면 {grip_closed_ma: -150, pan_away: 20, ...}
+      load:
+        noop: true              # E 가 꺼내서 올리기까지 한다
