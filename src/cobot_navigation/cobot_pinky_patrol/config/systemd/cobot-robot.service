@@ -1,0 +1,31 @@
+# 핑키 전원을 켜면 bringup → Nav2 → patrol 을 robot_startup 으로 순차 기동한다.
+# 로봇별 값은 /etc/cobot/robot.env (robot.env.example 참고) 에 둔다.
+# 다시 떠도 중앙 하트비트·세션 확인 전에는 이동 명령을 거절하므로 혼자 움직이지 않는다.
+# 관제의 SSH 기동(fleet_startup execute:=true)과 같이 쓰지 않는다 (startup_lock 충돌).
+
+[Unit]
+Description=cobot pinky robot startup (bringup, Nav2, patrol)
+Wants=network-online.target
+After=network-online.target
+# 계속 실패하면(지도 없음 등) 10분에 5번까지만 다시 시도한다.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# 로봇 계정이 다르면 설치 때 systemctl edit 로 덮어쓴다. HOME 은 지도 경로(~) 해석에 쓰인다.
+User=pinky
+EnvironmentFile=/etc/cobot/robot.env
+# $$ 는 systemd 가 먼저 풀지 않고 bash 에 넘기기 위한 표기다.
+ExecStart=/bin/bash -c 'set -e; for setup in /opt/ros/jazzy/setup.bash $${UNDERLAY_SETUPS} "$${WORKSPACE}/install/setup.bash"; do source "$$setup"; done; exec ros2 run cobot_pinky_patrol robot_startup --robot-id "$${ROBOT_ID}" --domain-id "$${DOMAIN_ID}" --workspace "$${WORKSPACE}" --map "$${MAP}" --site "$${SITE}"'
+# 단계 준비 시간 초과·프로세스 종료는 exit 1 → 다시 시도. systemctl stop 은 exit 0 이라 다시 뜨지 않는다.
+Restart=on-failure
+RestartSec=10
+# SIGTERM 은 기동기 본체에만 보내 자식 launch 를 역순으로 정리할 시간을 준다
+# (단계당 최대 SIGINT 10 + SIGTERM 3 + SIGKILL 1 초, 3단계). 남은 것은 시간 초과 뒤 SIGKILL.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

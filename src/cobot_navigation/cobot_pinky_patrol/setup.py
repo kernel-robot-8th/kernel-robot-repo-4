@@ -16,6 +16,7 @@ setup(
         ('share/' + package_name + '/config', glob('config/*.yaml')),
         ('share/' + package_name + '/config/sites', glob('config/sites/*.yaml')),
         ('share/' + package_name + '/config/robots', glob('config/robots/*.yaml')),
+        ('share/' + package_name + '/config/systemd', glob('config/systemd/*')),
         ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
     ],
     install_requires=['setuptools'],
