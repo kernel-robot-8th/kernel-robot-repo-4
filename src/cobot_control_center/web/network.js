@@ -150,7 +150,9 @@ function drawDiagram(d) {
   const robots = d ? d.robots : [];
   const devices = d ? [d.station, ...robots] : [];
   const n = Math.max(devices.length, 1);
-  const svg = svgEl("svg", { viewBox: `0 0 ${W} 466`, class: "net-svg", role: "img",
+  const wired = d && d.wired;
+  const H = wired ? 650 : 466;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "net-svg", role: "img",
                              "aria-label": "관제 네트워크 구조도" });
 
   // 관제 PC (바깥 상자)
@@ -164,7 +166,7 @@ function drawDiagram(d) {
   const ifaces = (d && d.interfaces) || [];
   const robotIf = ifaces.find((i) => i.robot_net);
   ctl.appendChild(svgEl("text", { x: 36, y: 34, class: "pc-title" },
-    `관제 PC · 도메인 ${local.domain_id ?? "?"} · ${local.rmw || "DDS ?"}`));
+    `관제 PC${local.hostname ? ` ${local.hostname}` : ""} · 도메인 ${local.domain_id ?? "?"} · ${local.rmw || "DDS ?"}`));
   ctl.appendChild(svgEl("text", { x: 36, y: 52, class: "nb-sub start" },
     [`로봇망 ${d && d.local_ip ? d.local_ip : "?"}`
        + (robotIf ? ` (${robotIf.kind_text} ${robotIf.name}${robotIf.wifi && robotIf.wifi.ssid ? ` ${robotIf.wifi.ssid}` : ""})`
@@ -225,7 +227,58 @@ function drawDiagram(d) {
     netBox(svg, dev.id, xs[i], 370, bw, 84, `${dev.label}${addr}`, dev.text, dev.state,
       dev.kind === "station" ? "관제와 같은 도메인 · 브릿지 없음" : "브릿지 경유");
   });
+  if (wired) drawWired(svg, wired, W, xs, bw, devices);
   host.appendChild(svg);
+}
+
+// 유선망(영상·분석) 줄: 관제 PC 오른쪽 가장자리에서 내려와 유선 공유기 → 장치. Station PC 는 두 망에 붙은 같은 PC 라
+// 로봇망 줄의 Station PC 상자와 점선으로 잇는다. 영상 분석 상자는 브로커 → 관제 PC 수신기 → 이상 감지다.
+function drawWired(svg, wired, W, xs, bw, devices) {
+  const linkTo = (id) => wired.links.find((l) => l.to === id) || null;
+  svg.appendChild(svgEl("text", { x: 40, y: 480, class: "nb-sub start" },
+    `유선망 (영상·분석)${wired.router.ping && wired.router.ping.host ? ` · 공유기 ${wired.router.ping.host}` : ""}`));
+  // 관제 PC → 유선 공유기 (오른쪽 바깥 여백으로 내려온다)
+  const rw = 200;
+  const rx = W - 40 - rw;
+  const top = linkTo("wired_router");
+  svg.appendChild(svgEl("path", { d: `M${W - 28} 238 L${W - 28} 512 L${rx + rw} 512`, class: "nl",
+                                  "data-state": netDot(top ? top.state : "na") }));
+  if (top && top.ms !== null) svg.appendChild(svgEl("text", { x: W - 84, y: 472, class: "nl-ms" }, msText(top.ms)));
+  netBox(svg, "wired_router", rx, 490, rw, 44, wired.router.label, wired.router.text, wired.router.state);
+
+  // 장치 줄: Station PC 유선(로봇망 Station PC 바로 아래), 천장 카메라, MQTT 브로커, 영상 분석
+  const order = [wired.station, wired.cctv, wired.broker];
+  const stationIdx = Math.max(0, devices.findIndex((dev) => dev.kind === "station"));
+  const x0 = xs[stationIdx] ?? 40;
+  const gx = [x0, x0 + bw + 20, x0 + 2 * (bw + 20)];
+  const y = 570;
+  order.forEach((box, i) => {
+    const link = linkTo(box.id);
+    const cx = gx[i] + bw / 2;
+    const sx = rx + (rw * (i + 1)) / (order.length + 1);
+    svg.appendChild(svgEl("path", { d: `M${sx} 534 L${sx} 552 L${cx} 552 L${cx} ${y}`, class: "nl",
+                                    "data-state": netDot(link ? link.state : "na") }));
+    if (link && link.ms !== null) svg.appendChild(svgEl("text", { x: cx + 8, y: y - 8, class: "nl-ms" }, msText(link.ms)));
+    const addr = box.ping && box.ping.host ? ` ${box.ping.host}` : "";
+    const third = box.kind === "station_wired" ? "로봇망 Station PC 와 같은 PC"
+      : box.kind === "camera" ? "MJPEG 영상 원본"
+      : "YOLO 판정 근거 (MQTT)";
+    netBox(svg, box.id, gx[i], y, bw, 70, `${box.label}${addr}`, box.text, box.state, third);
+  });
+  // 같은 Station PC: 로봇망 상자 아래 → 유선 상자 위 (점선, 상태 없음)
+  const scx = gx[0] + bw / 2 - 30;
+  svg.appendChild(svgEl("path", { d: `M${scx} 454 L${scx} ${y}`, class: "nl same-pc" }));
+
+  // 영상 분석·이상 감지: 브로커 오른쪽. 브로커 → (관제 PC 근거 수신기) → 이상 감지
+  const v = wired.vision;
+  const vx = gx[2] + bw + 20;
+  const vw = Math.min(bw, W - 20 - vx);
+  if (vw > 120) {
+    svg.appendChild(svgEl("path", { d: `M${gx[2] + bw} ${y + 35} L${vx} ${y + 35}`, class: "nl",
+                                    "data-state": netDot(v.state) }));
+    netBox(svg, "vision", vx, y, vw, 70, v.label, v.text, v.state,
+      v.pc_label ? `YOLO: ${v.pc_label}` : "관제 PC 에서 수신");
+  }
 }
 
 // ---------- 자세히 확인 ----------
@@ -283,9 +336,11 @@ function renderHealth(d) {
   const issues = $("health-issues");
   const cards = $("health-cards");
   const pcs = $("health-pcs");
+  const wired = $("health-wired");
   issues.replaceChildren();
   cards.replaceChildren();
   pcs.replaceChildren();
+  wired.replaceChildren();
   if (!d || !d.health) {
     counts.textContent = "백엔드 응답 없음";
     return;
@@ -315,8 +370,10 @@ function renderHealth(d) {
     const el = netCard(card.select || card.id, card.label, card.state,
       card.checks.map((check) => [check.name, check.value, check.state]));
     el.dataset.kind = card.kind;
-    // PC(Station PC·관제 PC)는 장비 카드와 따로 아래 줄에 둔다
-    (card.kind === "station" || card.kind === "control" ? pcs : cards).appendChild(el);
+    // PC(Station PC·관제 PC)와 유선망(천장 카메라·영상 분석)은 장비 카드와 따로 아래 줄에 둔다
+    const row = card.kind === "station" || card.kind === "control" ? pcs
+      : card.kind === "camera" || card.kind === "vision" ? wired : cards;
+    row.appendChild(el);
   });
 }
 
@@ -356,7 +413,9 @@ function rateText(rate) {
 
 function findNetBox(d, id) {
   if (!d) return null;
-  return [...d.control, ...d.bridges, d.router, d.station, ...d.robots].find((b) => b.id === id) || null;
+  const wired = d.wired ? [d.wired.router, ...d.wired.devices, d.wired.vision] : [];
+  return [...d.control, ...d.bridges, d.router, d.station, ...d.robots, ...wired]
+    .find((b) => b.id === id) || null;
 }
 
 function renderNetInfo(d) {
@@ -435,6 +494,23 @@ function renderNetInfo(d) {
     const rate = box.rates ? box.rates[arm.arm_id] : null;
     addRow(dl, arm.arm_id, `${arm.state || "?"} · ${rateText(rate)}`, arm.online ? (rate ? rate.state : "ok") : "bad");
   });
+  if (box.relay !== undefined) {
+    // 현장영상 중계는 보는 사람이 있을 때만 원본에 붙는다
+    const r = box.relay;
+    addRow(dl, "현장영상 중계", !r ? "꺼짐 (cctv_url 비어 있음)"
+      : r.connected ? `받는 중 · 보는 사람 ${r.viewers}` : r.error && r.viewers ? `못 받음: ${r.error}`
+      : "보는 사람이 없어 연결 안 함", r && r.connected ? "ok" : "na");
+    if (r && r.url) addRow(dl, "원본 주소", r.url);
+  }
+  if (box.kind === "vision") {
+    addRow(dl, "MQTT 브로커", pingText(box.broker_ping), box.broker_ping ? box.broker_ping.state : "na");
+    Object.entries(box.rate_labels || {}).forEach(([key, label]) => {
+      const rate = (box.rates || {})[key];
+      addRow(dl, label, rateText(rate), rate ? rate.state : "na");
+    });
+    addRow(dl, "YOLO PC", box.pc_label || "모름");
+    addRow(dl, "경로", "천장 카메라 → YOLO → MQTT 브로커 → 근거 수신기(관제 PC) → 이상 감지");
+  }
 }
 
 // ---------- 카드 ----------

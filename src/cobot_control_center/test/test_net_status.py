@@ -333,8 +333,8 @@ def test_health_one_card_per_arm():
          'status': {'power_present': False}}]}
     result = view(arms=arms)
     ids = [c['id'] for c in result['health']['cards']]
-    # 팔은 팔마다, PC(Station PC·관제 PC)는 따로
-    assert ids[-4:] == ['omx_1', 'omx_2', 'station', 'control']
+    # 팔은 팔마다, PC(Station PC·관제 PC)는 따로, 그 뒤 유선망(천장 카메라·영상 분석)
+    assert ids[-6:] == ['omx_1', 'omx_2', 'station', 'control', 'cctv', 'vision']
     card1, arm1 = health_of(result, 'omx_1')
     assert card1['select'] == 'station' and card1['state'] == nu.OK
     assert '네트워크' not in arm1                       # 네트워크는 Station PC 카드에
@@ -497,3 +497,111 @@ def test_api_network_without_net_store():
     body = TestClient(create_app(store, domain_id=101)).get('/api/network?history=1').json()
     assert body['net_online'] is False and body['robots'] == [] and body['history'] == {}
     assert body['local'] == {'domain_id': 101}
+
+
+# ---------- 유선망 (영상·분석, 2026-11-22) ----------
+
+VISION_NODES = ['mqtt_zone_evidence', 'anomaly_monitor']
+
+
+def wired_net(**states):
+    """net_data 에 유선 대상(wired_router·cctv·broker·station_wired)과 근거 주기를 더한다."""
+    data = net_data()
+    for key in ('wired_router', 'cctv', 'broker', 'station_wired'):
+        state = states.get(key, nu.OK)
+        data['targets'][key] = {'state': state, 'samples': 5,
+                                'last_ms': None if state == nu.BAD else 1.0,
+                                'host': f'192.168.0.{key}'}
+    data['topics'] = states.get('topics', {})
+    return data
+
+
+def wired_view(net=None, nodes=VISION_NODES, cctv=None, label='11ubuntu (확인 전)'):
+    return nu.network_view({'rmw': 'rmw_cyclonedds_cpp', 'vision_nodes': nodes,
+                            'hostname': '8-OMEN'},
+                           SNAP, True, True, ARMS_OK,
+                           net if net is not None else wired_net(), True, ROBOTS,
+                           ['omx_1', 'omx_2'], cctv=cctv, vision_label=label)
+
+
+def test_wired_view_boxes_links_and_cards():
+    result = wired_view()
+    wired = result['wired']
+    assert [b['id'] for b in wired['devices']] == ['cctv', 'broker', 'station_wired']
+    assert wired['router']['state'] == nu.OK and wired['vision']['state'] == nu.OK
+    links = {link['to']: link['state'] for link in wired['links']}
+    assert links == {'wired_router': nu.OK, 'cctv': nu.OK, 'broker': nu.OK,
+                     'station_wired': nu.OK}
+    card, checks = health_of(result, 'vision')
+    assert card['kind'] == 'vision' and checks['근거 수신기']['state'] == nu.OK
+    assert checks['YOLO PC']['value'] == '11ubuntu (확인 전)'
+    # 근거 주기는 자세히 확인 때만 잰다
+    assert checks['구역 근거 주기']['state'] == nu.NA
+    control, _ = health_of(result, 'control')
+    assert control['label'] == '관제 PC · 8-OMEN'
+
+
+def test_wired_unreachable_broker_and_missing_nodes():
+    result = wired_view(net=wired_net(broker=nu.BAD), nodes=['anomaly_monitor'])
+    assert result['wired']['broker']['state'] == nu.BAD
+    assert result['wired']['vision']['state'] == nu.WARN
+    _, checks = health_of(result, 'vision')
+    assert checks['MQTT 브로커']['state'] == nu.BAD
+    assert checks['근거 수신기']['state'] == nu.WARN and checks['이상 감지']['state'] == nu.OK
+    # 이 PC 안 시험(127.0.0.1)이면 노드가 없어도 회색
+    local = dict(wired_net(), local_ip='127.0.0.1')
+    test_result = wired_view(net=local, nodes=[])
+    assert test_result['wired']['vision']['state'] == nu.NA
+
+
+def test_evidence_rate_checks():
+    topics = {'evidence/anomaly_monitor/zone_evidence': {'state': nu.OK, 'hz': 10.0, 'age': 0.1},
+              'evidence/anomaly_monitor/box_evidence': {'state': nu.WARN, 'hz': 4.0, 'age': 0.2}}
+    _, checks = health_of(wired_view(net=wired_net(topics=topics)), 'vision')
+    assert checks['구역 근거 주기'] == {'name': '구역 근거 주기', 'state': nu.OK, 'value': '10.0 Hz'}
+    assert checks['상자 근거 주기']['state'] == nu.WARN
+
+
+def test_cctv_card_uses_relay_state():
+    # 보는 사람이 없어 중계가 안 붙은 것은 나쁜 게 아니다
+    idle = {'url': 'http://cam/processed', 'connected': False, 'viewers': 0, 'error': ''}
+    result = wired_view(cctv=idle)
+    assert result['wired']['cctv']['state'] == nu.OK
+    _, checks = health_of(result, 'cctv')
+    assert checks['현장영상 중계']['state'] == nu.NA and checks['주소']['value'] == 'http://cam/processed'
+    live = dict(idle, connected=True, viewers=1, age_sec=0.2)
+    assert wired_view(cctv=live)['wired']['cctv']['text'] == '영상 받는 중'
+    broken = dict(idle, viewers=2, error='연결 거절')
+    bad = wired_view(cctv=broken)
+    assert bad['wired']['cctv']['state'] == nu.BAD
+    _, checks = health_of(bad, 'cctv')
+    assert checks['현장영상 중계']['state'] == nu.BAD
+
+
+def test_wired_alerts_only_when_device_unreachable():
+    quiet = nu.network_alerts(wired_view(net=wired_net(cctv=nu.WARN), nodes=[]))
+    assert not [a for a in quiet if a['code'].startswith(('net:cctv', 'net:vision'))]
+    loud = nu.network_alerts(wired_view(net=wired_net(cctv=nu.BAD, broker=nu.BAD)))
+    codes = {a['code'] for a in loud}
+    assert {'net:cctv:네트워크', 'net:vision:MQTT 브로커'} <= codes
+
+
+def test_local_info_vision_nodes_and_hostname():
+    info = nu.local_info('rmw_cyclonedds_cpp', 100, {},
+                         ['anomaly_monitor', 'mqtt_zone_evidence', 'fleet_api_node'],
+                         ('omx*_adapter',), ('mqtt_zone_evidence', 'anomaly_monitor'), '8-OMEN')
+    assert info['vision_nodes'] == ['anomaly_monitor', 'mqtt_zone_evidence']
+    assert info['hostname'] == '8-OMEN' and info['station_nodes'] == []
+
+
+def test_local_net_hosts_never_ping_real_wired_devices():
+    """net_hosts:=local(가짜 핑키·가제보)이면 유선 대상도 모두 127.0.0.1 이어야 한다."""
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+    root = ET.parse(Path(__file__).resolve().parents[1] / 'launch' / 'fleet_api.launch.xml')
+    local = [n for n in root.getroot().iter('node')
+             if n.get('exec') == 'net_status_node' and 'local' in (n.get('if') or '')]
+    assert len(local) == 1
+    params = {p.get('name'): p.get('value') for p in local[0].iter('param') if p.get('name')}
+    assert params['wired_router_host'] == '127.0.0.1'
+    assert params['wired_hosts'] == '[127.0.0.1, 127.0.0.1, 127.0.0.1]'

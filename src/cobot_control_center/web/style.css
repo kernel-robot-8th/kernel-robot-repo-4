@@ -999,6 +999,7 @@ body.waypoints-mode .layout { display: none; }
 .net-svg .nl[data-state="good"] { stroke: var(--good); stroke-dasharray: none; }
 .net-svg .nl[data-state="warn"] { stroke: var(--warn); }
 .net-svg .nl[data-state="bad"] { stroke: var(--bad); stroke-dasharray: 2 4; }
+.net-svg .nl.same-pc { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 2 3; }
 
 /* 자세히 칸 묶음 제목 (유선·무선·VPN) */
 .diag .diag-heading {

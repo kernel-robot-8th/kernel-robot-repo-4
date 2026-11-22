@@ -82,6 +82,8 @@
     <param name="robot_hosts" value="[127.0.0.1, 127.0.0.1, 127.0.0.1]"/>
     <param name="station_host" value="127.0.0.1"/>
     <param name="router_host" value="127.0.0.1"/>
+    <param name="wired_router_host" value="127.0.0.1"/>
+    <param name="wired_hosts" value="[127.0.0.1, 127.0.0.1, 127.0.0.1]"/>
   </node>
 
   <!-- 관제 PC 자기 상태 보고 (CPU·메모리·온도·디스크). Station PC 의 host_status.launch.xml 과 같은 노드.

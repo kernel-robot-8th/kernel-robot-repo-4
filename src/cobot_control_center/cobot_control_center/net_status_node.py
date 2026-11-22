@@ -18,7 +18,8 @@
 두 가지 빠르기로 잰다 (헬스체크는 가볍게 계속, 자세한 확인은 필요할 때만):
 - 평소: 대상마다 ping_period_sec(5 s)에 한 번 핑. 토픽은 구독하지 않는다.
 - 자세히 확인: /control_center/net_check 요청을 받으면 detail_duration_sec(10 s) 동안
-  detail_period_sec(1 s)마다 핑하고, 로봇 patrol_status·팔 ArmStatus 를 구독해 수신 주기를 잰다.
+  detail_period_sec(1 s)마다 핑하고, 로봇 patrol_status·팔 ArmStatus·영상 분석 근거를 구독해
+  수신 주기를 잰다.
   끝나면 구독을 지우고 마지막 결과(checked_at)를 그대로 낸다.
   팔 상태를 구독하면 Station PC 가 한 벌 더 보낼 수 있어서 평소에는 구독하지 않는다.
 
@@ -66,6 +67,15 @@ PARAMS = {
     'detail_duration_sec': 10.0,
     'ping_timeout_sec': 1,
     'tcp_probe_port': 22,   # ping 명령이 없을 때 연결을 시도할 포트 (로봇·Station PC 는 ssh)
+    # 유선망(영상·분석): 관제 PC 의 다른 연결. 같은 순서의 목록이고 빈 주소는 재지 않는다.
+    'wired_router_host': '192.168.0.1',
+    'wired_ids': ['cctv', 'broker', 'station_wired'],
+    'wired_hosts': ['192.168.0.7', '192.168.0.8', '192.168.0.4'],
+    'wired_probe_ports': [18086, 1883, 22],   # ping 이 없을 때 대상별 TCP 연결 포트
+    # 자세히 확인 때만 수신 주기를 잴 영상 분석 근거 토픽 (std_msgs/String)
+    'evidence_topics': ['/anomaly_monitor/zone_evidence', '/anomaly_monitor/box_evidence'],
+    'evidence_expect_hz': 10.0,
+    'evidence_stale_sec': 1.0,
     'ping_window': 12,
     'ping_warn_ms': 100.0,
     'ping_warn_loss_pct': 10.0,
@@ -97,7 +107,16 @@ class NetStatusNode(Node):
         # 핑 대상: 키 → 주소. 빈 주소는 재지 않는다.
         targets = {'router': c['router_host'], 'station': c['station_host']}
         targets.update(zip(robots, hosts))
-        self.targets = {k: h for k, h in targets.items() if h}
+        wired_ids = list(c['wired_ids'])
+        wired_hosts = list(c['wired_hosts'])
+        wired_ports = list(c['wired_probe_ports'])
+        if not len(wired_ids) == len(wired_hosts) == len(wired_ports):
+            raise ValueError('wired_ids, wired_hosts, wired_probe_ports 의 개수가 다름')
+        targets['wired_router'] = c['wired_router_host']
+        targets.update(zip(wired_ids, wired_hosts))
+        self.targets = {k: h for k, h in targets.items() if k and h}
+        # ping 이 없을 때 대상별로 연결을 시도할 TCP 포트 (나머지는 tcp_probe_port)
+        self.probe_ports = {k: int(p) for k, p in zip(wired_ids, wired_ports)}
         self.ping_cmd = shutil.which('ping')
         self.host = HostReader(c)   # 이 PC 연결 읽기 (host_status_node 와 같은 코드)
         self._lock = threading.Lock()
@@ -130,6 +149,9 @@ class NetStatusNode(Node):
             self._rate_specs[f'{arm}/status'] = (
                 c['arm_status_topic_format'].format(arm=arm), ArmStatus, TELEMETRY_QOS,
                 c['arm_status_stale_sec'], c['arm_status_expect_hz'])
+        for topic in [t for t in c['evidence_topics'] if t]:
+            self._rate_specs[f'evidence{topic}'] = (
+                topic, String, 10, c['evidence_stale_sec'], c['evidence_expect_hz'])
         self._rates = {}       # 자세히 확인 중인 RateMeter
         self._subs = []
         self._rate_last = {}   # 마지막 자세히 확인 결과 (끝난 뒤에도 그대로 낸다)
@@ -189,11 +211,12 @@ class NetStatusNode(Node):
 
     # ---------- 핑 ----------
 
-    def _ping_once(self, host):
+    def _ping_once(self, key, host):
         """한 번 핑. 응답 rtt[ms] 또는 None. 명령이 멈춰도 타임아웃보다 조금 더 기다리고 끊는다."""
         timeout = max(1, int(self.cfg['ping_timeout_sec']))
         if self.probe == 'tcp':
-            return nu.tcp_probe(host, int(self.cfg['tcp_probe_port']), timeout)
+            port = self.probe_ports.get(key, int(self.cfg['tcp_probe_port']))
+            return nu.tcp_probe(host, port, timeout)
         try:
             done = subprocess.run(
                 [self.ping_cmd, '-c', '1', '-W', str(timeout), '-n', host],
@@ -205,7 +228,7 @@ class NetStatusNode(Node):
     def _ping_loop(self, key, host):
         while not self._stop.is_set():
             started = time.monotonic()
-            rtt = self._ping_once(host)
+            rtt = self._ping_once(key, host)
             with self._wake:
                 self._windows[key].add(rtt, time.monotonic())
                 detail = time.monotonic() < self._detail_until
@@ -238,6 +261,7 @@ class NetStatusNode(Node):
         data = {'time': time.time(), 'ping_available': bool(self.ping_cmd),
                 'probe': self.probe,
                 'probe_port': c['tcp_probe_port'] if self.probe == 'tcp' else None,
+                'probe_ports': self.probe_ports if self.probe == 'tcp' else {},
                 'targets': targets, 'topics': topics,
                 'interfaces': self.host.interfaces(local_ip),
                 'local_ip': local_ip, 'pid': os.getpid(),

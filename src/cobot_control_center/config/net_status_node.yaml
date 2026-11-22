@@ -11,6 +11,16 @@
     robot_hosts: [192.168.45.21, 192.168.45.22, 192.168.45.23]   # robots 와 같은 순서
     station_host: 192.168.45.10    # Station PC (팔 omx1~3). 비우면 재지 않음
     router_host: 192.168.45.1      # 공유기. 비우면 재지 않음. 이 주소로 가는 연결을 '로봇망'으로 본다
+    # 유선망 (영상·분석, 2026-11-22 확인). 관제 PC enp130s0 192.168.0.5 쪽. 빈 주소는 재지 않는다.
+    # 카메라·브로커는 강건한 님 장치다 (5초 핑은 2026-11-22 사용자 결정).
+    wired_router_host: 192.168.0.1
+    wired_ids: [cctv, broker, station_wired]                   # 천장 카메라, MQTT 브로커(중계 노트북), Station PC 유선
+    wired_hosts: [192.168.0.7, 192.168.0.8, 192.168.0.4]       # wired_ids 와 같은 순서
+    wired_probe_ports: [18086, 1883, 22]                       # ping 이 없을 때 대상별 TCP 연결 포트
+    # 영상 분석 근거 (브로커 → mqtt_zone_evidence → anomaly_monitor). 자세히 확인 때만 구독
+    evidence_topics: [/anomaly_monitor/zone_evidence, /anomaly_monitor/box_evidence]
+    evidence_expect_hz: 10.0     # [Hz] 이 값의 절반 미만이면 주황
+    evidence_stale_sec: 1.0      # [s] 이만큼 끊기면 빨강
     arm_ids: [omx_1, omx_2, omx_3]
     status_topic_format: /{robot}/patrol_status         # 관제 도메인 100 쪽 (브릿지가 옮긴 것)
     arm_status_topic_format: /manipulation/{arm}/status  # ArmStatus, 팔 노드가 10 Hz

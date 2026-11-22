@@ -74,7 +74,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
                hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None,
-               cctv=None):
+               cctv=None, vision_label=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -151,7 +151,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         # 네트워크 화면(#/network): 구조도 상자·선 상태. 측정 노드가 없으면 핑 칸이 비고 나머지는 그린다.
         # alerts: 상단 경고 띠에 더할 네트워크·PC 경고 (화면은 어느 페이지에서든 2초마다 읽는다).
         local = local_network() if local_network is not None else None
-        result = collect_network(store, tasks, arms, net, hosts, local, domain_id, network_ids)
+        result = collect_network(store, tasks, arms, net, hosts, local, domain_id, network_ids,
+                                 cctv=cctv, vision_label=vision_label)
         result['alerts'] = network_alerts(result)
         if history:
             result['history'] = net.history() if net is not None else {}

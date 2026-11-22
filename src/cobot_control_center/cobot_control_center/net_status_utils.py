@@ -455,24 +455,28 @@ class HostStore:
                 for host, (data, at) in items.items()}
 
 
-def local_info(rmw, domain_id, env, node_names, station_patterns=()):
+def local_info(rmw, domain_id, env, node_names, station_patterns=(), vision_patterns=(),
+               hostname=None):
     """
     관제 PC 자기 정보. node_names 는 도메인 100 에서 이름이 보이는 노드 (같은 이름도 그대로).
 
     이름이 '_NODE_NAME_UNKNOWN_' 인 노드는 발행은 보이는데 이름 정보가 안 넘어온 것이다
     (Cyclone ↔ Fast DDS 처럼 DDS 구현이 다를 때). 개수만 따로 센다.
     station_nodes 는 그중 Station PC 에서 도는 노드로 보이는 이름 (station_patterns, 예: 'omx*_adapter').
+    vision_nodes 는 영상 분석·이상 감지 노드로 보이는 이름 (vision_patterns, 예: 'anomaly_monitor').
     ROS 그래프는 노드가 어느 PC 에서 도는지 알려 주지 않으므로 이름으로만 고른다.
     """
     unknown = sum(1 for n in node_names if 'NODE_NAME_UNKNOWN' in n)
     names = sorted({n for n in node_names if 'NODE_NAME_UNKNOWN' not in n})
     station = [n for n in names if any(fnmatch.fnmatchcase(n, p) for p in station_patterns)]
-    return {'rmw': rmw, 'domain_id': domain_id,
+    vision = [n for n in names if any(fnmatch.fnmatchcase(n, p) for p in vision_patterns)]
+    return {'rmw': rmw, 'domain_id': domain_id, 'hostname': hostname or None,
             'cyclonedds_uri': env.get('CYCLONEDDS_URI') or None,
             'rmw_env': env.get('RMW_IMPLEMENTATION') or None,
             'discovery_range': env.get('ROS_AUTOMATIC_DISCOVERY_RANGE') or None,
             'static_peers': env.get('ROS_STATIC_PEERS') or None,
-            'nodes': names, 'unknown_nodes': unknown, 'station_nodes': station}
+            'nodes': names, 'unknown_nodes': unknown, 'station_nodes': station,
+            'vision_nodes': vision}
 
 
 # ---------- 헬스체크 카드 (/api/network 의 health) ----------
@@ -765,13 +769,49 @@ def host_report_checks(report, local):
     return checks
 
 
-def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, local, net,
-                net_online, hosts=None):
-    """
-    헬스체크 카드: 로봇마다, 로봇팔마다, 그리고 PC 두 대(Station PC, 관제 PC). 카드 상태는 그 카드 점검 중 가장 나쁜 것.
+def _cctv_checks(box, net_online):
+    """천장 카메라 카드: 핑, 현장영상 중계(보는 사람이 있을 때만 붙음), 주소."""
+    checks = [_ping_check(box.get('ping'), net_online)]
+    relay = box.get('relay')
+    if relay is None:
+        checks.append(_check('현장영상 중계', NA, '꺼짐 (cctv_url 비어 있음)'))
+    elif relay.get('connected'):
+        age = relay.get('age_sec')
+        checks.append(_check('현장영상 중계', OK,
+                             '받는 중' + (f' · 마지막 장면 {age:.1f}초 전' if age is not None else '')))
+    elif relay.get('viewers') and relay.get('error'):
+        checks.append(_check('현장영상 중계', BAD, f'못 받음: {relay["error"]}'))
+    else:
+        checks.append(_check('현장영상 중계', NA, '보는 사람이 없어 연결 안 함 (화면을 열면 붙음)'))
+    if relay and relay.get('url'):
+        checks.append(_check('주소', NA, relay['url']))
+    return checks
 
-    kind: robot·arm (장비 줄), station·control (PC 줄). 팔 카드의 select 는 'station' 이다
-    (구조도·자세히 칸에서는 팔을 Station PC 상자로 본다).
+
+def _vision_checks(box, net_online):
+    """영상 분석·이상 감지 카드: 브로커 핑, 근거 수신기·이상 감지 노드, 근거 수신 주기, YOLO PC."""
+    ping_check = _ping_check(box.get('broker_ping'), net_online)
+    checks = [dict(ping_check, name='MQTT 브로커')]
+    seen = box.get('nodes') or []
+    absent = NA if box.get('local_test') else WARN
+    for pattern, label in VISION_NODE_LABELS:
+        names = [n for n in seen if fnmatch.fnmatchcase(n, pattern)]
+        checks.append(_check(label, OK if names else absent,
+                             f'{", ".join(names)} 보임' if names else '노드 안 보임'))
+    for key, label in (box.get('rate_labels') or {}).items():
+        checks.append(_rate_check(label, (box.get('rates') or {}).get(key)))
+    checks.append(_check('YOLO PC', NA, box.get('pc_label') or '모름'))
+    return checks
+
+
+def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, local, net,
+                net_online, hosts=None, wired=None):
+    """
+    헬스체크 카드: 로봇마다, 로봇팔마다, PC 두 대, 유선망 둘. 카드 상태는 그 카드 점검 중 가장 나쁜 것.
+
+    PC 는 Station PC·관제 PC, 유선망은 천장 카메라·영상 분석·이상 감지다.
+    kind: robot·arm (장비 줄), station·control (PC 줄), camera·vision (유선망 줄).
+    팔 카드의 select 는 'station' 이다 (구조도·자세히 칸에서는 팔을 Station PC 상자로 본다).
     issues 는 정상이 아닌 점검을 나쁜 것부터 (화면 '지금 볼 것' 목록).
     """
     alerts = _alerts_by_robot(snapshot)
@@ -786,12 +826,20 @@ def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, loca
         cards.append({'id': arm_id, 'label': f'{arm_id} 로봇팔', 'kind': 'arm',
                       'select': 'station',
                       'checks': _arm_health(arm_list.get(arm_id), controller_online, station)})
-    cards.append({'id': 'station', 'label': 'Station PC', 'kind': 'station', 'select': 'station',
-                  'checks': _station_pc_health(station, arms, net_online, local,
-                                               (hosts or {}).get('station'))})
-    cards.append({'id': 'control', 'label': '관제 PC', 'kind': 'control', 'select': 'control',
+    station_report = (hosts or {}).get('station')
+    station_name = ((station_report or {}).get('data') or {}).get('hostname')
+    cards.append({'id': 'station', 'label': _pc_label('Station PC', station_name),
+                  'kind': 'station', 'select': 'station',
+                  'checks': _station_pc_health(station, arms, net_online, local, station_report)})
+    cards.append({'id': 'control', 'label': _pc_label('관제 PC', (local or {}).get('hostname')),
+                  'kind': 'control', 'select': 'control',
                   'checks': _control_health(control_boxes, local, net, net_online,
                                             (hosts or {}).get('control'))})
+    if wired:
+        cards.append({'id': 'cctv', 'label': '천장 카메라', 'kind': 'camera', 'select': 'cctv',
+                      'checks': _cctv_checks(wired['cctv'], net_online)})
+        cards.append({'id': 'vision', 'label': '영상 분석·이상 감지', 'kind': 'vision',
+                      'select': 'vision', 'checks': _vision_checks(wired['vision'], net_online)})
     issues = []
     counts = {OK: 0, WARN: 0, BAD: 0, NA: 0}
     for card in cards:
@@ -812,13 +860,16 @@ def health_view(snapshot, fresh, robot_boxes, station, arms, control_boxes, loca
 # 팔 상태는 로봇팔 패널에 있으므로 겹치지 않게 뺀다. 관제 노드·브릿지는 상단 점이 이미 보여 준다.
 
 _ALERT_SKIP = {'control': {'관제 노드', '브릿지'}}
+# 유선망 카드(남의 장치)는 장치가 아예 응답하지 않을 때만 경고 띠에 올린다.
+_ALERT_ONLY_BAD = {'camera': {'네트워크'}, 'vision': {'MQTT 브로커'}}
 
 
 def network_alerts(view):
     """
     헬스체크 issues → 경고 띠 항목 [{'robot', 'code', 'level', 'text'}] (fleet_status alerts 와 같은 모양).
 
-    로봇 카드는 '네트워크' 줄만, 팔 카드는 넣지 않고, Station PC·관제 PC 는 위 _ALERT_SKIP 말고 모두.
+    로봇 카드는 '네트워크' 줄만, 팔 카드는 넣지 않고, Station PC·관제 PC 는 위 _ALERT_SKIP 말고 모두,
+    천장 카메라·영상 분석 카드는 _ALERT_ONLY_BAD 의 줄이 빨강일 때만.
     code 는 카드와 줄 이름으로 정해져 값(지연 ms 등)이 바뀌어도 같은 경고로 본다.
     """
     kinds = {c['id']: c['kind'] for c in (view.get('health') or {}).get('cards', [])}
@@ -826,6 +877,9 @@ def network_alerts(view):
     for issue in (view.get('health') or {}).get('issues', []):
         kind = kinds.get(issue['card'])
         if kind == 'arm' or (kind == 'robot' and issue['name'] != '네트워크'):
+            continue
+        if kind in _ALERT_ONLY_BAD and (issue['name'] not in _ALERT_ONLY_BAD[kind]
+                                        or issue['state'] != BAD):
             continue
         if issue['name'] in _ALERT_SKIP.get(kind, ()):
             continue
@@ -862,12 +916,14 @@ class NetAlertTracker:
         return events
 
 
-def collect_network(store, tasks, arms, net, hosts, local, domain_id, network_ids):
+def collect_network(store, tasks, arms, net, hosts, local, domain_id, network_ids,
+                    cctv=None, vision_label=None):
     """
     지금 값들로 network_view 를 만든다. /api/network 와 경고 추적(fleet_api_node 타이머)이 같이 쓴다.
 
     store: SnapshotStore, tasks: TaskStore, arms: ArmStore, net: NetStore, hosts: HostStore
     (없으면 None), local: 이 PC 정보 dict 또는 None, network_ids: (로봇 목록, 팔 목록) 또는 None.
+    cctv: CctvRelay (현장영상 중계) 또는 None, vision_label: YOLO 가 도는 PC 표시 글자.
     """
     _, snapshot = store.get()
     data, net_online = net.get() if net is not None else (None, False)
@@ -877,7 +933,8 @@ def collect_network(store, tasks, arms, net, hosts, local, domain_id, network_id
         dict(local or {}, domain_id=domain_id) if local else {'domain_id': domain_id},
         snapshot, store.health()['source_online'], task_health['controller_online'],
         arms.snapshot() if arms is not None else None, data, net_online, robots, arm_ids,
-        hosts.get_all() if hosts is not None else None)
+        hosts.get_all() if hosts is not None else None,
+        cctv=cctv.health() if cctv is not None else None, vision_label=vision_label)
 
 
 # ---------- 화면용 구조도 (/api/network) ----------
@@ -975,8 +1032,76 @@ def _station_box(arms, ping, rates):
                 dds='같은 도메인에서 데이터 수신됨' if online else '알 수 없음 (데이터 없음)')
 
 
+def _pc_label(base, hostname):
+    return f'{base} · {hostname}' if hostname else base
+
+
+# 영상 분석·이상 감지 경로에서 관제 PC(도메인 100)에 보여야 할 노드: (이름 패턴, 카드 줄 이름)
+VISION_NODE_LABELS = (('mqtt_zone_evidence', '근거 수신기'), ('anomaly_monitor', '이상 감지'))
+# 자세히 확인 때 재는 근거 토픽 (net_status_node evidence_topics 의 키 'evidence<토픽>')
+EVIDENCE_LABELS = {'evidence/anomaly_monitor/zone_evidence': '구역 근거 주기',
+                   'evidence/anomaly_monitor/box_evidence': '상자 근거 주기'}
+
+
+def _ping_box(box_id, label, ping, ok_text, kind, **extra):
+    state = ping['state'] if ping else NA
+    text = ('측정 없음' if not ping else ok_text if state == OK
+            else '응답 없음' if state == BAD else '핑 불안정')
+    return _box(box_id, label, state, text, kind=kind, ping=ping, **extra)
+
+
+def _wired_view(net, local, cctv, vision_label):
+    """
+    유선망(영상·분석) 묶음: 유선 공유기, 천장 카메라, MQTT 브로커, Station PC 유선, 영상 분석 상자.
+
+    핑은 net_status_node 의 wired_* 대상이다. 천장 카메라는 핑과 현장영상 중계(cctv.health())를
+    같이 본다. 중계는 보는 사람이 있을 때만 붙으므로 끊김 자체로는 나쁘다고 하지 않는다.
+    영상 분석 상자는 브로커 핑 + 관제 PC 에서 보이는 근거 수신기·이상 감지 노드 + 근거 주기다.
+    """
+    router = _ping_box('wired_router', '유선 공유기', _ping(net, 'wired_router'), '핑 정상',
+                       'router')
+    cctv_box = _ping_box('cctv', '천장 카메라', _ping(net, 'cctv'), '핑 정상', 'camera',
+                         relay=cctv)
+    if cctv and cctv.get('connected') and cctv_box['state'] == OK:
+        cctv_box['text'] = '영상 받는 중'
+    elif cctv and cctv.get('viewers') and cctv.get('error'):
+        cctv_box['state'], cctv_box['text'] = BAD, '영상 못 받음'
+    broker = _ping_box('broker', 'MQTT 브로커', _ping(net, 'broker'), '핑 정상', 'broker')
+    station = _ping_box('station_wired', 'Station PC 유선', _ping(net, 'station_wired'),
+                        '같은 Station PC', 'station_wired')
+    nodes = (local or {}).get('vision_nodes') or []
+    rates = {k: _rate(net, k) for k in EVIDENCE_LABELS}
+    local_test = str((net or {}).get('local_ip') or '').startswith('127.')
+    vision = {'id': 'vision', 'label': '영상 분석·이상 감지', 'kind': 'vision',
+              'nodes': nodes, 'rates': rates, 'rate_labels': EVIDENCE_LABELS,
+              'broker_ping': broker['ping'], 'pc_label': vision_label,
+              'local_test': local_test}
+    expected = len(VISION_NODE_LABELS)
+    found = sum(1 for p, _ in VISION_NODE_LABELS
+                if any(fnmatch.fnmatchcase(n, p) for n in nodes))
+    if found == expected:
+        vision['state'] = WARN if broker['state'] in (WARN, BAD) else OK
+        suffix = ' · 브로커 응답 없음' if broker['state'] == BAD else ''
+        vision['text'] = '근거 수신 노드 보임' + suffix
+    elif local_test:
+        vision['state'], vision['text'] = NA, '이 PC 안 시험 (이상 감지 없음)'
+    else:
+        vision['state'] = WARN
+        vision['text'] = f'노드 {found}/{expected} 보임'
+    devices = [cctv_box, broker, station]
+    links = [{'from': 'control', 'to': 'wired_router', 'state': router['state'],
+              'ms': (router['ping'] or {}).get('last_ms')}]
+    for box in devices:
+        links.append({'from': 'wired_router', 'to': box['id'], 'state': box['ping']['state']
+                      if box['ping'] else NA,
+                      'ms': (box['ping'] or {}).get('last_ms')})
+    state = worst([router['state'], vision['state']] + [b['state'] for b in devices])
+    return {'state': state, 'router': router, 'devices': devices, 'cctv': cctv_box,
+            'broker': broker, 'station': station, 'vision': vision, 'links': links}
+
+
 def network_view(local, snapshot, source_online, controller_online, arms, net, net_online,
-                 robots, arm_ids, hosts=None):
+                 robots, arm_ids, hosts=None, cctv=None, vision_label=None):
     """
     구조도 데이터: 관제 PC 안 노드 상자, 공유기·로봇·Station PC 상자, 그리고 선(핑).
 
@@ -1043,13 +1168,15 @@ def network_view(local, snapshot, source_online, controller_online, arms, net, n
                       'state': ping['state'] if ping else NA,
                       'ms': ping['last_ms'] if ping else None})
 
+    wired = _wired_view(net, local, cctv, vision_label)
     control_state = worst([b['state'] for b in control + bridge_boxes])
     health = health_view(snap, fresh, devices, station, arms, control + bridge_boxes, local,
-                         net, net_online, hosts)
-    overall = worst([control_state, router['state'], station['state'], health['state']]
+                         net, net_online, hosts, wired=wired)
+    overall = worst([control_state, router['state'], station['state'], health['state'],
+                     wired['state']]
                     + [d['state'] for d in devices])
     return {'overall': overall, 'health': health, 'local': local, 'control': control,
-            'bridges': bridge_boxes,
+            'bridges': bridge_boxes, 'wired': wired,
             'control_state': control_state, 'router': router, 'station': station,
             'robots': devices, 'links': links, 'net_online': bool(net_online),
             'interfaces': [dict(i, summary=interface_summary(i), badges=interface_badges(i),

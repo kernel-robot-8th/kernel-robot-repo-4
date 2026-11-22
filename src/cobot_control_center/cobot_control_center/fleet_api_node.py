@@ -29,6 +29,7 @@ rclpy 는 백그라운드 스레드에서, uvicorn 은 메인 스레드에서 �
 import contextlib
 import json
 import os
+import socket
 import threading
 import time
 
@@ -206,6 +207,12 @@ class FleetApiNode(Node):
         self.declare_parameter('station_node_patterns', ['omx*_adapter'])
         self.station_patterns = [p for p in self.get_parameter('station_node_patterns').value
                                  if p]
+        # 영상 분석·이상 감지 경로 노드 (천장 카메라 YOLO → MQTT → 수신기 → anomaly_monitor)
+        self.declare_parameter('vision_node_patterns', ['mqtt_zone_evidence', 'anomaly_monitor'])
+        self.vision_patterns = [p for p in self.get_parameter('vision_node_patterns').value if p]
+        # YOLO 는 ROS 를 쓰지 않아 어느 PC 에서 도는지 관제가 모른다. 화면에 적을 글자.
+        self.declare_parameter('vision_pc_label', '')
+        self.vision_label = self.get_parameter('vision_pc_label').value or None
         # 자세히 확인 요청. 로봇 명령이 아니라 측정 노드가 10초 동안 촘촘히 재게 할 뿐이라 읽기 전용에서도 둔다.
         self.net_check_pub = self.create_publisher(
             String, self.get_parameter('net_check_topic').value,
@@ -233,7 +240,8 @@ class FleetApiNode(Node):
 
     def _track_net_alerts(self):
         view = collect_network(self.store, self.tasks, self.arms, self.net, self.hosts,
-                               self._local, self.context.get_domain_id(), self.network_ids)
+                               self._local, self.context.get_domain_id(), self.network_ids,
+                               cctv=self.cctv, vision_label=self.vision_label)
         events = self._alerts.update(network_alerts(view), time.time())
         if events:
             self.store.add_events(events)
@@ -242,7 +250,8 @@ class FleetApiNode(Node):
         names = [name for name, _ in self.get_node_names_and_namespaces()]
         self._local = local_info(rclpy.get_rmw_implementation_identifier(),
                                  self.context.get_domain_id(), os.environ, names,
-                                 self.station_patterns)
+                                 self.station_patterns, self.vision_patterns,
+                                 socket.gethostname())
 
     def local_network(self):
         """웹 서버 스레드에서 부른다. 마지막으로 새로 둔 이 PC 정보 (dict 를 통째로 바꾸므로 잠금 없음)."""
@@ -354,7 +363,8 @@ def main(args=None):
                          request_net_check=node.request_net_check, hosts=node.hosts,
                          routes=node.routes, teleop=node.teleop,
                          publish_teleop=None if node.read_only else node.publish_teleop,
-                         waypoints=node.waypoints, cctv=node.cctv)
+                         waypoints=node.waypoints, cctv=node.cctv,
+                         vision_label=node.vision_label)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):
