@@ -27,7 +27,7 @@ import json
 import socket
 import time
 
-from cobot_control_center.host_info import HostReader
+from cobot_control_center.host_info import HostReader, WarnLatch
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -45,6 +45,8 @@ PARAMS = {
     'wifi_warn_dbm': -70.0,
     'wifi_warn_pct': 40.0,
     'cpu_warn_pct': 90.0,
+    'cpu_clear_pct': 80.0,
+    'cpu_warn_hold_sec': 10.0,
     'mem_warn_pct': 90.0,
     'temp_warn_c': 80.0,
     'disk_warn_pct': 90.0,
@@ -59,6 +61,9 @@ class HostStatusNode(Node):
         self.cfg = {name: self.declare_parameter(name, default).value
                     for name, default in PARAMS.items()}
         self.reader = HostReader(self.cfg)
+        # CPU 는 순간값이 문턱을 오르내려 경고·회복이 번갈아 찍혀서, 판정을 여기서 이어서 한다.
+        self.cpu_latch = WarnLatch(self.cfg['cpu_warn_pct'], self.cfg['cpu_clear_pct'],
+                                   self.cfg['cpu_warn_hold_sec'])
         self.hostname = socket.gethostname()
         self.pub = self.create_publisher(
             String, self.cfg['publish_topic'],
@@ -71,6 +76,8 @@ class HostStatusNode(Node):
     def _publish(self):
         c = self.cfg
         local_ip = self.reader.local_ip()
+        system = self.reader.system()
+        system['cpu_warn'] = self.cpu_latch.update(system.get('cpu_pct'), time.monotonic())
         data = {
             'host': c['host'], 'label': c['label'], 'hostname': self.hostname,
             'time': time.time(), 'period_sec': c['publish_period_sec'],
@@ -78,9 +85,10 @@ class HostStatusNode(Node):
             'dds': self.reader.dds(rclpy.get_rmw_implementation_identifier(),
                                    self.context.get_domain_id()),
             'interfaces': self.reader.interfaces(local_ip),
-            'system': self.reader.system(),
-            'thresholds': {k: c[k] for k in ('cpu_warn_pct', 'mem_warn_pct', 'temp_warn_c',
-                                             'disk_warn_pct', 'wifi_warn_dbm', 'wifi_warn_pct')},
+            'system': system,
+            'thresholds': {k: c[k] for k in ('cpu_warn_pct', 'cpu_clear_pct', 'cpu_warn_hold_sec',
+                                             'mem_warn_pct', 'temp_warn_c', 'disk_warn_pct',
+                                             'wifi_warn_dbm', 'wifi_warn_pct')},
         }
         self.pub.publish(String(data=json.dumps(data, ensure_ascii=False)))
 

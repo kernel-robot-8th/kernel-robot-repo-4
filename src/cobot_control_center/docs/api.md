@@ -336,13 +336,16 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
          "cyclonedds_uri": null, "discovery_range": null},
  "interfaces": [아래 net_status 의 interfaces 와 같은 모양],
  "system": {"cpu_pct": 2.0, "cpu_count": 8, "load1": 0.56, "mem": {"total_mb": 15395, "used_pct": 66.0},
-            "temp_c": 51.0, "temp_zone": "x86_pkg_temp", "disk_pct": 28.0, "uptime_sec": 132600},
- "thresholds": {"cpu_warn_pct": 90.0, "mem_warn_pct": 90.0, "temp_warn_c": 80.0, "disk_warn_pct": 90.0,
+            "temp_c": 51.0, "temp_zone": "x86_pkg_temp", "disk_pct": 28.0, "uptime_sec": 132600,
+            "cpu_warn": false},
+ "thresholds": {"cpu_warn_pct": 90.0, "cpu_clear_pct": 80.0, "cpu_warn_hold_sec": 10.0, "mem_warn_pct": 90.0, "temp_warn_c": 80.0, "disk_warn_pct": 90.0,
                 "wifi_warn_dbm": -70.0, "wifi_warn_pct": 40.0}}
 ```
 
 - `cpu_pct` 는 앞 보고와의 차이라 첫 보고는 `null`. 온도는 CPU thermal zone(`x86_pkg_temp`, `cpu-thermal` 등), 없으면 가장 높은 zone.
 - 화면 판정: 보고가 `host_stale_sec`(10 s) 넘게 끊기면 빨강, DDS·도메인이 관제와 다르면 주황, 각 값이 `thresholds` 이상이면 주황.
+  CPU 만은 보고 노드가 이어서 판정한 `cpu_warn` 을 쓴다: `cpu_warn_pct` 이상이 `cpu_warn_hold_sec` 동안 이어지면 켜고,
+  `cpu_clear_pct` 밑으로 내려와야 끈다 (89~91% 를 오갈 때 경고·회복이 번갈아 찍히지 않게). `cpu_warn` 이 없는 옛 보고는 `cpu_warn_pct` 하나로 판정.
 
 `/control_center/net_check` (std_msgs/String JSON `{"source": 누른 곳 IP}`, `fleet_api_node` → `net_status_node`):
 자세히 확인 시작. 진행 중에 또 오면 끝 시각만 늘립니다.

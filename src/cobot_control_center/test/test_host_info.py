@@ -156,3 +156,35 @@ def test_station_card_uses_report():
                             ['omx_1'])
     rows3 = by_name({c['id']: c for c in plain['health']['cards']}['station']['checks'])
     assert rows3['PC 내부']['state'] == nu.NA
+
+
+def test_warn_latch_needs_hold_and_clears_below_off():
+    latch = hi.WarnLatch(90.0, 80.0, 10.0)
+    assert latch.update(95.0, 0.0) is False      # 막 넘었을 때는 아직
+    assert latch.update(92.0, 6.0) is False
+    assert latch.update(91.0, 10.0) is True      # 10 s 이어짐
+    assert latch.update(85.0, 13.0) is True      # 80~90 은 그대로 경고
+    assert latch.update(None, 16.0) is True      # 측정 못 하면 유지
+    assert latch.update(79.0, 19.0) is False     # 80 밑이라 회복
+    assert latch.update(None, 22.0) is False
+
+
+def test_warn_latch_ignores_flapping_around_on():
+    latch = hi.WarnLatch(90.0, 80.0, 10.0)
+    # 21:58 처럼 89~91 을 3 s 마다 오가면 이어진 시간이 매번 다시 세져서 켜지지 않는다
+    values = [91.0, 89.0, 90.5, 89.5, 91.0, 89.0, 90.0, 89.9]
+    assert not any(latch.update(v, 3.0 * i) for i, v in enumerate(values))
+    assert hi.WarnLatch(90.0, 80.0, 0.0).update(90.0, 0.0) is True
+
+
+def test_system_checks_uses_latched_cpu_warn():
+    t = REPORT['thresholds']
+    base = dict(REPORT['system'])
+
+    def cpu_state(**system):
+        return by_name(nu.system_checks(dict(base, **system), t))['CPU']['state']
+
+    assert cpu_state() == nu.WARN                              # cpu_warn 없음 → 문턱값 판정
+    assert cpu_state(cpu_warn=False) == nu.OK                  # 95% 라도 아직 이어지지 않음
+    assert cpu_state(cpu_pct=85.0, cpu_warn=True) == nu.WARN   # 회복 전
+    assert cpu_state(cpu_pct=None, cpu_warn=True) == nu.NA     # 측정 중
