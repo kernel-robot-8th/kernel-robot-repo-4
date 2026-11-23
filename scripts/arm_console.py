@@ -29,7 +29,8 @@
   pick | load    작업 요청 (/fleet/work_request) → 팔이 실제로 움직인다
   hold           CMD_HOLD                    → 정지 (토크 유지)
   unhold         CMD_RELEASE_HOLD            → 정지 해제
-  latch          CMD_SOFT_LATCH              → 소프트 정지 (RESET 으로만 풀림)
+  latch          CMD_SOFT_LATCH              → 소프트 정지 잠금 (unlatch 또는 reset 으로 풀림)
+  unlatch        CMD_UNLATCH                 → 잠금 해제 (팔은 안 움직임, 다음 작업부터 받음)
   reset          CMD_RESET                   → 쉬는 자세면 토크 끔, 아니면 거절
   status | s     최근 ArmStatus 한 번 출력
   saverest [경로] 지금 관절을 쉬는 자세 파일로 저장 (init_pose.json 형식, 녹화기 'Rest 저장' 과 같음)
@@ -69,7 +70,7 @@ STALE_SEC = 3.0             # [s] 이보다 오래된 관절 값이면 저장할
 POSES_DIR = Path('~/il_ws/poses').expanduser()
 COMMANDS = {'start': ArmCommand.CMD_START, 'reset': ArmCommand.CMD_RESET,
             'hold': ArmCommand.CMD_HOLD, 'unhold': ArmCommand.CMD_RELEASE_HOLD,
-            'latch': ArmCommand.CMD_SOFT_LATCH}
+            'latch': ArmCommand.CMD_SOFT_LATCH, 'unlatch': ArmCommand.CMD_UNLATCH}
 
 
 def say(text):

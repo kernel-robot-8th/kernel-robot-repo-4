@@ -1251,3 +1251,87 @@ def test_service_summary_counts_today_only():
     assert service_summary(orders, 100.0) == {
         'total': 5, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'done': 0}
     assert service_summary(None, 0)['total'] == 0
+
+
+# ---------- 전체 비상정지의 팔 잠금 · 잠금 해제 ----------
+
+def two_arms(state_1='READY', state_2='READY'):
+    arm = ARMS['arms'][0]
+    return dict(ARMS, arms=[dict(arm, state=state_1),
+                            dict(arm, arm_id='omx_2', alias='omx2', state=state_2)])
+
+
+def test_estop_all_latches_every_arm_without_waiting():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 202, {'armed': False})
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(two_arms()))
+    arm_sent = []
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish, arms=arm_store,
+                                   publish_arm_request=lambda text: arm_sent.append(
+                                       json.loads(text))))
+    res = client.post('/api/commands/estop', json={'client_request_id': 'e1'})
+    assert res.status_code == 202 and res.json()['armed'] is False
+    assert res.json()['arms'] == {'latched': ['omx_1', 'omx_2'], 'detail': ''}
+    assert [(r['arm_id'], r['command']) for r in arm_sent] == [
+        ('omx_1', 'soft_latch'), ('omx_2', 'soft_latch')]
+    assert arm_sent[0]['source'] == '전체 비상정지 testclient'
+    assert sent[0] == dict(sent[0], type='estop', client_request_id='e1')
+
+
+def test_estop_all_latches_arms_even_when_fleet_is_down():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(two_arms()))
+    arm_sent = []
+    client = TestClient(create_app(store, arms=arm_store,
+                                   publish_arm_request=lambda text: arm_sent.append(text)))
+    assert client.post('/api/commands/estop', json={}).status_code == 503
+    assert len(arm_sent) == 2
+
+
+def test_unlatch_all_only_latched_arms_and_reports_each():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(two_arms('SOFT_LATCH', 'READY')))
+    publish, sent = fake_arm_node(arm_store, 200, {'result': 'ACCEPTED'})
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=publish))
+    res = client.post('/api/arms/unlatch_all', json={'client_request_id': 'u1'})
+    assert res.status_code == 200
+    assert res.json() == {'ok': True, 'results': {
+        'omx_1': {'status': 200, 'accepted': True, 'reason': ''}}}
+    assert sent[0] == dict(sent[0], type='command', arm_id='omx_1', command='unlatch',
+                           source='testclient')
+
+
+def test_unlatch_all_reports_refusal_and_no_latched_arm():
+    store, _ = make_store()
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(two_arms('SOFT_LATCH', 'SOFT_LATCH')))
+    publish, _ = fake_arm_node(arm_store, 409, {'result': 'REJECTED_SEQ', 'reason': 'seq 역행'})
+    client = TestClient(create_app(store, arms=arm_store, publish_arm_request=publish))
+    res = client.post('/api/arms/unlatch_all', json={})
+    assert res.status_code == 409 and res.json()['ok'] is False
+    assert res.json()['results']['omx_2']['reason'] == 'seq 역행'
+    arm_store.put_snapshot(json.dumps(two_arms()))
+    res = client.post('/api/arms/unlatch_all', json={})
+    assert res.status_code == 409 and res.json()['detail'] == '잠긴 로봇팔이 없음'
+
+
+def test_resume_blocked_while_arm_latched_but_fail_allowed():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 200, {'order_id': 'o1'})
+    arm_store, _ = make_arm_store()
+    arm_store.put_snapshot(json.dumps(two_arms('READY', 'SOFT_LATCH')))
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish, arms=arm_store,
+                                   publish_arm_request=lambda text: None))
+    res = client.post('/api/orders/o1/recover', json={'decision': 'resume'})
+    assert res.status_code == 409 and res.json()['detail'] == '팔 잠금 먼저 해제 (omx_2)'
+    assert sent == []
+    assert client.post('/api/orders/o1/recover', json={'decision': 'fail'}).status_code == 200
+    arm_store.put_snapshot(json.dumps(two_arms()))
+    assert client.post('/api/orders/o1/recover', json={'decision': 'resume'}).status_code == 200

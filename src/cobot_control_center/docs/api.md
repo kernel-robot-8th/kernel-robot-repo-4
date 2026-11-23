@@ -40,13 +40,13 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 **관제 웨이포인트를 이동·경로에 쓰면**: `POST /api/tasks`(goto)·`POST /api/routes` 의 지점 이름 중 관제 웨이포인트는 좌표를 `poses: {"W1": [x, y, yaw]}` 로 붙여 작업 노드에 넘긴다. 작업 노드(`fleet_control`)가 이름 충돌·구역 거리를 다시 검사하고 순찰 노드 봉투에 `poses` 를 실어 보낸다. 순찰 노드는 로봇 설정에 없는 이름이면 그 좌표로 간다 (goto 만). `poses` 를 모르는 예전 순찰 노드는 `unknown point` 로 거절한다.
 | `POST /api/commands/arm` | `{"client_request_id", "armed": true\|false}` → `200 {"armed", "changed", "source": 요청한 IP, "client_request_id"}` / `400` armed 가 bool 이 아님. 작업 노드 사건 `operator_arm` 으로 남김 |
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
-| `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지 (로봇·팔 모두) |
+| `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지. 백엔드가 먼저 등록된 팔 전부에 `soft_latch`(잠금)를 발행만 하고(응답 안 기다림), 이어서 작업 노드에 로봇 지정 없는 `estop` 을 보냄 (전 로봇 정지 잠금·작업 명령 꺼짐, 경로 팔에 `hold` 도 따로 감). 응답은 작업 노드 응답에 `arms: {"latched": [팔 이름], "detail": 못 보냈을 수 있는 이유}` 를 더한 것. 작업 노드가 없어 503 이어도 팔 잠금은 이미 나감. 풀기: `POST /api/arms/unlatch_all` → 로봇 `release_control` → 작업 명령 켜기 |
 | `POST /api/robots/{robot_id}/initial_pose` | AMCL 위치를 다시 잡음 (로봇은 움직이지 않음). body `{"client_request_id", "pose"?}`. `pose` 가 없으면 fleet 이 순찰 설정의 홈을 씀. `pose: {x, y, yaw}` ([m], [m], [rad], map 프레임)면 그 좌표 (화면 상세 지도의 좌표 지정). 숫자가 아니거나 지도 밖이면 이 백엔드가 400. 누가는 접속 IP(`source`). 202 면 `{robot_id, mode: home\|manual, point, x, y, yaw, topic}` (좌표면 `point` 는 `좌표`), 거절이면 fleet 사유를 `detail` 로 |
 | `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구 (주문 없는 로봇). `operator`·`note`는 선택. 최신 정지 상태를 확인한 뒤 `202 {robot_id, released: false, reset_pending: true}`. 로봇 해제 응답 후 `/api/health`의 보류가 사라짐. 상태 미확인은 409 |
 | `POST /api/zones/{zone}/release` | 구역 강제 해제 (토큰을 쥔 채 꺼졌거나 다시 켜져 잊은 로봇). body `{"robot_id", "client_request_id"?, "note"?}`. fleet 이 최신 zone_manager 상태(3초 안)가 `occupied_by:<robot_id>` 인지, 로봇이 연결 끊김이거나 멈춰 있고 `held_zone` 이 그 구역이 아닌지 본 뒤 `/zone_manager/notify_exit "<zone>:<robot_id>"` 를 한 번 냄. `202 {zone, robot_id, robot_online, released: "sent"}`. 점유자 다름·아직 잡고 있음·움직임·주문 있음·`held_zone` 보고 없음은 409, 구역 상태 없음은 503. 작업 명령 켜기 불필요. 누가는 접속 IP(`source`) |
 | `POST /api/robots/{robot_id}/raw_cmd` | 개발용. `{"client_request_id", "command": "goto:P3,P7"}` → `202 {"robot_id", "command", "raw_id", "spec": "v1", "topic": "/pinky1/patrol_cmd", "msg_type": "std_msgs/msg/String", "warning"}` / `423` 작업 명령 꺼짐 / `403` allow_raw_cmd 꺼짐 / `400` 빈 명령·여러 줄·200자 넘음 / `409` 진행 중·결과 모름 작업. 검사 없이 `patrol_cmd` 에 그대로 |
 | `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"?}`. UNKNOWN만 접수. 202의 작업은 UNKNOWN·`reset_pending=true`이며 로봇 해제 응답 후 FAILED로 변경. 정지 미확인은 409 |
-| `POST /api/orders/{order_id}/recover` | `{"client_request_id", "decision": "resume" \| "fail", "evidence"?, "operator"?, "note"?}`. 재개는 `MOVE_PICKUP`·`MOVE_DROPOFF`·`RETURN_HOME`·`CUSTOMER`만 가능. 로봇은 최신 정지 상태여야 함. 자원을 예약한 주문 취소는 `evidence`의 `arms_safe`·`cargo_reconciled`·`resources_clear` 모두 true 필요. 화면에서 각각 현장 확인. 취소 후에도 로봇 해제 응답 전에는 보류 유지 |
+| `POST /api/orders/{order_id}/recover` | `{"client_request_id", "decision": "resume" \| "fail", "evidence"?, "operator"?, "note"?}`. 재개는 `MOVE_PICKUP`·`MOVE_DROPOFF`·`RETURN_HOME`·`CUSTOMER`만 가능. 로봇은 최신 정지 상태여야 함. 잠긴(`SOFT_LATCH`) 팔이 하나라도 있으면 재개는 이 백엔드가 `409 팔 잠금 먼저 해제 (omx_2)` 로 막음 (취소 `fail` 은 막지 않음). 자원을 예약한 주문 취소는 `evidence`의 `arms_safe`·`cargo_reconciled`·`resources_clear` 모두 true 필요. 화면에서 각각 현장 확인. 취소 후에도 로봇 해제 응답 전에는 보류 유지 |
 | `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
 | `GET /api/service?finished=30` | 서비스 관리화면 값 (읽기 전용). 아래 [서비스 화면](#apiservice-서비스-화면) |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
@@ -56,7 +56,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/arms` | 로봇팔 상태 모음 `{"controller_online", "controller_age", "ttl_ms", "arms": [..]}` (아래 [로봇팔](#로봇팔-arm_command_node)). 명령 노드가 끊기면 팔마다 `STALE` 로 바꿔 냄 |
 | `GET /api/arms/events?after=0&arm=&limit=100` | 로봇팔 알람 기록, 오래된 것부터 `[{"id", "time", "arm", "kind", "level", "text", "data"?}]`. `after` 로 이어 받기. 아래 [알람](#알람-활성-알람기록) |
 | `POST /api/arms/{arm_id}/work` | 작업 시험 한 건 (개발용, **실제 팔이 움직임**). `{"action": "pick"\|"load"\|"unload"\|"warehouse_store"\|"arrange_shoe", "shelf_row": 1..9 (선택, 상자 번호 모델용), "client_request_id"}` → `202` 보냄 (`work_id`, 결과는 `/api/arms` 의 `arm.work`) / `409` 작업 명령 꺼짐(`commands_armed` 거짓, 작업 노드 없음 포함)·그 자리 팔이 하지 않는 작업(`site_arms.yaml` `actions`)·팔이 `READY` 아님·앞 작업 진행 중 / `404` 등록 안 된 팔 / `400` 모르는 작업 / `503` 읽기 전용·명령 노드 없음·응답 없음. 아래 [작업 시험](#작업-시험-개발용) |
-| `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
+| `POST /api/arms/unlatch_all` | 전체 잠금 해제. `{"client_request_id"}` → 지금 `SOFT_LATCH` 인 팔에만 `unlatch` 를 차례로 보냄 (팔은 움직이지 않음). `200 {"ok": true, "results": {팔: {status, accepted, reason}}}` / 하나라도 안 풀리면 `409` 같은 모양 / 잠긴 팔 없음 `409 {"detail"}` / `503` 읽기 전용·명령 노드 없음. 화면은 잠긴 팔 목록 확인 창 뒤 보냄. 누가는 접속 IP(`source`) |
+| `POST /api/arms/{arm_id}/command` | `{"command": "start"\|"reset"\|"hold"\|"release_hold"\|"soft_latch"\|"unlatch", "client_request_id"}` → `200` 팔이 수락 (정지는 거절돼도 `stop_executed` 면 200) / `409` 팔이 거절 (`result`, `reason`) / `404` 등록 안 된 팔 / `400` 모르는 명령 / `503` 읽기 전용·명령 노드 없음·응답 없음 / `504` 팔 노드가 기한(8 s) 안에 답하지 않음. `/api/commands/arm` (작업 명령 켜기)와 다른 것 |
 | `WS /ws/tasks` | 연결 즉시 `{"type": "tasks", "tasks": [..]}`, 이후 바뀐 작업마다 `{"type": "task", "task": {..}}` |
 
 해제 응답은 같은 부팅의 `control_reset_id`와 요청 ID가 일치해야 합니다. 일반 하트비트만으로
@@ -214,7 +215,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `state` | 조건 | `allowed` |
 |---|---|---|
 | `STALE` | 상태가 안 들어옴 | hold, soft_latch |
-| `SOFT_LATCH` | `hold_reason == SOFT_LATCH` | reset, hold |
+| `SOFT_LATCH` | `hold_reason == SOFT_LATCH` | unlatch (잠금 해제), reset, hold |
 | `HOLD` | `hold_active` | release_hold, reset, soft_latch |
 | `OFF` | 토크 꺼짐 | start (`start_block` 이 있으면 뺌), hold, soft_latch |
 | `FAULT` | 토크 꺼짐이고 마지막 응답이 켜기 거절 `(지금 FAULT)` (팔 실행기가 멈춤). `ArmStatus` 에 전원 상태 칸이 없어 거절 사유로 판단하는 임시 방법. 끄기 수락 등 다음 응답이 오면 풀림 | reset, hold, soft_latch |
@@ -230,7 +231,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `code` | `level` | 조건 | 풀림 |
 |---|---|---|---|
 | `offline` | bad | 한 번 받은 팔 상태가 `status_stale_sec` 넘게 끊김 | 상태가 다시 들어옴 |
-| `soft_latch` | bad | 비상정지 잠김 (화면 버튼 '비상정지') | 끄기(RESET) |
+| `soft_latch` | bad | 비상정지 잠김 (화면 버튼 '비상정지', 전체 비상정지) | 잠금 해제(UNLATCH) 또는 끄기(RESET) |
 | `fault` | bad | 화면 상태 `FAULT` (켜기가 `(지금 FAULT)` 로 거절됨) | 끄기 수락 등 다음 응답 |
 | `hold` | warn | 정지 유지 | 정지 해제·끄기 |
 | `posture_unknown` | bad | 작업(작업 시험·주문)이 도중에 실패(`retry_safe` 아님)했거나 작업 시험 결과 없음 | 다음 작업 성공 또는 끄기 수락 |
@@ -245,6 +246,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `ack` | 명령 응답. 다른 곳이 낸 명령이면 `다른 곳이 낸 명령` | 수락·정지 실행 info, 거절 warn |
 | `timeout` | 명령 응답 없음 (`ack_timeout_sec`) | bad |
 | `work` | 주문 작업 요청(`주문 작업 PICK pick 요청 (order, robot)`)·SAFETY 요청, 작업 결과: 작업 시험과 **주문 작업** (`/fleet/work_result` 의 `source` 가 그 팔, 걸린 시간 포함) | 요청 info, 성공 info, 팔 안 움직인 실패 warn, 도중 실패·결과 없음 bad |
+
+2026-11-23 도메인 101 시험 (`cobot_mock` 가짜 핑키 + `fleet_control_node` + 팔 노드 `backend:=fake` 3대, 웹 API): 켜기 3대 → 대기 팔 잠금 해제 409 `잠긴(LATCHED) 상태에서만` → 전체 비상정지 202 `arms.latched` 3대 → 3대 `SOFT_LATCH` (allowed unlatch·reset·hold) → 주문 재개 409 `팔 잠금 먼저 해제 (omx_1, omx_2, omx_3)` → 전체 잠금 해제 200 → 3대 `READY` → 다시 전체 잠금 해제 409 `잠긴 로봇팔이 없음` → 작업 명령 켜기 → omx_1 `warehouse_store` 작업 시험 성공 → omx_2 카드 비상정지 → 잠금 해제 200 → `READY`. 헤드리스 크롬에서 잠긴 동안 상단 `전체 잠금 해제 (3)`·카드 `잠금 해제` 버튼 확인. 실물 팔은 쓰지 않았습니다.
 
 2026-11-16 도메인 101 시험 (가짜 핑키 + `fleet_control_node` + 팔 노드 4934bac `backend:=fake` 3대): 켜기 → 작업 시험 성공 → 작업 중 정지(활성 `hold`·`posture_unknown`) → 정지 해제 → 끄기(둘 다 풀림) → 또 끄기(거절 warn 기록) → 다른 곳이 낸 주문 작업 실패 결과(omx_2 `posture_unknown`) → omx3 팔 노드 끔(활성 `offline`, 끊김 기록) → 다시 켬(`boot`·연결됨 기록, `offline` 풀림). 헤드리스 크롬으로 알람 칸 확인.
 

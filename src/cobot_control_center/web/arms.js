@@ -21,11 +21,11 @@ const ARM_STATE = {
   READY: { text: "대기", level: "good", hint: "켜짐, 작업을 받을 수 있음" },
   BUSY: { text: "작업·연결 중", level: "active", hint: "연결 중이거나 작업 중이거나 끄는 중" },
   HOLD: { text: "정지", level: "warn", hint: "정지 유지 중. 정지 해제를 누르면 바로 다시 씀" },
-  SOFT_LATCH: { text: "비상정지", level: "bad", hint: "비상정지 잠김. 정지 해제로는 안 풀림: 끄기 → 켜기" },
+  SOFT_LATCH: { text: "비상정지", level: "bad", hint: "비상정지 잠김 (소프트웨어 정지). 현장 확인 뒤 잠금 해제로 풂 (안 풀리면 팔을 받치고 끄기 → 켜기)" },
 };
 
 // 웹 명령 이름 → 버튼 글·확인 창·도움말 (정지 계열은 확인 창 없이 바로 보낸다)
-// 정지(hold) = 잠깐 멈춤, 정지 해제로 풂. 비상정지(soft_latch) = 잠금, 끄기 → 켜기로만 풂.
+// 정지(hold) = 잠깐 멈춤, 정지 해제로 풂. 비상정지(soft_latch) = 잠금, 사람이 잠금 해제(unlatch)로 풂.
 // 둘 다 소프트웨어 정지다 (전원 차단 아님). 팔 노드 명령 이름은 그대로 두고 화면 글만 정한다.
 const ARM_COMMAND = {
   start: {
@@ -50,8 +50,15 @@ const ARM_COMMAND = {
     text: "정지 해제",
     confirm: (armId) => `${armId} 정지를 풀까요?\n\n팔이 바로 움직이지는 않습니다. 다음 작업 요청부터 받습니다.`,
   },
+  unlatch: {
+    text: "잠금 해제",
+    hint: "비상정지 잠금을 풂 (팔은 움직이지 않고 다음 작업부터 받음). 확인 창",
+    confirm: (armId) => `${armId} 비상정지 잠금을 풀까요?\n\n`
+      + "현장에서 팔이 멈춰 있고 주변이 안전한지 확인했나요?\n"
+      + "팔은 바로 움직이지 않습니다. 다음 작업 요청부터 받습니다.",
+  },
   hold: { text: "정지", hint: "잠깐 멈춤 (토크 유지). 정지 해제로 바로 풀림. 확인 창 없음" },
-  soft_latch: { text: "비상정지", hint: "멈추고 잠금 (토크 유지, 전원 차단 아님). 끄기 → 켜기로만 풀림. 확인 창 없음" },
+  soft_latch: { text: "비상정지", hint: "멈추고 잠금 (토크 유지, 전원 차단 아님). 잠금 해제로 풂. 확인 창 없음" },
 };
 const ARM_STOPS = new Set(["hold", "soft_latch"]);
 // 작업 시험 (arm_command_utils.WORK_ACTIONS). 화면 글만 여기서 정한다.
@@ -72,6 +79,7 @@ const armsView = {
   ok: false,          // 마지막 /api/arms 를 받았는지
   cards: new Map(),   // arm_id → card element
   busy: new Set(),    // 응답을 기다리는 arm_id (정지 말고는 버튼을 잠근다)
+  unlatching: false,  // 전체 잠금 해제 응답을 기다리는 중
   workActions: [],    // 스냅샷의 work_actions (선택 칸 채우기)
   log: [],            // 알람 기록 (/api/arms/events, 오래된 것부터)
   lastLogId: 0,       // 받은 마지막 기록 번호 (after 로 이어 받기)
@@ -360,6 +368,7 @@ function renderArms() {
   empty.hidden = arms.length > 0;
   empty.textContent = armsView.ok ? "로봇팔 명령 노드(arm_command_node) 상태 수신 대기" : "백엔드 연결 안 됨";
   arms.forEach((arm) => renderArmCard(arm, canCommand));
+  renderUnlatchAll(arms, canCommand);
   renderAlertStrip();
   renderEventFilter();
   // 백엔드가 끊기면 마지막 카드는 남기되 버튼은 모두 잠근다.
@@ -369,6 +378,43 @@ function renderArms() {
       card.querySelectorAll("button, select").forEach((b) => { b.disabled = true; });
     });
   }
+}
+
+// 상단 '전체 잠금 해제': 잠긴(SOFT_LATCH) 팔이 있을 때만 보인다.
+function latchedArms() {
+  return ((armsView.data && armsView.data.arms) || []).filter((a) => a.state === "SOFT_LATCH");
+}
+
+function renderUnlatchAll(arms, canCommand) {
+  const button = $("unlatch-all");
+  const latched = arms.filter((a) => a.state === "SOFT_LATCH");
+  button.hidden = latched.length === 0;
+  button.disabled = !canCommand || armsView.unlatching;
+  button.textContent = latched.length > 1 ? `전체 잠금 해제 (${latched.length})` : "잠금 해제";
+}
+
+async function unlatchAll() {
+  const latched = latchedArms();
+  if (latched.length === 0) return;
+  const names = latched.map((a) => `- ${a.arm_id}${a.site && a.site.station ? ` (${a.site.station})` : ""}`);
+  const question = `잠긴 로봇팔 ${latched.length}대의 잠금을 풀까요?\n\n${names.join("\n")}\n\n`
+    + "모든 팔 자리에서 팔이 멈춰 있고 주변이 안전한지 확인했나요?\n"
+    + "팔은 바로 움직이지 않습니다. 다음 작업 요청부터 받습니다.";
+  if (!confirm(question)) return;
+  armsView.unlatching = true;
+  renderArms();
+  const r = await postJson("/api/arms/unlatch_all", { client_request_id: newRequestId() });
+  armsView.unlatching = false;
+  const results = (r.data && r.data.results) || {};
+  if (Object.keys(results).length === 0) {
+    alert(`잠금 해제 실패 (${r.status}): ${errorText(r)}`);
+  }
+  Object.entries(results).forEach(([armId, res]) => {
+    showArmMessage(armId, res.accepted ? "잠금 해제 수락"
+      : `잠금 해제 거절 (${res.status}): ${res.reason || "이유 없음"} · 안 풀리면 팔을 받치고 끄기 → 켜기`,
+    !res.accepted);
+  });
+  pollArms();
 }
 
 function showArmMessage(armId, text, bad) {
@@ -404,7 +450,8 @@ async function sendArmCommand(armId, cmd) {
     const data = result.data || {};
     const why = data.reason || errorText(result);
     const kind = data.result ? ARM_RESULT_TEXT[data.result] || data.result : "";
-    showArmMessage(armId, `${text} 거절 (${result.status}${kind ? ` ${kind}` : ""}): ${why}`, true);
+    const hint = cmd === "unlatch" ? " · 안 풀리면 팔을 받치고 끄기 → 켜기" : "";
+    showArmMessage(armId, `${text} 거절 (${result.status}${kind ? ` ${kind}` : ""}): ${why}${hint}`, true);
   }
   pollArms();
 }
@@ -477,6 +524,7 @@ async function pollArms() {
 }
 
 function setupArms() {
+  $("unlatch-all").addEventListener("click", unlatchAll);
   pollArms();
   setInterval(pollArms, ARMS_POLL_MS);
 }

@@ -156,6 +156,7 @@ stateDiagram-v2
   DISARMED --> CONNECTING: CMD_START (새 epoch)
   CONNECTING --> ARMED: 실행기 ready
   ARMED --> LATCHED: CMD_SOFT_LATCH
+  LATCHED --> ARMED: CMD_UNLATCH (잠금 해제, 구동 없음)
   ARMED --> RELEASING: CMD_RESET (작업 중 아님)
   LATCHED --> RELEASING: CMD_RESET
   LATCHED --> DISARMED: CMD_RESET (실행기 없음)
@@ -182,9 +183,10 @@ stateDiagram-v2
 | `CMD_RESET` | ARMED·LATCHED (작업 중 아님) | 실행기에 `release` (아래 끄기 순서) | 실행기 답 뒤 (`release_timeout_sec`) |
 | `CMD_RESET` | FAULT, 또는 실행기 없는 LATCHED | 정리하고 DISARMED | 바로 |
 | `CMD_SOFT_LATCH` | 아무 때나 | 작업을 멈추고 LATCHED (토크 유지) | 바로, `stop_executed=true` |
+| `CMD_UNLATCH` | LATCHED 만 | 잠금을 풀고 ARMED (팔은 움직이지 않음, 다음 작업 요청부터 받음). 일반 HOLD 도 같이 푼다 (전체 비상정지는 fleet 의 hold 가 함께 온다). 사람이 관제 화면에서 확인 뒤에만 보낸다 | 바로 |
 | `CMD_HOLD` / `CMD_RELEASE_HOLD` | 아무 때나 | `/fleet/work_request` 의 hold/release_hold 와 같다. HOLD 는 DISARMED 가 되면 지워진다 (켠 뒤에도 멈춰야 하면 관제가 다시 보냄) | 바로 |
 
-ARMED 가 아닐 때 작업 요청은 retry_safe 로 거절한다 (`팔 전원 DISARMED (관제 CMD_START 필요)` 등). `auto_start: true` 면 관제 없이 팔이 탐지되자마자 켠다 (기본 false).
+ARMED 가 아닐 때 작업 요청은 retry_safe 로 거절한다 (`팔 전원 DISARMED (관제 CMD_START 필요)`, `팔 전원 LATCHED (잠금 해제(CMD_UNLATCH) 필요)` 등). 작업 토픽의 `release_hold`(fleet_control 자동 흐름)는 HOLD 만 풀고 LATCHED 는 풀지 않는다. `auto_start: true` 면 관제 없이 팔이 탐지되자마자 켠다 (기본 false).
 
 #### 끄기 순서 (`CMD_RESET`)
 

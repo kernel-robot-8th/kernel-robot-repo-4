@@ -101,6 +101,13 @@ def test_default_command_is_not_valid():
     assert ArmCommand().command == ArmCommand.CMD_HOLD
 
 
+def test_arm_unlatch_constant():
+    # 잠금 해제는 SOFT_LATCH(4) 다음 번호다. 팔 노드·관제가 같은 번호를 쓴다.
+    from cobot_interfaces.msg import ArmCommand
+    assert ArmCommand.CMD_SOFT_LATCH == 4
+    assert ArmCommand.CMD_UNLATCH == 5
+
+
 def test_serialization_round_trip():
     # C 타입 지원 라이브러리까지 실제로 불러지는지 본다.
     from cobot_interfaces.msg import FleetCommand, MapInfo, Waypoint

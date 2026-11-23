@@ -225,8 +225,8 @@ class ArmAdapterNode(Node):
             return
         # 아래 거절은 모두 팔을 움직이기 전이라 다시 해도 안전하다.
         if self.power != power.ARMED:
-            latched = self.power in (power.LATCHED, power.FAULT)
-            hint = 'CMD_RESET 필요' if latched else '관제 CMD_START 필요'
+            hint = {power.LATCHED: '잠금 해제(CMD_UNLATCH) 필요',
+                    power.FAULT: 'CMD_RESET 필요'}.get(self.power, '관제 CMD_START 필요')
             self._reject(request, f'팔 전원 {self.power} ({hint})', True)
         elif self.state != registry_utils.READY:
             self._reject(request, f'팔 탐지 안 됨: {self.reason}', True)
@@ -283,6 +283,14 @@ class ArmAdapterNode(Node):
             self.held = False
             self.backend.release_hold(now)
             self.get_logger().info(f'{self.arm_id} 정지 해제 (관제 RELEASE_HOLD)')
+        elif todo == 'unlatch':
+            # 사람이 현장을 보고 푸는 리셋이라 일반 정지(held)도 같이 푼다. 전체 비상정지는 fleet 이
+            # 경로 팔에 hold 를 함께 보내므로, 남기면 잠금 해제 뒤에 정지 해제를 또 눌러야 한다.
+            # 팔은 움직이지 않고 다음 작업 요청부터 받는다.
+            self.power = power.ARMED
+            self.held = False
+            self.backend.release_hold(now)
+            self.get_logger().warning(f'{self.arm_id} 잠금 해제 (관제 UNLATCH): 일을 받습니다')
         elif todo == 'clear' or (todo == 'release' and not self.backend.running()):
             self._disarm('관제 RESET')
         elif todo == 'release':

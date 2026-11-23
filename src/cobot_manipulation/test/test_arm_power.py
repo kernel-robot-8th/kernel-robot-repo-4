@@ -31,9 +31,9 @@ def header(**overrides):
 def test_numbers_match_interfaces():
     """번호는 cobot_interfaces 가 정본이다. 바뀌면 여기서 걸린다."""
     assert (power.CMD_HOLD, power.CMD_RELEASE_HOLD, power.CMD_RESET, power.CMD_START,
-            power.CMD_SOFT_LATCH) == (ArmCommand.CMD_HOLD, ArmCommand.CMD_RELEASE_HOLD,
-                                      ArmCommand.CMD_RESET, ArmCommand.CMD_START,
-                                      ArmCommand.CMD_SOFT_LATCH)
+            power.CMD_SOFT_LATCH, power.CMD_UNLATCH) == (
+        ArmCommand.CMD_HOLD, ArmCommand.CMD_RELEASE_HOLD, ArmCommand.CMD_RESET,
+        ArmCommand.CMD_START, ArmCommand.CMD_SOFT_LATCH, ArmCommand.CMD_UNLATCH)
     assert (power.ACCEPTED, power.REJECTED_EPOCH, power.REJECTED_SEQ, power.REJECTED_TTL,
             power.REJECTED_STATE, power.REJECTED_ROBOT_ID) == (
         CommandAck.ACCEPTED, CommandAck.REJECTED_EPOCH, CommandAck.REJECTED_SEQ,
@@ -82,6 +82,12 @@ def test_header_rejections(overrides, result):
     (power.CONNECTING, power.CMD_RESET, False, 'worker', False, ''),
     (power.RELEASING, power.CMD_RESET, False, 'worker', False, ''),
     (power.ARMED, power.CMD_RELEASE_HOLD, False, 'worker', True, 'release_hold'),
+    (power.LATCHED, power.CMD_UNLATCH, False, 'worker', True, 'unlatch'),
+    (power.LATCHED, power.CMD_UNLATCH, True, 'worker', True, 'unlatch'),
+    (power.ARMED, power.CMD_UNLATCH, False, 'worker', False, ''),
+    (power.DISARMED, power.CMD_UNLATCH, False, 'worker', False, ''),
+    (power.FAULT, power.CMD_UNLATCH, False, 'worker', False, ''),
+    (power.RELEASING, power.CMD_UNLATCH, False, 'worker', False, ''),
 ])
 def test_decide(state, command, busy, backend, ok, todo):
     got_ok, reason, got_todo = power.decide(state, command, busy, backend)

@@ -96,6 +96,14 @@ def test_make_command_rejects_unknown_arm_and_command():
     assert error.value.status == 400
 
 
+def test_unlatch_is_command_5_and_only_offered_when_latched():
+    commander = make()
+    _, command = commander.make_command(request('unlatch'), 100.0, 0.0)
+    assert command == 5 and arms.COMMAND_TEXT['unlatch'] == '잠금 해제'
+    assert 'unlatch' not in arms.STOP_COMMANDS
+    assert [s for s, allowed in arms.ALLOWED.items() if 'unlatch' in allowed] == [arms.SOFT_LATCH]
+
+
 def test_header_fields():
     commander = make()
     header, command = commander.make_command(request('START', arm_id='omx1'), 100.0, 0.0)

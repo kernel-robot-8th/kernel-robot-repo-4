@@ -123,6 +123,18 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 }
 .estop-all:hover:not(:disabled) { filter: brightness(1.1); }
 .estop-all:disabled { opacity: 0.45; cursor: default; }
+.unlatch-all {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--bad);
+  background: transparent;
+  color: var(--bad);
+  cursor: pointer;
+}
+.unlatch-all:disabled { opacity: 0.45; cursor: default; }
 
 /* 작업 명령 켜기/끄기: 꺼짐 = 회색 테두리, 켜짐 = 주황 (실물이 움직일 수 있는 상태) */
 .arm-toggle {

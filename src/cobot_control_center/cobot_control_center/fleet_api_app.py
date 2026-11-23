@@ -494,12 +494,18 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'client_request_id': body.get('client_request_id')})
 
     @app.post('/api/commands/estop')
-    def estop_all(body: dict = Body(default={})):
+    def estop_all(request: Request, body: dict = Body(default={})):
         end_teleop()
-        # 전체 비상정지: 로봇 지정 없이 한 번 내면 fleet 이 전 로봇·팔을 세운다.
+        # 전체 비상정지: 팔은 모두 잠그고(soft_latch, 응답 안 기다림) 로봇은 fleet 이 세운다.
+        # 팔 잠금은 발행만 해서 바로 끝난다. 작업 노드가 없어 로봇 정지가 503 이어도 팔은 이미 잠긴다.
+        # fleet 도 경로 팔에 정지(hold)를 따로 보낸다 (이중). 잠금은 사람이 잠금 해제로만 푼다.
+        arms_result = latch_all_arms(source(request))
         cancel_routes(None, '전체 비상정지')
-        return call_controller({
+        response = call_controller({
             'type': 'estop', 'client_request_id': body.get('client_request_id')})
+        content = json.loads(response.body or b'{}')
+        content['arms'] = arms_result
+        return JSONResponse(status_code=response.status_code, content=content)
 
     @app.post('/api/robots/{robot_id}/release_control')
     def release_control(robot_id: str, request: Request, body: dict = Body(default={})):
@@ -544,6 +550,11 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         # 멈춘 주문 복구: decision 'resume'(이어서 가기) 또는 'fail'(주문 취소).
         # 화면은 확인 창 한 번 뒤 보낸다 (2026-11-09 임시 일반형). 운영자·메모는 선택이고,
         # 이어서 가기 단계 제한·정지 상태·취소 전 자원 정리 검사는 fleet_control 이 한다.
+        # 잠긴 팔이 있으면 이어서 가기를 막는다: 팔이 거절 → 재시도 소진 → 보류로 헷갈리기 때문이다.
+        locked = latched_arms()
+        if body.get('decision') == 'resume' and locked:
+            raise HTTPException(status_code=409,
+                                detail=f'팔 잠금 먼저 해제 ({", ".join(locked)})')
         return call_controller({
             'type': 'resolve', 'order_id': order_id, 'decision': body.get('decision'),
             'client_request_id': body.get('client_request_id'),
@@ -594,12 +605,33 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                     'arms': []}
         return arms.snapshot()
 
-    def call_arm_node(payload, needs_armed=False):
-        """
-        로봇팔 명령 노드(arm_command_node)에 요청을 넘기고 그 응답 상태·본문을 그대로 돌려준다.
+    def latched_arms():
+        """지금 잠긴(SOFT_LATCH) 팔 이름 목록. 팔 상태를 모르면 빈 목록."""
+        if arms is None:
+            return []
+        return [a.get('arm_id') for a in arms.snapshot()['arms']
+                if a.get('state') == 'SOFT_LATCH' and a.get('arm_id')]
 
-        503 읽기 전용·명령 노드 꺼짐·응답 없음. needs_armed 면 '작업 명령 켜기'가 꺼져 있을 때 409.
+    def latch_all_arms(who):
         """
+        등록된 팔 전부에 비상정지(soft_latch)를 발행만 한다 (응답 안 기다림). 보낸 팔 목록과 사유.
+
+        정지 계열이라 팔 노드는 판정이 거부여도 멈춘다. 그래서 응답을 기다려 로봇 정지를 늦추지 않는다.
+        """
+        if arms is None or publish_arm_request is None:
+            return {'latched': [], 'detail': '로봇팔 명령 경로 없음 (읽기 전용)'}
+        ids = [a.get('arm_id') for a in arms.snapshot()['arms'] if a.get('arm_id')]
+        for arm_id in ids:
+            publish_arm_request(json.dumps({
+                'type': 'command', 'arm_id': arm_id, 'command': 'soft_latch',
+                'request_id': uuid.uuid4().hex, 'client_request_id': 'estop-' + uuid.uuid4().hex,
+                'source': f'전체 비상정지 {who}'.strip()}, ensure_ascii=False))
+        detail = '' if ids and arms.online() else \
+            '로봇팔 명령 노드 응답 없음: 팔 잠금이 안 갔을 수 있음 (팔 카드 확인)'
+        return {'latched': ids, 'detail': detail}
+
+    def arm_request(payload, needs_armed=False):
+        """call_arm_node 와 같은 검사를 하고 (상태, 본문) 을 돌려준다."""
         if arms is None or publish_arm_request is None:
             raise HTTPException(status_code=503, detail=READ_ONLY_DETAIL)
         if not arms.online():
@@ -612,11 +644,42 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         if result is None:
             raise HTTPException(status_code=503, detail='로봇팔 명령 노드가 제때 답하지 않음')
         status, reply = result
-        return JSONResponse(status_code=status, content=reply if isinstance(reply, dict) else {})
+        return status, reply if isinstance(reply, dict) else {}
+
+    def call_arm_node(payload, needs_armed=False):
+        """
+        로봇팔 명령 노드(arm_command_node)에 요청을 넘기고 그 응답 상태·본문을 그대로 돌려준다.
+
+        503 읽기 전용·명령 노드 꺼짐·응답 없음. needs_armed 면 '작업 명령 켜기'가 꺼져 있을 때 409.
+        """
+        status, reply = arm_request(payload, needs_armed)
+        return JSONResponse(status_code=status, content=reply)
+
+    @app.post('/api/arms/unlatch_all')
+    def arms_unlatch_all(request: Request, body: dict = Body(default={})):
+        # 전체 잠금 해제: 지금 잠긴 팔에만 잠금 해제(unlatch)를 차례로 보낸다. 팔은 움직이지 않는다.
+        # 화면은 잠긴 팔 목록을 보여 주는 확인 창 뒤에 보낸다. 다 풀리면 200, 하나라도 안 풀리면 409.
+        locked = latched_arms()
+        if not locked:
+            raise HTTPException(status_code=409, detail='잠긴 로봇팔이 없음')
+        results = {}
+        for arm_id in locked:
+            try:
+                status, reply = arm_request({
+                    'type': 'command', 'arm_id': arm_id, 'command': 'unlatch',
+                    'client_request_id': body.get('client_request_id'),
+                    'source': source(request)})
+            except HTTPException as error:
+                status, reply = error.status_code, {'detail': error.detail}
+            results[arm_id] = {'status': status, 'accepted': status == 200,
+                               'reason': reply.get('reason') or reply.get('detail') or ''}
+        ok = all(r['accepted'] for r in results.values())
+        return JSONResponse(status_code=200 if ok else 409,
+                            content={'ok': ok, 'results': results})
 
     @app.post('/api/arms/{arm_id}/command')
     def arm_command(arm_id: str, request: Request, body: dict = Body(default={})):
-        # 켜기(start)·끄기(reset)·정지(hold, soft_latch)·정지 해제(release_hold).
+        # 켜기(start)·끄기(reset)·정지(hold, soft_latch)·정지 해제(release_hold)·잠금 해제(unlatch).
         # 판정은 팔 노드가 한다: 200 수락(정지는 멈췄으면 200), 409 팔이 거절, 504 팔 응답 없음.
         return call_arm_node({
             'type': 'command', 'arm_id': arm_id, 'command': body.get('command'),

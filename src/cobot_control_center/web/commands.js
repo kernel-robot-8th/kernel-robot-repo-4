@@ -334,13 +334,15 @@ async function toggleArm() {
   render();
 }
 
-// 전체 비상정지: 모든 로봇을 그 자리에 세운다. 확인 창 없이 한꺼번에 보낸다.
+// 전체 비상정지: 모든 로봇을 그 자리에 세우고 로봇팔을 모두 잠근다. 확인 창 없이 한꺼번에 보낸다.
 async function stopAll() {
-  // fleet_control 은 로봇 지정 없는 estop 한 번으로 전 로봇·팔을 세운다.
+  // 백엔드가 팔 전부에 비상정지(soft_latch)를 먼저 내고, fleet_control 이 로봇 지정 없는 estop 으로 전 로봇을 세운다.
   const robots = Object.keys((view.snapshot && view.snapshot.robots) || {});
   cancelPick();
   const r = await postJson("/api/commands/estop", { client_request_id: newRequestId() });
-  const text = r.ok ? "전체 비상정지(estop) 보냄" : `전체 비상정지 실패 (${r.status}): ${errorText(r)}`;
+  const arms = (r.data && r.data.arms) || null;
+  const armText = !arms ? "" : arms.detail ? ` · 팔: ${arms.detail}` : ` · 팔 ${arms.latched.length}대 잠금`;
+  const text = (r.ok ? "전체 비상정지(estop) 보냄" : `전체 비상정지 실패 (${r.status}): ${errorText(r)}`) + armText;
   if (robots.length === 0) alert(text);
   robots.forEach((robotId) => showMessage(robotId, text, !r.ok));
 }

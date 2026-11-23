@@ -22,7 +22,8 @@
   DISARMED   팔 연결 없음. 토크 없음. 노드는 이 상태로 시작한다 (auto_start=false).
   CONNECTING CMD_START 를 받아 실행기가 팔에 연결하고 모델을 불러오는 중.
   ARMED      일을 받는다.
-  LATCHED    CMD_SOFT_LATCH 로 멈춘 상태. 토크는 유지. CMD_RESET 으로만 풀린다.
+  LATCHED    CMD_SOFT_LATCH 로 멈춘 상태. 토크는 유지. CMD_UNLATCH(잠금 해제, ARMED 로) 또는
+             CMD_RESET(끄기) 으로 풀린다. 작업 토픽의 release_hold 로는 안 풀린다 (자동 흐름은 잠금을 못 푼다).
   RELEASING  CMD_RESET 을 받아 실행기가 쉬는 자세인지 보고 연결을 끊는 중.
   FAULT      실행기가 죽음. 팔 상태 모름. CMD_RESET 으로 DISARMED 로 돌아간다.
 
@@ -38,8 +39,9 @@ import re
 
 # ArmCommand.CMD_*
 CMD_HOLD, CMD_RELEASE_HOLD, CMD_RESET, CMD_START, CMD_SOFT_LATCH = 0, 1, 2, 3, 4
+CMD_UNLATCH = 5
 COMMAND_NAMES = {CMD_HOLD: 'HOLD', CMD_RELEASE_HOLD: 'RELEASE_HOLD', CMD_RESET: 'RESET',
-                 CMD_START: 'START', CMD_SOFT_LATCH: 'SOFT_LATCH'}
+                 CMD_START: 'START', CMD_SOFT_LATCH: 'SOFT_LATCH', CMD_UNLATCH: 'UNLATCH'}
 # 정지 계열은 판정이 거부여도 정지한다 (ArmCommand.msg, D4)
 STOP_COMMANDS = frozenset({CMD_HOLD, CMD_SOFT_LATCH})
 
@@ -107,10 +109,14 @@ def decide(power, command, busy, backend_name):
     정지 계열이 아닌 명령이 지금 상태에서 되는지. (되는가, 이유, 할 일).
 
     할 일: 'connect' (실행기 켜기), 'release' (쉬는 자세면 끄기), 'clear' (실행기 없이 DISARMED 로),
-    'release_hold' (HOLD 해제).
+    'release_hold' (HOLD 해제), 'unlatch' (잠금 해제, 팔은 움직이지 않음).
     """
     if command == CMD_RELEASE_HOLD:
         return True, '', 'release_hold'
+    if command == CMD_UNLATCH:
+        if power != LATCHED:
+            return False, f'잠긴(LATCHED) 상태에서만 풀 수 있음 (지금 {power})', ''
+        return True, '', 'unlatch'
     if command == CMD_START:
         if backend_name == 'none':
             return False, '팔 동작 백엔드가 없음 (backend=none)', ''

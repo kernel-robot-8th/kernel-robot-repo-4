@@ -39,7 +39,10 @@
       <a class="link net-btn" href="/service/" title="매장 직원·관리자용 대시보드">매장 관리화면</a>
       <span class="updated" id="updated">수신 대기</span>
       <button type="button" class="estop-all" id="stop-all" disabled
-              title="모든 로봇을 그 자리에 세운다 (비상정지, 확인 창 없음)">전체 비상정지</button>
+              title="모든 로봇·로봇팔을 그 자리에 세우고 잠근다 (소프트웨어 정지, 전원 차단 아님, 확인 창 없음). 풀기: 전체 잠금 해제(팔) → 로봇 제어권 복구 → 작업 명령 켜기">전체 비상정지</button>
+      <!-- 잠긴 로봇팔이 있을 때만 보인다 (arms.js renderUnlatchAll) -->
+      <button type="button" class="unlatch-all" id="unlatch-all" hidden
+              title="잠긴 로봇팔을 모두 잠금 해제 (팔은 움직이지 않음, 확인 창)">전체 잠금 해제</button>
     </div>
   </header>
 
@@ -508,6 +511,7 @@
             <button type="button" data-arm-cmd="start"></button>
             <button type="button" data-arm-cmd="reset"></button>
             <button type="button" data-arm-cmd="release_hold"></button>
+            <button type="button" data-arm-cmd="unlatch"></button>
           </div>
           <div class="cmd-row arm-work-row"
                title="개발용 작업 시험: 팔 하나에 작업 한 건. 실제 팔이 움직입니다. 주문 진행 중에는 쓰지 마세요">

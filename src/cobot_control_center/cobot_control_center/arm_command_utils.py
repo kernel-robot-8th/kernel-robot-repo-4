@@ -39,7 +39,7 @@ import re
 import uuid
 
 # ArmCommand.CMD_* (웹은 소문자 이름으로 보낸다)
-COMMANDS = {'hold': 0, 'release_hold': 1, 'reset': 2, 'start': 3, 'soft_latch': 4}
+COMMANDS = {'hold': 0, 'release_hold': 1, 'reset': 2, 'start': 3, 'soft_latch': 4, 'unlatch': 5}
 STOP_COMMANDS = frozenset({'hold', 'soft_latch'})
 START = 'start'
 # 작업 시험 (팔 노드 work_contract_utils.WORK_ACTIONS 와 같다). hold·release_hold 는 위 정지 명령을 쓴다.
@@ -87,14 +87,14 @@ ALLOWED = {
     READY: (WORK, 'reset', 'hold', 'soft_latch'),   # work: 작업 시험 (진행 중이면 뺀다)
     BUSY: ('hold', 'soft_latch'),
     HOLD: ('release_hold', 'reset', 'soft_latch'),
-    SOFT_LATCH: ('reset', 'hold'),
+    SOFT_LATCH: ('unlatch', 'reset', 'hold'),      # 잠금 해제(unlatch)는 사람이 확인 창 뒤에만 보낸다
 }
 
 # 알람·기록 문구용 화면 상태 이름 (web/arms.js ARM_STATE 와 같은 말)
 STATE_TEXT = {STALE: '미연결', OFF: '꺼짐', FAULT: '고장', READY: '대기', BUSY: '작업·연결 중',
               HOLD: '정지', SOFT_LATCH: '비상정지'}
 COMMAND_TEXT = {'start': '켜기', 'reset': '끄기', 'hold': '정지', 'release_hold': '정지 해제',
-                'soft_latch': '비상정지'}
+                'soft_latch': '비상정지', 'unlatch': '잠금 해제'}
 # 대기 ↔ 작업 중은 작업마다 바뀌어 기록이 넘친다. 작업 결과 기록으로 대신한다.
 QUIET_CHANGES = frozenset({(READY, BUSY), (BUSY, READY)})
 

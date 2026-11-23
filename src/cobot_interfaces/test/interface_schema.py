@@ -291,6 +291,7 @@ REQUIRED_CONSTANTS = (
     ('ArmCommand', 0, 'CMD_RESET', 'uint8', '2'),
     ('ArmCommand', 0, 'CMD_START', 'uint8', '3'),
     ('ArmCommand', 0, 'CMD_SOFT_LATCH', 'uint8', '4'),
+    ('ArmCommand', 0, 'CMD_UNLATCH', 'uint8', '5'),
     ('FmsHeartbeat', 0, 'MODE_RUN', 'uint8', '0'),
     ('FmsHeartbeat', 0, 'MODE_PAUSE', 'uint8', '1'),
     ('FmsHeartbeat', 0, 'MODE_SOFT_LATCH', 'uint8', '2'),
