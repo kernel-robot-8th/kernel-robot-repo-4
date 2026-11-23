@@ -73,6 +73,34 @@ def cpu_percent(prev, cur):
     return round(100.0 * (total - idle) / total, 1)
 
 
+class WarnLatch:
+    """
+    값이 문턱 근처에서 오르내려도 경고가 깜빡이지 않게 켜는 값·끄는 값·이어진 시간을 따로 둔다.
+
+    꺼진 상태: value >= on 이 hold_sec 이상 이어지면 켠다 (중간에 on 밑으로 내려가면 다시 센다).
+    켜진 상태: value < off 가 되면 끈다. value 가 None(측정 못 함)이면 상태를 그대로 둔다.
+    """
+
+    def __init__(self, on, off, hold_sec):
+        self.on, self.off, self.hold_sec = float(on), float(off), float(hold_sec)
+        self.active = False
+        self._since = None   # on 이상이 처음 보인 시각
+
+    def update(self, value, now):
+        if value is None:
+            return self.active
+        if self.active:
+            if value < self.off:
+                self.active, self._since = False, None
+        elif value >= self.on:
+            if self._since is None:
+                self._since = now
+            self.active = now - self._since >= self.hold_sec
+        else:
+            self._since = None
+        return self.active
+
+
 def parse_meminfo(text):
     """/proc/meminfo → {'total_mb', 'used_pct'} (사용 = 전체 - MemAvailable)."""
     values = {}

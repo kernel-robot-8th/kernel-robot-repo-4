@@ -733,6 +733,10 @@ def system_checks(system, thresholds):
         return WARN if limit is not None and value >= limit else OK
 
     cpu = s.get('cpu_pct')
+    # 보고 노드가 이어서 판정한 값(cpu_warn)이 있으면 그것을 쓴다. 옛 보고 노드는 문턱값 하나로.
+    latched = s.get('cpu_warn')
+    cpu_state = (judge(cpu, 'cpu_warn_pct') if not isinstance(latched, bool) or cpu is None
+                 else WARN if latched else OK)
     load = s.get('load1')
     cpu_text = ('측정 중' if cpu is None else f'{cpu:.0f}%') + (
         f' · 부하 {load:.2f}' if load is not None else '') + (
@@ -744,7 +748,7 @@ def system_checks(system, thresholds):
     temp = s.get('temp_c')
     disk = s.get('disk_pct')
     return [
-        _check('CPU', judge(cpu, 'cpu_warn_pct'), cpu_text),
+        _check('CPU', cpu_state, cpu_text),
         _check('메모리', judge(used, 'mem_warn_pct'), mem_text),
         _check('온도', judge(temp, 'temp_warn_c'),
                '모름' if temp is None else f'{temp:.0f}°C ({s.get("temp_zone") or "?"})'),
