@@ -42,6 +42,7 @@ from cobot_control_center.fleet_api_utils import (
 from cobot_control_center.net_status_utils import (
     collect_network, HostStore, local_info, NetAlertTracker, NetStore, network_alerts)
 from cobot_control_center.route_utils import RouteRunner
+from cobot_control_center.site_arms_utils import load_site_arms
 from cobot_control_center.teleop_utils import TeleopStore
 from cobot_control_center.waypoint_utils import WaypointStore
 import rclpy
@@ -153,6 +154,7 @@ class FleetApiNode(Node):
             f'웨이포인트: {self.waypoints.path} ({len(self.waypoints.poses())}개)')
         self.cameras = self._subscribe_cameras()
         self.cctv = self._setup_cctv()
+        self.arm_videos = self._setup_arm_videos()
         self._setup_network()
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
@@ -193,6 +195,34 @@ class FleetApiNode(Node):
                          idle_sec=float(self.get_parameter('cctv_idle_sec').value),
                          reconnect_sec=float(self.get_parameter('cctv_reconnect_sec').value),
                          timeout_sec=float(self.get_parameter('cctv_timeout_sec').value))
+
+    def _setup_arm_videos(self):
+        # 팔 카메라: 팔 실행기(omx_fleet cam_preview)의 MJPEG 을 받아 /api/arms/<팔>/camera/<역할> 로 다시 낸다.
+        # 주소는 현장 팔 배치(site_arms.yaml) 의 video. 보는 사람이 있을 때만 붙으므로 미리 만들어도 부담이 없다.
+        # 연결 시간 값은 현장영상(cctv_*)과 같은 것을 쓴다.
+        self.declare_parameter('site_arms_file', '')
+        self.declare_parameter('arm_video_roles', ['top', 'wrist'])
+        path = self.get_parameter('site_arms_file').value
+        if not path:
+            self.get_logger().info('팔 카메라: 끔 (site_arms_file 비어 있음)')
+            return {}
+        try:
+            site = load_site_arms(path)
+        except ValueError as error:
+            self.get_logger().error(f'팔 카메라: 현장 팔 배치를 읽지 못함 ({path}): {error}')
+            return {}
+        roles = [r for r in self.get_parameter('arm_video_roles').value if r]
+        timing = {key: float(self.get_parameter(f'cctv_{key}').value)
+                  for key in ('idle_sec', 'reconnect_sec', 'timeout_sec')}
+        videos = {}
+        for arm_id, info in site.items():
+            if info['video']:
+                videos[arm_id] = {role: CctvRelay(f'{info["video"]}/{role}', **timing)
+                                  for role in roles}
+        self.get_logger().info(
+            '팔 카메라: ' + (', '.join(f'{a}={site[a]["video"]}' for a in videos) or '주소 없음')
+            + ' (보는 사람이 있을 때만 연결)')
+        return videos
 
     def _setup_network(self):
         # 네트워크 화면(#/network): 측정 노드(net_status_node) 값 + 이 PC 의 DDS·노드 목록.
@@ -364,7 +394,7 @@ def main(args=None):
                          routes=node.routes, teleop=node.teleop,
                          publish_teleop=None if node.read_only else node.publish_teleop,
                          waypoints=node.waypoints, cctv=node.cctv,
-                         vision_label=node.vision_label)
+                         vision_label=node.vision_label, arm_videos=node.arm_videos)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):
@@ -375,6 +405,9 @@ def main(args=None):
                 node.routes.shutdown()
             if node.cctv is not None:
                 node.cctv.shutdown()
+            for roles in node.arm_videos.values():
+                for relay in roles.values():
+                    relay.shutdown()
             executor.shutdown()
             node.destroy_node()
             rclpy.try_shutdown()

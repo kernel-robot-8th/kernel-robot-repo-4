@@ -77,7 +77,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
                hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None,
-               cctv=None, vision_label=None):
+               cctv=None, vision_label=None, arm_videos=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -101,7 +101,10 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     waypoints 는 WaypointStore (관제 웨이포인트·묶음) 또는 None 이다. 이동·경로의 지점 이름 중
     관제 웨이포인트는 좌표를 poses 로 실어 작업 노드에 넘긴다 (순찰 노드가 좌표로 간다).
     cctv 는 CctvRelay (현장영상 중계) 또는 None 이다. None 이면 /api/cctv 는 404 다.
+    arm_videos 는 {팔 이름(omx_1): {역할(top·wrist): CctvRelay}} (팔 실행기 카메라 미리보기 중계) 또는 None 이다.
+    없는 팔·역할의 /api/arms/{arm_id}/camera/{role} 은 404 다.
     """
+    arm_videos = arm_videos or {}
     app = FastAPI(title='cobot control center API', version='0.1.0')
 
     def source(request):
@@ -143,6 +146,9 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                 **store.health(), **task_health,
                 'cameras': camera_health,
                 'cctv': cctv.health() if cctv is not None else None,
+                # arm_cameras: 팔 상세화면 영상 칸 상태 {팔: {역할: 중계 상태}}. 주소가 없는 팔은 빠진다.
+                'arm_cameras': {arm_id: {role: relay.health() for role, relay in roles.items()}
+                                for arm_id, roles in arm_videos.items()},
                 # routes: 로봇별 마지막 경로 (진행 중이면 state RUNNING). 화면 카드의 경로 진행 표시용.
                 'routes': routes.routes()['robots'] if routes is not None else {},
                 'arm_controller_online': arms is not None and arms.online(),
@@ -243,10 +249,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         return Response(content=frame[1], media_type='image/jpeg',
                         headers={'Cache-Control': 'no-store'})
 
-    @app.get('/api/cctv')
-    def cctv_stream():
-        relay = cctv_or_404()
-
+    def relay_stream(relay):
+        """MJPEG 중계(CctvRelay) 하나를 multipart 응답으로 낸다. 현장영상·팔 카메라가 같이 쓴다."""
         async def frames():
             # 보는 동안만 원본에 붙는다. 창을 닫으면 Starlette 가 생성기를 취소하고 finally 에서 뺀다.
             relay.acquire()
@@ -267,6 +271,31 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         return StreamingResponse(
             frames(), media_type=f'multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}',
             headers={'Cache-Control': 'no-store'})
+
+    @app.get('/api/cctv')
+    def cctv_stream():
+        return relay_stream(cctv_or_404())
+
+    # ---------- 팔 카메라 (팔 실행기 미리보기 MJPEG 을 중계, 팔 상세화면 #/arm/<팔>) ----------
+
+    def arm_video_or_404(arm_id, role):
+        relay = arm_videos.get(arm_id, {}).get(role)
+        if relay is None:
+            raise HTTPException(status_code=404,
+                                detail=f'{arm_id} {role} 카메라 주소가 없음 (site_arms.yaml video)')
+        return relay
+
+    @app.get('/api/arms/{arm_id}/camera/{role}.jpg')
+    def arm_camera_frame(arm_id: str, role: str):
+        frame = arm_video_or_404(arm_id, role).latest()
+        if frame is None:
+            raise HTTPException(status_code=404, detail='아직 받은 팔 카메라 장면이 없음')
+        return Response(content=frame[1], media_type='image/jpeg',
+                        headers={'Cache-Control': 'no-store'})
+
+    @app.get('/api/arms/{arm_id}/camera/{role}')
+    def arm_camera_stream(arm_id: str, role: str):
+        return relay_stream(arm_video_or_404(arm_id, role))
 
     @app.get('/api/events')
     def events(after: int = Query(0, ge=0), robot: str | None = None,

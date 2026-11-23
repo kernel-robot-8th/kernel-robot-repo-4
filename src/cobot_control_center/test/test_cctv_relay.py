@@ -142,3 +142,28 @@ def test_cctv_routes():
     assert frame.status_code == 200
     assert frame.headers['content-type'] == 'image/jpeg'
     assert frame.content == JPEG_A
+
+
+def test_arm_camera_routes():
+    # 팔 카메라: 팔 실행기 미리보기를 같은 중계(CctvRelay)로 받아 /api/arms/<팔>/camera/<역할> 로 낸다.
+    store = SnapshotStore(3.0)
+    without = TestClient(create_app(store))
+    assert without.get('/api/health').json()['arm_cameras'] == {}
+    assert without.get('/api/arms/omx_1/camera/top').status_code == 404
+
+    def empty(url, timeout):
+        return FakeStream(b'')
+
+    top = CctvRelay('http://127.0.0.1:8091/top', open_stream=empty)
+    wrist = CctvRelay('http://127.0.0.1:8091/wrist', open_stream=empty)
+    client = TestClient(create_app(store, arm_videos={'omx_1': {'top': top, 'wrist': wrist}}))
+    cams = client.get('/api/health').json()['arm_cameras']
+    assert set(cams) == {'omx_1'} and set(cams['omx_1']) == {'top', 'wrist'}
+    assert cams['omx_1']['top']['url'] == 'http://127.0.0.1:8091/top'
+    assert client.get('/api/arms/omx_1/camera/top.jpg').status_code == 404   # 아직 장면 없음
+    assert client.get('/api/arms/omx_1/camera/side.jpg').status_code == 404  # 없는 역할
+    assert client.get('/api/arms/omx_2/camera/top').status_code == 404       # 주소 없는 팔
+    top.put(JPEG_A)
+    frame = client.get('/api/arms/omx_1/camera/top.jpg')
+    assert frame.status_code == 200 and frame.content == JPEG_A
+    assert client.get('/api/arms/omx_1/camera/wrist.jpg').status_code == 404
