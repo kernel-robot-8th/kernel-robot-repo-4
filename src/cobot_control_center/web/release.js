@@ -107,7 +107,7 @@ function currentProblem(robotId, skipLoad = false) {
   const order = orderBlocked(robotId);
   if (order) {
     return { kind: "order", text: orderBlockedText(order),
-      reason: `주문 ${order.order_id} 멈춤: 이어서 가기 또는 취소 필요`,
+      reason: `주문 ${order.order_id} 멈춤: ${recoverChoices(order)} 중 고르기`,
       open: () => recoverOrder(robotId) };
   }
   const unknown = robotTask(robotId, UNKNOWN_TASK);

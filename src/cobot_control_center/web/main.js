@@ -116,6 +116,7 @@ setupToggle("show-points", SHOW_POINTS_KEY, "showPoints", "points-off");
 setupPick();
 setupRaw();
 setupLoad();
+setupRecover();
 setupDetail();
 setupTeleop();
 setupWaypoints();

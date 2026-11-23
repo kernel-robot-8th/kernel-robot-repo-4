@@ -52,7 +52,11 @@
 화면은 팔 퇴피, 화물 정리, 작업장·통로 이탈을 각각 묻습니다. 실제 정리 전에는 승인하지 않습니다.
 주문 취소로 자원을 해제하더라도 로봇 보류는 해제 응답 전까지 유지합니다.
 배정 전 취소된 배송 주문만 예약 재고를 한 번 반환합니다. 배정 이후 화물·재고는 현장 대조 대상입니다.
-주문 재개의 단계 제한 `RESUME_STAGES`는 유지합니다.
+주문 재개의 단계 제한 `RESUME_STAGES`는 유지합니다. 팔 단계(`ARM_STAGES`)에서 멈춘 주문은 `resume`이
+'다시 하기'가 됩니다. `evidence`의 `arms_safe`·`item_ready`(물건을 처음 자리에 돌려놓음)가 true여야 하고,
+`RETRY_FROM`(싣기 → 집기, 내리기 → 하차 집기)부터 다시 보냅니다. `decision: done`(사람이 처리함)은
+`HAND_DONE`의 하차·정리·선반 반환 단계만 받고, `arms_safe`·`item_placed`가 true면 그 단계를
+`operator_completed`로 적고 다음 단계로 갑니다. 상차는 `confirm_loaded`를 씁니다 (2026-11-23).
 
 제어권 복구와 단일 작업 해제의 202는 요청 접수입니다. 같은 로봇 부팅에서 `control_reset_id`가 요청 ID와
 일치하고, 최신 `busy=false`, `central_controlled=true`, `central_latched=false` 상태를 받아야 완료합니다.
@@ -102,6 +106,7 @@ MOVE_PICKUP(zone ZB) → PICKUP_EXIT → DOCK_PICKUP → MARKER → PICK(omx2) �
   정지·해제 때 `hold`/`release_hold`는 세 팔 모두에 보냅니다.
 - 상차장 이동 때는 상차장만 예약하고, 정리·반환 구역은 그곳으로 갈 때 예약합니다.
 - 회수 단계에서 팔이 `retry_safe` 없이 실패하면 주문을 보류(UNKNOWN)하고 복귀하지 않습니다.
+  운영자가 현장을 보고 다시(`resume`)·사람이 처리함(`done`)·취소(`fail`) 중 고릅니다.
 - 재고는 선반 반환(`RESTOCK`)이 끝나야 돌아옵니다. 별도 회수 주문(`-return`)은 만들지 않습니다.
 - 이어서 가기(복구)는 `MOVE_CUSTOMER`·`MOVE_ARRANGE`·`MOVE_RESTOCK`에서도 받습니다.
 - QR 주소: `http://<관제 PC IP>:<포트>/?loc=P22`.

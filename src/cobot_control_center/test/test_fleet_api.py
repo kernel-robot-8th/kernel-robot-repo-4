@@ -788,6 +788,10 @@ def test_fleet_order_recover_passes_through_with_source():
     assert sent[0] == dict(sent[0], type='resolve', order_id='o1', decision='resume',
                            client_request_id='r1', source='testclient')
     assert 'task_id' not in sent[0]
+    # 사람이 처리함(done)과 현장 확인(evidence)도 그대로 넘긴다. 검사는 fleet 이 한다.
+    evidence = {'arms_safe': True, 'item_placed': True}
+    client.post('/api/orders/o1/recover', json={'decision': 'done', 'evidence': evidence})
+    assert sent[1]['decision'] == 'done' and sent[1]['evidence'] == evidence
 
 
 def test_fleet_confirm_loaded_returns_rejection_reason():
@@ -846,21 +850,26 @@ def test_active_orders_hide_finished_and_internal_fields():
                          'stage': 'DOCK_PICKUP', 'completed': ['MOVE_PICKUP'], 'sku': 'box_a',
                          'route': 'lab_delivery', 'detail': '정차 실측 대기',
                          'load_confirmed': False, 'load_confirmable': True,
-                         'blocked': False, 'resumable': False}
+                         'blocked': False, 'resumable': False, 'retryable': False,
+                         'hand_done': False}
     assert result[1]['load_confirmable'] is False
     assert result[2]['load_confirmed'] is True and result[2]['load_confirmable'] is False
     assert active_orders(None) == [] and active_orders({'o1': {}}) == []
 
 
 def test_active_orders_mark_blocked_and_resumable():
-    # 멈춘 주문: 이동 단계면 이어서 가기, 팔 단계면 취소만 (fleet scenario_safety.recover 와 같음)
+    # 멈춘 주문: 이동 단계면 이어서 가기, 팔 단계면 다시·(하차·정리·반환은) 사람이 처리함
     driving = dict(WAITING_LOAD, state='ESTOP', stage='MOVE_DROPOFF')
     arm = dict(WAITING_LOAD, state='ESTOP', stage='LOAD')
     waiting = dict(WAITING_LOAD, state='PAUSED', stage='MOVE_PICKUP', robot_id=None)
-    first, second, third = active_orders([driving, arm, waiting])
-    assert first['blocked'] and first['resumable']
+    arrange = dict(WAITING_LOAD, state='UNKNOWN', stage='ARRANGE')
+    first, second, third, fourth = active_orders([driving, arm, waiting, arrange])
+    assert first['blocked'] and first['resumable'] and not first['retryable']
+    # 팔 단계: 다시 됨. 상차(LOAD)는 사람이 처리함 대신 수동 상차 확인
     assert second['blocked'] and not second['resumable']
-    assert not third['blocked']
+    assert second['retryable'] and not second['hand_done']
+    assert not third['blocked'] and not third['retryable']
+    assert fourth['retryable'] and fourth['hand_done']
 
 
 def test_health_reports_active_orders():
@@ -1178,6 +1187,7 @@ def test_service_order_steps_and_flags():
     assert stuck['blocked'] is True and stuck['resumable'] is True and stuck['step'] == 2
     stuck_pick = service_order(service_raw('o5', state='UNKNOWN', stage='PICK'))
     assert stuck_pick['blocked'] is True and stuck_pick['resumable'] is False
+    assert stuck_pick['retryable'] is True and stuck_pick['hand_done'] is False
     back = service_order(service_raw('o6', stage='ARRANGE', customer_declined=True))
     assert back['step'] == 4 and back['returning'] is True
     odd = service_order(service_raw('o7', stage='NEW_STAGE'))
@@ -1333,6 +1343,8 @@ def test_resume_blocked_while_arm_latched_but_fail_allowed():
     res = client.post('/api/orders/o1/recover', json={'decision': 'resume'})
     assert res.status_code == 409 and res.json()['detail'] == '팔 잠금 먼저 해제 (omx_2)'
     assert sent == []
+    res = client.post('/api/orders/o1/recover', json={'decision': 'done'})
+    assert res.status_code == 409 and sent == []
     assert client.post('/api/orders/o1/recover', json={'decision': 'fail'}).status_code == 200
     arm_store.put_snapshot(json.dumps(two_arms()))
     assert client.post('/api/orders/o1/recover', json={'decision': 'resume'}).status_code == 200

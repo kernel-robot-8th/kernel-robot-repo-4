@@ -191,3 +191,65 @@ def test_seat_route_cannot_be_used_for_a_separate_return_order(env):
     with pytest.raises(ValueError, match='회수 주문 불가'):
         env.scenario.submit(dict(order_id='back', sku='SHOE42', route='col1__P22',
                                  kind='return'))
+
+
+SITE_OK = dict(arms_safe=True, item_ready=True)
+HAND_OK = dict(arms_safe=True, item_placed=True)
+
+
+def fail_arrange(env):
+    """신발 정리에서 팔이 움직인 뒤 성공 판단이 안 나온 실패 (retry_safe 없음) → 현장 확인 보류."""
+    env.order()
+    env.until('CUSTOMER')
+    env.scenario.declined('order1')
+    for _ in range(20):
+        if env.current()['stage'] == 'ARRANGE' and env.current()['request_id']:
+            break
+        env.step()
+    failed = env.result(success=False, data={'arm_safe': True, 'end_reason': 'timeout'},
+                        detail='성공 판단 안 나옴 (end_reason=timeout)')
+    assert env.current()['state'] == 'UNKNOWN'
+    return failed
+
+
+def echo_reset(env):
+    """로봇이 정지 해제를 반향했다고 알린다 (이어서 가기·다시·사람이 처리함 공통)."""
+    env.scenario.telemetry('pinky1', dict(
+        state='IDLE', busy=False, central_controlled=True, central_latched=False,
+        control_reset_id=env.current()['reset_request_id']), 80.0)
+    env.scenario.tick()
+
+
+def arranges(env):
+    return [w for w in env.works() if w[0] == 'ARRANGE']
+
+
+def test_failed_arrange_needs_site_check_then_retries_the_same_arm_step(env):
+    failed = fail_arrange(env)
+    with pytest.raises(ValueError, match='물건 제자리'):
+        env.scenario.recover('order1', None, None, 'resume', {'arms_safe': True})
+    env.scenario.recover('order1', None, None, 'resume', SITE_OK)
+    assert env.current()['state'] == 'RUNNING' and env.current()['stage'] == 'ARRANGE'
+    # 정지 해제는 로봇과 경로 팔(release_hold) 모두에 보낸다.
+    assert env.gateway.releases[-1][0] == 'pinky1'
+    echo_reset(env)
+    assert len(arranges(env)) == 2
+    # 앞 시도의 늦은 결과는 새 시도의 결과로 받지 않는다.
+    assert not env.scenario.result(dict(failed, success=True, data=dict(DEVICE_OK)))
+    assert env.current()['stage'] == 'ARRANGE'
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and 'ARRANGE' in order['completed']
+    assert env.stock('SHOE42') == 10
+
+
+def test_failed_arrange_done_by_hand_goes_on_to_leave_the_zone(env):
+    fail_arrange(env)
+    with pytest.raises(ValueError, match='물건 놓음'):
+        env.scenario.recover('order1', None, None, 'done', {'arms_safe': True})
+    env.scenario.recover('order1', 'jihye', '손으로 정리함', 'done', HAND_OK)
+    order = env.current()
+    assert order['stage'] == 'LEAVE_ARRANGE' and 'ARRANGE' in order['operator_completed']
+    echo_reset(env)
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and len(arranges(env)) == 1
+    assert env.commands()[3:] == ['zone:ZC', 'leave', 'zone:ZA', 'leave', 'home']

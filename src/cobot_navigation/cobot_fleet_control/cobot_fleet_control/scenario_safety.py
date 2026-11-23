@@ -4,8 +4,9 @@ import time
 
 from .control_release import require_stopped
 
-from .scenario_contracts import (BLOCKED, identifier, NAVIGATION, operator_or_default,
-                                 optional_text, RESUME_STAGES, TERMINAL)
+from .scenario_contracts import (ARM_STAGES, BLOCKED, HAND_DONE, identifier, NAVIGATION,
+                                 operator_or_default, optional_text, RESUME_STAGES, RETRY_FROM,
+                                 TERMINAL)
 
 
 def interrupt(service, order_id, state, detail):
@@ -118,7 +119,12 @@ def confirm_loaded(service, order_id, operator, note, evidence):
 
 # 운영자·메모는 선택. 자원을 예약한 주문의 취소에는 실제 정리 확인이 필요하다.
 def recover(service, order_id, operator, note, decision, evidence, source=''):
-    """정지·통신 복구 후에는 자동 재개하지 않고 운영자의 이어서 가기·취소를 받는다."""
+    """
+    정지·통신 복구 후에는 자동 재개하지 않고 운영자의 결정을 받는다.
+
+    resume: 이동 단계는 이어서 가기, 팔 단계는 다시 하기(팔 퇴피·물건 제자리 확인).
+    done: 하차·정리·선반 반환 팔 단계를 사람이 처리함으로 적고 다음 단계로. fail: 주문 취소.
+    """
     operator = operator_or_default(operator)
     note = optional_text(note, '복구 note', '화면에서 현장 확인 후 복구')
     order = service.store.get(identifier(order_id, 'order_id'))
@@ -126,8 +132,8 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
         raise ValueError('중단된 주문만 복구 가능')
     if evidence is not None and not isinstance(evidence, dict):
         raise ValueError('evidence는 객체')
-    if decision not in ('resume', 'fail'):
-        raise ValueError('decision: resume 또는 fail')
+    if decision not in ('resume', 'done', 'fail'):
+        raise ValueError('decision: resume, done 또는 fail')
     robot = order['robot_id']
     if robot:
         require_stopped(service, robot)
@@ -136,9 +142,10 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
         if not evidence or any(evidence.get(key) is not True for key in required):
             raise ValueError('취소 전 팔 퇴피·화물 정리·작업장과 통로 이탈 확인 필요 '
                              '(arms_safe, cargo_reconciled, resources_clear)')
-    if decision == 'resume':
-        if order['stage'] not in RESUME_STAGES:
-            raise ValueError('물리 작업 중단은 fail로 종결 후 새 주문: 임의 재피킹 금지')
+    stage = order['stage']
+    checkpoint = None
+    if decision in ('resume', 'done'):
+        checkpoint = _checkpoint(order, stage, decision, evidence)
         if not service.armed or (robot and not service._fresh(robot)):
             raise ValueError('가동 허용 및 최신 통신 상태 필요')
     if robot:
@@ -149,9 +156,10 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
             if not isinstance(order['reset_request_id'], str) or not order['reset_request_id']:
                 raise RuntimeError('정지 해제 명령 ID 누락: 주문 보류 유지')
     service.store.event(dict(type='recovery', order_id=order_id, operator=operator,
-                             note=note, decision=decision, evidence=evidence, source=source))
+                             note=note, decision=decision, evidence=evidence, source=source,
+                             stage=stage, checkpoint=checkpoint))
     # 현장 확인을 마친 뒤 정지된 하위 명령이 로봇 예약을 계속 잡고 있지 않도록 한다.
-    if decision == 'resume':
+    if decision != 'fail':
         for command_id in service.fleet.repository.active_commands(robot):
             service.fleet.forget(command_id)
             service.fleet.repository.transition(command_id, 'FAILED', '시나리오 운영자 복구: ' + note)
@@ -161,9 +169,48 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
         # 배정 전에는 어떤 장치에도 보낼 수 없으므로 예약분을 확실히 반환할 수 있다.
         service.store.close_order(order, restock=order['kind'] == 'delivery' and robot is None)
     else:
+        _apply_checkpoint(service, order, stage, checkpoint, decision)
         service._save(order, state='RUNNING' if robot else 'WAITING', request_id=None,
                       detail=note, reset_pending=bool(robot))
         service.deadlines[order_id] = service.clock() + service.config['stale_sec']
-    if robot and decision == 'resume':
+    if robot and decision != 'fail':
         service.store.clear_hold(robot)
     return service.store.get(order_id)
+
+
+def _checkpoint(order, stage, decision, evidence):
+    """이어서 가기·다시·사람이 처리함이 되는 단계인지 보고 다시 시작할 단계를 돌려준다."""
+    evidence = evidence or {}
+    if decision == 'resume' and stage in RESUME_STAGES:
+        return stage
+    if decision == 'resume' and stage in ARM_STAGES:
+        # 팔이 움직인 뒤라 사람이 팔 퇴피와 물건을 처음 자리에 돌려놓은 것을 확인해야 다시 한다.
+        if evidence.get('arms_safe') is not True or evidence.get('item_ready') is not True:
+            raise ValueError('팔 단계 다시 하기: 팔 퇴피·물건 제자리 확인 필요 '
+                             '(arms_safe, item_ready)')
+        return RETRY_FROM.get(stage, stage)
+    if decision == 'done' and stage in HAND_DONE:
+        if evidence.get('arms_safe') is not True or evidence.get('item_placed') is not True:
+            raise ValueError('사람이 처리함: 팔 퇴피·물건 놓음 확인 필요 (arms_safe, item_placed)')
+        return HAND_DONE[stage]
+    if decision == 'done':
+        raise ValueError('사람이 처리함은 하차·정리·선반 반환 팔 단계에서만 (상차는 수동 상차 확인)')
+    raise ValueError('물리 작업 중단은 fail로 종결 후 새 주문: 임의 재피킹 금지')
+
+
+def _apply_checkpoint(service, order, stage, checkpoint, decision):
+    """다시: 시작 단계부터 완료 기록·재시도 횟수를 지운다. 사람이 처리함: 건너뛴 단계를 사람 완료로."""
+    if decision == 'resume' and stage in RESUME_STAGES:
+        return
+    from .scenario_tree import CUSTOMER_STAGES, STAGES
+    stages = CUSTOMER_STAGES if 'customer' in service._route(order) else STAGES
+    if decision == 'resume':
+        redo = set(stages[stages.index(checkpoint):stages.index(stage) + 1])
+        order['completed'] = [s for s in order['completed'] if s not in redo]
+        for name in redo:
+            order['retries'].pop(name, None)
+    else:
+        done = stages[stages.index(stage):stages.index(checkpoint)]
+        order['operator_completed'] = list(dict.fromkeys(
+            list(order.get('operator_completed', [])) + list(done)))
+    order.update(stage=checkpoint, attempt=0)

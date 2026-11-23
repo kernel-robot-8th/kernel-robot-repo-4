@@ -477,6 +477,10 @@ LOAD_CONFIRM_STAGES = {'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER',
 ORDER_BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
 ORDER_RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER',
                        'MOVE_CUSTOMER', 'MOVE_ARRANGE', 'MOVE_RESTOCK'}
+# 팔 단계에서 멈춘 주문: '다시'(팔 퇴피·물건 제자리 확인) 와 '사람이 처리함'(하차·정리·반환만).
+# fleet 의 scenario_contracts.ARM_STAGES·HAND_DONE 키를 복사한 값이다. 상차는 수동 상차 확인을 쓴다.
+ORDER_ARM_RETRY_STAGES = {'PICK', 'LOAD', 'PICK_DROPOFF', 'UNLOAD', 'ARRANGE', 'RESTOCK'}
+ORDER_HAND_DONE_STAGES = {'PICK_DROPOFF', 'UNLOAD', 'ARRANGE', 'RESTOCK'}
 # 화면에 내는 주문 필드. 원장 사본(input 등)을 그대로 내지 않는다.
 ORDER_FIELDS = ('order_id', 'robot_id', 'state', 'stage', 'completed', 'sku', 'route', 'detail')
 
@@ -560,6 +564,8 @@ def active_orders(orders):
         item['load_confirmable'] = load_confirmable(order)
         item['blocked'] = order.get('state') in ORDER_BLOCKED and bool(order.get('robot_id'))
         item['resumable'] = item['blocked'] and order.get('stage') in ORDER_RESUME_STAGES
+        item['retryable'] = item['blocked'] and order.get('stage') in ORDER_ARM_RETRY_STAGES
+        item['hand_done'] = item['blocked'] and order.get('stage') in ORDER_HAND_DONE_STAGES
         result.append(item)
     return result
 
@@ -628,6 +634,8 @@ def service_order(order):
     item['load_confirmable'] = state not in ORDER_TERMINAL and load_confirmable(order)
     item['blocked'] = state in ORDER_BLOCKED and bool(order.get('robot_id'))
     item['resumable'] = item['blocked'] and stage in ORDER_RESUME_STAGES
+    item['retryable'] = item['blocked'] and stage in ORDER_ARM_RETRY_STAGES
+    item['hand_done'] = item['blocked'] and stage in ORDER_HAND_DONE_STAGES
     return item
 
 

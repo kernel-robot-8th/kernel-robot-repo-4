@@ -39,6 +39,15 @@ WORK = {
     'VERIFY_UNLOAD': ('vision', 'verify_unload'),
     'RETURN_EXIT': ('vision', 'path_exit'),
 }
+# 팔이 움직이는 단계. 멈추면 운영자가 현장을 보고 '다시'(팔 퇴피·물건 제자리 확인) 를 고를 수 있다.
+# 관제 화면(cobot_control_center fleet_api_utils.ORDER_ARM_RETRY_STAGES)에 같은 값을 복사해 둔다.
+ARM_STAGES = frozenset(stage for stage, (actor, _) in WORK.items() if actor.endswith('_arm'))
+# 다시 할 때 시작 단계. 싣기·내리기 실패는 물건을 처음 자리에 돌려놓고 집기부터 다시 한다.
+RETRY_FROM = {'LOAD': 'PICK', 'UNLOAD': 'PICK_DROPOFF'}
+# '사람이 처리함'(사람이 대신 놓음) 뒤 이어 갈 단계. 상차(PICK·LOAD)는 수동 상차 확인을 쓴다.
+# 관제 화면(fleet_api_utils.ORDER_HAND_DONE_STAGES)에 같은 키를 복사해 둔다.
+HAND_DONE = {'PICK_DROPOFF': 'VERIFY_UNLOAD', 'UNLOAD': 'VERIFY_UNLOAD',
+             'ARRANGE': 'LEAVE_ARRANGE', 'RESTOCK': 'LEAVE_RESTOCK'}
 
 
 def identifier(value, name):

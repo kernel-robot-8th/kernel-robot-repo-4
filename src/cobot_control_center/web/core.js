@@ -56,6 +56,7 @@ const view = {
   cardMsg: new Map(), // robot_id → {text, bad, until}: 명령 결과를 카드 상태 줄에 잠깐
   rawEnabled: false, // 개발용 수동 명령 칸을 보일지 (/api/health)
   loading: null,    // 수동 상차 확인 띠를 연 {robotId, orderId, sku} (load.js)
+  recovering: null, // 멈춘 주문 막대를 연 {robotId, orderId} (load.js)
   pick: null,       // 명령 지점 고르는 중 {robotId, cmd, choices, route, ...}
   robotHits: [],    // 지도 위 로봇 위치 {robotId, x, y, r} (지도 클릭으로 카드 찾기)
   // 전체 지도 이름표 자리 (map.js placeStaticLabels·placeRobotLabels). core.js 가 먼저 읽혀 직접 적는다.

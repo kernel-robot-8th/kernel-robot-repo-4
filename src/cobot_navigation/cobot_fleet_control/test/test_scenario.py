@@ -319,8 +319,13 @@ def test_link_loss_stops_and_recovery_does_not_accept_late_device_success(env):
     env.tick()
     assert env.current()['state'] == 'UNKNOWN'
     evidence = dict(base_stopped=True, arms_safe=True, cargo_reconciled=True, resources_clear=True)
-    with pytest.raises(ValueError, match='임의 재피킹'):
+    # 팔 단계는 물건을 처음 자리에 돌려놓았다는 확인(item_ready) 없이 다시 하지 않는다.
+    with pytest.raises(ValueError, match='물건 제자리'):
         env.scenario.recover('order1', 'operator', '현장 확인', 'resume', evidence)
+    # 상차는 사람이 처리함 대신 수동 상차 확인을 쓴다.
+    with pytest.raises(ValueError, match='수동 상차 확인'):
+        env.scenario.recover('order1', 'operator', '현장 확인', 'done',
+                             dict(evidence, item_placed=True))
     # 메모는 선택이지만 예약 자원을 해제하려면 현장 정리 확인은 필요하다.
     with pytest.raises(ValueError, match='evidence'):
         env.scenario.recover('order1', None, None, 'fail', 'yes')
@@ -555,3 +560,23 @@ def test_safe_unload_verification_failure_retries_action_with_shared_budget(env)
         env.tick()
     assert env.current()['state'] == 'UNKNOWN'
     assert len([w for w in env.gateway.work_sent if w['action'] == 'unload']) == 4
+
+
+def test_failed_load_retry_starts_again_from_pick(env):
+    """싣기에서 팔이 움직인 뒤 실패: 물건을 선반에 돌려놓고 집기부터 다시 한다."""
+    env.order()
+    env.until('LOAD')
+    assert 'PICK' in env.current()['completed']
+    failed = env.result(success=False, data={'arm_safe': True}, detail='성공 판단 안 나옴')
+    assert env.current()['state'] == 'UNKNOWN'
+    env.tick()
+    env.scenario.recover('order1', None, None, 'resume', dict(arms_safe=True, item_ready=True))
+    order = env.current()
+    assert order['stage'] == 'PICK' and 'PICK' not in order['completed']
+    env.scenario.telemetry('pinky1', dict(
+        state='IDLE', busy=False, central_controlled=True, central_latched=False,
+        control_reset_id=order['reset_request_id']), 80.0)
+    env.scenario.tick()
+    assert env.gateway.work_sent[-1]['stage'] == 'PICK'
+    assert not env.scenario.result(dict(failed, success=True, data={'arm_safe': True}))
+    assert env.current()['stage'] == 'PICK'

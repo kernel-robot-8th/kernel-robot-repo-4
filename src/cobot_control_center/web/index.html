@@ -445,7 +445,7 @@
     </div>
   </div>
 
-  <!-- 결과 모름 해제·멈춘 주문 복구·제어권 복구는 띠 없이 확인 창 한 번 (release.js currentProblem). -->
+  <!-- 결과 모름 해제·제어권 복구는 띠 없이 확인 창 한 번 (release.js currentProblem). 멈춘 주문은 아래 막대. -->
 
   <!-- 수동 상차 확인 (load.js). 상차장에서 멈춘 주문을 사람이 싣고 확인한다. 복구 띠와 같은 자리에 뜬다. -->
   <div class="pick-bar resolve-bar release-bar" id="load-bar" hidden>
@@ -459,9 +459,27 @@
     </div>
     <div class="cmd-buttons">
       <button type="button" id="load-cancel" title="Esc 로도 닫힌다">닫기</button>
-      <!-- 멈춘 주문일 때만 보인다 (load.js openLoad). 누르면 멈춘 주문 복구(취소) 확인 창으로 간다 -->
-      <button type="button" id="load-abort" title="싣지 않고 주문을 취소한다. 현장 정리 3가지를 하나씩 확인한다" hidden>주문 취소</button>
+      <!-- 멈춘 주문일 때만 보인다 (load.js openLoad). 누르면 멈춘 주문 막대(다시 / 주문 취소)로 간다 -->
+      <button type="button" id="load-abort" title="사람이 싣지 않고 팔로 집기부터 다시 하거나 주문을 취소한다" hidden>다시 / 주문 취소</button>
       <button type="button" id="load-ok" class="danger">현장 확인함 · 상차 완료</button>
+    </div>
+  </div>
+
+  <!-- 멈춘 주문 복구 (load.js openRecover). 실패 알림 한 곳에서 다시 / 사람이 처리함 / 주문 취소를 고른다.
+       그 단계에서 안 되는 버튼은 숨긴다. 단계 제한·현장 확인 검사는 fleet 이 다시 한다. -->
+  <div class="pick-bar resolve-bar release-bar" id="recover-bar" hidden>
+    <div class="pick-head"><strong id="recover-title"></strong><span class="cmd-route" id="recover-what"></span></div>
+    <label class="release-check" title="현장에서 직접 확인했을 때만: 로봇이 멈춰 있고 로봇팔이 멈춰 안전한 자세로 물러남">
+      <input type="checkbox" id="recover-confirm"> 현장 확인: 로봇 멈춤 · 팔 퇴피</label>
+    <div class="release-fields">
+      <input id="recover-operator" maxlength="40" aria-label="운영자" placeholder="운영자 이름 (영문)">
+      <input id="recover-note" maxlength="200" aria-label="확인 내용" placeholder="확인 내용 (기록에 남음)">
+    </div>
+    <div class="cmd-buttons">
+      <button type="button" id="recover-close" title="Esc 로도 닫힌다">닫기</button>
+      <button type="button" id="recover-cancel" title="주문을 닫는다. 현장 정리 3가지를 하나씩 확인한다">주문 취소</button>
+      <button type="button" id="recover-done" title="사람이 물건을 놓을 자리에 놓았을 때: 이 단계를 사람 완료로 적고 다음 단계로 간다" hidden>사람이 처리함</button>
+      <button type="button" id="recover-again" class="danger" title="멈춘 곳부터 이어 간다. 팔 단계면 물건을 처음 자리에 돌려놓은 뒤 그 팔 작업을 처음부터 다시 한다">다시</button>
     </div>
   </div>
 

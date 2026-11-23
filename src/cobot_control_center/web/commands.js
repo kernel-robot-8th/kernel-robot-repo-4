@@ -551,6 +551,7 @@ function cancelPick() {
 function closeBars() {
   cancelPick();
   closeLoad();
+  closeRecover();
   closePosePick();
 }
 

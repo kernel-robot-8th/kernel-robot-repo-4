@@ -608,12 +608,12 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
 
     @app.post('/api/orders/{order_id}/recover')
     def recover_order(order_id: str, request: Request, body: dict = Body(default={})):
-        # 멈춘 주문 복구: decision 'resume'(이어서 가기) 또는 'fail'(주문 취소).
-        # 화면은 확인 창 한 번 뒤 보낸다 (2026-11-09 임시 일반형). 운영자·메모는 선택이고,
-        # 이어서 가기 단계 제한·정지 상태·취소 전 자원 정리 검사는 fleet_control 이 한다.
-        # 잠긴 팔이 있으면 이어서 가기를 막는다: 팔이 거절 → 재시도 소진 → 보류로 헷갈리기 때문이다.
+        # 멈춘 주문 복구: decision 'resume'(이어서 가기 / 팔 단계면 다시), 'done'(사람이 처리함),
+        # 'fail'(주문 취소). 화면은 멈춘 주문 막대에서 현장 확인 뒤 보낸다. 운영자·메모는 선택이고,
+        # 단계 제한·현장 확인(evidence)·정지 상태·취소 전 자원 정리 검사는 fleet_control 이 한다.
+        # 잠긴 팔이 있으면 이어서 가기·사람이 처리함을 막는다: 팔이 거절 → 재시도 소진 → 보류로 헷갈린다.
         locked = latched_arms()
-        if body.get('decision') == 'resume' and locked:
+        if body.get('decision') in ('resume', 'done') and locked:
             raise HTTPException(status_code=409,
                                 detail=f'팔 잠금 먼저 해제 ({", ".join(locked)})')
         return call_controller({
