@@ -23,6 +23,7 @@
 | `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 경로 또는 번들·버전) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
 | `torque_probe.py` | 모터 토크 켜짐(`Torque_Enable`)을 읽기만 한다. 팔 노드가 실행기가 없을 때 불러 관제에 실측을 보인다 |
+| `cam_preview.py` | 팔 카메라 미리보기(MJPEG HTTP). 팔 설정 `preview` 가 있으면 실행기가 켤 때 같이 켠다 (관제 팔 상세화면용) |
 | `read_pose.py` | 토크를 켜지 않고 관절 값을 읽는다 (쉬는 자세 재기용, `--save` 로 파일 저장). 실행기가 꺼져 있을 때만 |
 
 ## 모델 지정과 번들 (v0.2, 2026-11-17)
@@ -85,6 +86,17 @@ hf download Sungah/omx_1031_act_smolvla --revision <태그나 커밋> \
 ### 관제에 보이는 것
 `ready` 에 action 별 `models` (bundle·version·model_name·path·init_pose·success_judge 유무), `rest_pose`, `safe_tol` 이
 실린다. 팔 카드에 `pick omx_pick_za@v1` (① 이면 폴더 이름) 으로 보이고, 작업 결과 `done` 에도 `model` 로 남는다.
+
+### 카메라 미리보기 (관제 팔 상세화면)
+카메라는 실행기가 켜기~끄기 동안 열어 두므로 다른 프로그램이 열 수 없다. 팔 설정에 `preview` 를 적으면
+실행기가 연결 뒤 작은 HTTP 서버를 켜서 카메라 마지막 장면을 MJPEG 으로 낸다 (`cam_preview.py`).
+- 경로: `/top`, `/wrist` (MJPEG), `/top.jpg`·`/wrist.jpg` (한 장), `/health`
+- 장면은 lerobot 카메라 읽기 스레드가 보관한 마지막 장면을 엿보기만 한다 (`async_read` 를 부르지 않음) → 작업 루프에 영향 없음
+- 보는 사람이 있을 때만 JPEG 으로 바꾼다 (기본 10 fps, 너비 640, 품질 70)
+- 포트를 못 열면 로그만 남기고 팔 일은 그대로 한다. 팔이 꺼져 있으면(실행기 없음) 영상도 없다
+- 관제 PC 와 같은 PC 의 팔은 `bind: 127.0.0.1`, 다른 PC 팔은 관제 PC 가 닿는 주소(예: 유선 `0.0.0.0`)로 연다.
+  관제는 `cobot_control_center/config/site_arms.yaml` 의 `video` 주소로 받아 중계한다
+- 팔 없이 보기: `python cam_preview.py --port 8091 --fake`
 
 ## 한 작업의 순서
 
