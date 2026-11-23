@@ -312,10 +312,26 @@
     <p class="detail-missing" id="ad-missing" hidden>등록되지 않은 로봇팔입니다. <a href="#">전체 화면으로</a></p>
     <div class="ad-videos" id="ad-videos">
       <section class="panel" aria-label="위 카메라">
-        <div class="panel-head"><h2>위 카메라 <small class="muted">top</small></h2><span class="muted ad-cam-meta" data-role="top"></span></div>
+        <div class="panel-head"><h2>위 카메라 <small class="muted">top</small></h2><span class="muted ad-cam-meta" data-role="top"></span>
+          <button type="button" class="ad-align-toggle" id="ad-align-toggle" aria-pressed="false" aria-controls="ad-align"
+                  title="학습 때 위 카메라 화면과 겹쳐 핑키 정차 위치를 맞춥니다 (읽기만)">맞추기</button></div>
         <div class="camera-wrap ad-cam" data-role="top">
           <img alt="위 카메라 영상" hidden>
           <p class="camera-empty">영상 없음</p>
+        </div>
+        <!-- 정차 위치 맞추기 (arm_align.js): 기준(학습 화면)을 지금 장면에 겹치고, 끌어 고른 영역의 dx·dy 를 보인다. -->
+        <div class="ad-align" id="ad-align" hidden>
+          <div class="ad-align-tools">
+            <label>기준 <select id="ad-align-ref"></select></label>
+            <label>보기 <select id="ad-align-mode"></select></label>
+            <label>투명도 <input type="range" id="ad-align-alpha" min="0" max="100" value="50"></label>
+            <button type="button" id="ad-align-clear">영역 지우기</button>
+          </div>
+          <div class="camera-wrap ad-align-wrap">
+            <canvas id="ad-align-canvas" width="640" height="480" aria-label="기준 화면과 지금 위 카메라를 겹친 화면"></canvas>
+          </div>
+          <p class="ad-align-shift" id="ad-align-shift" aria-live="polite"></p>
+          <p class="muted ad-align-status" id="ad-align-status"></p>
         </div>
       </section>
       <section class="panel" aria-label="손목 카메라">
@@ -594,6 +610,7 @@
   <script src="record.js"></script>
   <script src="pose.js"></script>
   <script src="arms.js"></script>
+  <script src="arm_align.js"></script>
   <script src="arm_detail.js"></script>
   <script src="network.js"></script>
   <script src="cctv.js"></script>

@@ -155,6 +155,10 @@ class FleetApiNode(Node):
         self.cameras = self._subscribe_cameras()
         self.cctv = self._setup_cctv()
         self.arm_videos = self._setup_arm_videos()
+        # 정차 위치 맞추기 기준 화면 폴더 (<폴더>/<팔>/<이름>.jpg). 비우면 끔.
+        self.declare_parameter('align_refs_dir', '~/il_ws/align/refs')
+        self.align_refs_dir = self.get_parameter('align_refs_dir').value or None
+        self.get_logger().info(f'정차 위치 기준 화면: {self.align_refs_dir or "끔"}')
         self._setup_network()
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
@@ -394,7 +398,8 @@ def main(args=None):
                          routes=node.routes, teleop=node.teleop,
                          publish_teleop=None if node.read_only else node.publish_teleop,
                          waypoints=node.waypoints, cctv=node.cctv,
-                         vision_label=node.vision_label, arm_videos=node.arm_videos)
+                         vision_label=node.vision_label, arm_videos=node.arm_videos,
+                         align_refs_dir=node.align_refs_dir)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

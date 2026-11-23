@@ -36,6 +36,7 @@ import json
 import time
 import uuid
 
+from cobot_control_center.align_refs_utils import list_refs, ref_path
 from cobot_control_center.fleet_api_utils import (
     MJPEG_BOUNDARY, mjpeg_part, parse_initial_pose, SERVICE_STEPS, service_summary)
 from cobot_control_center.net_status_utils import collect_network, network_alerts
@@ -77,7 +78,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                arms=None, publish_arm_request=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
                hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None,
-               cctv=None, vision_label=None, arm_videos=None):
+               cctv=None, vision_label=None, arm_videos=None,
+               align_refs_dir=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -103,6 +105,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     cctv 는 CctvRelay (현장영상 중계) 또는 None 이다. None 이면 /api/cctv 는 404 다.
     arm_videos 는 {팔 이름(omx_1): {역할(top·wrist): CctvRelay}} (팔 실행기 카메라 미리보기 중계) 또는 None 이다.
     없는 팔·역할의 /api/arms/{arm_id}/camera/{role} 은 404 다.
+    align_refs_dir 는 정차 위치 맞추기 기준 화면 폴더(<폴더>/<팔>/<이름>.jpg) 또는 None 이다.
+    None 이면 /api/arms/{arm_id}/align/refs 는 404 다.
     """
     arm_videos = arm_videos or {}
     app = FastAPI(title='cobot control center API', version='0.1.0')
@@ -296,6 +300,34 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.get('/api/arms/{arm_id}/camera/{role}')
     def arm_camera_stream(arm_id: str, role: str):
         return relay_stream(arm_video_or_404(arm_id, role))
+
+    # ---------- 정차 위치 맞추기 기준 화면 (팔 상세화면 '맞추기', 계산은 브라우저) ----------
+
+    def align_root_or_404():
+        if not align_refs_dir:
+            raise HTTPException(status_code=404,
+                                detail='기준 화면 폴더가 꺼져 있음 (fleet_api_node.yaml align_refs_dir)')
+        return align_refs_dir
+
+    @app.get('/api/arms/{arm_id}/align/refs')
+    def align_refs(arm_id: str):
+        root = align_root_or_404()
+        try:
+            refs = list_refs(root, arm_id)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from None
+        return {'arm_id': arm_id, 'refs': refs}
+
+    @app.get('/api/arms/{arm_id}/align/refs/{name}')
+    def align_ref_image(arm_id: str, name: str):
+        root = align_root_or_404()
+        try:
+            path, media_type = ref_path(root, arm_id, name)
+            content = path.read_bytes()
+        except (ValueError, OSError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from None
+        return Response(content=content, media_type=media_type,
+                        headers={'Cache-Control': 'no-store'})
 
     @app.get('/api/events')
     def events(after: int = Query(0, ge=0), robot: str | None = None,

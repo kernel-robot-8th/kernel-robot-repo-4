@@ -1252,3 +1252,29 @@ def test_service_summary_counts_today_only():
     assert service_summary(orders, 100.0) == {
         'total': 5, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'done': 0}
     assert service_summary(None, 0)['total'] == 0
+
+
+def test_align_refs_api(tmp_path):
+    store, _ = make_store()
+    arm = tmp_path / 'omx_2'
+    arm.mkdir()
+    (arm / 'pick.jpg').write_bytes(b'\xff\xd8jpg')
+    (arm / 'pick.jpg.txt').write_text('ep0 start\n')
+    client = TestClient(create_app(store, align_refs_dir=str(tmp_path)))
+    listed = client.get('/api/arms/omx_2/align/refs').json()
+    assert listed == {'arm_id': 'omx_2',
+                      'refs': [{'name': 'pick.jpg', 'label': 'ep0 start', 'size': 5}]}
+    assert client.get('/api/arms/omx_1/align/refs').json()['refs'] == []
+    image = client.get('/api/arms/omx_2/align/refs/pick.jpg')
+    assert image.status_code == 200
+    assert image.headers['content-type'] == 'image/jpeg'
+    assert image.content == b'\xff\xd8jpg'
+    assert client.get('/api/arms/omx_2/align/refs/none.jpg').status_code == 404
+    assert client.get('/api/arms/omx_2/align/refs/pick.jpg.txt').status_code == 404
+    assert client.get('/api/arms/omx_2/align/refs/..%2Fpick.jpg').status_code == 404
+
+
+def test_align_refs_off_is_404():
+    store, _ = make_store()
+    client = TestClient(create_app(store))
+    assert client.get('/api/arms/omx_2/align/refs').status_code == 404

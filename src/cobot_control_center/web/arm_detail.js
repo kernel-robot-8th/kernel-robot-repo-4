@@ -4,6 +4,7 @@
 // 로봇팔 상세 화면 (주소 #/arm/<팔>, 예: #/arm/omx_1).
 // 전체 화면(.layout)을 숨기고 한 팔 전용 배치(#arm-page)를 보인다:
 //   머리줄(← 전체, 팔 이름, 자리·PC, 다른 팔로 가기) → 카메라 2대(위 top | 손목 wrist) → 상태 카드 | 그 팔 기록.
+//   위 카메라 칸의 '맞추기' 는 학습 화면과 겹쳐 핑키 정차 위치를 맞춘다 (arm_align.js).
 // 상태 카드는 전체 화면 팔 카드와 같은 템플릿·그리기 함수(arms.js makeArmCard·renderArmCard)를 쓴다.
 // 켜기·끄기·정지도 같은 sendArmCommand 로 보낸다. 작업 시험 줄은 상세에서는 숨긴다 (전체 화면 카드에서).
 //
@@ -42,6 +43,7 @@ function routeArm() {
 function applyArmRoute() {
   const armId = routeArm();
   if (armId === armDetail.armId) return;
+  armAlignStop();   // 정차 위치 맞추기 (arm_align.js) 는 팔이 바뀌면 끈다
   armCamStop();
   if (armDetail.card) armDetail.card.remove();
   armDetail.card = null;
@@ -259,6 +261,7 @@ function setupArmDetail() {
       armCamShowEmpty(role, "영상 끊김, 다시 연결 중…");
     });
   });
+  setupArmAlign();
   window.addEventListener("hashchange", applyArmRoute);
   applyArmRoute();
 }

@@ -22,6 +22,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/cctv.jpg` | 현장영상 마지막 장면 1장 (`image/jpeg`). 아직 못 받았거나 `cctv_url` 이 비면 404 |
 | `GET /api/arms/{arm_id}/camera/{role}` | 팔 카메라 MJPEG (`role` = `top`·`wrist`, 팔 상세 화면 `#/arm/<팔>`). 백엔드가 `site_arms.yaml` 의 그 팔 `video` 주소 `<video>/<role>`(팔 실행기 `omx_fleet/cam_preview.py`)에서 받아 다시 보냄. 현장영상과 같은 중계(보는 사람이 있을 때만 원본에 붙음). 주소가 없는 팔·역할은 404. 팔이 꺼져 있으면(실행기 없음) 장면이 오지 않는다 |
 | `GET /api/arms/{arm_id}/camera/{role}.jpg` | 팔 카메라 마지막 장면 1장. 아직 못 받았거나 주소가 없으면 404 |
+| `GET /api/arms/{arm_id}/align/refs` | 정차 위치 맞추기 기준 화면 목록 `{arm_id, refs:[{name, label, size}]}` (팔 상세 화면 '맞추기'). 폴더 `<align_refs_dir>/<팔>/` (`omx_2`·`omx2` 둘 다 봄)의 `.jpg`·`.jpeg`·`.png`. `label` 은 같은 이름 `.txt` 의 첫 줄. 폴더가 없으면 빈 목록, `align_refs_dir` 가 비면 404 |
+| `GET /api/arms/{arm_id}/align/refs/{name}` | 기준 화면 이미지. 이름은 영문·숫자·`_`·`-`·`.` 만 (`..`·`/` 거부), 폴더 밖을 가리키는 링크도 거부. 없으면 404 |
 | `GET /api/map/info` | `{"image_width", "image_height", "resolution", "origin"}`. 지도 없으면 404 |
 | `GET /api/map/image` | 지도 PGM 원본 바이트 |
 | `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
@@ -518,5 +520,6 @@ launch 가 colcon 표준 배치(`<ws>/install/<pkg>/share/<pkg>`)에서 `<ws>/sr
 | `pose.js` | 초기위치 [홈]·[좌표 지정] (상세 위치 칸, 확대 지도 누르고 끌기) |
 | `arms.js` | 로봇팔 패널 (`/api/arms`·`/api/arms/events` 1 s 마다, 켜기·끄기·정지, 작업 시험, 알람) |
 | `arm_detail.js` | 로봇팔 상세 화면 `#/arm/<팔>` (카메라 2대 `/api/arms/<팔>/camera/<역할>`, 상태 카드는 `arms.js` 와 같은 함수, 그 팔 기록) |
+| `arm_align.js` | 팔 상세 화면 '정차 위치 맞추기' (기준 `/api/arms/<팔>/align/refs`, 지금 장면 `camera/top.jpg`, dx·dy 계산은 브라우저) |
 | `network.js` | 네트워크 상태 화면 (`#/network`): 헬스체크 카드·구조도·자세히·핑 지연 그래프, 상단 바 버튼 점, 경고 띠의 네트워크·PC 경고 (`/api/network` 2 s 마다) |
 | `main.js` | 시작, `/api/health` 확인 |
