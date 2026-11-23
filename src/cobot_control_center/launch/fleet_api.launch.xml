@@ -35,7 +35,7 @@
   <arg name="read_only" default="false" description="true 면 명령 경로 503, task_request 를 내지 않음"/>
   <arg name="web_dir" default="" description="화면 파일 폴더. 비면 설치된 share/cobot_control_center/web"/>
   <arg name="site_arms_file" default="$(find-pkg-share cobot_control_center)/config/site_arms.yaml"
-       description="현장 팔 배치(자리·팔·보드·PC). 로봇팔 명령 노드가 팔 목록과 화면 표시에 씀"/>
+       description="현장 팔 배치(자리·팔·보드·PC·카메라). 로봇팔 명령 노드가 팔 목록·화면 표시에, 백엔드가 팔 카메라 중계에 씀"/>
   <arg name="arm_command" default="true"
        description="로봇팔 명령 노드(arm_command_node)도 띄울지. 읽기 전용 개발 백엔드는 false"/>
   <arg name="teleop" default="true"
@@ -53,6 +53,8 @@
     <param name="zone_params" value="$(var zone_params)"/>
     <param name="read_only" value="$(var read_only)"/>
     <param name="web_dir" value="$(var web_dir)"/>
+    <!-- 팔 상세화면 카메라 주소(video)를 여기서 읽는다 -->
+    <param name="site_arms_file" value="$(var site_arms_file)"/>
   </node>
 
   <!-- 웹의 로봇팔 켜기·끄기·정지를 ArmCommand 로 낸다 (/control_center/omx_N/command).

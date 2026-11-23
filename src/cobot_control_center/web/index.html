@@ -302,6 +302,62 @@
     </section>
   </main>
 
+  <!-- 로봇팔 상세 화면 (#/arm/<팔>). arm_detail.js 가 켜고 끄며, 켜져 있으면 전체 화면(.layout)을 숨긴다.
+       카메라 2대(위 top · 손목 wrist) 영상 → 상태 카드(켜기·끄기·정지) | 그 팔 기록.
+       영상은 백엔드 /api/arms/<팔>/camera/<역할> (팔 실행기 미리보기를 중계). 팔이 꺼져 있으면 영상도 없다. -->
+  <main class="arm-page" id="arm-page" hidden>
+    <section class="net-head" aria-label="로봇팔">
+      <a href="#" class="detail-back">← 전체</a>
+      <strong class="dt-name" id="ad-name"></strong>
+      <span class="muted" id="ad-site"></span>
+      <nav class="ad-switch" id="ad-switch" aria-label="다른 로봇팔"></nav>
+    </section>
+    <p class="detail-missing" id="ad-missing" hidden>등록되지 않은 로봇팔입니다. <a href="#">전체 화면으로</a></p>
+    <div class="ad-videos" id="ad-videos">
+      <section class="panel" aria-label="위 카메라">
+        <div class="panel-head"><h2>위 카메라 <small class="muted">top</small></h2><span class="muted ad-cam-meta" data-role="top"></span>
+          <button type="button" class="ad-align-toggle" id="ad-align-toggle" aria-pressed="false" aria-controls="ad-align"
+                  title="학습 때 위 카메라 화면과 겹쳐 핑키 정차 위치를 맞춥니다 (읽기만)">맞추기</button></div>
+        <div class="camera-wrap ad-cam" data-role="top">
+          <img alt="위 카메라 영상" hidden>
+          <p class="camera-empty">영상 없음</p>
+        </div>
+        <!-- 정차 위치 맞추기 (arm_align.js): 기준(학습 화면)을 지금 장면에 겹치고, 끌어 고른 영역의 dx·dy 를 보인다. -->
+        <div class="ad-align" id="ad-align" hidden>
+          <div class="ad-align-tools">
+            <label>기준 <select id="ad-align-ref"></select></label>
+            <label>보기 <select id="ad-align-mode"></select></label>
+            <label>투명도 <input type="range" id="ad-align-alpha" min="0" max="100" value="50"></label>
+            <button type="button" id="ad-align-clear">영역 지우기</button>
+          </div>
+          <div class="camera-wrap ad-align-wrap">
+            <canvas id="ad-align-canvas" width="640" height="480" aria-label="기준 화면과 지금 위 카메라를 겹친 화면"></canvas>
+          </div>
+          <p class="ad-align-shift" id="ad-align-shift" aria-live="polite"></p>
+          <p class="muted ad-align-status" id="ad-align-status"></p>
+        </div>
+      </section>
+      <section class="panel" aria-label="손목 카메라">
+        <div class="panel-head"><h2>손목 카메라 <small class="muted">wrist</small></h2><span class="muted ad-cam-meta" data-role="wrist"></span></div>
+        <div class="camera-wrap ad-cam" data-role="wrist">
+          <img alt="손목 카메라 영상" hidden>
+          <p class="camera-empty">영상 없음</p>
+        </div>
+      </section>
+    </div>
+    <div class="ad-lower" id="ad-lower">
+      <section class="panel" aria-label="상태">
+        <div class="panel-head"><h2>상태</h2><span class="muted">작업 시험은 전체 화면 카드에서</span></div>
+        <div class="ad-card-host" id="ad-card"></div>
+        <pre class="ad-joints muted" id="ad-joints"></pre>
+      </section>
+      <section class="panel" aria-label="기록">
+        <div class="panel-head"><h2>기록</h2><span class="muted" id="ad-log-count"></span></div>
+        <ol class="events" id="ad-events"><li class="muted">기록 없음</li></ol>
+      </section>
+    </div>
+  </main>
+
   <!-- 네트워크 상태 화면 (#/network). network.js 가 켜고 끄며, 켜져 있으면 전체 화면(.layout)을 숨긴다.
        헬스체크 카드 → 구조도 → 자세히 → 핑 지연 그래프. 데이터는 /api/network 하나. -->
   <main class="network-page" id="network-page" hidden>
@@ -493,7 +549,7 @@
       <div class="card-body">
         <div class="card-top">
           <span class="swatch"></span>
-          <strong class="name"></strong>
+          <a class="name" title="로봇팔 상세 화면 (카메라 영상)"></a>
           <span class="muted alias"></span>
           <span class="badge arm-state"></span>
         </div>
@@ -558,6 +614,8 @@
   <script src="record.js"></script>
   <script src="pose.js"></script>
   <script src="arms.js"></script>
+  <script src="arm_align.js"></script>
+  <script src="arm_detail.js"></script>
   <script src="network.js"></script>
   <script src="cctv.js"></script>
   <script src="main.js"></script>

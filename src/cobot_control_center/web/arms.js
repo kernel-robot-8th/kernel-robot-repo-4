@@ -86,10 +86,12 @@ const armsView = {
   msg: new Map(),     // arm_id → {text, bad, until}
 };
 
-function ensureArmCard(armId) {
-  if (armsView.cards.has(armId)) return armsView.cards.get(armId);
+// 팔 카드 하나를 템플릿에서 만든다. 전체 화면 카드와 팔 상세 화면(arm_detail.js)이 같이 쓴다.
+function makeArmCard(armId) {
   const card = $("arm-template").content.firstElementChild.cloneNode(true);
-  card.querySelector(".name").textContent = armId;
+  const name = card.querySelector(".name");
+  name.textContent = armId;
+  name.href = armDetailHref(armId);
   card.querySelectorAll("button[data-arm-cmd]").forEach((button) => {
     button.textContent = ARM_COMMAND[button.dataset.armCmd].text;
     button.addEventListener("click", () => sendArmCommand(armId, button.dataset.armCmd));
@@ -97,6 +99,12 @@ function ensureArmCard(armId) {
   card.querySelector(".arm-work-btn").addEventListener("click",
     () => sendArmWork(armId, card.querySelector(".arm-work-action").value,
       card.querySelector(".arm-work-row-no").value));
+  return card;
+}
+
+function ensureArmCard(armId) {
+  if (armsView.cards.has(armId)) return armsView.cards.get(armId);
+  const card = makeArmCard(armId);
   $("arms").appendChild(card);
   armsView.cards.set(armId, card);
   return card;
@@ -254,8 +262,8 @@ function jointsText(status) {
     + ` · 측정 ${formatTime(status.stamp)} (작업 중에는 갱신되지 않음)`;
 }
 
-function renderArmCard(arm, canCommand) {
-  const card = ensureArmCard(arm.arm_id);
+// card 를 주면 그 카드에 그린다 (팔 상세 화면). 없으면 전체 화면 카드.
+function renderArmCard(arm, canCommand, card = ensureArmCard(arm.arm_id)) {
   const meta = ARM_STATE[arm.state] || ARM_STATE.STALE;
   const status = arm.status;
   card.dataset.level = meta.level;
@@ -369,6 +377,7 @@ function renderArms() {
   empty.textContent = armsView.ok ? "로봇팔 명령 노드(arm_command_node) 상태 수신 대기" : "백엔드 연결 안 됨";
   arms.forEach((arm) => renderArmCard(arm, canCommand));
   renderUnlatchAll(arms, canCommand);
+  renderArmDetail(canCommand);
   renderAlertStrip();
   renderEventFilter();
   // 백엔드가 끊기면 마지막 카드는 남기되 버튼은 모두 잠근다.
@@ -493,6 +502,7 @@ async function pollArmLog() {
         armsView.log = [];
         armsView.lastLogId = 0;
         renderEvents();
+        renderArmDetail();
       }
       return;
     }
@@ -504,7 +514,10 @@ async function pollArmLog() {
       added = true;
     }
     if (armsView.log.length > ARM_LOG_MAX) armsView.log.splice(0, armsView.log.length - ARM_LOG_MAX);
-    if (added) renderEvents();
+    if (added) {
+      renderEvents();
+      renderArmDetail();
+    }
   } catch (err) {
     // 다음 주기에 다시 받는다.
   }

@@ -10,6 +10,9 @@
 # actions: 그 자리 팔이 하는 작업 (팔 노드 작업 이름 pick·load·unload·warehouse_store·arrange_shoe 중).
 #          관제 작업 시험은 여기 적힌 작업만 보낸다. [] 이면 보내지 않고, 칸이 없으면 제한하지 않는다.
 # serial: OpenRB-150 보드 시리얼 (/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00).
+# video: 팔 카메라 미리보기 주소 (팔 실행기 omx_fleet/cam_preview.py, 그 팔 fleet_arms.yaml 의 preview 와 맞춤).
+#        관제 백엔드(fleet_api_node)가 <video>/top·<video>/wrist 를 받아 팔 상세화면(#/arm/<팔>)에 중계한다.
+#        팔이 꺼져 있으면(실행기 없음) 영상도 없다. 비우면 상세화면에 '주소 없음' 으로 나온다.
 arms:
   omx1:
     station: ZA
@@ -17,12 +20,14 @@ arms:
     host: 8-OMEN        # omx2 와 같은 PC
     serial: 87A43D9B50323952582E3120FF070527   # 2026-11-21 사용자 확인 (8-OMEN 에 새로 꽂음, /dev/ttyACM1)
     actions: [warehouse_store]   # 모델 omx_1119_act 16번 (act_1119_P1_grip_moge_4000step)
+    video: http://127.0.0.1:8091   # 관제 PC(8-OMEN) 에 꽂힌 팔이라 이 PC 안
   omx2:
     station: ZB
     role: pickup        # 창고 상차 (2026-11-16 확정)
     host: 8-OMEN
     serial: 77AABA9150323952582E3120FF06102E   # 2026-11-17 사용자 확인 (전에 omx1 로 잘못 적음)
     actions: [pick, load]   # ZA 와 같음: 집기 → 싣기
+    video: http://127.0.0.1:8092
   omx3:
     station: ZC
     role: dropoff
@@ -30,6 +35,7 @@ arms:
     serial: 6D96FA0450323952582E3120FF052A1E   # 2026-11-16 OMEN-11 에서 확인
     # arrange_shoe = 신발 정리 (번들 omx_arrange_shoe_zc), load = 싣기 (번들 omx_load_zc). 2026-11-17 사용자 지정
     actions: [arrange_shoe, load]
+    video: http://192.168.0.4:8091   # OMEN-11 유선 주소 (net_status_node station_wired). 2026-11-23 추정, 현장 확인 전
 
 # 배치 변경 기록 (새것이 위). 팔이나 보드·PC 를 옮기면 여기에 한 줄 남긴다.
 # 팔(과 그 보드)은 자리에 붙어 있고, 노트북(PC)이 팔 사이를 옮겨 다닌다. 학습 모델은 그 팔·그 자리 것이다.

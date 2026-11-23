@@ -26,6 +26,7 @@ import yaml
 
 SITE_ROLES = ('pickup', 'dropoff', 'warehouse')
 SERIAL_PATTERN = re.compile(r'[A-Za-z0-9]{1,64}')   # 팔 노드 arm_registry_utils 와 같은 형식
+VIDEO_PATTERN = re.compile(r'https?://[^\s/]+(/[^\s]*)?')   # 팔 카메라 미리보기 주소
 
 
 def _site_text(entry, key, arm_id):
@@ -49,12 +50,24 @@ def _site_actions(value, arm_id):
     return list(dict.fromkeys(actions))
 
 
+def _site_video(value, arm_id):
+    """팔 카메라 미리보기 주소 (팔 실행기 cam_preview). 비면 ''. http(s) 주소만, 끝 / 는 뺀다."""
+    if value is None or value == '':
+        return ''
+    if not isinstance(value, str) or not VIDEO_PATTERN.fullmatch(value.strip()):
+        raise ValueError(f'{arm_id}.video 는 http(s) 주소여야 함: {value!r}')
+    return value.strip().rstrip('/')
+
+
 def parse_site_arms(data):
     """
-    현장 팔 배치(config/site_arms.yaml 내용) → {팔 이름(omx_1): {station, role, host, serial, actions}}.
+    현장 팔 배치(config/site_arms.yaml 내용) → {팔 이름(omx_1): {station, role, host, serial, ...}}.
+
+    칸: station, role, host, serial, actions, video.
 
     팔 순서는 파일 순서를 지킨다. 빈 칸은 '' (미정). actions 는 그 팔이 하는 작업 목록이고,
-    칸이 없으면 None (제한 없음), [] 이면 작업 없음. 형식이 틀리면 ValueError.
+    칸이 없으면 None (제한 없음), [] 이면 작업 없음. video 는 팔 카메라 미리보기 주소 (없으면 '').
+    형식이 틀리면 ValueError.
     """
     if not isinstance(data, dict) or not isinstance(data.get('arms'), dict) or not data['arms']:
         raise ValueError('arms 항목(팔 이름 → 배치)이 필요함')
@@ -73,6 +86,7 @@ def parse_site_arms(data):
             raise ValueError(f'{name}.serial 형식 오류: {info["serial"]!r}')
         info['serial'] = info['serial'].upper()
         info['actions'] = _site_actions(entry.get('actions', None), name)
+        info['video'] = _site_video(entry.get('video'), name)
         site[arm_id] = info
     return site
 

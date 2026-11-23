@@ -23,6 +23,7 @@
 | `fleet_arms.example.yaml` | 팔별 설정 예시 (카메라·캘리브레이션 이름·쉬는 자세·action → 모델 경로 또는 번들·버전) |
 | `fleet_arms.yaml` | 이 PC 의 실제 설정. git 에서 제외 |
 | `torque_probe.py` | 모터 토크 켜짐(`Torque_Enable`)을 읽기만 한다. 팔 노드가 실행기가 없을 때 불러 관제에 실측을 보인다 |
+| `cam_preview.py` | 팔 카메라 미리보기(MJPEG HTTP). 팔 설정 `preview` 가 있으면 실행기가 켤 때 같이 켠다 (관제 팔 상세화면용) |
 | `read_pose.py` | 토크를 켜지 않고 관절 값을 읽는다 (쉬는 자세 재기용, `--save` 로 파일 저장). 실행기가 꺼져 있을 때만 |
 
 ## 모델 지정과 번들 (v0.2, 2026-11-17)
@@ -85,6 +86,17 @@ hf download Sungah/omx_1031_act_smolvla --revision <태그나 커밋> \
 ### 관제에 보이는 것
 `ready` 에 action 별 `models` (bundle·version·model_name·path·init_pose·success_judge 유무), `rest_pose`, `safe_tol` 이
 실린다. 팔 카드에 `pick omx_pick_za@v1` (① 이면 폴더 이름) 으로 보이고, 작업 결과 `done` 에도 `model` 로 남는다.
+
+### 카메라 미리보기 (관제 팔 상세화면)
+카메라는 실행기가 켜기~끄기 동안 열어 두므로 다른 프로그램이 열 수 없다. 팔 설정에 `preview` 를 적으면
+실행기가 연결 뒤 작은 HTTP 서버를 켜서 카메라 마지막 장면을 MJPEG 으로 낸다 (`cam_preview.py`).
+- 경로: `/top`, `/wrist` (MJPEG), `/top.jpg`·`/wrist.jpg` (한 장), `/health`
+- 장면은 lerobot 카메라 읽기 스레드가 보관한 마지막 장면을 엿보기만 한다 (`async_read` 를 부르지 않음) → 작업 루프에 영향 없음
+- 보는 사람이 있을 때만 JPEG 으로 바꾼다 (기본 10 fps, 너비 640, 품질 70)
+- 포트를 못 열면 로그만 남기고 팔 일은 그대로 한다. 팔이 꺼져 있으면(실행기 없음) 영상도 없다
+- 관제 PC 와 같은 PC 의 팔은 `bind: 127.0.0.1`, 다른 PC 팔은 관제 PC 가 닿는 주소(예: 유선 `0.0.0.0`)로 연다.
+  관제는 `cobot_control_center/config/site_arms.yaml` 의 `video` 주소로 받아 중계한다
+- 팔 없이 보기: `python cam_preview.py --port 8091 --fake`
 
 ## 한 작업의 순서
 
@@ -165,6 +177,53 @@ ARM_ID=omx1 ROBOT_PORT=/dev/serial/by-id/usb-ROBOTIS_OpenRB-150_<시리얼>-if00
 ```
 
 `omx_chain.py` 의 다른 옵션(`--device`, `--n-action-steps`, `--max-relative-target` 등)은 뒤에 붙이면 그대로 넘어간다.
+
+## 핑키 정차 위치 맞추기 (`align_view.py`)
+
+팔 모델은 지도 좌표가 아니라 **위쪽 카메라 화면 속 자리**로 학습됐다.
+- `omx_1031`(omx2, ZB)은 흰 받침대 위의 접시에 놓도록 학습됐다.
+- `omx_1119`(omx1, ZA)는 학습 영상에 실제 핑키가 있다.
+
+그래서 학습 화면과 지금 화면을 겹쳐 보고, 핑키를 손으로 밀어 맞춘다. 맞춘 뒤 `/pinkyN/amcl_pose` 를 읽어 구역 좌표(`cobot_pinky_patrol/config/sites/*.yaml` 의 `ZA`·`ZB`)로 적는다.
+이 도구는 화면만 읽는다. 팔 포트를 열지 않고 ROS 토픽도 내지 않는다.
+
+```bash
+# 학습 데이터 받기 (위쪽 영상 + 메타 + 관절값, 약 180 MB)
+hf download Sungah/omx_1031_JH_v1_success --repo-type dataset \
+  --include "meta/*" "meta/episodes/*/*" "data/*/*" "videos/observation.images.top/*/*" \
+  --local-dir ~/il_ws/datasets/omx_1031_JH_v1_success
+# 그 팔 실행기를 먼저 끈다 (카메라를 같이 열 수 없다. 켜져 있으면 pid 를 알려 주고 멈춘다)
+~/venv/il/bin/python align_view.py --arm omx2 --dataset ~/il_ws/datasets/omx_1031_JH_v1_success --at start
+~/venv/il/bin/python align_view.py --arm omx1 --ref ~/outputs/train/omx_1119_act/reference_top_demo5.jpg
+```
+
+- `--at start`: 에피소드 첫 화면이다 (빈 접시나 박스를 실은 핑키).
+- `--at release`: 박스를 놓는 순간이다 (그리퍼 전류 ≤ -150 mA 의 마지막 프레임).
+- `--at <초>`: 에피소드 안의 시각을 직접 준다.
+- 창에서 **핑키·접시만 들어가게** 영역을 끌어 고른다. 바닥 테이프나 선반이 들어가면 그쪽에 맞춰져 0 에 가깝게 나온다.
+- 화면에 dx, dy [px] 가 나온다. 둘 다 ±3 px 안이고 conf ≥ 0.1 이면 초록색이 된다.
+  - dx > 0 이면 지금 핑키가 학습 때보다 화면 오른쪽에 있다는 뜻이다.
+  - conf 가 0.1 아래면 영역이 너무 다르거나 무늬가 적다는 뜻이다.
+- 먼저 선반 같은 고정물에 영역을 잡아 0 근처인지 본다. 0 근처가 아니면 카메라 자체가 학습 때와 달라진 것이다. 그때는 핑키보다 카메라를 먼저 맞춘다.
+- 키: `m` 보기(겹치기 / 기준 윤곽 / 차이), `[` `]` 투명도, `r` 영역 지우기, `s` 저장(`~/il_ws/align/`), `q` 끝.
+- 창 없이 확인하려면 `--once --roi x,y,w,h [--out 파일]` 를 쓴다. JSON 한 줄을 출력한다.
+- 카메라 없이 시험하려면 `--cam <영상> --cam-at <초> --shift=dx,dy` 를 쓴다. 음수가 있으면 `=` 를 붙여 써야 한다.
+- 시험: `python3 -m pytest test_align_view.py`
+
+### 관제 팔 상세화면에서 맞추기 (실행기를 켠 채로)
+
+실행기가 켜져 있으면 위 창은 쓸 수 없다. 그때는 관제 팔 상세화면(`#/arm/<팔>`)의 위 카메라 칸에서 **맞추기**를 누른다. 실행기 미리보기 영상 위에 기준 화면을 겹치고, 고른 영역의 dx·dy 를 브라우저가 계산한다.
+기준 화면은 관제 PC 의 `~/il_ws/align/refs/<팔>/` 에 둔다 (`fleet_api_node.yaml` 의 `align_refs_dir`, 팔 이름은 관제 화면 이름 `omx_1` 처럼).
+`--save-ref` 는 카메라 없이 기준 화면만 뽑아 저장하고 끝난다. 옆에 설명 `.txt` 를 남기고, 화면의 기준 목록에 그 글이 나온다.
+
+```bash
+mkdir -p ~/il_ws/align/refs/omx_2
+~/venv/il/bin/python align_view.py --dataset ~/il_ws/datasets/omx_1031_JH_v1_success \
+  --episode 0 --at start --save-ref ~/il_ws/align/refs/omx_2/pick_ep0_start.jpg
+```
+
+- 파일 이름은 영문·숫자·`_`·`-`·`.` 만 쓴다 (`<작업>_<설명>.jpg` 권장). 이미지는 git 에 올리지 않는다.
+- 다른 PC(예: OMEN-11)에서 뽑았으면 jpg 와 txt 를 같이 관제 PC 폴더로 복사한다.
 
 ## 주의
 

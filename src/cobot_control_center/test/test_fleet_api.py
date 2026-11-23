@@ -108,6 +108,7 @@ def test_api_before_first_snapshot():
     assert client.get('/api/health').json() == {
         'ok': True, 'domain_id': None, 'read_only': True, 'source_online': False,
         'source_age': None, 'controller_online': False, 'cameras': {}, 'cctv': None,
+        'arm_cameras': {},
         'routes': {}, 'arm_controller_online': False,
         'teleop_online': False, 'teleop': [], 'teleop_limits': None}
     assert client.get('/api/fleet').status_code == 503
@@ -1335,3 +1336,29 @@ def test_resume_blocked_while_arm_latched_but_fail_allowed():
     assert client.post('/api/orders/o1/recover', json={'decision': 'fail'}).status_code == 200
     arm_store.put_snapshot(json.dumps(two_arms()))
     assert client.post('/api/orders/o1/recover', json={'decision': 'resume'}).status_code == 200
+
+
+def test_align_refs_api(tmp_path):
+    store, _ = make_store()
+    arm = tmp_path / 'omx_2'
+    arm.mkdir()
+    (arm / 'pick.jpg').write_bytes(b'\xff\xd8jpg')
+    (arm / 'pick.jpg.txt').write_text('ep0 start\n')
+    client = TestClient(create_app(store, align_refs_dir=str(tmp_path)))
+    listed = client.get('/api/arms/omx_2/align/refs').json()
+    assert listed == {'arm_id': 'omx_2',
+                      'refs': [{'name': 'pick.jpg', 'label': 'ep0 start', 'size': 5}]}
+    assert client.get('/api/arms/omx_1/align/refs').json()['refs'] == []
+    image = client.get('/api/arms/omx_2/align/refs/pick.jpg')
+    assert image.status_code == 200
+    assert image.headers['content-type'] == 'image/jpeg'
+    assert image.content == b'\xff\xd8jpg'
+    assert client.get('/api/arms/omx_2/align/refs/none.jpg').status_code == 404
+    assert client.get('/api/arms/omx_2/align/refs/pick.jpg.txt').status_code == 404
+    assert client.get('/api/arms/omx_2/align/refs/..%2Fpick.jpg').status_code == 404
+
+
+def test_align_refs_off_is_404():
+    store, _ = make_store()
+    client = TestClient(create_app(store))
+    assert client.get('/api/arms/omx_2/align/refs').status_code == 404

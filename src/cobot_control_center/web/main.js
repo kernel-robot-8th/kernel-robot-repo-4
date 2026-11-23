@@ -121,6 +121,7 @@ setupTeleop();
 setupWaypoints();
 setupRecord();
 setupArms();
+setupArmDetail();
 setupNetwork();
 loadMap();
 loadLayers();

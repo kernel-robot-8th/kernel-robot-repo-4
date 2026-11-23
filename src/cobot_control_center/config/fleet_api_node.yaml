@@ -29,6 +29,13 @@
     cctv_idle_sec: 10.0       # 마지막 사람이 닫고 이만큼 지나면 원본 연결을 끊음 [s]
     cctv_reconnect_sec: 2.0   # 원본이 끊기면 이 간격으로 다시 붙음 [s]
     cctv_timeout_sec: 5.0     # 원본 연결·읽기 제한 시간 [s]
+    # 팔 카메라 (팔 상세화면 #/arm/<팔>): site_arms.yaml 의 팔별 video 주소에서 <video>/<역할> 을 받아 중계한다.
+    # 주소 파일은 launch 가 site_arms_file 로 넘긴다. 연결 시간 값은 위 cctv_* 를 같이 쓴다.
+    arm_video_roles: [top, wrist]
+    # 정차 위치 맞추기 (팔 상세화면 위 카메라 '맞추기'): 학습 때 위쪽 화면(기준) 폴더. <폴더>/<팔>/<이름>.jpg
+    # 기준은 omx_fleet/align_view.py --save-ref 로 뽑는다. 이미지는 git 에 올리지 않는다. 비우면 끔.
+    # 도커 web 컨테이너는 이 폴더를 볼륨으로 붙이고 컨테이너 안 경로로 바꾼다.
+    align_refs_dir: ~/il_ws/align/refs
     # 네트워크 화면: 팔 노드 이름 (omx1~3_adapter). 어느 PC 의 팔인지는 site_arms.yaml 의 host 로 나눈다
     # (관제 PC hostname 과 같으면 관제 PC 상자, 아니면 팔 PC 상자)
     station_node_patterns: ['omx*_adapter']

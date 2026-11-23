@@ -567,9 +567,9 @@ def test_parse_site_arms_keeps_order_and_blanks():
         'omx3': None}})
     assert list(site) == ['omx_1', 'omx_2', 'omx_3']
     assert site['omx_1'] == {'station': 'ZA', 'role': 'pickup', 'host': '8-OMEN',
-                             'serial': '77AA01', 'actions': None}
+                             'serial': '77AA01', 'actions': None, 'video': ''}
     assert site['omx_2'] == {'station': 'ZB', 'role': '', 'host': '', 'serial': '',
-                             'actions': None}
+                             'actions': None, 'video': ''}
     assert site['omx_3']['station'] == ''
 
 
@@ -594,6 +594,16 @@ def test_installed_site_arms_file_parses():
     site = site_arms.parse_site_arms(yaml.safe_load(path.read_text(encoding='utf-8')))
     assert list(site) == ['omx_1', 'omx_2', 'omx_3']
     assert [info['station'] for info in site.values()] == ['ZA', 'ZB', 'ZC']
+
+
+def test_parse_site_video():
+    site = site_arms.parse_site_arms({'arms': {
+        'omx1': {'video': 'http://127.0.0.1:8091/'}, 'omx2': {'video': ''}, 'omx3': {}}})
+    assert site['omx_1']['video'] == 'http://127.0.0.1:8091'
+    assert site['omx_2']['video'] == '' and site['omx_3']['video'] == ''
+    for bad in ['127.0.0.1:8091', 'ftp://x', 8091, 'http://a b']:
+        with pytest.raises(ValueError):
+            site_arms.parse_site_arms({'arms': {'omx1': {'video': bad}}})
 
 
 def test_snapshot_carries_site():
