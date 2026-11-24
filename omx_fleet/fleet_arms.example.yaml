@@ -23,6 +23,12 @@ arms:
     # (선택) 켤 때 연결 직후 이 자세로 천천히 옮김 (그리퍼는 파일에 gripper 값이 있을 때만). action 이름(그 첫 단계 번들 init_pose.json) 또는 파일 경로.
     # 없으면 지금 자세 유지. release_move 처럼 팔 모션이므로 현장에서 정해서 켠다.
     # start_pose: pick
+    # (선택) 카메라 미리보기: 관제 팔 상세화면이 영상을 본다 (cam_preview.py, README '카메라 미리보기').
+    # 팔마다 다른 포트. 관제 PC 에 꽂힌 팔은 127.0.0.1, 다른 PC 팔은 관제 PC 가 닿는 주소로 연다.
+    # 관제 site_arms.yaml 의 그 팔 video 주소와 맞춘다. 칸이 없으면 켜지 않는다.
+    preview:
+      port: 8091
+      bind: 127.0.0.1
     actions:
       # 관제 action → 모델 번들·버전·최대 시간[s]·안전 자세.
       # bundle·version: <bundles_dir>/<bundle>/<version>/models/ 아래 폴더가 하나면 그것을 쓴다 (여럿이면 model 로 고름).

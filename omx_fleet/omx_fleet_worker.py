@@ -68,6 +68,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cam_preview  # noqa: E402
 import fleet_runtime  # noqa: E402
 import omx_chain  # noqa: E402
 import usb_cams  # noqa: E402
@@ -176,7 +177,41 @@ def load_arm_config(path, arm_id):
         if not start.is_file():
             raise ValueError(f"arms.{arm_id}.start_pose: {arm.get('start_pose')} 의 init_pose.json 이 없음 ({start})")
     arm["start_pose"] = str(Path(str(start)).expanduser()) if start else None
+    arm["preview"] = preview_config(arm.get("preview"), arm_id)
     return arm
+
+
+def preview_config(value, arm_id):
+    """
+    팔 설정 preview 칸 → {port, bind} 또는 None (칸이 없으면 미리보기를 켜지 않음).
+
+    관제 팔 상세화면이 카메라 영상을 보려면 켠다 (cam_preview.py). 팔 동작과는 상관없다.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"arms.{arm_id}.preview 는 {{port, bind}} ({value!r})")
+    port = value.get("port")
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError(f"arms.{arm_id}.preview.port 는 1~65535 ({port!r})")
+    bind = value.get("bind", "127.0.0.1")
+    if not isinstance(bind, str) or not bind:
+        raise ValueError(f"arms.{arm_id}.preview.bind 는 주소 문자열 ({bind!r})")
+    return {"port": port, "bind": bind}
+
+
+def start_preview(robot, arm_id, preview):
+    """카메라 미리보기 서버를 켠다. 포트를 못 열어도 팔 일은 계속한다 (로그만)."""
+    if not preview:
+        return None
+    try:
+        server = cam_preview.PreviewServer(cam_preview.lerobot_frame_getter(robot), preview["port"],
+                                           preview["bind"], roles=CAMERA_ROLES).start()
+    except OSError as error:
+        print(f"[{arm_id}] 카메라 미리보기 못 켬 ({preview['bind']}:{preview['port']}): {error}", flush=True)
+        return None
+    print(f"[{arm_id}] 카메라 미리보기 http://{preview['bind']}:{preview['port']}/top · /wrist", flush=True)
+    return server
 
 
 def resolve_model(spec, bundles_dir, where):
@@ -556,7 +591,7 @@ def main(argv=None):
             "success_motion": any(p["motion"] for p in spec["stages"]), "stages": len(spec["stages"]),
             "init_pose": stages[name][0]["init_pose"] is not None} for name, spec in arm["actions"].items()}
         print(json.dumps({"dry_check": "ok", "robot_type": robot_type,
-                          "cameras": {role: arm[role] for role in CAMERA_ROLES},
+                          "cameras": {role: arm[role] for role in CAMERA_ROLES}, "preview": arm["preview"],
                           "state": features["observation.state"]["shape"][0],
                           "inputs": sorted(k for k in features if k.startswith("observation.")),
                           "actions": summary, "start_pose": start_pose is not None}, ensure_ascii=False), flush=True)
@@ -585,7 +620,9 @@ def main(argv=None):
     threading.Thread(target=read_stdin, daemon=True).start()
 
     robot.connect()
+    preview = None
     try:
+        preview = start_preview(robot, arm_id, arm["preview"])
         fleet_runtime.warm_depth(robot)
         if start_pose:
             # 켤 때 학습 데이터 첫 자세로 옮겨 둔다. 그리퍼는 자세 파일에 값이 있을 때만 옮기고,
@@ -708,6 +745,8 @@ def main(argv=None):
         emit(event="fatal", detail=f"{type(error).__name__}: {error}")
         raise
     finally:
+        if preview is not None:
+            preview.stop()
         print(f"[{arm_id}] 연결 끊음 — 토크가 꺼지므로 팔이 내려앉을 수 있음", flush=True)
         if robot.is_connected:
             robot.disconnect()
