@@ -1128,17 +1128,21 @@ body.arm-mode .layout { display: none; }
 .wp-note[data-level="bad"] { color: var(--bad); }
 .wp-file:empty { display: none; }
 .wp-file { margin: 0; color: var(--bad); font-size: 13px; }
+.wp-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+.wp-add label { display: flex; align-items: center; gap: 6px; }
+.wp-add input { width: 92px; font: inherit; padding: 3px 6px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
+.wp-add #wp-add-note { width: 180px; }
 .wp-table-wrap { overflow-x: auto; }
 .wp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .wp-table th, .wp-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
 .wp-table th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .wp-table .num { font-variant-numeric: tabular-nums; }
 .wp-table .wp-warn { color: var(--warn); font-size: 12px; white-space: normal; }
-.wp-table button, .wp-groups button, .wp-editor button, .waypoints-page .panel-head button, .cmd-group {
+.wp-table button, .wp-groups button, .wp-editor button, .wp-add button, .waypoints-page .panel-head button, .cmd-group {
   font: inherit; font-size: 12px; padding: 2px 8px; color: var(--text); background: var(--panel);
   border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
 }
-.wp-table button:disabled, .wp-groups button:disabled, .wp-editor button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wp-table button:disabled, .wp-add button:disabled, .wp-groups button:disabled, .wp-editor button:disabled { opacity: 0.45; cursor: not-allowed; }
 .wp-table .wp-name button { font-weight: 700; color: var(--warn); border-color: var(--warn); }
 .wp-table button.linkish { border-style: dashed; color: var(--muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .waypoints-page button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); }

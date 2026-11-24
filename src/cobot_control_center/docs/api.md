@@ -35,6 +35,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/routes/{robot_id}/cancel` | 남은 구간만 버림 → `{"canceled": [route_id]}`. 지금 가는 구간은 멈추지 않음 (멈추려면 정지) |
 | `GET /api/waypoints` | 관제 웨이포인트·묶음 (2026-11-18). `{"waypoints": [{"name", "x", "y", "yaw", "robot_id", "captured_at", "warnings", "note"}], "groups": [{"name", "points", "note", "updated_at"}], "keepout_m", "load_error"}` |
 | `POST /api/waypoints` | `{"robot_id", "name"?, "note"?}` → 그 로봇의 **지금 위치**(이 서버가 받은 마지막 fleet_status)로 저장, `201`. 이름을 비우면 `W1, W2 …`. `400` 이름 형식 / `404` 없는 로봇 / `409` 위치 모름·로봇 설정과 같은 이름·이미 있는 이름·구역 지점·출구에서 `zone_keepout_m` 안 (기본 0 = 검사 안 함) / `503` 읽기 전용·파일 못 씀 |
+| `POST /api/waypoints` (값) | `{"x", "y", "yaw", "name"?, "note"?}` → 적은 좌표(m, 라디안)로 저장, `201`. `robot_id` 는 빈 글. 벽에 가깝거나 지도가 없어 확인하지 못하면 저장하고 `warnings` 에 남긴다. `400` 숫자 아님·지도 밖·yaw 가 ±2π 밖·`robot_id` 와 함께 씀, 이름·구역 거리 규칙은 위와 같음 |
 | `PATCH /api/waypoints/{name}` | `{"name"?, "note"?}` 이름 바꾸기(묶음 안 이름도 바뀜)·메모 |
 | `DELETE /api/waypoints/{name}` | 지움 → `{"deleted", "groups_changed": [이 이름을 빼낸 묶음]}` |
 | `GET /api/waypoints/export?names=W1,W2` | 로봇 설정 `points:` 에 붙일 YAML 줄 (text/plain). names 를 비우면 전체 |

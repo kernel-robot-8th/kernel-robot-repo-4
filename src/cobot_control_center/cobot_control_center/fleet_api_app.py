@@ -787,8 +787,16 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     @app.post('/api/waypoints')
     def capture_waypoint(body: dict = Body(...)):
         # 로봇의 지금 위치로 저장. 위치는 화면 값이 아니라 이 서버가 받은 마지막 fleet_status 에서 읽는다.
+        # x, y, yaw 를 주면 그 좌표로 저장한다 (사람이 적은 값, 2026-11-24).
         store_ = waypoint_store(write=True)
         robot_id = body.get('robot_id')
+        if any(key in body for key in ('x', 'y', 'yaw')):
+            if robot_id is not None:
+                raise HTTPException(status_code=400,
+                                    detail='robot_id 와 x·y·yaw 는 함께 쓸 수 없음')
+            item = waypoint_call(store_.add_values, body.get('x'), body.get('y'),
+                                 body.get('yaw'), body.get('name'), body.get('note'))
+            return JSONResponse(status_code=201, content=item)
         robot = ((store.get()[1] or {}).get('robots') or {}).get(robot_id)
         if robot is not None and not store.health()['source_online']:
             robot = dict(robot, online=False)

@@ -140,6 +140,20 @@ def wall_distance(map_data, x, y, radius):
     return best
 
 
+def inside_map(map_data, x, y):
+    """(x, y) [m] 가 지도 그림 안인지. 지도가 없거나 못 읽으면 None."""
+    if not map_data:
+        return None
+    info, data = map_data
+    raster = pgm_raster(data)
+    if raster is None:
+        return None
+    width, height, _ = raster
+    res = float(info['resolution'])
+    return (0 <= (x - info['origin'][0]) / res < width
+            and 0 <= (y - info['origin'][1]) / res < height)
+
+
 def _text(value, field, limit):
     if value is None:
         return ''
@@ -269,6 +283,38 @@ class WaypointStore:
             raise WaypointError(409, f'{robot_id} 위치 값이 이상함') from None
         if not all(math.isfinite(v) for v in (x, y, yaw)):
             raise WaypointError(409, f'{robot_id} 위치 값이 이상함')
+        teach = robot.get('teach') if isinstance(robot.get('teach'), dict) else {}
+        return self._add(x, y, yaw, robot_id, list(teach.get('warnings') or []), name, note)
+
+    def add_values(self, x, y, yaw, name=None, note=None):
+        """
+        사람이 적은 좌표 (x, y [m], yaw [rad]) 로 저장한다. 저장한 웨이포인트를 돌려준다.
+
+        로봇이 가 본 자리가 아니므로 숫자가 아니거나 지도 밖이면 400. 방향은 -π~π 로 맞춘다.
+        """
+        for field, value in (('x', x), ('y', y), ('yaw', yaw)):
+            # bool 은 int 로 통과하므로 따로 막는다.
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise WaypointError(400, f'{field} 는 숫자')
+            # 너무 큰 정수는 float 로 못 바꾸므로 isfinite 가 예외를 낸다.
+            try:
+                finite = math.isfinite(value)
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise WaypointError(400, f'{field} 값이 이상함')
+        if abs(yaw) > 2 * math.pi:
+            raise WaypointError(400, 'yaw 는 라디안 (-2π ~ 2π), 도 단위가 아닌지 확인하세요')
+        inside = inside_map(self.map_data, x, y)
+        if inside is False:
+            raise WaypointError(400, f'({x:g}, {y:g}) 는 지도 밖')
+        yaw = math.atan2(math.sin(yaw), math.cos(yaw))
+        # 지도가 없어도 막지는 않지만, 확인하지 못했다는 것을 남긴다.
+        warnings = [] if inside else ['지도가 없어 지도 밖인지 확인 못 함']
+        return self._add(float(x), float(y), yaw, '', warnings, name, note)
+
+    def _add(self, x, y, yaw, robot_id, warnings, name, note):
+        """이름·개수·구역 거리를 검사하고 저장한다. 벽에 가까우면 주의를 더한다."""
         note = _text(note, 'note', NOTE_MAX)
         with self._lock:
             if len(self._waypoints) >= WAYPOINTS_MAX:
@@ -280,8 +326,6 @@ class WaypointStore:
             if near:
                 raise WaypointError(409, f'구역 지점 {near} 에서 {self.keepout_m:g} m 안이라 저장하지 않음 '
                                          '(구역은 구역 명령으로만 들어감)')
-            teach = robot.get('teach') if isinstance(robot.get('teach'), dict) else {}
-            warnings = list(teach.get('warnings') or [])
             wall = wall_distance(self.map_data, x, y, self.wall_warn_m)
             if wall is not None:
                 warnings.append(f'벽에 가까움 ({wall * 100:.0f} cm, 가지 못할 수 있음)')

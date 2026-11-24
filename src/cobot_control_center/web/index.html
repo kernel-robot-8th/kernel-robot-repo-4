@@ -264,7 +264,7 @@
     <section class="net-head" aria-label="웨이포인트">
       <a href="#" class="detail-back">← 전체</a>
       <strong class="dt-name">웨이포인트</strong>
-      <span class="muted">로봇 상세 화면 조종 칸의 [웨이포인트 기록 시작]으로 지점을 차례로 모으고 [완료]하면 묶음이 됩니다. 이동·경로에서 P 처럼 고르면 좌표를 실어 보냅니다 (구역은 구역 명령으로만).</span>
+      <span class="muted">로봇 상세 화면 조종 칸의 [웨이포인트 기록 시작]으로 지점을 차례로 모으고 [완료]하면 묶음이 됩니다. 아래 칸에 좌표를 적어 등록할 수도 있습니다. 이동·경로에서 P 처럼 고르면 좌표를 실어 보냅니다 (구역은 구역 명령으로만).</span>
       <span class="wp-note" id="wp-note"></span>
     </section>
     <p class="wp-file" id="wp-file"></p>
@@ -273,13 +273,21 @@
         <h2>관제 웨이포인트 <span class="muted" id="wp-count"></span></h2>
         <button type="button" id="wp-export-btn" title="체크한 것(없으면 전체)을 로봇 설정 points 형식 줄로">내보내기 (YAML)</button>
       </div>
+      <form class="wp-add" id="wp-add" novalidate title="지도 좌표를 직접 적어 저장한다 (로봇은 움직이지 않음)">
+        <label>이름 <input id="wp-add-name" maxlength="16" placeholder="자동 (W…)" autocomplete="off"></label>
+        <label>x [m] <input id="wp-add-x" type="number" step="any"></label>
+        <label>y [m] <input id="wp-add-y" type="number" step="any"></label>
+        <label>방향 [°] <input id="wp-add-yaw" type="number" step="any" min="-360" max="360" value="0" title="0 = +x 쪽, 90 = +y 쪽"></label>
+        <label>메모 <input id="wp-add-note" maxlength="200" autocomplete="off"></label>
+        <button type="submit" id="wp-add-ok">값으로 등록</button>
+      </form>
       <div class="wp-table-wrap">
         <table class="wp-table">
           <thead><tr><th></th><th>이름</th><th>x [m]</th><th>y [m]</th><th>방향</th><th>로봇</th><th>저장 시각</th><th>주의</th><th>메모</th><th></th></tr></thead>
           <tbody id="wp-rows"></tbody>
         </table>
       </div>
-      <p class="muted" id="wp-empty">아직 없음. 로봇을 세우고 카드의 [저장]을 누르세요.</p>
+      <p class="muted" id="wp-empty">아직 없음. 상세 화면에서 기록하거나 위에 좌표를 적어 등록하세요.</p>
       <pre class="wp-export" id="wp-export" hidden></pre>
     </section>
     <section class="panel" aria-label="묶음">

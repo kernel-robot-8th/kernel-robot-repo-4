@@ -250,6 +250,7 @@ function renderWaypointsPage() {
   const data = view.waypoints || { waypoints: [], groups: [] };
   $("wp-file").textContent = data.load_error ? data.load_error
     : data.failed ? "백엔드에 닿지 않음" : "";
+  $("wp-add-ok").disabled = view.readOnly;
   renderWaypointTable(data.waypoints || []);
   renderGroups(data.groups || []);
   renderGroupEditor();
@@ -275,7 +276,7 @@ function renderWaypointTable(list) {
     const warn = (w.warnings || []).length ? `주의: ${w.warnings.join(", ")}` : "";
     const cells = [
       wpEl("td", "num", w.x.toFixed(3)), wpEl("td", "num", w.y.toFixed(3)),
-      wpEl("td", "num", `${toDeg(w.yaw)}°`), wpEl("td", "", w.robot_id || ""),
+      wpEl("td", "num", `${toDeg(w.yaw)}°`), wpEl("td", "", w.robot_id || "값 입력"),
       wpEl("td", "num", when), wpEl("td", "wp-warn", warn),
     ];
     const note = wpEl("td", "wp-note-cell");
@@ -287,6 +288,45 @@ function renderWaypointTable(list) {
     row.append(checkCell, name, ...cells, note, actions);
     body.append(row);
   }
+}
+
+// 적은 좌표로 등록 (로봇은 움직이지 않는다). 화면은 도, 서버는 라디안.
+async function addWaypointValues(event) {
+  event.preventDefault();
+  if (view.readOnly || $("wp-add-ok").disabled) return;
+  const values = {};
+  for (const [key, label] of [["x", "x"], ["y", "y"], ["yaw", "방향"]]) {
+    const input = $(`wp-add-${key}`);
+    const value = input.valueAsNumber;   // 빈 칸·숫자가 아니면 NaN
+    if (!Number.isFinite(value)) {
+      wpNote(`${label} 에 숫자를 적으세요`, true);
+      input.focus();
+      return;
+    }
+    values[key] = value;
+  }
+  if (Math.abs(values.yaw) > 360) {
+    wpNote("방향은 -360 ~ 360 도", true);
+    $("wp-add-yaw").focus();
+    return;
+  }
+  $("wp-add-ok").disabled = true;
+  const result = await wpRequest("POST", "/api/waypoints", {
+    x: values.x, y: values.y, yaw: toRad(values.yaw),
+    name: $("wp-add-name").value.trim() || null, note: $("wp-add-note").value.trim() || null,
+  });
+  $("wp-add-ok").disabled = view.readOnly;
+  const d = result.data || {};
+  if (!result.ok) {
+    wpNote(`등록 안 됨: ${d.detail || result.status}`, true);
+    return;
+  }
+  const warnings = d.warnings || [];
+  wpNote(`${d.name} 등록 (${d.x.toFixed(3)}, ${d.y.toFixed(3)}, ${toDeg(d.yaw)}°)`
+    + (warnings.length ? ` · 주의: ${warnings.join(", ")}` : " · 로봇 카드의 이동에서 고르세요"),
+  warnings.length > 0);
+  for (const key of ["name", "x", "y", "note"]) $(`wp-add-${key}`).value = "";
+  loadWaypoints();
 }
 
 async function renameWaypoint(name) {
@@ -441,6 +481,7 @@ async function deleteGroup(name) {
 }
 
 function setupWaypoints() {
+  $("wp-add").addEventListener("submit", addWaypointValues);
   $("wp-export-btn").addEventListener("click", exportWaypoints);
   $("wp-new-group").addEventListener("click", () => startGroupEdit());
   $("wp-group-save").addEventListener("click", saveGroup);

@@ -15,6 +15,7 @@
 """관제 웨이포인트·묶음 (waypoint_utils.py, /api/waypoints, 이동·경로의 poses) 을 ROS 없이 검사한다."""
 
 import json
+import math
 import threading
 
 from cobot_control_center.fleet_api_app import create_app
@@ -213,3 +214,62 @@ def test_wall_distance_and_capture_warning(tmp_path):
     assert any(w.startswith('벽에 가까움') for w in near['warnings'])
     far = store.capture('pinky1', robot(x=0.25, y=0.05))
     assert far['warnings'] == []
+
+
+# ---------- 값으로 등록 ----------
+
+def values_store(tmp_path):
+    pgm = b'P5\n5 5\n255\n' + bytes([0] * 5 + [254] * 20)
+    info = {'image_width': 5, 'image_height': 5, 'resolution': 0.1, 'origin': [-0.2, 0.0, 0.0]}
+    return WaypointStore(str(tmp_path / 'v.json'), 'lab', LAYERS, map_data=(info, pgm),
+                         wall_warn_m=0.15)
+
+
+def test_add_values_persists_normalizes_and_warns_wall(tmp_path):
+    store = values_store(tmp_path)
+    item = store.add_values(-0.1, 0.05, 1.5 * math.pi, note='값')
+    assert item['name'] == 'W1' and item['robot_id'] == '' and item['warnings'] == []
+    assert item['yaw'] == pytest.approx(-math.pi / 2, abs=1e-3)
+    near = store.add_values(0, 0.35, 0, name='near')
+    assert near['name'] == 'NEAR' and near['warnings'][0].startswith('벽에 가까움')
+    assert values_store(tmp_path).poses()['NEAR'] == [0.0, 0.35, 0.0]
+
+
+@pytest.mark.parametrize('values,text', [
+    ((None, 0.1, 0.0), 'x 는 숫자'), (('0', 0.1, 0.0), 'x 는 숫자'),
+    ((0.0, True, 0.0), 'y 는 숫자'), ((0.0, 0.1, math.nan), 'yaw 값'),
+    ((math.inf, 0.1, 0.0), 'x 값'), ((10 ** 400, 0.1, 0.0), 'x 값'),
+    ((0.0, 0.1, 90), '라디안'),
+    ((-0.21, 0.1, 0.0), '지도 밖'), ((0.31, 0.1, 0.0), '지도 밖'),
+    ((0.0, -0.01, 0.0), '지도 밖'), ((0.0, 0.51, 0.0), '지도 밖'),
+])
+def test_add_values_refuses_bad_values(tmp_path, values, text):
+    store = values_store(tmp_path)
+    with pytest.raises(WaypointError) as error:
+        store.add_values(*values)
+    assert error.value.status == 400 and text in error.value.detail
+    assert store.poses() == {}
+
+
+def test_add_values_follows_name_and_zone_rules(tmp_path):
+    store = make_store(tmp_path)
+    for kwargs in ({'name': 'P1'}, {'x': 3.1}):
+        with pytest.raises(WaypointError) as error:
+            store.add_values(**{'x': 5.0, 'y': 0.0, 'yaw': 0.0, **kwargs})
+        assert error.value.status == 409
+
+
+def test_api_add_values_then_goto(tmp_path):
+    client, sent = make_client(tmp_path)
+    body = {'x': 6.0, 'y': 5.0, 'yaw': 1.0, 'name': 'dock'}
+    res = client.post('/api/waypoints', json=body)
+    assert res.status_code == 201 and res.json()['name'] == 'DOCK'
+    assert '확인 못 함' in res.json()['warnings'][0]   # 지도 없는 저장소
+    assert client.post('/api/waypoints', json=body).status_code == 409
+    assert client.post('/api/waypoints', json={'x': 1.0}).status_code == 400
+    assert client.post('/api/waypoints', json={**body, 'robot_id': 'pinky1'}).status_code == 400
+    client.post('/api/tasks', json={'robot_id': 'pinky1', 'operation': 'goto',
+                                    'points': ['DOCK'], 'client_request_id': 'c1'})
+    assert sent[-1]['poses'] == {'DOCK': [6.0, 5.0, 1.0]}
+    read_only, _ = make_client(tmp_path / 'ro', read_only=True)
+    assert read_only.post('/api/waypoints', json=body).status_code == 503
