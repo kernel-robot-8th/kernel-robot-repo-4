@@ -26,7 +26,7 @@
       <span class="link" id="link-source" data-state="bad"><i></i>관제 노드</span>
       <span class="link" id="link-tasks" data-state="bad" title="fleet_control_node (중앙 관제: 하트비트·명령, cobot_fleet_control)"><i></i>작업 노드 · fleet_control</span>
       <button type="button" class="arm-toggle" id="arm-toggle" data-armed="false" disabled
-              title="작업 명령(이동·구역·나가기·홈)을 켜고 끈다. 정지·비상정지는 꺼져 있어도 된다">작업 명령 켜기</button>
+              title="작업 명령(개별 이동: 이동·구역·나가기·홈)을 켜고 끈다. 정지·비상정지는 꺼져 있어도 된다">작업 명령 켜기</button>
       <span class="link" id="link-zone" data-state="na"><i></i><span class="label">zone_manager</span></span>
       <span class="link bridges" id="link-bridges"><span class="label">브릿지</span></span>
       <!-- 네트워크 상태 화면(#/network, network.js). 점 = 전체 요약 (가장 나쁜 상자 색) -->
@@ -115,14 +115,14 @@
         <div class="cards" id="arms"></div>
       </section>
 
-      <section class="panel" aria-label="작업">
+      <section class="panel" aria-label="이동 작업">
         <div class="panel-head">
-          <h2>작업 <span class="muted" id="tasks-meta"></span></h2>
+          <h2>이동 작업 <span class="muted" id="tasks-meta"></span></h2>
           <label class="muted">로봇
             <select id="task-robot"><option value="">전체</option></select>
           </label>
         </div>
-        <ol class="tasks" id="tasks"><li class="muted">작업 없음</li></ol>
+        <ol class="tasks" id="tasks"><li class="muted">이동 작업 없음</li></ol>
       </section>
 
       <section class="panel" aria-label="위험구역">
@@ -245,7 +245,7 @@
 
     <div class="detail-lower">
       <section class="panel" aria-label="타임라인">
-        <div class="panel-head"><h2>타임라인</h2><span class="muted">작업 · 이벤트</span></div>
+        <div class="panel-head"><h2>타임라인</h2><span class="muted">이동 작업 · 이벤트</span></div>
         <ol class="timeline" id="dt-timeline"></ol>
       </section>
       <section class="panel" aria-label="진단">

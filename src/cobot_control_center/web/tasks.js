@@ -1,7 +1,7 @@
 // Copyright 2026 Pinky_Team4
 // Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 //
-// 작업 목록 (관제가 보낸 명령 기록).
+// 이동 작업 목록 (관제가 보낸 주행 기록: 개별 이동과 주문 안의 주행).
 // 화면 스크립트는 index.html 에 적은 순서로 읽힌다 (core.js 먼저, main.js 마지막).
 // 파일끼리 함수·상수를 전역 이름으로 함께 쓴다 (빌드 단계 없이 브라우저가 바로 읽게).
 
@@ -94,7 +94,7 @@ function renderTasks() {
     .filter(Boolean).join(" · ");
   meta.dataset.bad = unknown ? "1" : "";
   if (tasks.length === 0) {
-    list.innerHTML = '<li class="muted">작업 없음</li>';
+    list.innerHTML = '<li class="muted">이동 작업 없음</li>';
     return;
   }
   list.replaceChildren(...tasks.slice(0, TASK_LIST_MAX).map((task) => {

@@ -173,9 +173,9 @@ function zoneText(robotId) {
 function renderStats(robotId, robot) {
   const task = robotTask(robotId, UNKNOWN_TASK) || robotTask(robotId, ACTIVE_TASK);
   const taskStat = task
-    ? stat("현재 작업", taskCommandText(task),
+    ? stat("현재 이동 작업", taskCommandText(task),
       [TASK_TEXT[task.state] || task.state, task.detail].filter(Boolean).join(" · "))
-    : stat("현재 작업", "없음", robot.detail ? `순찰 노드: ${robot.detail}` : "");
+    : stat("현재 이동 작업", "없음", robot.detail ? `순찰 노드: ${robot.detail}` : "");
 
   let poseStat;
   if (robot.pose) {
@@ -205,9 +205,9 @@ function renderStats(robotId, robot) {
   const mine = [...view.tasks.values()].filter((t) => t.robot_id === robotId);
   const count = (states) => mine.filter((t) => states.includes(t.state)).length;
   const recentStat = mine.length
-    ? stat("최근 작업", `성공 ${count(["SUCCEEDED"])} · 실패 ${count(["FAILED", "UNKNOWN"])}`,
+    ? stat("최근 이동 작업", `성공 ${count(["SUCCEEDED"])} · 실패 ${count(["FAILED", "UNKNOWN"])}`,
       `중단 ${count(["STOPPED"])} · 거절 ${count(["REJECTED"])} (최근 ${mine.length}개)`)
-    : stat("최근 작업", "없음", "");
+    : stat("최근 이동 작업", "없음", "");
   $("dt-stats").replaceChildren(taskStat, poseStat, zoneStat, recentStat);
 }
 
@@ -221,7 +221,7 @@ function renderTimeline(robotId) {
     if (task.robot_id !== robotId) continue;
     items.push({
       time: task.updated_at || task.created_at,
-      kind: "작업",
+      kind: "이동",
       level: TASK_GROUP[task.state] || "",
       text: [taskCommandText(task), TASK_TEXT[task.state] || task.state, task.detail]
         .filter(Boolean).join(" · "),

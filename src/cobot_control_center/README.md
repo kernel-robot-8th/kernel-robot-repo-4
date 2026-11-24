@@ -243,7 +243,7 @@ export ROS_DOMAIN_ID=100
 ros2 launch cobot_control_center fleet_api_dev.launch.xml      # 화면 http://<관제 PC>:8180/
 ```
 
-- **읽기 전용**: 상태·지도·작업 목록·카메라는 실물 그대로 보입니다. 명령 경로는 `503` 이고 `task_request` 발행자도 만들지 않아, 고치던 코드가 실물 로봇을 움직이지 않습니다. 화면 칩에 `개발(읽기 전용)` 이 붙고 명령 버튼은 모두 꺼집니다. 명령 화면을 고칠 때는 [가짜 핑키](#로봇-없이-시험하기)(8181)를 씁니다.
+- **읽기 전용**: 상태·지도·이동 작업 목록·카메라는 실물 그대로 보입니다. 명령 경로는 `503` 이고 `task_request` 발행자도 만들지 않아, 고치던 코드가 실물 로봇을 움직이지 않습니다. 화면 칩에 `개발(읽기 전용)` 이 붙고 명령 버튼은 모두 꺼집니다. 명령 화면을 고칠 때는 [가짜 핑키](#로봇-없이-시험하기)(8181)를 씁니다.
 - **고친 것 반영**: 화면(`web/`)은 `src` 를 바로 읽으므로 새로 고침만 하면 됩니다 (새 js 파일도). 파이썬 백엔드를 고쳤으면 이 launch 만 Ctrl+C 후 다시 띄웁니다. 실물 bringup 은 재시작하지 않아도 됩니다.
 - 처음 한 번, 그리고 `setup.py`·`package.xml`·launch 파일을 새로 만들었을 때는 다시 빌드합니다.
 
@@ -285,6 +285,8 @@ ros2 launch cobot_fleet_control fleet_control.launch.xml
 ```
 
 ## 작업 노드 (fleet_control)
+
+화면의 이동 버튼·경로는 **개별 이동**(`type=create`), 상차부터 복귀까지는 **주문**(`type=order`)이라고 부릅니다 ([용어](docs/screen_guide.md#용어)).
 
 화면 명령은 `/control_center/task_request` 로 작업 노드 `fleet_control_node`(`cobot_fleet_control`)에 넘어갑니다. bringup·가짜 핑키(`cobot_mock`)·가제보(`cobot_gazebo`) 모두 이 노드를 띄우고, 개발 차이는 설정(`allow_raw_cmd`, `start_armed`)으로만 둡니다. 예전 작업 노드 `task_manager_node` 는 2026-11-09 에 지웠습니다.
 

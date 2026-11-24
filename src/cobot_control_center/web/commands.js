@@ -308,8 +308,8 @@ function renderArmToggle() {
   button.textContent = view.commandsArmed ? "작업 명령 끄기" : "작업 명령 켜기";
   button.title = view.readOnly ? "개발 화면 (읽기 전용): 실물 관제 화면(8080)에서 켜고 끈다"
     : view.commandsArmed
-    ? "작업 명령 켜짐: 이동·구역·나가기·홈을 보낼 수 있음. 누르면 끈다"
-    : "작업 명령 꺼짐: 이동·구역·나가기·홈이 막혀 있음. 누르면 켠다 (정지·비상정지는 꺼져 있어도 됨)";
+    ? "작업 명령 켜짐: 개별 이동(이동·구역·나가기·홈)을 보낼 수 있음. 누르면 끈다"
+    : "작업 명령 꺼짐: 개별 이동(이동·구역·나가기·홈)이 막혀 있음. 누르면 켠다 (정지·비상정지는 꺼져 있어도 됨)";
 }
 
 async function toggleArm() {
@@ -318,7 +318,7 @@ async function toggleArm() {
     const domain = view.healthDomain ?? "?";
     const real = view.snapshot && view.snapshot.infra && view.snapshot.infra.mode === "real";
     const what = real ? "실물 로봇이 움직입니다" : "로봇에 명령이 나갑니다";
-    if (!confirm(`${what} (도메인 ${domain}).\n작업 명령(이동·구역·나가기·홈)을 켤까요?`)) return;
+    if (!confirm(`${what} (도메인 ${domain}).\n작업 명령(개별 이동: 이동·구역·나가기·홈)을 켤까요?`)) return;
   } else {
     cancelPick();
   }

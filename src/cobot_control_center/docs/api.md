@@ -29,7 +29,7 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `GET /api/map/layers` | `{"zones": {"A": {"points": {"ZA": [x, y, yaw]}, "exit": {"name", "pose"} 또는 null, "queue": [[x, y, yaw], ..]}}, "homes": {"pinky1": {"name", "pose"}}, "points": {"P1": [x, y, yaw], ..}, "hidden_points": 숨긴 예비 지점 수, "warnings": [..]}`. 설정이 없으면 404 |
 | `GET /api/events?after=&robot=&limit=` | 이벤트 로그 (오래된 것부터, `id` 오름차순). `after` 보다 큰 `id` 만, `robot` 을 주면 그 로봇만, `limit` 1~1000 (기본 200) |
 | `WS /ws/fleet` | 연결 즉시 최신 스냅샷 1건, 이후 새 스냅샷마다 push |
-| `POST /api/tasks` | `{"client_request_id", "robot_id", "operation": "goto"\|"zone"\|"leave"\|"home", "points": [..]}` → `202` 작업 / `200` 같은 요청 재전송 / `400` 형식·지점 / `404` 없는 로봇 / `409` 작업 중·결과 모름 / `423` 작업 명령 꺼짐 (기록하지 않음) / `503` 끊김·작업 노드 없음. 거절은 `{"detail", "task"}` |
+| `POST /api/tasks` | 개별 이동. `{"client_request_id", "robot_id", "operation": "goto"\|"zone"\|"leave"\|"home", "points": [..]}` → `202` 작업 / `200` 같은 요청 재전송 / `400` 형식·지점 / `404` 없는 로봇 / `409` 작업 중·결과 모름 / `423` 작업 명령 꺼짐 (기록하지 않음) / `503` 끊김·작업 노드 없음. 거절은 `{"detail", "task"}` |
 | `POST /api/routes` | 경로 (여러 지점 섞어 연결 주행). `{"client_request_id", "robot_id", "points": ["P1", "ZA", "P3", "I1"]}`. 백엔드가 구간으로 나눔 (이어지는 일반 지점·자기 홈은 `goto` 하나, 구역 지점은 하나씩 `zone`) → 첫 구간을 바로 보내고 `202` 경로 / `400` 모르는 지점·구역 출구·다른 로봇 홈·지점 없음·20개 넘음 / `404` 없는 로봇 / `409` 진행 중인 경로가 있음, 또는 첫 구간 거절 (`{"detail", "route"}`) / `423` 작업 명령 꺼짐 / `503` 작업 노드·지점 설정 없음. 앞 구간이 `SUCCEEDED` 면 다음 구간, `FAILED`·`STOPPED`·`REJECTED`·`UNKNOWN` 이면 경로 `FAILED`. 작업이 안 만들어진 `409`·`503`·응답 없음은 `route_retry_sec` 동안 같은 `client_request_id`(`<route_id>-<구간 번호>`)로 다시 보냄. 정지·비상정지·전체 비상정지는 남은 구간을 버림 (`CANCELED`). 시작·구간 성공·완료·취소·중단은 이벤트 로그에 `kind: "route"` 로 남김 (`data`: `route_id`, `index`, `total`, `state`) |
 | `GET /api/routes` | `{"robots": {"pinky1": 마지막 경로}, "recent": [끝난 경로, 최신순 20개]}`. 경로 = `{"route_id", "robot_id", "points", "legs": [{"operation", "points", "task_id", "state": WAITING·작업 상태}], "index": 지금 구간, "state": RUNNING·SUCCEEDED·FAILED·CANCELED, "detail", "created_at", "updated_at"}`. 백엔드 메모리라 다시 켜면 사라짐 |
 | `POST /api/routes/{robot_id}/cancel` | 남은 구간만 버림 → `{"canceled": [route_id]}`. 지금 가는 구간은 멈추지 않음 (멈추려면 정지) |
@@ -120,6 +120,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 - 지금은 `std_msgs/String` JSON 입니다. 필드가 정해지면 `cobot_interfaces` 메시지로 바꿀 예정입니다 (팀 공지·리뷰 필요).
 
 ## 작업·주문 (fleet_control_node)
+
+`POST /api/tasks`·`/api/routes` 는 **개별 이동**(`type=create`), 업무 전체는 **주문**(`type=order`)입니다 → [용어](screen_guide.md#용어). `/api/tasks` 목록에는 주문 안의 주행도 나옵니다.
 
 작업 상태, 관제 재시작 뒤 처리(`UNKNOWN`), 수동 명령(`raw_cmd`) 검사는 작업 노드가 정합니다 → [`cobot_fleet_control/README.md`](../../cobot_navigation/cobot_fleet_control/README.md). 이 백엔드는 `/control_center/tasks` 에 실려 오는 값을 그대로 보여 줍니다. 예전 작업 노드 `task_manager_node` 는 2026-11-09 에 지웠습니다.
 
