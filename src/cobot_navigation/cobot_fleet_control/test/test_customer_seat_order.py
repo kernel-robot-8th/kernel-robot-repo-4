@@ -305,3 +305,40 @@ def test_failed_arrange_done_by_hand_goes_on_to_leave_the_zone(env):
     order = env.finish()
     assert order['state'] == 'COMPLETED' and len(arranges(env)) == 1
     assert env.commands()[3:] == ['zone:ZC', 'leave', 'zone:ZA', 'leave', 'home']
+
+
+def stop_in_pickup(env):
+    """상차 구역 안에서 멈춘 로봇 상태를 만든다."""
+    env.order()
+    env.until('MARKER')
+    env.scenario.telemetry('pinky1', {
+        'state': 'HOLDING_ZONE', 'held_zone': 'B', 'busy': False,
+        'central_controlled': True, 'central_latched': False})
+
+
+def confirm_loaded(env):
+    return env.api.handle({
+        'type': 'confirm_loaded', 'request_id': 'manual1', 'order_id': 'order1',
+        'operator': 'operator1', 'note': '현장에서 적재 확인',
+        'evidence': {'sku': 'SHOE42', 'load_present': True,
+                     'arm_safe': True, 'pickup_path_clear': True}})
+
+
+def test_manual_load_is_accepted_with_only_the_pickup_station_reserved(env):
+    """고객 자리 주문은 상차장만 예약하므로 그것만으로 수동 상차 확인을 받는다."""
+    stop_in_pickup(env)
+    assert set(env.scenario.store.resources('order1')) == {'arm_omx2', 'station_ZB'}
+    assert confirm_loaded(env)['status'] == 200
+    order = env.current()
+    assert order['stage'] == 'LEAVE_PICKUP' and 'VERIFY_LOAD' in order['operator_completed']
+    env.until('CUSTOMER')
+    assert env.commands()[-1] == 'goto:P22'
+    assert not any(stage in {'PICK', 'LOAD', 'VERIFY_LOAD'} for stage, _, _ in env.works())
+
+
+def test_manual_load_is_refused_without_the_pickup_station(env):
+    """상차장 예약이 없으면 고객 자리 주문도 거절한다."""
+    stop_in_pickup(env)
+    env.scenario.store.release('order1', ['station_ZB'])
+    assert confirm_loaded(env)['status'] == 400
+    assert env.current()['stage'] == 'MARKER'

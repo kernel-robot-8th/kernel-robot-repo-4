@@ -4,7 +4,7 @@ import math
 
 import py_trees
 
-from .scenario_contracts import BLOCKED, LEAVE_SIDE, TERMINAL, finite
+from .scenario_contracts import BLOCKED, finite, is_customer_route, LEAVE_SIDE, TERMINAL
 
 
 Status = py_trees.common.Status
@@ -241,7 +241,7 @@ class CustomerReceipt(py_trees.behaviour.Behaviour):
             self.feedback_message = '회수 주문 또는 복구 체크포인트: 수령 대기 생략'
             return Status.SUCCESS
         ctx.enter('CUSTOMER')
-        customer = 'customer' in ctx.service._route(ctx.order)
+        customer = is_customer_route(ctx.service._route(ctx.order))
         if ctx.customer_received:
             ctx.save(customer_received=True)
         elif ctx.customer_declined:

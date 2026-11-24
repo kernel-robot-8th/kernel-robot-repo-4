@@ -2,42 +2,13 @@
 
 import py_trees
 
+from .scenario_contracts import (
+    CUSTOMER_RETURN_STAGES, CUSTOMER_STAGES, is_customer_route, LABELS, order_stages, STAGES,
+)
 from .scenario_nodes import (
     CorrectionBudget, CustomerDeclined, CustomerReceipt, DeviceStep, DockTolerance, FinishOrder,
     MatchSku, MeasureDock, NavigationStep, PathClear, SafeRetry, SafetyGate, VerifyCargo,
 )
-
-
-STAGES = (
-    'MOVE_PICKUP', 'PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER', 'PICK', 'LOAD', 'VERIFY_LOAD',
-    'LEAVE_PICKUP', 'MOVE_DROPOFF', 'PATH_EXIT', 'DOCK_DROPOFF', 'QR', 'PICK_DROPOFF',
-    'UNLOAD', 'VERIFY_UNLOAD', 'CUSTOMER', 'LEAVE_DROPOFF', 'RETURN_HOME', 'RETURN_EXIT',
-)
-LABELS = {
-    'MOVE_PICKUP': '상차 작업장 이동', 'PICKUP_EXIT': '상차 진입 후미 이탈 확인',
-    'DOCK_PICKUP': '상차 정차 실측', 'CORRECT_PICKUP': '상차 정밀 위치 보정',
-    'MARKER': '상차 마커·상품 확인', 'PICK': '상차 상품 피킹', 'LOAD': '로봇에 상차',
-    'VERIFY_LOAD': '적재·로봇팔 퇴피 확인', 'LEAVE_PICKUP': '상차 구역 이탈',
-    'MOVE_DROPOFF': '하차 작업장 이동', 'PATH_EXIT': '하차 진입 후미 이탈 확인',
-    'DOCK_DROPOFF': '하차 정차 실측', 'CORRECT_DROPOFF': '하차 정밀 위치 보정',
-    'QR': '하차 QR·상품 확인', 'PICK_DROPOFF': '하차 상품 피킹', 'UNLOAD': '목적지에 하차',
-    'VERIFY_UNLOAD': '배치·빈 적재함·로봇팔 퇴피 확인', 'LEAVE_DROPOFF': '하차 구역 이탈',
-    'RETURN_HOME': 'HOME 복귀', 'RETURN_EXIT': '복귀 후미 이탈 확인',
-    'MOVE_CUSTOMER': '고객 자리 이동', 'MOVE_ARRANGE': '회수 정리 구역 이동',
-    'ARRANGE': '회수 신발 정리', 'LEAVE_ARRANGE': '회수 정리 구역 이탈',
-    'MOVE_RESTOCK': '선반 반환 구역 이동', 'RESTOCK': '신발 선반 반환',
-    'LEAVE_RESTOCK': '선반 반환 구역 이탈',
-}
-# 고객 자리(지점) 주문: ZB 상차 → 고객 자리 → 결제면 복귀, 회수면 ZC 정리 → ZA 선반 반환 → 복귀.
-# 순서는 복구 체크포인트(resume_stage) 이전 단계를 건너뛰는 데 쓴다.
-CUSTOMER_STAGES = (
-    'MOVE_PICKUP', 'PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER', 'PICK', 'LOAD', 'VERIFY_LOAD',
-    'LEAVE_PICKUP', 'MOVE_CUSTOMER', 'CUSTOMER',
-    'MOVE_ARRANGE', 'ARRANGE', 'LEAVE_ARRANGE', 'MOVE_RESTOCK', 'RESTOCK', 'LEAVE_RESTOCK',
-    'RETURN_HOME', 'RETURN_EXIT',
-)
-CUSTOMER_RETURN_STAGES = frozenset(CUSTOMER_STAGES[CUSTOMER_STAGES.index('MOVE_ARRANGE'):
-                                                   CUSTOMER_STAGES.index('RETURN_HOME')])
 
 
 def customer_mandatory(order):
@@ -67,9 +38,10 @@ class FailureRoute(py_trees.behaviour.Behaviour):
 def build_scenario_tree(ctx):
     """조건·선택·순차·재시도 노드가 전체 업무 순서를 직접 결정한다."""
     # 복구는 운영자가 승인한 이동·수령 체크포인트에서만 이 함수를 다시 호출한다.
-    customer = 'customer' in ctx.service._route(ctx.order)
-    order_stages = CUSTOMER_STAGES if customer else STAGES
-    ctx.skip_stages = set(order_stages[:order_stages.index(ctx.resume_stage)])
+    route = ctx.service._route(ctx.order)
+    customer = is_customer_route(route)
+    stages = order_stages(route)
+    ctx.skip_stages = set(stages[:stages.index(ctx.resume_stage)])
 
     def nav(stage):
         return NavigationStep(ctx, stage, LABELS[stage])

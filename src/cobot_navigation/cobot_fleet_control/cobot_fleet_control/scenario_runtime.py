@@ -5,7 +5,8 @@ import time
 import uuid
 
 from .bt_visualization import ScenarioTreeTrace
-from .scenario_contracts import BLOCKED, MOVE_POINT, NAVIGATION, TERMINAL, WORK
+from .scenario_contracts import (
+    BLOCKED, is_customer_route, MOVE_POINT, NAVIGATION, TERMINAL, WORK)
 from .scenario_tree import build_scenario_tree
 
 
@@ -56,20 +57,7 @@ class ScenarioContext:
             return
         service, order = self.service, self.order
         route = service._route(order)
-        resources = []
-        customer = 'customer' in route
-        if stage == 'MOVE_PICKUP':
-            # 반대 방향 주문이 작업장을 하나씩 잡고 서로 기다리는 교착을 방지한다.
-            # 고객 자리 주문은 회수할지 모르므로 상차장만 잡고, 회수 구역은 갈 때 잡는다.
-            resources = service._station(order, 'pickup') + (
-                [] if customer else service._station(order, 'dropoff'))
-        elif stage in ('MOVE_DROPOFF', 'MOVE_ARRANGE'):
-            resources = service._station(order, 'dropoff')
-        elif stage == 'MOVE_RESTOCK':
-            resources = service._station(order, 'restock')
-        if stage in NAVIGATION:
-            resources += ['lane_' + route['lane']]
-        if not service.store.acquire(order['order_id'], resources):
+        if not service.store.acquire(order['order_id'], self._resources(stage, route)):
             return
         request_id = uuid.uuid4().hex
         self.save(request_id=request_id, attempt=order['attempt'] + 1)
@@ -77,26 +65,52 @@ class ScenarioContext:
             service.clock() + service.config['step_timeout_sec'])
         try:
             if stage in NAVIGATION:
-                service.fleet.submit(dict(
-                    command_id=request_id, robot_id=order['robot_id'],
-                    operation=NAVIGATION[stage],
-                    points=[route[MOVE_POINT[stage]]] if stage in MOVE_POINT else [],
-                    timeout_sec=service.config['step_timeout_sec']))
+                service.fleet.submit(self._navigation_command(stage, route, request_id))
             else:
-                actor, action = WORK[stage]
-                if order['kind'] == 'return' and stage == 'UNLOAD':
-                    action = 'warehouse_store'
-                work = dict(
-                    request_id=request_id, order_id=order['order_id'], robot_id=order['robot_id'],
-                    stage=stage, target=route.get(actor, actor), action=action,
-                    sku=order['sku'], quantity=order['quantity'], attempt=order['attempt'],
-                    route=route, timeout_sec=service.config['step_timeout_sec'])
-                if order.get('shelf_row') is not None:
-                    # 선반 칸을 아는 주문만 팔이 집을 행·열을 함께 받는다.
-                    work.update(shelf_row=order['shelf_row'], shelf_col=order['shelf_col'])
-                service.gateway.work(work)
+                service.gateway.work(self._work_request(stage, route, request_id))
         except Exception as error:
             self.interrupt('단계 전달 실패: ' + str(error))
+
+    def _resources(self, stage, route):
+        """단계를 시작하기 전에 한꺼번에 잡을 작업장·팔·통로."""
+        station = self.service._station
+        resources = []
+        if stage == 'MOVE_PICKUP':
+            # 반대 방향 주문이 작업장을 하나씩 잡고 서로 기다리는 교착을 방지한다.
+            # 고객 자리 주문은 회수할지 모르므로 상차장만 잡고, 회수 구역은 갈 때 잡는다.
+            resources = station(self.order, 'pickup') + (
+                [] if is_customer_route(route) else station(self.order, 'dropoff'))
+        elif stage in ('MOVE_DROPOFF', 'MOVE_ARRANGE'):
+            resources = station(self.order, 'dropoff')
+        elif stage == 'MOVE_RESTOCK':
+            resources = station(self.order, 'restock')
+        if stage in NAVIGATION:
+            resources += ['lane_' + route['lane']]
+        return resources
+
+    def _navigation_command(self, stage, route, request_id):
+        """하위 주행 BT에 넘길 이동 명령."""
+        return dict(
+            command_id=request_id, robot_id=self.order['robot_id'],
+            operation=NAVIGATION[stage],
+            points=[route[MOVE_POINT[stage]]] if stage in MOVE_POINT else [],
+            timeout_sec=self.service.config['step_timeout_sec'])
+
+    def _work_request(self, stage, route, request_id):
+        """팔·비전 어댑터에 넘길 작업 요청 (/fleet/work_request)."""
+        order = self.order
+        actor, action = WORK[stage]
+        if order['kind'] == 'return' and stage == 'UNLOAD':
+            action = 'warehouse_store'
+        work = dict(
+            request_id=request_id, order_id=order['order_id'], robot_id=order['robot_id'],
+            stage=stage, target=route.get(actor, actor), action=action,
+            sku=order['sku'], quantity=order['quantity'], attempt=order['attempt'],
+            route=route, timeout_sec=self.service.config['step_timeout_sec'])
+        if order.get('shelf_row') is not None:
+            # 선반 칸을 아는 주문만 팔이 집을 행·열을 함께 받는다.
+            work.update(shelf_row=order['shelf_row'], shelf_col=order['shelf_col'])
+        return work
 
     def retry(self, stage, detail):
         """확정된 안전 실패만 공유 예산으로 재시도한다. 동작 불명 상태는 대상이 아니다."""
@@ -125,7 +139,7 @@ class ScenarioContext:
             return False
         order.update(state='FAILED' if order['failure'] else 'COMPLETED', request_id=None,
                      detail=order['failure'] or '필수 작업과 HOME 복귀 완료', updated_at=time.time())
-        customer = 'customer' in self.service._route(order)
+        customer = is_customer_route(self.service._route(order))
         # 고객 자리 주문은 회수한 신발을 ZA 선반에 다시 올린(RESTOCK) 뒤에만 재고를 돌려놓는다.
         restocked = customer and 'RESTOCK' in confirmed
         if customer and order.get('customer_timed_out') and not order['failure']:

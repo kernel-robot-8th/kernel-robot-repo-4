@@ -4,9 +4,9 @@ import time
 
 from .control_release import require_stopped
 
-from .scenario_contracts import (ARM_STAGES, BLOCKED, HAND_DONE, identifier, NAVIGATION,
-                                 operator_or_default, optional_text, RESUME_STAGES, RETRY_FROM,
-                                 TERMINAL)
+from .scenario_contracts import (ARM_STAGES, BLOCKED, HAND_DONE, identifier, is_customer_route,
+                                 NAVIGATION, operator_or_default, optional_text, order_stages,
+                                 PICKUP_STAGES, RESUME_STAGES, RETRY_FROM, TERMINAL)
 
 
 def interrupt(service, order_id, state, detail):
@@ -40,12 +40,48 @@ def interrupt(service, order_id, state, detail):
 
 def confirm_loaded(service, order_id, operator, note, evidence):
     """센서 결과를 생성하지 않고, 현장 확인을 기록한 뒤 실제 구역 이탈부터 재개한다."""
-    from .scenario_tree import STAGES
-
     identifier(operator, 'operator')
     order = service.store.get(identifier(order_id, 'order_id'))
     if not order:
         raise ValueError('없는 주문')
+    _check_load_evidence(order, note, evidence)
+    if order.get('operator_load_confirmation'):
+        return order
+    if order.get('manual_load_pending') and order['stage'] == 'MOVE_PICKUP':
+        return order
+    restoring, latched = _check_load_ready(service, order)
+    robot = order['robot_id']
+    confirmation = dict(operator=operator, note=note.strip(), evidence=dict(evidence),
+                        confirmed_at=time.time(), previous_stage=order['stage'],
+                        previous_state=order['state'], previous_request_id=order['request_id'])
+    reset_id = service.gateway.release(robot) if latched else None
+    runtime = service.trees.pop(order_id, None)
+    if runtime:
+        runtime.cancel()
+    order.update(state='RUNNING', request_id=None, attempt=0,
+                 reset_pending=latched, reset_request_id=reset_id)
+    if restoring:
+        event = 'operator_load_confirmation_pending'
+        order.update(stage='MOVE_PICKUP', detail='수동 상차 확인 접수: 재기동 후 상차 구역 재확인',
+                     manual_load_pending=confirmation)
+    else:
+        event = 'operator_load_confirmed'
+        order.update(stage='LEAVE_PICKUP', detail='운영자 수동 상차 확인: ' + note.strip(),
+                     operator_completed=list(PICKUP_STAGES),
+                     operator_load_confirmation=confirmation)
+        order.pop('manual_load_pending', None)
+    service._save(order)
+    service.store.event(dict(type=event, order_id=order_id,
+                             robot_id=robot, confirmation=confirmation))
+    service.deadlines.pop(order_id, None)
+    if latched:
+        service.deadlines[order_id] = service.clock() + service.config['stale_sec']
+    service.store.clear_hold(robot)
+    return service.store.get(order_id)
+
+
+def _check_load_evidence(order, note, evidence):
+    """운영자가 주문 상품의 실제 적재와 안전을 모두 확인했는지 본다."""
     if not isinstance(note, str) or not note.strip():
         raise ValueError('수동 상차 확인 근거 note 필요')
     required = ('load_present', 'arm_safe', 'pickup_path_clear')
@@ -53,13 +89,12 @@ def confirm_loaded(service, order_id, operator, note, evidence):
             or any(evidence.get(key) is not True for key in required)
             or evidence.get('sku') != order['sku']):
         raise ValueError('주문 SKU·실제 적재·팔 퇴피·진입 통로 이탈 확인 필요')
-    if order.get('operator_load_confirmation'):
-        return order
-    if order.get('manual_load_pending') and order['stage'] == 'MOVE_PICKUP':
-        return order
-    pickup_stages = STAGES[STAGES.index('PICKUP_EXIT'):STAGES.index('VERIFY_LOAD') + 1]
+
+
+def _check_load_ready(service, order):
+    """수동 상차를 받을 수 있는 주문·로봇·예약인지 보고 (재기동 복구 여부, 정지 래치)를 돌려준다."""
     if (order['state'] not in {'RUNNING', 'UNKNOWN'}
-            or order['stage'] not in set(pickup_stages) | {'CORRECT_PICKUP'}
+            or order['stage'] not in set(PICKUP_STAGES) | {'CORRECT_PICKUP'}
             or 'MOVE_PICKUP' not in order['completed'] or not order['robot_id']
             or order['failure']):
         raise ValueError('상차장 도착 완료 후 상차 검증 중인 주문만 수동 확인 가능')
@@ -75,46 +110,15 @@ def confirm_loaded(service, order_id, operator, note, evidence):
                 'HOLDING_ZONE', 'IDLE_WAIT', 'STOPPED'})
             or service.fleet.repository.busy(robot)):
         raise ValueError('최신 통신·배터리·중앙 제어·구역 보유·정지 상태 확인 필요')
-    reserved = set(service.store.resources(order_id))
-    if not set(service._station(order, 'pickup') + service._station(order, 'dropoff')) <= (
-            reserved):
+    # 고객 자리 주문은 상차장만 예약한다 (회수 구역은 갈 때 잡음). MOVE_PICKUP 예약과 같아야 한다.
+    sides = ('pickup',) if is_customer_route(service._route(order)) else ('pickup', 'dropoff')
+    needed = {name for side in sides for name in service._station(order, side)}
+    if not needed <= set(service.store.resources(order['order_id'])):
         raise ValueError('주문의 상하차 작업장·팔 예약 확인 필요')
     latched = status.get('central_latched')
     if not isinstance(latched, bool):
         raise ValueError('로봇 정지 래치 상태 확인 필요')
-    confirmation = dict(operator=operator, note=note.strip(), evidence=dict(evidence),
-                        confirmed_at=time.time(), previous_stage=order['stage'],
-                        previous_state=order['state'], previous_request_id=order['request_id'])
-    reset_id = service.gateway.release(robot) if latched else None
-    runtime = service.trees.pop(order_id, None)
-    if runtime:
-        runtime.cancel()
-    if restoring:
-        order.update(state='RUNNING', stage='MOVE_PICKUP', request_id=None, attempt=0,
-                     detail='수동 상차 확인 접수: 재기동 후 상차 구역 재확인',
-                     manual_load_pending=confirmation, reset_pending=latched,
-                     reset_request_id=reset_id)
-        service._save(order)
-        service.store.event(dict(type='operator_load_confirmation_pending', order_id=order_id,
-                                 robot_id=robot, confirmation=confirmation))
-        service.deadlines.pop(order_id, None)
-        if latched:
-            service.deadlines[order_id] = service.clock() + service.config['stale_sec']
-        service.store.clear_hold(robot)
-        return service.store.get(order_id)
-    order.update(state='RUNNING', stage='LEAVE_PICKUP', request_id=None, attempt=0,
-                 detail='운영자 수동 상차 확인: ' + note.strip(), reset_pending=latched,
-                 operator_completed=list(pickup_stages), operator_load_confirmation=confirmation,
-                 reset_request_id=reset_id)
-    order.pop('manual_load_pending', None)
-    service._save(order)
-    service.store.event(dict(type='operator_load_confirmed', order_id=order_id,
-                             robot_id=robot, confirmation=confirmation))
-    service.deadlines.pop(order_id, None)
-    if latched:
-        service.deadlines[order_id] = service.clock() + service.config['stale_sec']
-    service.store.clear_hold(robot)
-    return service.store.get(order_id)
+    return restoring, latched
 
 
 # 운영자·메모는 선택. 자원을 예약한 주문의 취소에는 실제 정리 확인이 필요하다.
@@ -137,11 +141,8 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     robot = order['robot_id']
     if robot:
         require_stopped(service, robot)
-    if decision == 'fail' and service.store.resources(order_id):
-        required = ('arms_safe', 'cargo_reconciled', 'resources_clear')
-        if not evidence or any(evidence.get(key) is not True for key in required):
-            raise ValueError('취소 전 팔 퇴피·화물 정리·작업장과 통로 이탈 확인 필요 '
-                             '(arms_safe, cargo_reconciled, resources_clear)')
+    if decision == 'fail':
+        _check_cancel_evidence(service, order_id, evidence)
     stage = order['stage']
     checkpoint = None
     if decision in ('resume', 'done'):
@@ -149,12 +150,7 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
         if not service.armed or (robot and not service._fresh(robot)):
             raise ValueError('가동 허용 및 최신 통신 상태 필요')
     if robot:
-        if decision == 'fail':
-            service.releases.request(robot, note, service._route(order))
-        else:
-            order['reset_request_id'] = service.gateway.release(robot, service._route(order))
-            if not isinstance(order['reset_request_id'], str) or not order['reset_request_id']:
-                raise RuntimeError('정지 해제 명령 ID 누락: 주문 보류 유지')
+        _request_release(service, order, decision, note)
     service.store.event(dict(type='recovery', order_id=order_id, operator=operator,
                              note=note, decision=decision, evidence=evidence, source=source,
                              stage=stage, checkpoint=checkpoint))
@@ -176,6 +172,27 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     if robot and decision != 'fail':
         service.store.clear_hold(robot)
     return service.store.get(order_id)
+
+
+def _check_cancel_evidence(service, order_id, evidence):
+    """자원을 예약한 주문은 실제 정리를 확인해야 취소한다."""
+    if not service.store.resources(order_id):
+        return
+    required = ('arms_safe', 'cargo_reconciled', 'resources_clear')
+    if not evidence or any(evidence.get(key) is not True for key in required):
+        raise ValueError('취소 전 팔 퇴피·화물 정리·작업장과 통로 이탈 확인 필요 '
+                         '(arms_safe, cargo_reconciled, resources_clear)')
+
+
+def _request_release(service, order, decision, note):
+    """취소는 로봇 보류 해제를, 재개는 이 주문의 정지 해제를 요청한다."""
+    robot, route = order['robot_id'], service._route(order)
+    if decision == 'fail':
+        service.releases.request(robot, note, route)
+        return
+    order['reset_request_id'] = service.gateway.release(robot, route)
+    if not isinstance(order['reset_request_id'], str) or not order['reset_request_id']:
+        raise RuntimeError('정지 해제 명령 ID 누락: 주문 보류 유지')
 
 
 def _checkpoint(order, stage, decision, evidence):
@@ -202,8 +219,7 @@ def _apply_checkpoint(service, order, stage, checkpoint, decision):
     """다시: 시작 단계부터 완료 기록·재시도 횟수를 지운다. 사람이 처리함: 건너뛴 단계를 사람 완료로."""
     if decision == 'resume' and stage in RESUME_STAGES:
         return
-    from .scenario_tree import CUSTOMER_STAGES, STAGES
-    stages = CUSTOMER_STAGES if 'customer' in service._route(order) else STAGES
+    stages = order_stages(service._route(order))
     if decision == 'resume':
         redo = set(stages[stages.index(checkpoint):stages.index(stage) + 1])
         order['completed'] = [s for s in order['completed'] if s not in redo]

@@ -16,7 +16,7 @@
 | `POST /api/robots/{id}/stop` | `type=stop` | 202, 실제 사용한 소프트 정지 동작·작업 ID 반환 |
 | `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | 202: UNKNOWN 유지, 로봇 해제 응답 후 FAILED. 최신 정지·취소 상태 필요 |
 | `POST /api/robots/{id}/release_control` | `type=release_control, robot_id` | 202: `released=false, reset_pending=true`. 일치하는 로봇 해제 응답 후 보류 해제 |
-| `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사 |
+| `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사. 고객 자리 주문은 상차장·상차 팔 예약만, 하차 구역 주문은 상하차 예약을 모두 확인 |
 | `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source, pose?` | 202. `pose {x, y, yaw}` 가 있으면 그 좌표(잘못되면 400), 없으면 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503 |
 | `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
 | `GET /api/tasks`, `WS /ws/tasks` | `tasks`, `task` | 현재 작업 목록·개별 변경 |
@@ -84,7 +84,7 @@ BT와 중앙 하트비트는 계속 실행합니다. 명령 중복 검사는 발
 
 - 선반과 자리는 `config/scenario.yaml`의 `shelf`, `destinations`에 적습니다. 열은 상차 구역과 상차 팔을, 자리는 하차 구역·하차 팔·통로를 정합니다.
 - 팔에 보내는 작업 요청(`/fleet/work_request`)에는 `shelf_row`, `shelf_col`이 함께 실립니다. 행은 상차 팔이 꺼낼 박스 번호(1~4)이고, 팔 노드가 실행기에 `box`로 넘깁니다 (`cobot_manipulation/docs/prd.md`).
-- 상품에 칸이 없거나 그 열에 상차 구역이 없으면 재고를 예약하기 전에 주문을 거절합니다. 지금 설정은 1열(ZA)·2열(ZB)만 있고 3열은 구역이 없습니다.
+- 상품에 칸이 없거나 그 열에 상차 구역이 없으면 재고를 예약하기 전에 주문을 거절합니다. 지금 설정은 1열·2열(둘 다 ZB)만 있고 3열은 구역이 없습니다.
 - `/control_center/tasks` 스냅숏에 `stock`(SKU별 가용 수량과 칸)과 `destinations`(자리 ID와 이름)가 추가됩니다.
 
 ### 고객 자리(지점) 주문
@@ -221,7 +221,8 @@ ros2 launch cobot_fleet_control fleet_startup.launch.xml
 | `scenario_nodes.py` | 안전 감시, 주행·장치·실측 검증·정차 보정·수령·종결 BT 노드 |
 | `scenario_runtime.py` | 주문별 실행 문맥, 예약·요청 전달·결과 대응·관측 기록 |
 | `scenario_safety.py` | 트리 무효화·소프트 정지·현장 확인 복구 |
-| `scenario_contracts.py` | 단계별 장치 요청 계약, 상태 집합, 입력 검증 |
+| `scenario_contracts.py` | 단계 순서·이름 표, 단계별 장치 요청 계약, 상태 집합, 입력 검증 |
+| `scenario_layout.py` | 선반 열·고객 자리 설정으로 경로 표 생성, 경로 검사 |
 | `scenario_repository.py` | 주문·재고·작업 구역·팔·통로·로봇 보류 영속화 |
 | `service.py`, `behaviours.py` | 개별 주행의 명령 전달 → 실제 종료 확인 BT |
 | `repository.py`, `contracts.py` | 단일 프로세스 SQLite 실행 원장과 주행 명령 검증 |
