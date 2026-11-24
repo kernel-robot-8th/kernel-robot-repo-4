@@ -807,7 +807,8 @@ function openReturnDialog(order) {
     body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
       BEFORE_PICK.has(order.stage)
         ? "지금 단계를 마치면 로봇이 홈으로 돌아갑니다. 그 사이 상품을 집기 시작하면 선반에 반납합니다."
-        : "지금 단계를 마치면 정리 구역을 거쳐 선반에 반납합니다.",
+        : atSeat ? "지금 단계를 마치면 정리 구역을 거쳐 선반에 반납합니다."
+          : "지금 단계를 마치면 바로 선반에 반납합니다 (열지 않은 상자라 정리하지 않음).",
       "로봇이 홈에 도착해 주문이 닫히면 재고가 돌아옵니다.",
       order.stage === "MOVE_CUSTOMER" ? "고객 자리에 도착하면 기다리지 않고 바로 떠납니다." : "",
       el("p", "dialog-status bad", "로봇과 로봇팔은 멈추지 않고 계속 움직입니다. 위험하면 비상정지를 쓰세요."),

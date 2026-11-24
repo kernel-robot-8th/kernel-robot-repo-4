@@ -355,6 +355,7 @@ def arm_works(env):
 
 
 RETURN_COMMANDS = ['zone:ZC', 'leave', 'zone:ZA', 'leave', 'home']
+SHELF_COMMANDS = ['zone:ZA', 'leave', 'home']  # 열지 않은 상자: 정리(ZC)를 건너뛴다
 
 
 @pytest.mark.parametrize('stage', ['MOVE_PICKUP', 'PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER'])
@@ -405,8 +406,8 @@ def test_cancel_after_pick_started_skips_the_seat_and_restocks(env, stage):
     assert request_cancel(env)['status'] == 202
     order = env.finish()
     assert order['state'] == 'COMPLETED' and order['customer_declined'] is True
-    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
-    assert arm_works(env) == ['PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
+    assert env.commands() == ['zone:ZB', 'leave'] + SHELF_COMMANDS
+    assert arm_works(env) == ['PICK', 'LOAD', 'RESTOCK']
     assert not {'MOVE_CUSTOMER', 'CUSTOMER'} & set(order['completed'])
     assert 'ORDER_CANCELLED' in env.alarms() and not order.get('operator_cancelled')
     assert env.stock('SHOE42') == 10 and env.scenario.store.resources('order1') == []
@@ -422,7 +423,7 @@ def test_cancel_while_driving_to_the_seat_returns_without_waiting(env):
     assert env.commands() == ['zone:ZB', 'leave', 'goto:P22']
     order = env.finish()
     assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
-    assert env.commands()[3:] == RETURN_COMMANDS
+    assert env.commands()[3:] == SHELF_COMMANDS
 
 
 def test_cancel_at_the_seat_needs_the_shoe_on_the_robot(env):
@@ -514,8 +515,8 @@ def test_failed_pick_after_cancel_is_held_and_not_restocked(env):
     echo_reset(env)
     order = env.finish()  # 다시 집어도 홈 길로 새지 않고 실은 뒤 반납한다
     assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
-    assert arm_works(env) == ['PICK', 'PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
-    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+    assert arm_works(env) == ['PICK', 'PICK', 'LOAD', 'RESTOCK']
+    assert env.commands() == ['zone:ZB', 'leave'] + SHELF_COMMANDS
 
 
 def test_safe_retry_of_pick_after_cancel_still_loads_then_restocks(env):
@@ -526,7 +527,7 @@ def test_safe_retry_of_pick_after_cancel_still_loads_then_restocks(env):
     env.result(success=False, data={'retry_safe': True}, detail='다시')
     order = env.finish()
     assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
-    assert arm_works(env) == ['PICK', 'PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
+    assert arm_works(env) == ['PICK', 'PICK', 'LOAD', 'RESTOCK']
 
 
 def test_cancel_survives_restart_and_waits_for_operator_resume(env):
@@ -544,7 +545,7 @@ def test_cancel_survives_restart_and_waits_for_operator_resume(env):
     echo_reset(env)
     order = env.finish()
     assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
-    assert env.commands()[len(commands):] == RETURN_COMMANDS  # 고객 자리로 다시 가지 않는다
+    assert env.commands()[len(commands):] == SHELF_COMMANDS  # 고객 자리로 다시 가지 않는다
 
 
 def test_cancel_before_pick_then_stop_and_resume_goes_home(env):
@@ -581,7 +582,7 @@ def test_manual_load_after_cancel_is_returned_to_the_shelf(env):
     assert confirm_loaded(env)['status'] == 200
     order = env.finish()
     assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
-    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+    assert env.commands() == ['zone:ZB', 'leave'] + SHELF_COMMANDS
 
 
 def test_cancel_while_manual_load_is_pending_never_goes_home_with_the_shoe(env):
@@ -603,7 +604,67 @@ def test_confirmed_manual_load_then_cancel_is_returned_to_the_shelf(env):
     assert confirm_loaded(env)['status'] == 200
     assert request_cancel(env)['status'] == 202
     assert env.finish()['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
-    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+    assert env.commands() == ['zone:ZB', 'leave'] + SHELF_COMMANDS
+
+
+def test_cancel_before_the_seat_never_touches_zc(env):
+    env.order()
+    env.scenario.store.acquire('other', ['station_ZC', 'arm_omx3'])  # ZC 가 막혀 있어도 간다
+    env.until('LEAVE_PICKUP')
+    request_cancel(env)
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert not {'MOVE_ARRANGE', 'ARRANGE', 'LEAVE_ARRANGE'} & set(order['completed'])
+    assert 'omx3' not in {target for _, target, _ in env.works()}
+    assert set(env.scenario.store.resources('other')) == {'station_ZC', 'arm_omx3'}
+
+
+def test_cancel_waits_for_a_busy_shelf_station(env):
+    env.order()
+    env.scenario.store.acquire('other', ['station_ZA'])
+    env.until('LEAVE_PICKUP')
+    request_cancel(env)
+    for _ in range(4):
+        env.step() if env.current()['stage'] == 'LEAVE_PICKUP' else env.tick()
+    assert env.current()['stage'] == 'MOVE_RESTOCK' and env.current()['request_id'] is None
+    assert env.commands() == ['zone:ZB', 'leave']
+    env.scenario.store.release('other', ['station_ZA'])
+    assert env.finish()['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+
+
+def test_cancel_at_the_seat_still_arranges_the_opened_box(env):
+    env.order()
+    env.until('CUSTOMER')
+    request_cancel(env, evidence={'shoe_on_robot': True})
+    assert env.finish()['state'] == 'COMPLETED'
+    assert arm_works(env) == ['PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
+
+
+@pytest.mark.parametrize('stage', ['MOVE_RESTOCK', 'RETURN_HOME'])
+def test_stop_and_resume_on_the_way_back_skips_zc(env, stage):
+    env.order()
+    env.until('MOVE_CUSTOMER')
+    request_cancel(env)
+    env.until(stage)
+    stop_robot(env)
+    stopped_status(env, boot_id=None)
+    env.scenario.recover('order1', None, None, 'resume', None)
+    echo_reset(env)
+    assert env.finish()['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert 'zone:ZC' not in env.commands()
+
+
+def test_failed_restock_after_cancel_is_held_without_stock(env):
+    env.order()
+    env.until('PICK')
+    sent_out(env)
+    request_cancel(env)
+    env.until('RESTOCK')
+    sent_out(env)
+    env.result(success=False, data={'arm_safe': False}, detail='모름')
+    assert env.current()['state'] == 'UNKNOWN' and env.stock('SHOE42') == 9
+    env.tick()
+    assert 'home' not in env.commands()
 
 
 SHELF_OK = {**CANCEL_OK, 'item_on_shelf': True}

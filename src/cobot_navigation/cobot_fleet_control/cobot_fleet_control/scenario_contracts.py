@@ -68,6 +68,8 @@ _CUSTOMER_RETURN = ('MOVE_ARRANGE', 'ARRANGE', 'LEAVE_ARRANGE',
                     'MOVE_RESTOCK', 'RESTOCK', 'LEAVE_RESTOCK')
 CUSTOMER_STAGES = _TO_PICKUP + ('MOVE_CUSTOMER', 'CUSTOMER') + _CUSTOMER_RETURN + _RETURN_HOME
 CUSTOMER_RETURN_STAGES = frozenset(_CUSTOMER_RETURN)
+# 신발 정리(ZC) 단계. 고객이 열어 보지 않은 상자는 정리할 것이 없어 건너뛴다.
+ARRANGE_STAGES = frozenset(_CUSTOMER_RETURN[:_CUSTOMER_RETURN.index('MOVE_RESTOCK')])
 LABELS = {
     'MOVE_PICKUP': '상차 작업장 이동', 'PICKUP_EXIT': '상차 진입 후미 이탈 확인',
     'DOCK_PICKUP': '상차 정차 실측', 'CORRECT_PICKUP': '상차 정밀 위치 보정',
@@ -88,6 +90,12 @@ LABELS = {
 def is_customer_route(route):
     """고객이 핑키에서 직접 꺼내는 지점 자리 경로인가."""
     return 'customer' in route
+
+
+def skips_arrange(order):
+    """고객 응대 전에 직원이 취소한 주문인가. 상자가 실린 그대로라 정리 없이 선반(ZA)으로 바로 간다."""
+    request = order.get('cancel_requested')
+    return bool(request) and request.get('stage') != 'CUSTOMER'
 
 
 def order_stages(route):
