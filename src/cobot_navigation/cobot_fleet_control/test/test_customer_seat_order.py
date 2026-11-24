@@ -274,6 +274,452 @@ def test_waiting_order_accepts_only_cancel_and_assigned_order_is_refused(env):
     assert cancel(env, 'nothing')['status'] == 400
 
 
+CANCEL_OK = {'arms_safe': True, 'cargo_reconciled': True, 'resources_clear': True}
+
+
+def stop_robot(env, robot='pinky1'):
+    return env.api.handle({'type': 'stop', 'robot_id': robot})
+
+
+def stopped_status(env, **changes):
+    status = {'state': 'STOPPED', 'busy': False, 'central_controlled': True,
+              'central_latched': True, 'boot_id': 'boot1', **changes}
+    env.scenario.telemetry('pinky1', status, 80.0)
+
+
+@pytest.mark.parametrize('stage', ['MOVE_PICKUP', 'PICK', 'MOVE_CUSTOMER', 'CUSTOMER'])
+def test_stop_then_cancel_running_order_needs_site_check(env, stage):
+    env.order()
+    env.until(stage)
+    assert stop_robot(env)['status'] == 202
+    order = env.current()
+    assert order['state'] == 'ESTOP' and order['stage'] == stage
+    assert env.scenario.store.holds() == {'pinky1': 'ESTOP'}
+    stopped_status(env, busy=True)
+    assert cancel(env, evidence=CANCEL_OK)['status'] == 400  # 아직 안 멈춤
+    stopped_status(env)
+    if env.scenario.store.resources('order1'):
+        assert cancel(env)['status'] == 400  # 현장 확인 없음
+    assert env.current()['state'] == 'ESTOP'
+    assert cancel(env, evidence=CANCEL_OK)['status'] == 200
+    assert env.current()['state'] == 'FAILED' and not env.current().get('operator_cancelled')
+    assert env.scenario.store.resources('order1') == [] and env.stock('SHOE42') == 9
+    assert 'pinky1' in env.scenario.store.holds()
+    stopped_status(env, central_latched=False, control_reset_id='reset-1')
+    assert env.scenario.store.holds() == {}
+
+
+def test_stopped_order_is_not_cancelled_while_status_is_stale(env):
+    env.order()
+    env.until('MOVE_CUSTOMER')
+    stop_robot(env)
+    stopped_status(env)
+    env.now += 60
+    assert cancel(env, evidence=CANCEL_OK)['status'] == 400
+    assert env.current()['state'] == 'ESTOP'
+
+
+def test_stop_one_robot_keeps_the_other_order_and_ignores_late_arm_result(env):
+    env.order()
+    env.until('PICK')
+    late = env.current()
+    work = next(w for w in env.gateway.work_sent if w['request_id'] == late['request_id'])
+    env.order('order2')
+    env.now += 10
+    env.tick()
+    assert env.current('order2')['robot_id'] == 'pinky2'
+    stop_robot(env)
+    assert not env.scenario.result({
+        'request_id': work['request_id'], 'order_id': 'order1', 'robot_id': 'pinky1',
+        'stage': 'PICK', 'source': work['target'], 'success': True, 'measured': True,
+        'finished': True, 'data': dict(DEVICE_OK)})
+    env.tick()
+    assert env.current()['state'] == 'ESTOP'
+    assert env.current('order2')['state'] == 'RUNNING' and env.scenario.armed is True
+    assert 'pinky2' not in env.scenario.store.holds()
+
+
+def request_cancel(env, order_id='order1', **changes):
+    return env.api.handle({'type': 'cancel', 'order_id': order_id, 'operator': '김지혜',
+                           'source': '10.0.0.5', **changes})
+
+
+def sent_out(env):
+    """트리를 돌려 지금 단계의 명령까지 보낸다."""
+    env.tick()
+    assert env.current()['request_id'], env.current()['stage']
+
+
+def arm_works(env):
+    return [s for s, _, _ in env.works() if s in ('PICK', 'LOAD', 'ARRANGE', 'RESTOCK')]
+
+
+RETURN_COMMANDS = ['zone:ZC', 'leave', 'zone:ZA', 'leave', 'home']
+
+
+@pytest.mark.parametrize('stage', ['MOVE_PICKUP', 'PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER'])
+def test_cancel_before_pick_finishes_the_step_then_goes_home_with_stock(env, stage):
+    env.order(quantity=2)
+    env.until(stage)
+    sent_out(env)
+    before = env.current()['request_id']
+    reply = request_cancel(env)
+    assert reply['status'] == 202 and reply['body']['cancel_requested']['stage'] == stage
+    env.tick()
+    assert env.current()['request_id'] == before and env.stock('SHOE42') == 8  # 하던 것을 마친다
+    order = env.finish()
+    assert order['state'] == 'FAILED' and order['operator_cancelled'] is True
+    assert env.commands() == ['zone:ZB', 'home'] and arm_works(env) == []
+    assert env.stock('SHOE42') == 10
+    assert env.scenario.store.resources('order1') == [] and env.scenario.store.holds() == {}
+
+
+def test_cancel_before_any_command_never_visits_the_pickup_zone(env):
+    env.order()
+    env.scenario.store.acquire('other', ['station_ZB'])  # 상차장이 차서 출발하지 못함
+    env.tick()
+    assert env.current()['state'] == 'RUNNING' and env.current()['request_id'] is None
+    assert request_cancel(env)['status'] == 202
+    assert env.finish()['state'] == 'FAILED'
+    assert env.commands() == ['home'] and env.stock('SHOE42') == 10
+    assert env.scenario.store.resources('other') == ['station_ZB']
+
+
+def test_cancel_during_dock_correction_goes_home(env):
+    env.order()
+    env.until('DOCK_PICKUP')
+    env.result({**DEVICE_OK, 'xy_m': 0.5})
+    env.tick()
+    assert env.current()['stage'] == 'CORRECT_PICKUP'
+    assert request_cancel(env)['status'] == 202
+    order = env.finish()
+    assert order['state'] == 'FAILED' and order['operator_cancelled'] is True
+    assert env.commands() == ['zone:ZB', 'home'] and env.stock('SHOE42') == 10
+
+
+@pytest.mark.parametrize('stage', ['PICK', 'LOAD', 'VERIFY_LOAD', 'LEAVE_PICKUP'])
+def test_cancel_after_pick_started_skips_the_seat_and_restocks(env, stage):
+    env.order(quantity=2)
+    env.until(stage)
+    sent_out(env)
+    assert request_cancel(env)['status'] == 202
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and order['customer_declined'] is True
+    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+    assert arm_works(env) == ['PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
+    assert not {'MOVE_CUSTOMER', 'CUSTOMER'} & set(order['completed'])
+    assert 'ORDER_CANCELLED' in env.alarms() and not order.get('operator_cancelled')
+    assert env.stock('SHOE42') == 10 and env.scenario.store.resources('order1') == []
+    assert env.scenario.store.holds() == {}
+
+
+def test_cancel_while_driving_to_the_seat_returns_without_waiting(env):
+    env.order()
+    env.until('MOVE_CUSTOMER')
+    sent_out(env)
+    assert request_cancel(env)['status'] == 202
+    env.tick()
+    assert env.commands() == ['zone:ZB', 'leave', 'goto:P22']
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert env.commands()[3:] == RETURN_COMMANDS
+
+
+def test_cancel_at_the_seat_needs_the_shoe_on_the_robot(env):
+    env.order()
+    env.until('CUSTOMER')
+    for evidence in (None, {}, {'shoe_on_robot': False}, {'shoe_on_robot': 'yes'}, 'yes'):
+        assert request_cancel(env, evidence=evidence)['status'] == 400
+    assert not env.current().get('cancel_requested')
+    assert request_cancel(env, evidence={'shoe_on_robot': True})['status'] == 202
+    for kind in ('received', 'declined'):  # 취소가 먼저면 고객 입력은 거절
+        reply = env.api.handle({'type': kind, 'order_id': 'order1', 'request_id': kind})
+        assert reply['status'] == 400
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and not order['customer_received']
+    assert env.commands()[3:] == RETURN_COMMANDS and env.stock('SHOE42') == 10
+
+
+def test_cancel_at_the_seat_beats_later_payment_while_disarmed(env):
+    env.order()
+    env.until('CUSTOMER')
+    env.scenario.armed = False
+    assert request_cancel(env, evidence={'shoe_on_robot': True})['status'] == 202
+    assert env.current()['stage'] == 'CUSTOMER'
+    assert env.api.handle({'type': 'received', 'order_id': 'order1'})['status'] == 400
+    env.scenario.armed = True
+    assert env.finish()['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+
+
+@pytest.mark.parametrize('armed', [True, False])
+def test_payment_first_refuses_cancel(env, armed):
+    env.order()
+    env.until('CUSTOMER')
+    env.scenario.armed = armed
+    assert env.api.handle({'type': 'received', 'order_id': 'order1'})['status'] == 200
+    assert request_cancel(env, evidence={'shoe_on_robot': True})['status'] == 400
+    env.scenario.armed = True
+    order = env.finish()
+    assert order['customer_received'] and env.stock('SHOE42') == 9
+    assert request_cancel(env)['status'] == 400  # 이미 끝남
+
+
+def test_cancel_is_refused_when_not_running_or_already_returning(env):
+    assert request_cancel(env, 'nothing')['status'] == 400
+    env.scenario.armed = False
+    env.order()
+    assert request_cancel(env)['status'] == 400  # 배정 전은 주문 복구의 취소
+    env.scenario.armed = True
+    env.until('CUSTOMER')
+    env.scenario.declined('order1')
+    assert request_cancel(env)['status'] == 400
+    stop_robot(env)
+    assert request_cancel(env)['status'] == 400  # 멈춘 주문
+    assert not env.current().get('cancel_requested')
+
+
+def test_cancel_is_recorded_once(env):
+    env.order()
+    env.until('PICK')
+    assert request_cancel(env)['status'] == 202
+    assert request_cancel(env, operator='other')['status'] == 202
+    assert env.current()['cancel_requested']['operator'] == '김지혜'
+    events = [json.loads(row['payload']) for row in env.repo.pending(1000)]
+    cancels = [e for e in events if e.get('type') == 'operator_cancel']
+    assert len(cancels) == 1 and cancels[0]['request']['source'] == '10.0.0.5'
+
+
+def test_cancel_keeps_the_other_order_running(env):
+    env.order()
+    env.until('PICK')
+    env.order('order2')
+    env.now += 10
+    env.tick()
+    assert request_cancel(env)['status'] == 202
+    assert env.current('order2')['robot_id'] == 'pinky2'
+    assert not env.current('order2').get('cancel_requested')
+    env.finish()
+    assert env.current('order2')['state'] == 'RUNNING' and env.stock('SHOE42') == 9
+
+
+def test_failed_pick_after_cancel_is_held_and_not_restocked(env):
+    env.order()
+    env.until('PICK')
+    sent_out(env)
+    request_cancel(env)
+    env.result(success=False, data={'arm_safe': False}, detail='모름')
+    assert env.current()['state'] == 'UNKNOWN' and env.stock('SHOE42') == 9
+    stopped_status(env, boot_id=None)
+    env.scenario.recover('order1', None, None, 'resume', SITE_OK)
+    echo_reset(env)
+    order = env.finish()  # 다시 집어도 홈 길로 새지 않고 실은 뒤 반납한다
+    assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert arm_works(env) == ['PICK', 'PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
+    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+
+
+def test_safe_retry_of_pick_after_cancel_still_loads_then_restocks(env):
+    env.order()
+    env.until('PICK')
+    sent_out(env)
+    request_cancel(env)
+    env.result(success=False, data={'retry_safe': True}, detail='다시')
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert arm_works(env) == ['PICK', 'PICK', 'LOAD', 'ARRANGE', 'RESTOCK']
+
+
+def test_cancel_survives_restart_and_waits_for_operator_resume(env):
+    env.order()
+    env.until('MOVE_CUSTOMER')
+    request_cancel(env)
+    env.repo.close()
+    env.open()
+    env.scenario.armed = True
+    commands = env.commands()
+    env.tick()
+    assert env.current()['state'] == 'UNKNOWN' and env.commands() == commands
+    stopped_status(env, boot_id=None)
+    env.scenario.recover('order1', None, None, 'resume', None)
+    echo_reset(env)
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert env.commands()[len(commands):] == RETURN_COMMANDS  # 고객 자리로 다시 가지 않는다
+
+
+def test_cancel_before_pick_then_stop_and_resume_goes_home(env):
+    env.order()
+    env.until('MOVE_PICKUP')
+    sent_out(env)
+    request_cancel(env)
+    stop_robot(env)
+    stopped_status(env, boot_id=None)
+    env.scenario.recover('order1', None, None, 'resume', None)
+    echo_reset(env)
+    order = env.finish()
+    assert order['state'] == 'FAILED' and order['operator_cancelled'] is True
+    assert env.commands()[-1] == 'home' and env.stock('SHOE42') == 10
+
+
+def test_cancelled_before_pick_returns_stock_even_if_the_way_home_is_aborted(env):
+    env.order()
+    env.until('MARKER')
+    sent_out(env)
+    request_cancel(env)
+    env.result(dict(DEVICE_OK))
+    env.tick()
+    assert env.current()['stage'] == 'RETURN_HOME'
+    stop_robot(env)
+    stopped_status(env)
+    assert cancel(env, evidence=CANCEL_OK)['status'] == 200
+    assert env.current()['state'] == 'FAILED' and env.stock('SHOE42') == 10
+
+
+def test_manual_load_after_cancel_is_returned_to_the_shelf(env):
+    stop_in_pickup(env)
+    assert request_cancel(env)['status'] == 202
+    assert confirm_loaded(env)['status'] == 200
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+
+
+def test_cancel_while_manual_load_is_pending_never_goes_home_with_the_shoe(env):
+    env.order()
+    env.until('MARKER')
+    env.scenario.interrupt('order1', 'UNKNOWN', '관제 재시작')
+    stopped_status(env, state='IDLE', central_latched=False)
+    assert confirm_loaded(env)['status'] == 200
+    assert env.current()['manual_load_pending']
+    assert request_cancel(env)['status'] == 202
+    env.tick()
+    assert env.current()['stage'] == 'MOVE_PICKUP' and not env.current()['failure']
+    assert env.commands()[-1] == 'zone:ZB' and 'home' not in env.commands()
+    assert env.stock('SHOE42') == 9
+
+
+def test_confirmed_manual_load_then_cancel_is_returned_to_the_shelf(env):
+    stop_in_pickup(env)
+    assert confirm_loaded(env)['status'] == 200
+    assert request_cancel(env)['status'] == 202
+    assert env.finish()['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
+    assert env.commands() == ['zone:ZB', 'leave'] + RETURN_COMMANDS
+
+
+SHELF_OK = {**CANCEL_OK, 'item_on_shelf': True}
+
+
+@pytest.mark.parametrize('on_shelf', [True, False])
+@pytest.mark.parametrize('stage', ['MOVE_PICKUP', 'PICK', 'MOVE_CUSTOMER', 'CUSTOMER'])
+def test_hand_cancel_returns_stock_only_when_the_shoe_is_back_on_the_shelf(env, stage, on_shelf):
+    env.order(quantity=2)
+    env.until(stage)
+    stop_robot(env)
+    stopped_status(env)
+    evidence = {**CANCEL_OK, 'item_on_shelf': on_shelf}
+    assert cancel(env, evidence=evidence)['status'] == 200
+    order = env.current()
+    assert order['state'] == 'FAILED' and bool(order.get('operator_restocked')) is on_shelf
+    stock = 10 if on_shelf else 8
+    assert env.stock('SHOE42') == stock and not order.get('operator_cancelled')
+    events = [json.loads(row['payload']) for row in env.repo.pending(1000)]
+    recovery = next(e for e in events if e.get('type') == 'recovery')
+    assert recovery['evidence'] == evidence and recovery['operator'] == 'kim'
+    assert cancel(env, evidence=evidence)['status'] == 400  # 두 번 돌려놓지 않는다
+    env.repo.close()
+    env.open()
+    assert env.stock('SHOE42') == stock
+
+
+@pytest.mark.parametrize('stage', ['MOVE_ARRANGE', 'ARRANGE', 'RESTOCK', 'LEAVE_RESTOCK'])
+def test_hand_cancel_during_return_can_restock_once(env, stage):
+    env.order()
+    env.until('CUSTOMER')
+    env.scenario.declined('order1')
+    env.until(stage)
+    stop_robot(env)
+    stopped_status(env)
+    assert cancel(env, evidence=SHELF_OK)['status'] == 200
+    assert env.stock('SHOE42') == 10
+
+
+def test_hand_cancel_after_timeout_can_restock(env):
+    env.order()
+    env.until('CUSTOMER')
+    env.now += TIMEOUT
+    env.tick()
+    assert env.current()['customer_timed_out'] and env.current()['stage'] == 'RETURN_HOME'
+    stop_robot(env)
+    stopped_status(env)
+    assert cancel(env, evidence=SHELF_OK)['status'] == 200 and env.stock('SHOE42') == 10
+
+
+def test_hand_cancel_never_restocks_a_purchased_shoe(env):
+    env.order()
+    env.until('CUSTOMER')
+    env.scenario.received('order1')
+    env.until('RETURN_HOME')
+    stop_robot(env)
+    stopped_status(env)
+    releases = len(env.gateway.releases)
+    assert cancel(env, evidence=SHELF_OK)['status'] == 400
+    assert env.current()['state'] == 'ESTOP' and len(env.gateway.releases) == releases
+    assert cancel(env, evidence=CANCEL_OK)['status'] == 200 and env.stock('SHOE42') == 9
+
+
+def test_hand_cancel_restock_needs_every_site_check(env):
+    env.order()
+    env.until('MOVE_CUSTOMER')
+    stop_robot(env)
+    stopped_status(env)
+    for value in ('yes', 1, None, [True]):
+        assert cancel(env, evidence={**CANCEL_OK, 'item_on_shelf': value})['status'] == 400
+    for key in CANCEL_OK:
+        assert cancel(env, evidence={**SHELF_OK, key: False})['status'] == 400
+    env.scenario.store.release('order1', env.scenario.store.resources('order1'))
+    assert cancel(env, evidence={'item_on_shelf': True})['status'] == 400  # 예약이 없어도 확인
+    assert env.current()['state'] == 'ESTOP' and env.stock('SHOE42') == 9
+    stopped_status(env, busy=True)
+    assert cancel(env, evidence=SHELF_OK)['status'] == 400
+
+
+def test_hand_cancel_replaces_a_requested_return(env):
+    env.order()
+    env.until('PICK')
+    sent_out(env)
+    request_cancel(env)
+    stop_robot(env)
+    stopped_status(env)
+    assert cancel(env, evidence=SHELF_OK)['status'] == 200
+    assert env.current()['operator_restocked'] is True and env.stock('SHOE42') == 10
+    env.tick()
+    assert 'zone:ZC' not in env.commands() and 'home' not in env.commands()
+
+
+def test_shelf_check_does_not_double_the_automatic_stock_return(env):
+    env.scenario.armed = False
+    env.order()
+    assert cancel(env, evidence=SHELF_OK)['status'] == 200  # 배정 전
+    assert env.stock('SHOE42') == 10 and not env.current().get('operator_restocked')
+    env.scenario.armed = True
+    env.order('order2')
+    env.tick()
+    request_cancel(env, 'order2')
+    for _ in range(3):  # 상차장 도착 → 집기 전 취소로 홈 복귀
+        env.tick()
+        order = env.current('order2')
+        if order['stage'] == 'RETURN_HOME':
+            break
+        env.fleet.on_status(order['robot_id'], {
+            'command_id': order['request_id'], 'state': 'DONE', 'task_finished': True})
+    order = env.current('order2')
+    assert order['operator_cancelled'] is True
+    stop_robot(env, order['robot_id'])
+    stopped_status(env)
+    assert cancel(env, 'order2', evidence=SHELF_OK)['status'] == 200
+    assert env.stock('SHOE42') == 10
+
+
 def test_unsafe_arrange_failure_holds_order_instead_of_going_home(env):
     env.order()
     env.until('CUSTOMER')

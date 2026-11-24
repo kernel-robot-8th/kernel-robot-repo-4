@@ -799,6 +799,61 @@ def test_fleet_order_recover_passes_through_with_source():
     # 한글 이름은 바꾸지 않고 넘긴다. 이름 검사는 fleet 이 한다.
     client.post('/api/orders/o1/recover', json={'decision': 'fail', 'operator': '김 지혜'})
     assert sent[3]['operator'] == '김 지혜'
+    evidence = {'arms_safe': True, 'item_on_shelf': True}
+    client.post('/api/orders/o1/recover', json={'decision': 'fail', 'evidence': evidence})
+    assert sent[4]['evidence'] == evidence
+
+
+def test_order_cancel_passes_through_and_returns_rejection_reason():
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 202, {'order_id': 'o1'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    body = {'client_request_id': 'c1', 'operator': '김지혜', 'note': '고객 요청',
+            'evidence': {'shoe_on_robot': True}}
+    assert client.post('/api/orders/o1/cancel', json=body).status_code == 202
+    assert sent[0] == dict(sent[0], type='cancel', order_id='o1', source='testclient', **body)
+    publish, _ = fake_controller(tasks, 400, {'detail': '이미 구매'})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    res = client.post('/api/orders/o1/cancel', json={})
+    assert res.status_code == 400 and res.json()['detail'] == '이미 구매'
+    assert TestClient(create_app(store)).post('/api/orders/o1/cancel', json={}).status_code == 503
+
+
+def test_service_order_returnable_and_cancel_display():
+    for stage in ('MOVE_PICKUP', 'MARKER', 'CORRECT_PICKUP', 'PICK', 'LEAVE_PICKUP',
+                  'MOVE_CUSTOMER', 'CUSTOMER'):
+        assert service_order(service_raw('o', stage=stage))['returnable'] is True, stage
+    no = [{'stage': 'ARRANGE'}, {'stage': 'RETURN_HOME'}, {'state': 'ESTOP'}, {'robot_id': None},
+          {'state': 'COMPLETED'}, {'failure': 'x'}, {'customer_received': True},
+          {'customer_declined': True}, {'customer_timed_out': True}, {'kind': 'return'},
+          {'destination': None}, {'cancel_requested': {'operator': 'a'}}]
+    for fields in no:
+        assert service_order(service_raw('o', **fields))['returnable'] is False, fields
+    going = service_order(service_raw('o', stage='PICK', cancel_requested={'operator': 'a'}))
+    assert going['cancel_requested'] is True and going['step_text'].startswith('취소 · 반납 중')
+    home = service_order(service_raw('o', stage='RETURN_HOME', failure='직원 취소',
+                                     operator_cancelled=True, cancel_requested={'operator': 'a'}))
+    assert home['step_text'].startswith('취소 · 홈 복귀') and home['failure'] is None
+    done = service_order(service_raw('o', state='COMPLETED', customer_declined=True,
+                                     cancel_requested={'operator': 'a'}))
+    assert (done['outcome'], done['outcome_text']) == ('cancelled', '직원 취소 (선반 반납)')
+    early = service_order(service_raw('o', state='FAILED', operator_cancelled=True,
+                                      cancel_requested={'operator': 'a'}))
+    assert (early['outcome'], early['outcome_text']) == ('cancelled', '직원 취소')
+    by_hand = service_order(service_raw('o', state='FAILED', operator_restocked=True,
+                                        cancel_requested={'operator': 'a'}))
+    assert (by_hand['outcome'], by_hand['outcome_text']) == ('cancelled', '직원 취소 (직접 반납)')
+    assert service_order(service_raw('o', state='ESTOP'))['shelf_returnable'] is True
+    for fields in ({'state': 'RUNNING'}, {'customer_received': True}, {'kind': 'return'},
+                   {'destination': None}, {'operator_cancelled': True}, {'robot_id': None}):
+        raw = service_raw('o', **{'state': 'ESTOP', **fields})
+        assert service_order(raw)['shelf_returnable'] is False, fields
+    assert service_order(service_raw('o', customer_received=True))['purchased'] is True
+    # 취소를 요청했지만 멈춰서 사람이 실패로 끝낸 주문은 처리 실패다
+    failed = service_order(service_raw('o', state='FAILED', cancel_requested={'operator': 'a'}))
+    assert failed['outcome'] == 'failed'
 
 
 def test_fleet_confirm_loaded_returns_rejection_reason():
@@ -1278,10 +1333,11 @@ def test_service_summary_counts_today_only():
               service_raw('t', created_at=140.0, state='COMPLETED', customer_declined=True,
                           customer_timed_out=True),
               service_raw('f', created_at=150.0, state='FAILED'),
+              service_raw('h', created_at=155.0, state='FAILED', operator_restocked=True),
               service_raw('c', created_at=160.0, state='FAILED', operator_cancelled=True),
               service_raw('n', created_at=None), 'junk']
     assert service_summary(orders, 100.0) == {
-        'total': 6, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'cancelled': 1,
+        'total': 7, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'cancelled': 2,
         'done': 0}
     assert service_summary(None, 0)['total'] == 0
 

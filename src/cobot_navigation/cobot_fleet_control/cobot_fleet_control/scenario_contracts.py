@@ -54,6 +54,11 @@ HAND_DONE = {'PICK_DROPOFF': 'VERIFY_UNLOAD', 'UNLOAD': 'VERIFY_UNLOAD',
 PICKUP_STAGES = ('PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER', 'PICK', 'LOAD', 'VERIFY_LOAD')
 _TO_PICKUP = ('MOVE_PICKUP',) + PICKUP_STAGES + ('LEAVE_PICKUP',)
 _RETURN_HOME = ('RETURN_HOME', 'RETURN_EXIT')
+# 팔이 상품에 손대기 전 단계. 여기서 직원이 취소하면 상품이 선반에 있으므로 홈으로 가고 재고를 돌려준다.
+BEFORE_PICK_STAGES = frozenset(
+    ('MOVE_PICKUP',) + PICKUP_STAGES[:PICKUP_STAGES.index('PICK') + 1] + ('CORRECT_PICKUP',))
+# 직원 취소를 받는 단계. 그 뒤는 이미 반납·복귀 중이다.
+CANCEL_STAGES = frozenset(_TO_PICKUP + ('CORRECT_PICKUP', 'MOVE_CUSTOMER', 'CUSTOMER'))
 # 하차 구역 주문: 하차 팔이 내려놓는 기존 방식.
 STAGES = _TO_PICKUP + (
     'MOVE_DROPOFF', 'PATH_EXIT', 'DOCK_DROPOFF', 'QR', 'PICK_DROPOFF', 'UNLOAD', 'VERIFY_UNLOAD',

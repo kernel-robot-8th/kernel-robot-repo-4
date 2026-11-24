@@ -156,6 +156,10 @@ class ControlAPI:
             return 200, scenario.received(identifier(request.get('order_id'), 'order_id'))
         if kind == 'declined':
             return 200, scenario.declined(identifier(request.get('order_id'), 'order_id'))
+        if kind == 'cancel':
+            return 202, scenario.request_cancel(
+                request.get('order_id'), request.get('operator'), request.get('note'),
+                request.get('evidence'), request.get('source', ''))
         if kind == 'confirm_loaded':
             return 200, scenario.confirm_loaded(
                 request.get('order_id'), request.get('operator'),

@@ -623,6 +623,17 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
             'evidence': body.get('evidence'),
             'source': source(request)})
 
+    @app.post('/api/orders/{order_id}/cancel')
+    def cancel_order(order_id: str, request: Request, body: dict = Body(default={})):
+        # 진행 중 주문의 직원 취소: 로봇을 세우지 않고 홈이나 선반으로 길을 바꾼다 (집기 전이면 홈, 뒤면 반납).
+        # 단계·고객 응대 확인(evidence.shoe_on_robot) 검사는 fleet_control 이 한다. 멈춘 주문은 recover 를 쓴다.
+        return call_controller({
+            'type': 'cancel', 'order_id': order_id,
+            'client_request_id': body.get('client_request_id'),
+            'operator': body.get('operator'), 'note': body.get('note'),
+            'evidence': body.get('evidence'),
+            'source': source(request)})
+
     @app.post('/api/orders/{order_id}/confirm_loaded')
     def confirm_loaded(order_id: str, body: dict = Body(default={})):
         # 수동 상차 확인. 운영자가 실물 상차를 끝냈을 때 기존 주문에 확인값을 넣는다.
