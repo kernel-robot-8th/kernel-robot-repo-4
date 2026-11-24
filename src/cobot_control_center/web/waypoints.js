@@ -213,6 +213,8 @@ function applyWaypointRoute() {
   if (on) {
     document.title = "웨이포인트 · 로봇 관제";
     window.scrollTo(0, 0);
+    // 받아 둔 목록을 바로 그린다 (loadWaypoints 는 목록이 바뀌었을 때만 다시 그린다).
+    renderWaypointsPage();
     loadWaypoints();
   } else {
     wp.editing = null;
