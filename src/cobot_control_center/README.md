@@ -18,19 +18,70 @@
 
 ## 구성
 
+**전체 구조** (주된 흐름만. 팔·영상으로 가는 선 일부는 아래 표 참고)
+
+```mermaid
+flowchart TB
+    eng["엔지니어 화면<br/>8080 /"]
+    shop["매장 관리화면<br/>8080 /service/"]
+    cust["고객 주문 화면<br/>8081"]
+    subgraph pc["관제 PC (도메인 100)"]
+        api["fleet_api_node<br/>FastAPI"]
+        gw["customer_gateway<br/>cobot_gui"]
+        aux["보조 노드<br/>fleet_status · arm_command · teleop<br/>net_status · host_status"]
+        fleet["fleet_control_node<br/>검증 · BT · SQLite 원장"]
+        zone["zone_manager<br/>구역 토큰 · 대기열"]
+        bridge["cobot_domain_bridge 3개"]
+        anomaly["anomaly_monitor<br/>주문 확인 단계"]
+    end
+    pinky["pinky1 · 2 · 3<br/>도메인 10 · 20 · 30"]
+    arm["팔 어댑터 omx1 · 2 · 3<br/>Station PC, 도메인 100"]
+    eng <--> api
+    shop <--> api
+    cust <--> gw
+    api <--> aux
+    api <-->|"task_request · task_events · tasks"| fleet
+    gw <-->|"task_request · task_events · tasks"| fleet
+    aux <--> bridge
+    aux <-->|"command · status · command_ack"| arm
+    zone <--> bridge
+    fleet <-->|"patrol_cmd · fleet_heartbeat<br/>patrol_status"| bridge
+    fleet <-->|"work_request · work_result"| arm
+    fleet <-->|"work_request · work_result"| anomaly
+    bridge <--> pinky
 ```
-로봇(도메인 10/20/30) ─▶ cobot_domain_bridge ─▶ 관제 PC(도메인 100)
-                                                 │ /pinkyN/patrol_status, amcl_pose, battery/percent
-                                                 │ /zone_manager/status, queue_slot
-                                                 ▼
-                                        fleet_status_node ── /control_center/fleet_status (JSON, 1 Hz)
-                                                 ▼
-                                        fleet_api_node (FastAPI) ── HTTP·WebSocket ──▶ 브라우저 (web/)
-                                                 │ ▲ /control_center/task_request · task_events · tasks (JSON)
-                                                 ▼ │
-                                        fleet_control_node ── /pinkyN/patrol_cmd (세션 봉투) · fleet_heartbeat ──▶ 로봇
-                                          (검증·BT·SQLite 원장) ◀── patrol_status ──────────────────────────┘
+
+**노드별 통로** (핑키 토픽은 모두 도메인 브릿지를 거침)
+
+```mermaid
+flowchart LR
+    api["fleet_api_node"]
+    status["fleet_status_node"]
+    fleet["fleet_control_node"]
+    teleop["teleop_node"]
+    armcmd["arm_command_node"]
+    net["net_status_node"]
+    host["host_status_node"]
+    src["핑키 · zone_manager"]
+    work["팔 어댑터 · anomaly_monitor"]
+    pinky["핑키"]
+    arm["팔 어댑터"]
+    targets["공유기 · 핑키 · PC"]
+    src -->|"상태 · 위치 · 배터리 · 구역"| status
+    status -->|"fleet_status (1 Hz)"| api
+    api <-->|"task_request · tasks"| fleet
+    fleet <-->|"patrol_cmd · patrol_status"| pinky
+    fleet <-->|"work_request · work_result"| work
+    api <-->|"teleop_cmd · teleop_state"| teleop
+    teleop -->|"cmd_vel"| pinky
+    api <-->|"arm_request · arms"| armcmd
+    armcmd <-->|"command · status · command_ack"| arm
+    api <-->|"측정 요청 · net_status"| net
+    targets -->|"핑 · 수신 주기"| net
+    host -->|"host_status"| api
 ```
+
+주문이 처리되는 순서는 [주문 흐름도](../cobot_navigation/cobot_fleet_control/README.md#고객-자리지점-주문)를 봅니다.
 
 작업 노드는 `fleet_control_node`(`cobot_fleet_control`) 하나만 뜹니다.
 
