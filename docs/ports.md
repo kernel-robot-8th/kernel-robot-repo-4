@@ -50,10 +50,16 @@ ss -ltnp | grep -E ':8[01][0-9]{2}\b'
 |---|---|---|
 | 8088 | ROS 2 네트워크 진단 화면 | `cobot_navigation/ros2_network_test/net_monitor.py` |
 | 8091 (예비 8092) | BT 보기 | `cobot_navigation/cobot_fleet_control/bt_viewer.py` |
+| 8091 (127.0.0.1) | omx1 팔 카메라 미리보기 (8-OMEN) | `omx_fleet/cam_preview.py` |
+| 8092 (127.0.0.1) | omx2 팔 카메라 미리보기 (8-OMEN) | `omx_fleet/cam_preview.py` |
+| 8093 (예정) | omx3 팔 카메라 미리보기 (OMEN-11). 지금은 그 PC 의 8091 | `omx_fleet/cam_preview.py` |
 | 8785 (127.0.0.1) | AMCL 보정 HTTP 입력 | `cobot_navigation/cobot_amcl_corrector` |
 | 8893 / 8554 | edge_view 화면 / RTSP 시험 | `scripts/vision/edge_view` |
 | 5173 | 고객 웹 Vite 개발 서버 | `cobot_gui/web` |
 | 1883 (127.0.0.1) | MQTT 브로커 (mosquitto) | `scripts/vision/homelab_vision` |
 | 7400~ | DDS (ROS 2 자체) | – |
+
+팔 카메라 미리보기는 팔 번호와 끝자리를 맞춥니다 (omx1 = 8091, omx2 = 8092, omx3 = 8093). 8-OMEN 에서 다른 도구는 8091~8093 을 쓰지 않습니다.
+겹치면 팔 실행기가 포트를 열지 못해 영상만 나오지 않습니다. BT 보기는 기본값이 8091 이라, 옮기기 전까지 `--port` 로 다른 번호를 줍니다.
 
 관제 PC 밖의 장치: 천장 CCTV MJPEG `http://192.168.0.7:18086/processed` (`fleet_api_node.yaml` 의 `cctv_url`, 관제가 받아서 8080 화면으로 중계).
