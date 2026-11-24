@@ -35,11 +35,11 @@ const OP_TEXT = { goto: "이동", zone: "구역", leave: "나가기", home: "홈
 // 지점을 여러 개 순서대로 고르는 명령 (고른 순번을 붙이고 '지우기'를 보인다)
 const MULTI_POINT = new Set(["goto", "route"]);
 // fleet_control 보류 사유: 운영자 정지(STOP·ESTOP·PAUSE·MANUAL), 시나리오 중단(PAUSED·ESTOP·MANUAL),
-// 상태·배터리 수신 만료(LINK_LOST). 모르는 사유는 그대로 보인다.
+// 상태·배터리 수신 만료(LINK_LOST), 고객 무응답으로 신발을 실은 채 복귀(CARGO_ONBOARD). 모르는 사유는 그대로 보인다.
 const HOLD_TEXT = {
   RESET_PENDING: "잠금 해제 응답 대기", RESET_UNCONFIRMED: "잠금 해제 미확인", DISPATCH_FAILED: "명령 전달 실패",
   STOP: "정지", ESTOP: "비상정지", PAUSE: "일시정지", PAUSED: "일시정지", MANUAL: "수동",
-  LINK_LOST: "통신 끊김",
+  LINK_LOST: "통신 끊김", CARGO_ONBOARD: "신발 실려 있음",
 };
 const TASK_LIST_MAX = 50;   // 작업 목록에 보이는 최대 줄 수 (목록은 높이 고정, 스크롤)
 const MSG_MS = 6000;

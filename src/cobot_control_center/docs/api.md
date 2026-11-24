@@ -67,7 +67,8 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 
 해제 응답은 같은 부팅의 `control_reset_id`와 요청 ID가 일치해야 합니다. 일반 하트비트만으로
 복구를 완료하지 않습니다. `RESET_PENDING`은 응답 대기, `RESET_UNCONFIRMED`는 만료·재시작 등으로
-확인하지 못한 보류입니다. 최신 상태를 확인하고 다시 요청할 수 있습니다.
+확인하지 못한 보류입니다. `CARGO_ONBOARD`는 고객 자리 주문이 무응답으로 끝나 로봇이 신발을 실은 채
+복귀한 보류이며, 신발을 내린 뒤 같은 해제로 풉니다. 최신 상태를 확인하고 다시 요청할 수 있습니다.
 관제·웹과 로봇의 `cobot_pinky_patrol`을 함께 배포해야 합니다.
 
 ## `/control_center/fleet_status` (= `/api/fleet`) 형식

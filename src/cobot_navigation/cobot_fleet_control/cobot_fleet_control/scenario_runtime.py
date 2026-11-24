@@ -128,6 +128,12 @@ class ScenarioContext:
         customer = 'customer' in self.service._route(order)
         # 고객 자리 주문은 회수한 신발을 ZA 선반에 다시 올린(RESTOCK) 뒤에만 재고를 돌려놓는다.
         restocked = customer and 'RESTOCK' in confirmed
+        if customer and order.get('customer_timed_out') and not order['failure']:
+            # 신발을 실은 채 돌아왔다. 사람이 내리고 해제하기 전에 다음 주문으로 상차하지 않도록,
+            # 주문이 닫혀 배정 대상이 되기 전에 먼저 보류한다.
+            self.service.store.hold(order['robot_id'], 'CARGO_ONBOARD')
+            self.service._alarm(order, 'CARGO_ONBOARD',
+                                '무응답 복귀: 로봇 위 신발을 내린 뒤 정지 해제 필요')
         self.service.store.close_order(
             order, restock=not order['failure'] and (order['kind'] == 'return' or restocked))
         if (order.get('customer_declined') and order['kind'] == 'delivery'

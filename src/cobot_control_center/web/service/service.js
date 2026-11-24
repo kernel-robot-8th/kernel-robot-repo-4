@@ -26,6 +26,7 @@ const HOLD_TEXT = {
   RESET_PENDING: "잠금 해제 응답 기다림", RESET_UNCONFIRMED: "잠금 해제 확인 안 됨",
   DISPATCH_FAILED: "명령 전달 실패", STOP: "정지", ESTOP: "비상정지", PAUSE: "일시정지",
   PAUSED: "일시정지", MANUAL: "수동 조작", LINK_LOST: "통신 끊김",
+  CARGO_ONBOARD: "신발 실려 있음",
 };
 // 로봇팔 상태 → [글, 색, 정상인지]
 const ARM_STATE_TEXT = {
@@ -292,7 +293,8 @@ function collectTodo() {
     }
   }
   for (const [robotId, reason] of Object.entries(service.holds || {})) {
-    add("bad", `${robotId} 정지 잠금 (${HOLD_TEXT[reason] || reason})`, "현장을 확인한 뒤 풀어 주세요",
+    add("bad", `${robotId} 정지 잠금 (${HOLD_TEXT[reason] || reason})`,
+      reason === "CARGO_ONBOARD" ? "고객 무응답 · 로봇 위 신발을 내린 뒤 풀어 주세요" : "현장을 확인한 뒤 풀어 주세요",
       { label: "정지 해제", run: () => openReleaseDialog(robotId, reason) });
   }
   for (const alert of (view.fleet && view.fleet.alerts) || []) {
@@ -646,13 +648,15 @@ function openRecoverDialog(order) {
 }
 
 function openReleaseDialog(robotId, hold) {
+  const cargo = hold === "CARGO_ONBOARD";
   openDialog({
     title: `${robotId} 정지 해제`,
     body: [`정지 이유: ${HOLD_TEXT[hold] || hold}`, "해제하면 로봇이 다시 명령을 받습니다.",
       "작업 구역 안에서 멈췄다면 해제 뒤 엔지니어에게 '나가기'를 요청하세요."],
-    checks: [["safe", "로봇이 멈춰 있고 주변에 사람·물건이 없다"]],
+    checks: [["safe", "로봇이 멈춰 있고 주변에 사람·물건이 없다"],
+      ...(cargo ? [["unloaded", "로봇 위 신발을 내렸다"]] : [])],
     actions: [{
-      label: "정지 해제", needs: ["safe"],
+      label: "정지 해제", needs: cargo ? ["safe", "unloaded"] : ["safe"],
       run: async (operator) => {
         const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/release_control`,
           { client_request_id: newRequestId(), operator, note: "관리화면" });

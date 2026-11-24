@@ -35,7 +35,7 @@ destinations:
   P22: {name: "P22 자리", point: P22, lane: main}
 max_retries: 3                 # initial attempt + at most three safe retries
 step_timeout_sec: 300.0
-customer_timeout_sec: 300.0   # 고객 자리 도착 뒤 결제·회수 대기 (5분). 넘으면 신발을 실은 채 HOME
+customer_timeout_sec: 300.0   # 고객 자리 도착 뒤 결제·회수 대기 (5분). 넘으면 신발을 실은 채 HOME (사람이 내리고 정지 해제할 때까지 배정 안 함)
 stale_sec: 3.0
 battery_stale_sec: 10.0       # control-center documents the real battery topic at 5 s intervals
 battery_min: 20.0             # assignment policy, not a fixed UML value

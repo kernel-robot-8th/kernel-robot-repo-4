@@ -141,6 +141,58 @@ def test_seat_timeout_goes_home_with_the_shoe_after_five_minutes(env):
     assert env.stock('SHOE42') == 9  # 신발은 핑키 위에 있다: 운영자가 재고를 맞춘다
 
 
+def time_out(env):
+    env.order()
+    env.until('CUSTOMER')
+    env.now += TIMEOUT
+    return env.finish()
+
+
+def test_timed_out_robot_is_held_and_next_order_goes_to_another_robot(env):
+    order = time_out(env)
+    assert order['state'] == 'COMPLETED' and order['robot_id'] == 'pinky1'
+    assert env.scenario.store.holds() == {'pinky1': 'CARGO_ONBOARD'}
+    assert 'CARGO_ONBOARD' in env.alarms()
+    env.order('order2')
+    env.now += 10
+    env.tick()
+    assert env.current('order2')['robot_id'] == 'pinky2'
+
+
+def test_next_order_waits_until_cargo_hold_is_released(env):
+    time_out(env)
+    env.scenario.store.hold('pinky2', 'STOP')  # 남은 로봇이 없을 때
+    env.order('order2')
+    env.now += 10
+    env.tick()
+    assert env.current('order2')['state'] == 'WAITING'
+    assert env.api.handle({'type': 'release_control', 'robot_id': 'pinky1'})['status'] == 202
+    env.tick()
+    assert 'pinky1' in env.scenario.store.holds()  # 로봇 응답 전에는 풀리지 않는다
+    env.scenario.telemetry('pinky1', {
+        'state': 'IDLE', 'central_controlled': True, 'busy': False, 'central_latched': False,
+        'control_reset_id': 'reset-1'}, 80.0)
+    assert 'pinky1' not in env.scenario.store.holds()
+    env.tick()
+    assert env.current('order2')['robot_id'] == 'pinky1'
+
+
+def test_cargo_hold_survives_restart(env):
+    time_out(env)
+    env.repo.close()
+    env.open()
+    assert env.scenario.store.holds() == {'pinky1': 'CARGO_ONBOARD'}
+
+
+@pytest.mark.parametrize('decision', ['received', 'declined'])
+def test_decided_order_does_not_hold_robot(env, decision):
+    env.order()
+    env.until('CUSTOMER')
+    env.api.handle({'type': decision, 'order_id': 'order1', 'request_id': 'r1'})
+    assert env.finish()['state'] == 'COMPLETED'
+    assert env.scenario.store.holds() == {}
+
+
 def test_unsafe_arrange_failure_holds_order_instead_of_going_home(env):
     env.order()
     env.until('CUSTOMER')
