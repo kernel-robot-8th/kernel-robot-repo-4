@@ -223,6 +223,8 @@ class ScenarioService:
         order = self.store.get(identifier(order_id, 'order_id'))
         if not order or order['state'] != 'RUNNING' or order['stage'] != 'CUSTOMER':
             raise ValueError('고객 수령 대기 중인 주문만 확인 가능')
+        if order.get('cancel_requested'):
+            raise ValueError('직원이 취소한 주문')
         runtime = self.trees.get(order_id)
         if runtime is None:
             raise ValueError('BT 복구와 로봇 상태 확인이 끝난 뒤 수령을 확인하세요')
@@ -235,6 +237,8 @@ class ScenarioService:
         order = self.store.get(identifier(order_id, 'order_id'))
         if not order or order['state'] != 'RUNNING' or order['stage'] != 'CUSTOMER':
             raise ValueError('고객 수령 대기 중인 주문만 구매 취소 가능')
+        if order.get('cancel_requested'):
+            raise ValueError('직원이 취소한 주문')
         runtime = self.trees.get(order_id)
         if runtime is None:
             raise ValueError('BT 복구와 로봇 상태 확인이 끝난 뒤 구매 취소를 확인하세요')
@@ -263,6 +267,10 @@ class ScenarioService:
     def confirm_loaded(self, order_id, operator, note, evidence):
         """운영자가 직접 확인한 적재·팔 퇴피·통로 이탈로 상차 후 체크포인트를 연다."""
         return scenario_safety.confirm_loaded(self, order_id, operator, note, evidence)
+
+    def request_cancel(self, order_id, operator, note, evidence, source=''):
+        """진행 중 주문의 직원 취소를 기록한다. 로봇은 세우지 않고 홈이나 선반으로 길을 바꾼다."""
+        return scenario_safety.request_cancel(self, order_id, operator, note, evidence, source)
 
     def recover(self, order_id, operator, note, decision, evidence, source=''):
         """현장 확인을 기록한 뒤 허용된 체크포인트에서만 새 트리를 구성한다."""

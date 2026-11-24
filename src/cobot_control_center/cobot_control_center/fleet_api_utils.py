@@ -481,6 +481,9 @@ ORDER_RESUME_STAGES = {'MOVE_PICKUP', 'MOVE_DROPOFF', 'RETURN_HOME', 'CUSTOMER',
 # fleet 의 scenario_contracts.ARM_STAGES·HAND_DONE 키를 복사한 값이다. 상차는 수동 상차 확인을 쓴다.
 ORDER_ARM_RETRY_STAGES = {'PICK', 'LOAD', 'PICK_DROPOFF', 'UNLOAD', 'ARRANGE', 'RESTOCK'}
 ORDER_HAND_DONE_STAGES = {'PICK_DROPOFF', 'UNLOAD', 'ARRANGE', 'RESTOCK'}
+# 직원 취소(자동 반납)를 받는 단계. fleet 의 scenario_contracts.CANCEL_STAGES 를 복사한 값이다.
+ORDER_CANCEL_STAGES = LOAD_CONFIRM_STAGES | {'MOVE_PICKUP', 'LEAVE_PICKUP', 'MOVE_CUSTOMER',
+                                             'CUSTOMER'}
 # 화면에 내는 주문 필드. 원장 사본(input 등)을 그대로 내지 않는다.
 ORDER_FIELDS = ('order_id', 'robot_id', 'state', 'stage', 'completed', 'sku', 'route', 'detail')
 
@@ -606,7 +609,7 @@ def service_order(order):
     주문 원장 사본 하나를 서비스 화면용으로 줄인다.
 
     step 은 SERVICE_STEPS 위치, step_text 는 지금 하는 일, outcome 은 끝난 주문의 결과 코드
-    (sold·timeout·declined·done·failed, 진행 중이면 None)다. 조치 표시(blocked·resumable·
+    (sold·timeout·declined·done·cancelled·failed, 진행 중이면 None)다. 조치 표시(blocked·resumable·
     load_confirmable)는 active_orders 와 같은 조건이고 최종 검사는 fleet 이 한다.
     """
     state, stage = order.get('state'), order.get('stage')
@@ -614,17 +617,34 @@ def service_order(order):
     item.update({key: order.get(key) for key in (
         'destination', 'failure', 'created_at', 'updated_at')})
     item['returning'] = bool(order.get('customer_declined') or order.get('customer_timed_out'))
-    if state == 'WAITING' and not order.get('robot_id'):
+    unassigned = not order.get('robot_id')
+    if state == 'WAITING' and unassigned:
         item['step'], item['step_text'] = 0, '로봇 배정 기다리는 중'
+    elif state in ORDER_BLOCKED and unassigned:
+        # fleet 은 재시작 때 대기 주문을 UNKNOWN 으로 바꾼다. 로봇이 없으니 단계(MOVE_PICKUP)는 뜻이 없다.
+        item['step'], item['step_text'] = 0, '관제 재시작으로 멈춤 · 로봇 배정 전'
     else:
         item['step'], item['step_text'] = SERVICE_STAGE.get(stage, (None, stage or ''))
+    item['cancel_requested'] = bool(order.get('cancel_requested'))
+    if item['cancel_requested']:
+        item['step_text'] = '취소 · ' + (
+            '홈 복귀' if order.get('operator_cancelled') else '반납 중') + f" · {item['step_text']}"
+        if order.get('operator_cancelled'):
+            item['failure'] = None  # 집기 전 취소는 안전 복귀 길을 빌려 쓸 뿐 고장이 아니다
     item['outcome'] = item['outcome_text'] = None
-    if state == 'FAILED':
+    if state == 'FAILED' and order.get('operator_cancelled'):
+        item['outcome'] = 'cancelled'
+        item['outcome_text'] = '직원 취소' if item['cancel_requested'] else '접수 취소'
+    elif state == 'FAILED' and order.get('operator_restocked'):
+        item['outcome'], item['outcome_text'] = 'cancelled', '직원 취소 (직접 반납)'
+    elif state == 'FAILED':
         item['outcome'], item['outcome_text'] = 'failed', '처리 못 함'
     elif state in ORDER_TERMINAL:
         item['outcome'], item['outcome_text'] = 'done', '완료'
+        if item['cancel_requested']:
+            item['outcome'], item['outcome_text'] = 'cancelled', '직원 취소 (선반 반납)'
         for key, code, text in SERVICE_OUTCOMES:
-            if order.get(key):
+            if order.get(key) and not item['cancel_requested']:
                 item['outcome'], item['outcome_text'] = code, text
                 break
     if state in ORDER_TERMINAL:
@@ -636,6 +656,20 @@ def service_order(order):
     item['resumable'] = item['blocked'] and stage in ORDER_RESUME_STAGES
     item['retryable'] = item['blocked'] and stage in ORDER_ARM_RETRY_STAGES
     item['hand_done'] = item['blocked'] and stage in ORDER_HAND_DONE_STAGES
+    item['purchased'] = bool(order.get('customer_received'))
+    # 직접 처리로 취소할 때 '선반에 돌려놓았다' 칸을 보일지. 집기 전 취소는 재고가 저절로 돌아온다.
+    item['shelf_returnable'] = (
+        item['blocked'] and not item['purchased'] and not order.get('operator_cancelled')
+        and bool(order.get('destination')) and order.get('kind', 'delivery') == 'delivery')
+    # 진행 중 취소(자동 반납). 표시 조건이고 최종 검사는 fleet(scenario_safety.request_cancel)이 한다.
+    item['returnable'] = (
+        state == 'RUNNING' and not unassigned and stage in ORDER_CANCEL_STAGES
+        and bool(order.get('destination')) and order.get('kind', 'delivery') == 'delivery'
+        and not any(order.get(key) for key in (
+            'cancel_requested', 'failure', 'customer_received', 'customer_declined',
+            'customer_timed_out')))
+    # 로봇 배정 전(접수) 취소. fleet 의 검사(scenario_safety.recover)와 같은 조건이다.
+    item['cancelable'] = unassigned and state in ORDER_BLOCKED | {'WAITING'}
     return item
 
 
@@ -656,13 +690,14 @@ def service_summary(orders, since):
     관리화면 위 숫자 타일: since [s] 뒤에 접수한 주문 건수.
 
     total 접수, active 진행 중, sold 구매 완료, returned 구매 안 함(시간 초과 포함),
-    failed 처리 못 함, done 고객 결정 없이 끝난 주문.
+    failed 처리 못 함, cancelled 접수·직원 취소, done 고객 결정 없이 끝난 주문.
     """
-    counts = {'total': 0, 'active': 0, 'sold': 0, 'returned': 0, 'failed': 0, 'done': 0}
+    counts = {'total': 0, 'active': 0, 'sold': 0, 'returned': 0, 'failed': 0, 'cancelled': 0,
+              'done': 0}
     if not isinstance(orders, list):
         return counts
     key = {None: 'active', 'sold': 'sold', 'declined': 'returned', 'timeout': 'returned',
-           'failed': 'failed', 'done': 'done'}
+           'failed': 'failed', 'cancelled': 'cancelled', 'done': 'done'}
     for order in orders:
         if not isinstance(order, dict) or not order.get('order_id'):
             continue

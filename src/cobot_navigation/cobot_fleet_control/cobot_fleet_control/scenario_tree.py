@@ -3,7 +3,8 @@
 import py_trees
 
 from .scenario_contracts import (
-    CUSTOMER_RETURN_STAGES, CUSTOMER_STAGES, is_customer_route, LABELS, order_stages, STAGES,
+    ARRANGE_STAGES, CUSTOMER_RETURN_STAGES, CUSTOMER_STAGES, is_customer_route, LABELS,
+    order_stages, skips_arrange, STAGES,
 )
 from .scenario_nodes import (
     CorrectionBudget, CustomerDeclined, CustomerReceipt, DeviceStep, DockTolerance, FinishOrder,
@@ -14,6 +15,11 @@ from .scenario_nodes import (
 def customer_mandatory(order):
     """고객 자리 주문의 필수 완료 단계. 회수한 주문만 정리·반환 단계가 필수다."""
     stages = set(CUSTOMER_STAGES)
+    if order.get('cancel_requested'):
+        # 직원 취소는 고객 자리에 들르지 않았거나 고객을 기다리지 않았을 수 있다.
+        stages -= {'MOVE_CUSTOMER', 'CUSTOMER'}
+        if skips_arrange(order):
+            stages -= ARRANGE_STAGES
     return stages if order.get('customer_declined') else stages - CUSTOMER_RETURN_STAGES
 
 

@@ -51,6 +51,26 @@ def test_manual_load_keeps_real_exit_and_does_not_repeat_pick_or_load(env):
     assert len([event for event in events if event['type'] == 'operator_load_confirmed']) == 1
 
 
+def test_manual_load_records_korean_operator(env):
+    """한글 이름을 정리해 주문 기록에 남기고 빈 이름은 거절한다."""
+    assert env.api.handle({**request(), 'operator': ' '})['status'] == 400
+    assert env.api.handle({**request(), 'operator': ' 김지혜 '})['status'] == 200
+    assert env.current()['operator_load_confirmation']['operator'] == '김지혜'
+
+
+def test_release_control_records_korean_operator(env):
+    """정지 해제 감사 기록에도 한글 이름이 남는다."""
+    env.api.handle({'type': 'estop', 'robot_id': 'pinky2'})
+    env.scenario.telemetry('pinky2', {'state': 'STOPPED', 'busy': False,
+                                      'central_controlled': True, 'central_latched': True}, 80.0)
+    reply = env.api.handle({'type': 'release_control', 'robot_id': 'pinky2',
+                            'operator': '김지혜'})
+    assert reply['status'] == 202, reply
+    events = [json.loads(row[0]) for row in env.repo.db.execute('SELECT payload FROM outbox')]
+    released = next(e for e in events if e['type'] == 'release_control')
+    assert released['request']['operator'] == '김지혜'
+
+
 @pytest.mark.parametrize('key,value', [('sku', 'OTHER'), ('load_present', False),
                                      ('arm_safe', False), ('pickup_path_clear', False)])
 def test_missing_or_wrong_operator_evidence_cannot_advance(env, key, value):
@@ -104,7 +124,7 @@ def test_restart_reacquires_pickup_zone_before_consuming_manual_confirmation(env
     env.scenario.interrupt('order1', 'UNKNOWN', '관제 재시작')
     env.scenario.telemetry('pinky1', dict(state='IDLE', busy=False, held_zone=None,
                                        central_controlled=True, central_latched=False))
-    assert env.api.handle(request())['status'] == 200
+    assert env.api.handle({**request(), 'operator': '김지혜'})['status'] == 200
     assert env.current()['stage'] == 'MOVE_PICKUP'
     assert env.current()['manual_load_pending']['evidence']['load_present'] is True
     env.scenario.tick()
@@ -118,3 +138,4 @@ def test_restart_reacquires_pickup_zone_before_consuming_manual_confirmation(env
     env.scenario.tick()
     assert env.current()['stage'] == 'LEAVE_PICKUP'
     assert 'manual_load_pending' not in env.current()
+    assert env.current()['operator_load_confirmation']['operator'] == '김지혜'

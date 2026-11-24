@@ -13,6 +13,8 @@ const TOAST_MS = 6000;
 const STALE_MS = 4000;                  // 이만큼 못 읽으면 관제 끊김으로 본다
 const LOW_STOCK = 1;                    // 이 수량 이하면 '부족' 표시
 const OPERATOR_KEY = "cobot.operator";  // 엔지니어 화면과 같은 키 (같은 브라우저면 이름을 함께 기억)
+const STOP_SETTLE_MS = 2000;            // 정지 전의 오래된 busy 값을 '멈춤'으로 읽지 않게 기다리는 시간
+const STOP_WAIT_MS = 15000;             // 정지 확인을 기다리는 최대 시간
 const EQUIP_KEY = "cobot.service.equip_open";
 
 // 순찰 노드 상태 → 직원용 말 (엔지니어 화면 cards.js STATE_TEXT 와 같은 뜻, 더 쉬운 말)
@@ -37,7 +39,7 @@ const ARM_STATE_TEXT = {
 const ORDER_STATE_TEXT = {
   UNKNOWN: "결과 모름", PAUSED: "일시정지", ESTOP: "비상정지", MANUAL: "수동 조작",
 };
-const OUTCOME_CLASS = { sold: "good", declined: "warn", timeout: "warn", done: "good", failed: "bad" };
+const OUTCOME_CLASS = { sold: "good", declined: "warn", timeout: "warn", done: "good", cancelled: "warn", failed: "bad" };
 // 주문 현황 보드 칸 이름 (백엔드 steps 와 같은 순서, 짧은 말)
 const BOARD_TITLES = ["접수", "상품 준비", "이동", "고객 응대", "회수·정리", "복귀"];
 
@@ -47,6 +49,19 @@ const CANCEL_CHECKS = [
   ["cargo_reconciled", "상품을 꺼내거나 고객에게 넘겨 정리했다"],
   ["resources_clear", "작업 구역·통로에 로봇과 상품이 남아 있지 않다"],
 ];
+// 팔 단계 복구 확인 (recover evidence: 다시 하기 = arms_safe·item_ready, 사람이 처리함 = arms_safe·item_placed)
+const ITEM_READY_TEXT = "상품을 이 작업 시작 전 자리(선반·로봇 위)에 돌려놓았다";
+const ITEM_PLACED_TEXT = "사람이 이 작업을 대신 끝내고 상품을 놓을 자리에 놓았다";
+// 싣기·내리기는 집기부터 다시 한다 (fleet scenario_contracts.RETRY_FROM 과 같음, 안내 글에만 씀)
+const RETRY_FROM_PICK = new Set(["LOAD", "UNLOAD"]);
+// 선택 확인: 체크하면 예약 재고가 돌아온다 (recover fail evidence item_on_shelf)
+const SHELF_CHECK = ["item_on_shelf", "[선택] 신발을 원래 선반 칸에 돌려놓았다 (재고 돌려놓기)"];
+// '홈으로 보내기'를 보일 로봇 상태. 최종 검사는 fleet 이 한다.
+const HOME_STATES = new Set(["STOPPED", "HOLDING_ZONE", "IDLE_WAIT", "DONE"]);
+// 팔이 상품에 손대기 전 단계 (취소 안내 글에만 씀, 실제 길은 fleet 이 고른다)
+const BEFORE_PICK = new Set(["MOVE_PICKUP", "PICKUP_EXIT", "DOCK_PICKUP", "CORRECT_PICKUP", "MARKER"]);
+// 로봇팔이 움직이는 단계 (fleet scenario_contracts.ARM_STAGES, 직접 처리 안내 글에만 씀)
+const ARM_STAGES = new Set(["PICK", "LOAD", "PICK_DROPOFF", "UNLOAD", "ARRANGE", "RESTOCK"]);
 // 수동 상차 확인 (confirm_loaded evidence)
 const LOAD_CHECKS = [
   ["load_present", "상품이 로봇 바구니에 실려 있다"],
@@ -54,7 +69,8 @@ const LOAD_CHECKS = [
   ["pickup_path_clear", "로봇이 나갈 길에 사람·물건이 없다"],
 ];
 
-const view = { service: null, fleet: null, arms: null, lastOk: 0, busy: false, polling: false };
+const view = { service: null, fleet: null, arms: null, lastOk: 0, busy: false, polling: false,
+  stopWait: null };  // stopWait: '직접 처리'에서 정지 확인을 기다리는 주문 {orderId, robotId, since}
 
 const $ = (id) => document.getElementById(id);
 
@@ -167,6 +183,25 @@ async function poll() {
 const backendOk = () => Date.now() - view.lastOk < STALE_MS;
 const controllerOnline = () => Boolean(view.service && view.service.controller_online);
 const commandsAllowed = () => controllerOnline() && !view.service.read_only && backendOk();
+
+const latchedArms = () => ((view.arms && view.arms.arms) || []).filter((arm) => arm.state === "SOFT_LATCH");
+const activeOrderOf = (robotId) => view.service.active.find((order) => order.robot_id === robotId);
+
+// 이어서 가기·다시 하기·사람이 처리함이 지금 거절될 이유. 주문 취소는 막지 않는다 (최종 검사는 fleet·백엔드).
+function recoverBlockers() {
+  const reasons = [];
+  if (!view.service.commands_armed) reasons.push("주문 받기가 꺼져 있습니다. 화면 위에서 주문 받기를 먼저 켜세요.");
+  const latched = latchedArms();
+  if (latched.length) reasons.push(`로봇팔이 잠겨 있습니다 (${latched.map(armName).join(", ")}). '할 일'에서 팔 잠금을 먼저 푸세요.`);
+  return reasons;
+}
+
+// 멈춘 주문에서 고를 수 있는 조치 이름 (주문 상세 창 버튼)
+function recoverLabel(order) {
+  const names = [order.resumable ? "이어서 가기" : order.retryable ? "다시 하기" : "",
+    order.hand_done ? "사람이 처리함" : ""].filter(Boolean);
+  return names.length ? `${names.join(" / ")} / 취소` : "주문 취소";
+}
 
 function orderStateText(order) {
   return ORDER_STATE_TEXT[order.state] || HOLD_TEXT[order.state] || order.state;
@@ -284,6 +319,10 @@ function collectTodo() {
       add("bad", `주문 ${order.order_id} 멈춤 (${orderStateText(order)})`, `${who} · ${order.step_text}`,
         { label: "처리하기",
           run: () => (order.load_confirmable ? openOrderDialog(order) : openRecoverDialog(order)) });
+    } else if (order.cancelable && order.state !== "WAITING") {
+      // 관제 재시작으로 멈춘 접수 주문: 로봇이 없어 이어서 갈 것이 없고 저절로 출발하지 않는다.
+      add("warn", `주문 ${order.order_id} 접수 멈춤`, `${who} · ${order.step_text}`,
+        { label: "주문 취소", run: () => openCancelDialog(order) });
     } else if (order.load_confirmable) {
       add("warn", `주문 ${order.order_id} 상차 확인 필요`, `${who} · 사람이 직접 싣고 확인`,
         { label: "확인하기", run: () => openLoadDialog(order) });
@@ -292,10 +331,31 @@ function collectTodo() {
         { label: "보기", run: () => openOrderDialog(order) });
     }
   }
+  const latched = latchedArms();
+  if (latched.length) {
+    add("bad", `로봇팔 잠금 (${latched.map(armName).join(", ")})`, "현장을 확인한 뒤 풀어 주세요",
+      { label: "팔 잠금 해제", run: openUnlatchDialog });
+  }
   for (const [robotId, reason] of Object.entries(service.holds || {})) {
+    const order = activeOrderOf(robotId);
+    if (order) {
+      // 주문이 남은 로봇의 정지 해제는 fleet 이 거절한다. 멈춘 주문은 위의 '처리하기' 하나로 안내한다.
+      if (!order.blocked) {
+        add("bad", `${robotId} 정지 잠금 (${HOLD_TEXT[reason] || reason})`,
+          `주문 ${order.order_id} 을 먼저 처리해야 풀 수 있습니다`);
+      }
+      continue;
+    }
     add("bad", `${robotId} 정지 잠금 (${HOLD_TEXT[reason] || reason})`,
       reason === "CARGO_ONBOARD" ? "고객 무응답 · 로봇 위 신발을 내린 뒤 풀어 주세요" : "현장을 확인한 뒤 풀어 주세요",
       { label: "정지 해제", run: () => openReleaseDialog(robotId, reason) });
+  }
+  for (const [robotId, robot] of Object.entries((view.fleet && view.fleet.robots) || {})) {
+    // 멈춘(STOPPED) 로봇은 새 주문을 저절로 받지 않는다.
+    if (robot.state === "STOPPED" && canSendHome(robotId, robot)) {
+      add("warn", `${robotId} 멈춰 있음`, "홈으로 보내야 새 주문을 받습니다",
+        { label: "홈으로 보내기", run: () => openHomeDialog(robotId) });
+    }
   }
   for (const alert of (view.fleet && view.fleet.alerts) || []) {
     add(alert.level === "bad" ? "bad" : "warn", `${alert.robot} ${alert.text}`, "");
@@ -338,7 +398,7 @@ function renderTodo() {
 
 function orderChip(order) {
   const service = view.service;
-  const cls = order.blocked ? "stuck" : order.load_confirmable ? "attention" : "";
+  const cls = order.blocked ? "stuck" : order.load_confirmable || order.cancel_requested ? "attention" : "";
   const chip = el("button", `order-chip ${cls}`);
   chip.type = "button";
   const top = el("div", "chip-top");
@@ -347,7 +407,7 @@ function orderChip(order) {
   chip.appendChild(top);
   chip.appendChild(el("div", "chip-item", `${order.sku || "—"} → ${destinationName(order)}`));
   chip.appendChild(el("div", "chip-now", order.blocked ? `멈춤 · ${orderStateText(order)}`
-    : order.load_confirmable ? "상차 확인 필요" : order.step_text));
+    : order.load_confirmable && !order.cancel_requested ? "상차 확인 필요" : order.step_text));
   chip.appendChild(el("div", "chip-robot", order.robot_id || "로봇 배정 전"));
   chip.addEventListener("click", () => openOrderDialog(order));
   return chip;
@@ -424,11 +484,17 @@ function robotTile(robotId, robot) {
     el("span", "", order ? `주문 ${order.order_id}` : "주문 없음"));
   tile.append(top, sub);
   const canCommand = !service.read_only && backendOk();
-  if (hold) {
+  if (hold && order) {
+    tile.appendChild(el("div", "tile-sub", "주문을 먼저 처리해야 풀 수 있습니다"));
+  } else if (hold) {
     tile.appendChild(button("정지 해제", "btn btn-small btn-primary",
       () => openReleaseDialog(robotId, hold), !commandsAllowed()));
   } else if (robot.online) {
     tile.appendChild(button("이 로봇 정지", "btn btn-small btn-ghost-danger", () => stopRobot(robotId), !canCommand));
+    if (canSendHome(robotId, robot)) {
+      tile.appendChild(button("홈으로 보내기", "btn btn-small btn-ghost", () => openHomeDialog(robotId),
+        !commandsAllowed()));
+    }
   }
   return tile;
 }
@@ -496,9 +562,10 @@ function renderHistory() {
 
 // ---------- 창 ----------
 // 체크 항목은 버튼마다 필요한 것(needs)을 정한다. needs 가 있는 버튼은 그 칸을 모두 체크하고
-// 처리한 사람 이름을 적어야 켜진다. needs 가 없는 버튼(다른 창 열기)은 늘 켜져 있다.
+// 처리한 사람 이름을 적어야 켜진다 (noOperator 면 이름 없이: API 가 이름을 받지 않는 조치). needs 가 없는 버튼(다른 창 열기)은 늘 켜져 있다.
 
 function openDialog({ title, body, checks = [], actions = [] }) {
+  view.stopWait = null;  // 다른 창을 열면 정지 확인 뒤 창을 저절로 바꾸지 않는다.
   $("dialog-title").textContent = title;
   $("dialog-body").replaceChildren(...body.filter(Boolean).map(
     (part) => (typeof part === "string" ? el("p", "", part) : part)));
@@ -512,20 +579,23 @@ function openDialog({ title, body, checks = [], actions = [] }) {
     return label;
   }));
   $("dialog-checks").hidden = checks.length === 0;
-  const needsOperator = actions.some((action) => action.needs);
+  const needsOperator = actions.some((action) => action.needs && !action.noOperator);
   $("dialog-operator-row").hidden = !needsOperator;
   $("dialog-operator").value = load(OPERATOR_KEY, "");
   const buttons = actions.map((action) => {
     const node = button(action.label, `btn ${action.className || "btn-primary"}`, async () => {
       const operator = $("dialog-operator").value.trim();
-      if (action.needs) store(OPERATOR_KEY, operator);
-      const evidence = Object.fromEntries((action.needs || []).map((key) => [key, true]));
+      if (action.needs && !action.noOperator) store(OPERATOR_KEY, operator);
+      // optional: 체크하지 않아도 되는 칸. 체크했을 때만 true 로 보낸다.
+      const keys = [...(action.needs || []), ...(action.optional || []).filter((key) => boxes[key].checked)];
+      const evidence = Object.fromEntries(keys.map((key) => [key, true]));
       $("dialog").close();
       await action.run(operator, evidence);
       poll();
     });
     node.needs = action.needs || null;
     node.locked = Boolean(action.disabled);
+    node.noOperator = Boolean(action.noOperator);
     return node;
   });
   buttons.push(button("닫기", "btn btn-ghost", () => $("dialog").close()));
@@ -539,7 +609,7 @@ function openDialog({ title, body, checks = [], actions = [] }) {
         node.disabled = node.locked;
         continue;
       }
-      node.disabled = node.locked || !named || !node.needs.every((key) => boxes[key].checked)
+      node.disabled = node.locked || (!named && !node.noOperator) || !node.needs.every((key) => boxes[key].checked)
         || !commandsAllowed();
     }
   };
@@ -581,8 +651,18 @@ function openOrderDialog(order) {
     actions.push({ label: "상차 확인", run: () => openLoadDialog(order), disabled: !commandsAllowed() });
   }
   if (!finished && order.blocked) {
-    actions.push({ label: order.resumable ? "이어서 가기 / 취소" : "주문 취소", className: "btn-danger",
+    actions.push({ label: recoverLabel(order), className: "btn-danger",
       run: () => openRecoverDialog(order), disabled: !commandsAllowed() });
+  }
+  if (canStopCancel(order)) {
+    actions.push({ label: order.cancel_requested ? "직접 처리로 바꾸기" : "주문 취소",
+      className: order.cancel_requested ? "btn-ghost-danger" : "btn-danger",
+      run: () => (order.cancel_requested ? openStopCancelDialog(order) : openCancelChoice(order)),
+      disabled: !commandsAllowed() });
+  }
+  if (!finished && order.cancelable) {
+    actions.push({ label: "주문 취소", className: "btn-danger", run: () => openCancelDialog(order),
+      disabled: !commandsAllowed() });
   }
   openDialog({
     title: `주문 ${order.order_id}`,
@@ -623,27 +703,245 @@ function openRecoverDialog(order) {
   const recover = (decision) => async (operator, evidence) => {
     const result = await postJson(`/api/orders/${encodeURIComponent(order.order_id)}/recover`,
       { client_request_id: newRequestId(), decision, operator, note: "관리화면", evidence });
-    toast(result.ok ? (decision === "resume" ? `주문 ${order.order_id} 이어서 갑니다 (로봇 응답 기다림)`
+    toast(result.ok ? (decision === "resume"
+      ? `주문 ${order.order_id} ${order.resumable ? "이어서 갑니다" : "다시 합니다"} (로봇 응답 기다림)`
+      : decision === "done" ? `주문 ${order.order_id} 사람 처리로 적었습니다 (로봇 응답 기다림)`
       : `주문 ${order.order_id} 취소했습니다 (로봇 잠금 해제 기다림)`)
       : `처리 거절: ${errorText(result)}`, !result.ok);
   };
+  const blockers = recoverBlockers();
+  const blocked = blockers.length > 0;
   const actions = [];
+  // 같은 확인값(arms_safe)을 쓰는 조치끼리는 체크 한 칸을 함께 쓴다.
   const checks = [];
   if (order.resumable) {
     checks.push(["site_checked", "[이어서 가기] 로봇·상품·주변을 현장에서 확인했고 다시 움직여도 안전하다"]);
-    actions.push({ label: "이어서 가기", needs: ["site_checked"], run: recover("resume") });
+    actions.push({ label: "이어서 가기", needs: ["site_checked"], disabled: blocked, run: recover("resume") });
+  } else if (order.retryable) {
+    checks.push(["item_ready", `[다시 하기] ${ITEM_READY_TEXT}`]);
+    actions.push({ label: "다시 하기", needs: ["arms_safe", "item_ready"], disabled: blocked,
+      run: recover("resume") });
   }
-  checks.push(...CANCEL_CHECKS.map(([key, text]) => [key, `[주문 취소] ${text}`]));
+  if (order.hand_done) {
+    checks.push(["item_placed", `[사람이 처리함] ${ITEM_PLACED_TEXT}`]);
+    actions.push({ label: "사람이 처리함", needs: ["arms_safe", "item_placed"], disabled: blocked,
+      run: recover("done") });
+  }
+  checks.push(...CANCEL_CHECKS.map(([key, text]) => [key,
+    `[${key === "arms_safe" && (order.retryable || order.hand_done) ? "공통" : "주문 취소"}] ${text}`]));
   actions.push({ label: "주문 취소", className: "btn-danger", needs: CANCEL_CHECKS.map(([key]) => key),
-    run: recover("fail") });
+    optional: order.shelf_returnable ? [SHELF_CHECK[0]] : [], run: recover("fail") });
+  if (order.shelf_returnable) checks.push(SHELF_CHECK);
   openDialog({
     title: `주문 ${order.order_id} 멈춤`,
     body: [`${order.robot_id} · 상품 ${order.sku} · ${orderStateText(order)}`, `멈춘 곳: ${order.step_text}`,
       order.failure ? `문제: ${order.failure}` : "",
-      order.resumable ? "이어서 가거나 주문을 취소할 수 있습니다." : "이 단계에서는 이어서 갈 수 없어 취소만 할 수 있습니다.",
-      "취소하면 고객 화면에는 주문을 처리하지 못했다고 나옵니다."],
+      order.resumable ? "이어서 가거나 주문을 취소할 수 있습니다." : "",
+      order.cancel_requested ? "취소를 요청한 주문입니다. 계속하면 고객에게 가지 않고 홈이나 선반으로 돌아갑니다." : "",
+      !order.resumable && order.retryable
+        ? `다시 하기를 누르면 로봇팔이 ${RETRY_FROM_PICK.has(order.stage) ? "상품 집기부터" : "이 작업을 처음부터"} 다시 하고, 실제로 움직입니다.` : "",
+      order.hand_done ? "사람이 처리함을 누르면 이 작업을 끝낸 것으로 적고 다음 단계로 갑니다. 로봇이 움직입니다." : "",
+      !order.resumable && !order.retryable && !order.hand_done
+        ? "이 단계에서는 이어서 갈 수 없어 취소만 할 수 있습니다." : "",
+      ...blockers.map((reason) => el("p", "dialog-status bad", reason)),
+      "취소하면 고객 화면에는 주문을 처리하지 못했다고 나옵니다.",
+      order.shelf_returnable ? "선반에 돌려놓았다고 체크하지 않으면 재고는 돌아오지 않습니다." : ""],
     checks,
     actions,
+  });
+}
+
+// ---------- 진행 중 주문: 취소 방법 고르기 ----------
+
+function openCancelChoice(order) {
+  const why = order.returnable ? "" : order.purchased
+    ? "구매한 주문이라 자동 반납할 수 없습니다. 직접 처리는 고장이거나 위험할 때만 쓰세요."
+    : "이미 반납·복귀 중이거나 자동 반납이 안 되는 주문입니다. 그대로 두거나 문제가 있으면 직접 처리하세요.";
+  openDialog({
+    title: `주문 ${order.order_id} 취소 방법`,
+    body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
+      "자동 반납(권장): 로봇이 홈이나 선반으로 돌아갑니다. 재고도 저절로 돌아옵니다.",
+      "직접 처리: 로봇과 로봇팔을 세우고 사람이 신발을 꺼냅니다.",
+      why ? el("p", "dialog-status bad", why) : ""],
+    actions: [
+      { label: "자동 반납", disabled: !order.returnable || !commandsAllowed(), run: () => openReturnDialog(order) },
+      { label: "직접 처리", className: "btn-ghost-danger", disabled: !commandsAllowed(),
+        run: () => openStopCancelDialog(order) }],
+  });
+}
+
+// ---------- 로봇 홈으로 보내기 ----------
+
+function canSendHome(robotId, robot) {
+  return Boolean(robot.online && robot.extra && robot.extra.busy === false && HOME_STATES.has(robot.state)
+    && !(view.service.holds || {})[robotId] && !activeOrderOf(robotId));
+}
+
+function openHomeDialog(robotId) {
+  const armed = view.service.commands_armed;
+  openDialog({
+    title: `${robotId} 홈으로 보내기`,
+    body: ["로봇이 실제로 움직입니다. 작업 구역 안이면 구역부터 나갑니다.",
+      armed ? "" : el("p", "dialog-status bad", "주문 받기가 꺼져 있습니다. 화면 위에서 주문 받기를 먼저 켜세요.")],
+    checks: [["clear", "로봇 위가 비었고 로봇이 갈 길에 사람·물건이 없다"]],
+    actions: [{
+      label: "홈으로 보내기", needs: ["clear"], noOperator: true, disabled: !armed,
+      run: async () => {
+        const result = await postJson("/api/tasks",
+          { client_request_id: newRequestId(), robot_id: robotId, operation: "home", points: [] });
+        toast(result.ok ? `${robotId} 홈으로 보냈습니다` : `홈으로 보내지 못했습니다: ${errorText(result)}`, !result.ok);
+      },
+    }],
+  });
+}
+
+// ---------- 진행 중 주문: 취소 (자동 반납) ----------
+// 로봇을 세우지 않는다. 지금 명령을 마친 뒤 집기 전이면 홈으로, 실은 뒤면 선반으로 간다.
+
+function openReturnDialog(order) {
+  const atSeat = order.stage === "CUSTOMER";
+  const checks = [["customer_informed", "고객에게 알렸거나 취소해도 되는 것을 확인했다"]];
+  if (atSeat) checks.push(["shoe_on_robot", "신발이 로봇 위에 있고 고객이 로봇에서 물러났다"]);
+  openDialog({
+    title: `주문 ${order.order_id} 자동 반납`,
+    body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
+      BEFORE_PICK.has(order.stage)
+        ? "지금 단계를 마치면 로봇이 홈으로 돌아갑니다. 그 사이 상품을 집기 시작하면 선반에 반납합니다."
+        : atSeat ? "지금 단계를 마치면 정리 구역을 거쳐 선반에 반납합니다."
+          : "지금 단계를 마치면 바로 선반에 반납합니다 (열지 않은 상자라 정리하지 않음).",
+      "로봇이 홈에 도착해 주문이 닫히면 재고가 돌아옵니다.",
+      order.stage === "MOVE_CUSTOMER" ? "고객 자리에 도착하면 기다리지 않고 바로 떠납니다." : "",
+      el("p", "dialog-status bad", "로봇과 로봇팔은 멈추지 않고 계속 움직입니다. 위험하면 비상정지를 쓰세요."),
+      "취소는 되돌릴 수 없습니다."],
+    checks,
+    actions: [{
+      label: "자동 반납", className: "btn-danger", needs: checks.map(([key]) => key),
+      run: async (operator, evidence) => {
+        const result = await postJson(`/api/orders/${encodeURIComponent(order.order_id)}/cancel`,
+          { client_request_id: newRequestId(), operator, note: "관리화면 자동 반납", evidence });
+        toast(result.ok ? `주문 ${order.order_id} 취소 요청 · 지금 단계를 마치고 돌아갑니다`
+          : `취소 거절: ${errorText(result)}`, !result.ok);
+      },
+    }],
+  });
+}
+
+// ---------- 진행 중 주문: 직접 처리 ----------
+// 정지 → 멈춤 확인 → 기존 처리 창(현장 확인 뒤 취소). 여기서는 취소를 보내지 않는다.
+
+function canStopCancel(order) {
+  return order.state === "RUNNING" && Boolean(order.robot_id) && !order.outcome;
+}
+
+function openStopCancelDialog(order) {
+  openDialog({
+    title: `주문 ${order.order_id} 직접 처리`,
+    body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
+      ARM_STAGES.has(order.stage) ? el("p", "dialog-status bad", "로봇팔이 상품을 쥔 채 멈출 수 있습니다.") : "",
+      "누르면 로봇이 그 자리에 서고 이 주문의 로봇팔도 멈춥니다. 아직 취소되지는 않습니다.",
+      "멈춘 것을 확인하면 처리 창이 열립니다. 신발을 꺼내고 정리한 뒤 거기서 취소하세요."],
+    actions: [{ label: "로봇 정지", className: "btn-danger", disabled: !commandsAllowed(),
+      run: () => stopForCancel(order) }],
+  });
+}
+
+async function stopForCancel(order) {
+  const { order_id: orderId, robot_id: robotId } = order;
+  // 창을 열어 둔 사이 주문이 끝나고 로봇이 다른 주문을 맡았을 수 있어 보내기 직전에 다시 읽는다.
+  let now;
+  try {
+    now = (await getJson("/api/service")).active.find((item) => item.order_id === orderId);
+  } catch (err) {
+    toast("주문 상태를 확인하지 못해 정지를 보내지 않았습니다. 장비의 '이 로봇 정지'나 비상정지를 쓰세요.", true);
+    return;
+  }
+  if (!now || now.robot_id !== robotId || !(canStopCancel(now) || now.blocked)) {
+    toast(`주문 ${orderId} 이 이미 끝났거나 상태가 바뀌어 정지를 보내지 않았습니다.`, true);
+    return;
+  }
+  if (!now.blocked) {
+    const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/stop`,
+      { client_request_id: newRequestId() });
+    if (!result.ok) {
+      toast(`정지를 보내지 못했습니다: ${errorText(result)} — 필요하면 비상정지를 쓰세요`, true);
+      return;
+    }
+  }
+  if ($("dialog").open) {
+    toast(`${robotId} 정지를 보냈습니다. '할 일'의 처리하기에서 이어 가세요.`);
+    return;
+  }
+  openDialog({
+    title: `${robotId} 정지 확인 중`,
+    body: ["로봇이 멈췄는지 확인하고 있습니다. 확인되면 처리 창이 열립니다.",
+      "닫아도 주문은 멈춘 채 '할 일'에 남습니다."],
+  });
+  view.stopWait = { orderId, robotId, since: Date.now() };
+}
+
+// 화면을 새로 읽을 때마다 부른다. 최종 판정은 취소할 때 fleet 이 다시 한다.
+function checkStopWait() {
+  const wait = view.stopWait;
+  if (!wait) return;
+  const fresh = view.lastOk > wait.since;
+  const order = fresh && view.service.active.find((item) => item.order_id === wait.orderId);
+  if (fresh && !order) {
+    openDialog({ title: `주문 ${wait.orderId}`, body: ["주문이 이미 끝났습니다. 취소할 것이 없습니다.",
+      `${wait.robotId} 은 정지했을 수 있으니 '할 일'과 장비를 확인하세요.`] });
+    return;
+  }
+  const robot = view.fleet && view.fleet.robots && view.fleet.robots[wait.robotId];
+  const stopped = Boolean(robot && robot.online && robot.extra && robot.extra.busy === false);
+  const waited = Date.now() - wait.since;
+  if (waited >= STOP_WAIT_MS) {
+    openDialog({
+      title: `${wait.robotId} 정지를 확인하지 못했습니다`,
+      body: [el("p", "dialog-status bad", "현장에서 로봇을 확인하고, 움직이면 비상정지를 누르세요."),
+        "멈춘 것을 확인한 뒤 '할 일'의 처리하기에서 이어 가세요. 주문은 취소되지 않았습니다."],
+    });
+  } else if (order && order.blocked && stopped && waited >= STOP_SETTLE_MS && backendOk()) {
+    openRecoverDialog(order);
+  }
+}
+
+// 로봇 배정 전(접수) 주문 취소. 그 사이 로봇이 배정되면 fleet 이 거절한다.
+function openCancelDialog(order) {
+  openDialog({
+    title: `주문 ${order.order_id} 취소`,
+    body: [`상품 ${order.sku || "—"} → ${destinationName(order)}`, "아직 로봇이 배정되지 않은 주문입니다. 취소하면 되돌릴 수 없습니다.",
+      "예약한 재고는 돌아옵니다.", "고객 화면에는 주문을 처리하지 못했다고 나옵니다."],
+    checks: [["customer_informed", "고객에게 알렸거나 취소해도 되는 것을 확인했다"]],
+    actions: [{
+      label: "주문 취소", className: "btn-danger", needs: ["customer_informed"],
+      run: async (operator, evidence) => {
+        const result = await postJson(`/api/orders/${encodeURIComponent(order.order_id)}/recover`,
+          { client_request_id: newRequestId(), decision: "fail", operator, note: "관리화면 접수 취소", evidence });
+        toast(result.ok ? `주문 ${order.order_id} 취소했습니다 · 재고가 돌아옵니다`
+          : `취소 거절: ${errorText(result)}`, !result.ok);
+      },
+    }],
+  });
+}
+
+function openUnlatchDialog() {
+  const latched = latchedArms();
+  if (!latched.length) return;
+  openDialog({
+    title: `로봇팔 잠금 해제 (${latched.length}대)`,
+    body: [...latched.map((arm) => `· ${armName(arm)}`),
+      "팔은 바로 움직이지 않습니다. 다음 작업 요청부터 받습니다."],
+    checks: [["safe", "모든 팔 자리에서 팔이 멈춰 있고 주변에 사람·물건이 없다"]],
+    actions: [{
+      label: "팔 잠금 해제", needs: ["safe"], noOperator: true,
+      run: async () => {
+        const result = await postJson("/api/arms/unlatch_all", { client_request_id: newRequestId() });
+        const failed = Object.entries((result.data && result.data.results) || {})
+          .filter(([, res]) => !res.accepted);
+        toast(result.ok ? "로봇팔 잠금을 풀었습니다"
+          : failed.length ? `풀지 못한 팔: ${failed.map(([id, res]) => `${id} (${res.reason || "이유 없음"})`).join(", ")} — 엔지니어에게 알려 주세요`
+            : `팔 잠금 해제 거절: ${errorText(result)}`, !result.ok);
+      },
+    }],
   });
 }
 
@@ -652,7 +950,7 @@ function openReleaseDialog(robotId, hold) {
   openDialog({
     title: `${robotId} 정지 해제`,
     body: [`정지 이유: ${HOLD_TEXT[hold] || hold}`, "해제하면 로봇이 다시 명령을 받습니다.",
-      "작업 구역 안에서 멈췄다면 해제 뒤 엔지니어에게 '나가기'를 요청하세요."],
+      "해제한 뒤 멈춰 있으면 '홈으로 보내기'를 쓰세요 (구역 안이면 구역부터 나갑니다)."],
     checks: [["safe", "로봇이 멈춰 있고 주변에 사람·물건이 없다"],
       ...(cargo ? [["unloaded", "로봇 위 신발을 내렸다"]] : [])],
     actions: [{
@@ -687,9 +985,12 @@ function render() {
   renderStock();
   renderEquip();
   renderHistory();
+  checkStopWait();
 }
 
 function start() {
+  // 창을 닫으면 정지 확인 뒤 창을 저절로 열지 않는다 (닫자마자 다른 창을 연 경우는 그대로).
+  $("dialog").addEventListener("close", () => { if (!$("dialog").open) view.stopWait = null; });
   $("arm-toggle").addEventListener("click", toggleArmed);
   $("estop-all").addEventListener("click", estopAll);
   $("equip-toggle").addEventListener("click",

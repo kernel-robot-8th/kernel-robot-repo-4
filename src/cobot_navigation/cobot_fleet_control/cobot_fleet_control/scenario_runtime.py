@@ -60,7 +60,9 @@ class ScenarioContext:
         if not service.store.acquire(order['order_id'], self._resources(stage, route)):
             return
         request_id = uuid.uuid4().hex
-        self.save(request_id=request_id, attempt=order['attempt'] + 1)
+        # 팔에 집기를 한 번이라도 보냈으면 상품이 선반에 있다고 볼 수 없다 (취소 길 선택에 쓴다).
+        started = {'pick_started': True} if stage == 'PICK' else {}
+        self.save(request_id=request_id, attempt=order['attempt'] + 1, **started)
         service.deadlines[order['order_id']] = (
             service.clock() + service.config['step_timeout_sec'])
         try:
@@ -149,7 +151,8 @@ class ScenarioContext:
             self.service._alarm(order, 'CARGO_ONBOARD',
                                 '무응답 복귀: 로봇 위 신발을 내린 뒤 정지 해제 필요')
         self.service.store.close_order(
-            order, restock=not order['failure'] and (order['kind'] == 'return' or restocked))
+            order, restock=bool(order.get('operator_cancelled')) or (
+                not order['failure'] and (order['kind'] == 'return' or restocked)))
         if (order.get('customer_declined') and order['kind'] == 'delivery'
                 and not order['failure'] and not customer):
             self.service.collect_declined(order)

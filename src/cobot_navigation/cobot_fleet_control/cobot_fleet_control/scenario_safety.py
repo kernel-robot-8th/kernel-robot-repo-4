@@ -4,9 +4,10 @@ import time
 
 from .control_release import require_stopped
 
-from .scenario_contracts import (ARM_STAGES, BLOCKED, HAND_DONE, identifier, is_customer_route,
-                                 NAVIGATION, operator_or_default, optional_text, order_stages,
-                                 PICKUP_STAGES, RESUME_STAGES, RETRY_FROM, TERMINAL)
+from .scenario_contracts import (ARM_STAGES, BLOCKED, CANCEL_STAGES, HAND_DONE, identifier,
+                                 is_customer_route, NAVIGATION, operator_name, operator_or_default,
+                                 optional_text, order_stages, PICKUP_STAGES, RESUME_STAGES,
+                                 RETRY_FROM, TERMINAL)
 
 
 def interrupt(service, order_id, state, detail):
@@ -40,7 +41,7 @@ def interrupt(service, order_id, state, detail):
 
 def confirm_loaded(service, order_id, operator, note, evidence):
     """센서 결과를 생성하지 않고, 현장 확인을 기록한 뒤 실제 구역 이탈부터 재개한다."""
-    identifier(operator, 'operator')
+    operator = operator_name(operator)
     order = service.store.get(identifier(order_id, 'order_id'))
     if not order:
         raise ValueError('없는 주문')
@@ -121,6 +122,44 @@ def _check_load_ready(service, order):
     return restoring, latched
 
 
+def request_cancel(service, order_id, operator, note, evidence, source=''):
+    """
+    진행 중 고객 자리 주문의 직원 취소. 로봇을 세우지 않고 지금 명령을 마친 뒤 홈 복귀나 선반 반납으로 바꾼다.
+
+    실제 길은 트리(scenario_nodes)가 다음 명령 앞에서 고른다. 되돌릴 수 없다.
+    """
+    operator = operator_or_default(operator)
+    note = optional_text(note, '취소 note', '화면에서 주문 취소')
+    order = service.store.get(identifier(order_id, 'order_id'))
+    if not order:
+        raise ValueError('없는 주문')
+    if evidence is not None and not isinstance(evidence, dict):
+        raise ValueError('evidence는 객체')
+    if order['state'] in TERMINAL:
+        raise ValueError('이미 끝난 주문')
+    if order.get('cancel_requested'):
+        return order
+    if order['state'] != 'RUNNING' or not order['robot_id']:
+        raise ValueError('진행 중인 주문만 취소 가능 (멈춘 주문·배정 전 주문은 주문 복구의 취소)')
+    if order['kind'] != 'delivery' or not is_customer_route(service._route(order)):
+        raise ValueError('고객 자리 주문만 자동 반납 취소 가능')
+    runtime = service.trees.get(order_id)
+    decided = runtime and (runtime.context.customer_received or runtime.context.customer_declined)
+    if (order['stage'] not in CANCEL_STAGES or order['failure'] or order['customer_received']
+            or order['customer_timed_out'] or order.get('customer_declined') or decided):
+        raise ValueError('이미 구매·반납·복귀 중인 주문은 취소할 수 없음')
+    if order['stage'] == 'CUSTOMER' and (evidence or {}).get('shoe_on_robot') is not True:
+        raise ValueError('고객 응대 중 취소: 신발이 로봇 위에 있는지 확인 필요 (shoe_on_robot)')
+    request = {'operator': operator, 'note': note, 'source': source, 'stage': order['stage'],
+               'evidence': evidence, 'requested_at': time.time()}
+    service._save(order, cancel_requested=request)
+    service.store.event({'type': 'operator_cancel', 'order_id': order_id,
+                         'robot_id': order['robot_id'], 'request': request})
+    if runtime and order['stage'] == 'CUSTOMER':
+        runtime.settle()
+    return service.store.get(order_id)
+
+
 # 운영자·메모는 선택. 자원을 예약한 주문의 취소에는 실제 정리 확인이 필요하다.
 def recover(service, order_id, operator, note, decision, evidence, source=''):
     """
@@ -132,8 +171,11 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     operator = operator_or_default(operator)
     note = optional_text(note, '복구 note', '화면에서 현장 확인 후 복구')
     order = service.store.get(identifier(order_id, 'order_id'))
-    if not order or order['state'] not in BLOCKED:
-        raise ValueError('중단된 주문만 복구 가능')
+    # 로봇 배정 전 주문은 움직인 장치가 없어 멈추지 않고도 취소할 수 있다.
+    unassigned = (decision == 'fail' and bool(order) and not order['robot_id']
+                  and order['state'] in BLOCKED | {'WAITING'})
+    if not order or (order['state'] not in BLOCKED and not unassigned):
+        raise ValueError('중단된 주문만 복구 가능 (취소는 로봇 배정 전 주문도 가능)')
     if evidence is not None and not isinstance(evidence, dict):
         raise ValueError('evidence는 객체')
     if decision not in ('resume', 'done', 'fail'):
@@ -141,8 +183,10 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     robot = order['robot_id']
     if robot:
         require_stopped(service, robot)
+    on_shelf = False
     if decision == 'fail':
-        _check_cancel_evidence(service, order_id, evidence)
+        on_shelf = not unassigned and _item_on_shelf(service, order, evidence)
+        _check_cancel_evidence(service, order_id, evidence, on_shelf)
     stage = order['stage']
     checkpoint = None
     if decision in ('resume', 'done'):
@@ -162,8 +206,13 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     service.trees.pop(order_id, None)
     if decision == 'fail':
         order.update(state='FAILED', detail=note, request_id=None, updated_at=time.time())
-        # 배정 전에는 어떤 장치에도 보낼 수 없으므로 예약분을 확실히 반환할 수 있다.
-        service.store.close_order(order, restock=order['kind'] == 'delivery' and robot is None)
+        if unassigned:
+            order['operator_cancelled'] = True  # 화면이 처리 실패와 구분하는 데 쓴다
+        if on_shelf:
+            order['operator_restocked'] = True
+        # 배정 전이거나 집기 전에 취소한 주문, 사람이 선반에 돌려놓은 주문은 예약분을 반환한다.
+        service.store.close_order(order, restock=order['kind'] == 'delivery' and (
+            robot is None or on_shelf or bool(order.get('operator_cancelled'))))
     else:
         _apply_checkpoint(service, order, stage, checkpoint, decision)
         service._save(order, state='RUNNING' if robot else 'WAITING', request_id=None,
@@ -174,12 +223,25 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     return service.store.get(order_id)
 
 
-def _check_cancel_evidence(service, order_id, evidence):
-    """자원을 예약한 주문은 실제 정리를 확인해야 취소한다."""
-    if not service.store.resources(order_id):
+def _item_on_shelf(service, order, evidence):
+    """사람이 신발을 원래 선반 칸에 돌려놓았다고 확인했는지. 확인했으면 예약 재고를 돌려준다."""
+    value = (evidence or {}).get('item_on_shelf', False)
+    if not isinstance(value, bool):
+        raise ValueError('item_on_shelf는 true 또는 false')
+    if not value:
+        return False
+    if (order['kind'] != 'delivery' or order['customer_received']
+            or not is_customer_route(service._route(order))):
+        raise ValueError('구매 전 고객 자리 주문만 선반에 돌려놓을 수 있음 (item_on_shelf)')
+    return True
+
+
+def _check_cancel_evidence(service, order_id, evidence, required=False):
+    """자원을 예약했거나 재고를 돌려놓는 주문은 실제 정리를 확인해야 취소한다."""
+    if not required and not service.store.resources(order_id):
         return
-    required = ('arms_safe', 'cargo_reconciled', 'resources_clear')
-    if not evidence or any(evidence.get(key) is not True for key in required):
+    keys = ('arms_safe', 'cargo_reconciled', 'resources_clear')
+    if not evidence or any(evidence.get(key) is not True for key in keys):
         raise ValueError('취소 전 팔 퇴피·화물 정리·작업장과 통로 이탈 확인 필요 '
                          '(arms_safe, cargo_reconciled, resources_clear)')
 

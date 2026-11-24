@@ -4,7 +4,8 @@ import math
 
 import py_trees
 
-from .scenario_contracts import BLOCKED, finite, is_customer_route, LEAVE_SIDE, TERMINAL
+from .scenario_contracts import (ARRANGE_STAGES, BEFORE_PICK_STAGES, BLOCKED, finite,
+                                 is_customer_route, LEAVE_SIDE, skips_arrange, TERMINAL)
 
 
 Status = py_trees.common.Status
@@ -90,6 +91,22 @@ class Step(py_trees.behaviour.Behaviour):
             return Status.SUCCESS
         if not ctx.running:
             return Status.FAILURE
+        if ctx.order.get('cancel_requested') and not (
+                ctx.order['stage'] == self.stage and ctx.order['request_id']):
+            # 이미 보낸 명령은 끝까지 기다리고, 아직 안 보낸 명령 앞에서만 길을 바꾼다.
+            if self.stage == 'MOVE_CUSTOMER':
+                self.feedback_message = '직원 취소: 고객 자리를 건너뛰고 반납'
+                return Status.SUCCESS
+            if self.stage in ARRANGE_STAGES and skips_arrange(ctx.order):
+                self.feedback_message = '직원 취소: 열지 않은 상자라 정리를 건너뜀'
+                return Status.SUCCESS
+            # 사람이 실었다고 확인한 주문(manual_load_pending)은 집기 전이어도 신발이 로봇 위에 있다.
+            if (self.stage in BEFORE_PICK_STAGES and not ctx.order.get('pick_started')
+                    and not ctx.order.get('manual_load_pending')):
+                # 피킹 전 실패와 같은 안전 복귀 분기로 보낸다.
+                ctx.save(failure='직원 취소: 상품을 집기 전이라 홈 복귀', operator_cancelled=True,
+                         request_id=None, attempt=0)
+                return Status.FAILURE
         ctx.enter(self.stage)
         if not ctx.order['request_id']:
             ctx.dispatch(self.stage)
@@ -239,6 +256,14 @@ class CustomerReceipt(py_trees.behaviour.Behaviour):
         ctx = self.ctx
         if 'CUSTOMER' in ctx.skip_stages or ctx.order['kind'] == 'return':
             self.feedback_message = '회수 주문 또는 복구 체크포인트: 수령 대기 생략'
+            return Status.SUCCESS
+        if ctx.order.get('cancel_requested'):
+            ctx.service._alarm(ctx.order, 'ORDER_CANCELLED',
+                               '직원 취소: 반환 구역 → 복귀' if skips_arrange(ctx.order)
+                               else '직원 취소: 정리 구역 → 반환 구역 → 복귀')
+            ctx.save(customer_declined=True)
+            if ctx.order['stage'] == 'CUSTOMER':
+                ctx.complete('CUSTOMER')
             return Status.SUCCESS
         ctx.enter('CUSTOMER')
         customer = is_customer_route(ctx.service._route(ctx.order))

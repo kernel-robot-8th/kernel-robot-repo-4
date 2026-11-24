@@ -2,6 +2,7 @@
 
 import math
 import re
+import unicodedata
 
 TERMINAL = {'COMPLETED', 'FAILED'}
 BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
@@ -53,6 +54,11 @@ HAND_DONE = {'PICK_DROPOFF': 'VERIFY_UNLOAD', 'UNLOAD': 'VERIFY_UNLOAD',
 PICKUP_STAGES = ('PICKUP_EXIT', 'DOCK_PICKUP', 'MARKER', 'PICK', 'LOAD', 'VERIFY_LOAD')
 _TO_PICKUP = ('MOVE_PICKUP',) + PICKUP_STAGES + ('LEAVE_PICKUP',)
 _RETURN_HOME = ('RETURN_HOME', 'RETURN_EXIT')
+# 팔이 상품에 손대기 전 단계. 여기서 직원이 취소하면 상품이 선반에 있으므로 홈으로 가고 재고를 돌려준다.
+BEFORE_PICK_STAGES = frozenset(
+    ('MOVE_PICKUP',) + PICKUP_STAGES[:PICKUP_STAGES.index('PICK') + 1] + ('CORRECT_PICKUP',))
+# 직원 취소를 받는 단계. 그 뒤는 이미 반납·복귀 중이다.
+CANCEL_STAGES = frozenset(_TO_PICKUP + ('CORRECT_PICKUP', 'MOVE_CUSTOMER', 'CUSTOMER'))
 # 하차 구역 주문: 하차 팔이 내려놓는 기존 방식.
 STAGES = _TO_PICKUP + (
     'MOVE_DROPOFF', 'PATH_EXIT', 'DOCK_DROPOFF', 'QR', 'PICK_DROPOFF', 'UNLOAD', 'VERIFY_UNLOAD',
@@ -62,6 +68,8 @@ _CUSTOMER_RETURN = ('MOVE_ARRANGE', 'ARRANGE', 'LEAVE_ARRANGE',
                     'MOVE_RESTOCK', 'RESTOCK', 'LEAVE_RESTOCK')
 CUSTOMER_STAGES = _TO_PICKUP + ('MOVE_CUSTOMER', 'CUSTOMER') + _CUSTOMER_RETURN + _RETURN_HOME
 CUSTOMER_RETURN_STAGES = frozenset(_CUSTOMER_RETURN)
+# 신발 정리(ZC) 단계. 고객이 열어 보지 않은 상자는 정리할 것이 없어 건너뛴다.
+ARRANGE_STAGES = frozenset(_CUSTOMER_RETURN[:_CUSTOMER_RETURN.index('MOVE_RESTOCK')])
 LABELS = {
     'MOVE_PICKUP': '상차 작업장 이동', 'PICKUP_EXIT': '상차 진입 후미 이탈 확인',
     'DOCK_PICKUP': '상차 정차 실측', 'CORRECT_PICKUP': '상차 정밀 위치 보정',
@@ -84,6 +92,12 @@ def is_customer_route(route):
     return 'customer' in route
 
 
+def skips_arrange(order):
+    """고객 응대 전에 직원이 취소한 주문인가. 상자가 실린 그대로라 정리 없이 선반(ZA)으로 바로 간다."""
+    request = order.get('cancel_requested')
+    return bool(request) and request.get('stage') != 'CUSTOMER'
+
+
 def order_stages(route):
     """경로 종류에 맞는 단계 순서."""
     return CUSTOMER_STAGES if is_customer_route(route) else STAGES
@@ -100,9 +114,28 @@ def identifier(value, name):
 DEFAULT_OPERATOR = 'control-center'
 
 
+OPERATOR_MAX = 40  # 화면 입력칸 최대 길이와 같게 둔다
+
+
+def operator_name(value):
+    """처리한 사람 이름. 키가 아니라 감사 기록용 글이므로 한글·공백을 받되 안 보이는 문자는 막는다."""
+    if not isinstance(value, str):
+        raise ValueError('operator: 이름은 문자열')
+    # NFC: 같은 한글 이름이 입력 장치에 따라 다른 글자열로 기록되지 않게 한다.
+    name = unicodedata.normalize('NFC', value.strip())
+    if not 1 <= len(name) <= OPERATOR_MAX:
+        raise ValueError(f'operator: 이름 1~{OPERATOR_MAX}자')
+    if any(unicodedata.category(c)[0] == 'C' or unicodedata.category(c) in ('Zl', 'Zp')
+           for c in name):
+        raise ValueError('operator: 이름에 줄바꿈·제어 문자를 쓸 수 없음')
+    return name
+
+
 def operator_or_default(value):
-    """운영자는 선택. 없으면 기본값, 주면 식별자 형식을 검사한다."""
-    return identifier(value or DEFAULT_OPERATOR, 'operator')
+    """운영자는 선택. 없거나 비면 기본값, 주면 이름 형식을 검사한다."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_OPERATOR
+    return operator_name(value)
 
 
 def optional_text(value, name, default):

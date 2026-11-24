@@ -95,17 +95,23 @@ BT와 중앙 하트비트는 계속 실행합니다. 명령 중복 검사는 발
 ```mermaid
 flowchart TB
     start["주문 접수 · 로봇 배정"] --> move["상차 구역 ZB 이동<br/>MOVE_PICKUP(zone) → PICKUP_EXIT"]
+    move -.->|"직원 취소 (집기 전)"| cancelhome["HOME 복귀 → FAILED<br/>operator_cancelled · 재고 반환"]
     move --> dock["정차 · 상품 확인<br/>DOCK_PICKUP → MARKER"]
     dock --> load["omx2 집기 · 싣기 · 확인<br/>PICK → LOAD → VERIFY_LOAD"]
     load --> seat["고객 자리 이동<br/>LEAVE_PICKUP → MOVE_CUSTOMER(goto P22)"]
     seat --> choice{"고객 선택 대기 CUSTOMER<br/>customer_timeout_sec (설정 300초)"}
     choice -->|"received (결제)"| home["HOME 복귀<br/>RETURN_HOME → RETURN_EXIT"]
     choice -->|"시간 초과: CUSTOMER_TIMEOUT<br/>신발은 핑키 위, 재고 그대로"| home
-    choice -->|"declined (회수 버튼)"| arrange["ZC 정리 (omx3 arrange_shoe)<br/>MOVE_ARRANGE → ARRANGE → LEAVE_ARRANGE"]
+    load -.->|"직원 취소 (집기 시작 ~ 고객 응대 전)"| restock
+    choice -->|"declined (회수 버튼) · 직원 취소"| arrange["ZC 정리 (omx3 arrange_shoe)<br/>MOVE_ARRANGE → ARRANGE → LEAVE_ARRANGE"]
     arrange --> restock["ZA 선반 반환 (omx1 warehouse_store)<br/>MOVE_RESTOCK → RESTOCK → LEAVE_RESTOCK"]
     restock --> home
     home --> done["COMPLETED<br/>선반 반환한 주문만 재고 +1<br/>시간 초과 주문은 로봇 보류 CARGO_ONBOARD"]
 ```
+
+직원 취소(`type=cancel`, `POST /api/orders/{id}/cancel`)는 로봇을 세우지 않고 지금 명령을 마친 뒤 길을 바꿉니다. 집기(`PICK`)를 한 번이라도 보냈으면(`pick_started`) 홈이 아니라 선반 반납 길을 씁니다. 고객 자리로 이미 출발했으면 도착한 뒤 기다리지 않고 반납합니다. 고객 응대 전에 취소한 상자는 열지 않은 것이라 정리(ZC)를 건너뛰고 선반(ZA)으로 바로 가고, 고객 응대 중에 취소하면 ZC를 거칩니다.
+
+멈춘 주문을 `fail` 로 취소할 때 `evidence.item_on_shelf: true`(사람이 원래 선반 칸에 돌려놓음)를 주면 예약 재고를 돌려줍니다. 구매한 주문은 거절합니다.
 
 예외 처리 (재시도는 `max_retries`, 설정 3회까지):
 
@@ -282,7 +288,7 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 좌표는 `cobot_pinky_patrol/config/sites/lab.yaml`에서 관리합니다.
 주문·수령·시나리오 복구는 내부 요청 타입이 준비돼 있고, 해당 HTTP 엔드포인트·화면은 기존 웹에 추가해야 합니다.
 운영자가 실물 상차를 끝낸 경우 `/fleet_control`의 `manual_load_confirmation` 문자열 파라미터에
-주문 ID·operator·note·evidence JSON을 넣어 기존 주문에 확인값만 반영합니다.
+주문 ID·operator(처리한 사람, 한글 가능 1~40자)·note·evidence JSON을 넣어 기존 주문에 확인값만 반영합니다.
 내부 `type=confirm_loaded` ROS 요청도 같은 경로를 사용합니다. 주문 ID·operator·note와
 `evidence.sku`, `load_present=true`, `arm_safe=true`, `pickup_path_clear=true`를 전달합니다.
 상차장 도착·정지·최신 통신·구역과 예약을 검증한 뒤 실제 구역 이탈부터 재개하며,
