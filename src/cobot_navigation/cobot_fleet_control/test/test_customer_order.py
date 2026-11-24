@@ -220,9 +220,8 @@ def test_packaged_scenario_config_builds_shelf_routes(tmp_path):
     seat = dict(pickup='ZB', pickup_arm='omx2', customer='P22', dropoff='ZC',
                 dropoff_arm='omx3', restock='ZA', restock_arm='omx1', lane='main')
     assert scenario.routes['col1__P22'] == scenario.routes['col2__P22'] == seat
-    assert 'col3__P22' not in scenario.routes
-    assert scenario.routes['lab_delivery_zb']['pickup_arm'] == 'omx2'
-    assert scenario.routes['lab_delivery']['dropoff_arm'] == 'omx3'
+    # 자리 경로만 있다. 팔이 하지 않는 작업을 시키는 하차 구역 경로가 없고, 3열은 아직 쓰지 않는다.
+    assert set(scenario.routes) == {'col1__P22', 'col2__P22'}
     assert scenario.shelf['rows'] == 4  # 팔 박스 번호 1~4
     assert scenario.config['customer_timeout_sec'] == 300.0  # 5분
     repo.close()

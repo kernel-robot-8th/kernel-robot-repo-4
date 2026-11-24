@@ -1,19 +1,8 @@
 # 현장 구역 (2026-11-19 사용자 확인): ZB = 창고 → 핑키 상차 (omx2), ZC = 매장 신발 정리 (omx3),
 # ZA = 반환된 신발 상자를 선반에 다시 올림 (omx1). 팔 이름·자리는 cobot_control_center site_arms.yaml 과 같다.
-# routes: 관제 화면 주문이 직접 고르는 하차 구역 경로 (하차 팔이 내려놓는 기존 흐름).
-routes:
-  lab_delivery:
-    pickup: ZA
-    dropoff: ZC
-    pickup_arm: omx1
-    dropoff_arm: omx3
-    lane: main
-  lab_delivery_zb:
-    pickup: ZB
-    dropoff: ZC
-    pickup_arm: omx2
-    dropoff_arm: omx3
-    lane: main
+# routes: 관제 주문이 route 로 직접 고르는 하차 구역 경로. 지금은 없다 (2026-11-24 lab_delivery·lab_delivery_zb 지움:
+# 그 경로가 시키는 omx3 pick·unload, omx1 pick·load 를 팔이 하지 않는다). 키는 감시 노드도 읽으므로 남긴다.
+routes: {}
 # 고객 주문 화면(cobot_gui customer_gateway)이 쓰는 선택 설정이다. 주문에 route 대신 destination(자리 ID)을
 # 주면 상품이 놓인 선반 열과 자리로 경로를 고른다 (경로 이름 col<열>__<자리>). route 를 직접 주는 주문은 그대로다.
 shelf:

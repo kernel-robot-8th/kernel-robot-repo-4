@@ -92,14 +92,31 @@ BT와 중앙 하트비트는 계속 실행합니다. 명령 중복 검사는 발
 `destinations`의 자리를 `{point: P22, lane}`으로 적으면 로봇이 그 지점(순찰 설정의 일반 지점 P1~P50, 구역 아님)으로 갑니다.
 고객 자리에는 팔이 없고, 고객이 핑키에서 신발을 직접 꺼내 그 자리에서 결제합니다. `customer_return`이 꼭 있어야 합니다.
 
+```mermaid
+flowchart TB
+    start["주문 접수 · 로봇 배정"] --> move["상차 구역 ZB 이동<br/>MOVE_PICKUP(zone) → PICKUP_EXIT"]
+    move --> dock["정차 · 상품 확인<br/>DOCK_PICKUP → MARKER"]
+    dock --> load["omx2 집기 · 싣기 · 확인<br/>PICK → LOAD → VERIFY_LOAD"]
+    load --> seat["고객 자리 이동<br/>LEAVE_PICKUP → MOVE_CUSTOMER(goto P22)"]
+    seat --> choice{"고객 선택 대기 CUSTOMER<br/>customer_timeout_sec (설정 300초)"}
+    choice -->|"received (결제)"| home["HOME 복귀<br/>RETURN_HOME → RETURN_EXIT"]
+    choice -->|"시간 초과: CUSTOMER_TIMEOUT<br/>신발은 핑키 위, 재고 그대로"| home
+    choice -->|"declined (회수 버튼)"| arrange["ZC 정리 (omx3 arrange_shoe)<br/>MOVE_ARRANGE → ARRANGE → LEAVE_ARRANGE"]
+    arrange --> restock["ZA 선반 반환 (omx1 warehouse_store)<br/>MOVE_RESTOCK → RESTOCK → LEAVE_RESTOCK"]
+    restock --> home
+    home --> done["COMPLETED<br/>선반 반환한 주문만 재고 +1<br/>시간 초과 주문은 로봇 보류 CARGO_ONBOARD"]
 ```
-MOVE_PICKUP(zone ZB) → PICKUP_EXIT → DOCK_PICKUP → MARKER → PICK(omx2) → LOAD → VERIFY_LOAD
-→ LEAVE_PICKUP → MOVE_CUSTOMER(goto P22) → CUSTOMER (customer_timeout_sec, 기본 설정 300초)
-  ├ received (결제)      → RETURN_HOME → RETURN_EXIT → COMPLETED
-  ├ 시간 초과            → RETURN_HOME → RETURN_EXIT → COMPLETED (경보 CUSTOMER_TIMEOUT, 신발은 핑키 위, 재고 그대로)
-  └ declined (회수 버튼)  → MOVE_ARRANGE(zone ZC) → ARRANGE(omx3 arrange_shoe) → LEAVE_ARRANGE
-                          → MOVE_RESTOCK(zone ZA) → RESTOCK(omx1 warehouse_store) → LEAVE_RESTOCK
-                          → RETURN_HOME → RETURN_EXIT → COMPLETED, 재고 +1
+
+예외 처리 (재시도는 `max_retries`, 설정 3회까지):
+
+```mermaid
+flowchart TB
+    safe["안전이 확인된 장치 실패<br/>retry_safe=true 또는 정차 공차 초과"] --> left{"재시도 횟수가 남음?"}
+    left -->|"예"| retry["같은 작업 다시<br/>정차는 보정 후 다시 측정"]
+    left -->|"아니오: 상차 정차 (집기 전)"| ret["HOME 복귀 후 FAILED"]
+    left -->|"아니오: 그 밖의 단계"| hold["주문 멈춤, 사람 확인"]
+    bad["안전 미확인<br/>주행 실패 · 단계 시간 초과 · 통신 끊김 · 상품 불일치"] --> hold
+    hold --> act["운영자 선택 (단계에 따라 다름)<br/>resume · done · fail"]
 ```
 
 - 경로 칸: `customer`=자리 지점, `dropoff`/`dropoff_arm`=정리 구역·팔(ZC·omx3), `restock`/`restock_arm`=반환 구역·팔(ZA·omx1).
@@ -253,14 +270,14 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 
 ## 시나리오와 외부 추론 PC
 
-`config/scenario.yaml`의 배송 경로는 다음과 같습니다. 두 경로 모두 상차는 omx1, 하차는 omx2를 사용합니다.
+`config/scenario.yaml`의 주문은 고객 자리(`destination`)로 접수합니다. 경로는 선반 열과 자리로 만들어집니다.
 
-| 주문의 route | 상차 지점 | 하차 지점 |
-|---|---|---|
-| `lab_delivery` | ZA | ZC |
-| `lab_delivery_zb` | ZB | ZC |
+| 자리 경로 | 상차 | 고객 자리 | 회수 정리 | 선반 반환 |
+|---|---|---|---|---|
+| `col1__P22`, `col2__P22` | ZB · omx2 | P22 | ZC · omx3 | ZA · omx1 |
 
-두 주문은 각각 접수할 수 있으며, 같은 팔·ZC·통로 예약을 사용하는 단계는 자원을 기다립니다.
+하차 구역 경로 `lab_delivery`, `lab_delivery_zb`는 2026-11-24에 지웠고 그 이름의 주문은 거절합니다
+(팔이 하지 않는 `pick`·`load`·`unload`를 시켰음). 같은 팔·구역·통로 예약을 쓰는 단계는 자원을 기다립니다.
 좌표는 `cobot_pinky_patrol/config/sites/lab.yaml`에서 관리합니다.
 주문·수령·시나리오 복구는 내부 요청 타입이 준비돼 있고, 해당 HTTP 엔드포인트·화면은 기존 웹에 추가해야 합니다.
 운영자가 실물 상차를 끝낸 경우 `/fleet_control`의 `manual_load_confirmation` 문자열 파라미터에

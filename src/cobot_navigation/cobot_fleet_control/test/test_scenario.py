@@ -145,27 +145,18 @@ def test_delivery_requires_all_device_results_customer_and_home(env):
     assert env.stock('SHOE42') == 9
 
 
-@pytest.mark.parametrize('route,pickup,arm', [
-    ('lab_delivery', 'ZA', 'omx1'), ('lab_delivery_zb', 'ZB', 'omx2')])
-def test_configured_lab_routes_load_at_zone_arm_and_deliver_to_zc_with_omx3(
-        env, route, pickup, arm):
-    """실제 배포 설정의 두 상차 경로가 ZC 하차와 자리별 팔(ZA omx1·ZB omx2·ZC omx3) 요청으로 끝난다."""
+@pytest.mark.parametrize('route', ['lab_delivery', 'lab_delivery_zb'])
+def test_packaged_config_refuses_removed_dropoff_routes(env, route):
+    """배포 설정에서 지운 하차 구역 경로의 주문은 접수하지 않고 재고도 건드리지 않는다."""
     config = yaml.safe_load(
         (Path(__file__).resolve().parents[1] / 'config/scenario.yaml').read_text())
     env.scenario = ScenarioService(env.repo, env.fleet, env.gateway,
                                    clock=lambda: env.now, **config)
-    env.api = ControlAPI(env.scenario, env.fleet, env.gateway)
-    env.scenario.armed = True
-    env.order(route=route)
-    for _ in range(80):
-        env.step()
-        if env.current()['state'] == 'COMPLETED':
-            break
-    assert env.current()['state'] == 'COMPLETED'
-    assert [payload['command'] for _, payload in env.gateway.sent] == [
-        f'zone:{pickup}', 'leave', 'zone:ZC', 'leave', 'home']
-    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'LOAD') == arm
-    assert next(w['target'] for w in env.gateway.work_sent if w['stage'] == 'UNLOAD') == 'omx3'
+    before = env.stock('SHOE42')
+    with pytest.raises(ValueError, match='등록되지 않은 운송 경로'):
+        env.order(route=route)
+    assert env.scenario.store.get('order1') is None
+    assert env.stock('SHOE42') == before
 
 
 def test_qos_duplicate_conflict_inventory_atomicity_and_no_available_robot(env):
