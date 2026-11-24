@@ -5,8 +5,8 @@ import time
 from .control_release import require_stopped
 
 from .scenario_contracts import (ARM_STAGES, BLOCKED, HAND_DONE, identifier, is_customer_route,
-                                 NAVIGATION, operator_or_default, optional_text, order_stages,
-                                 PICKUP_STAGES, RESUME_STAGES, RETRY_FROM, TERMINAL)
+                                 NAVIGATION, operator_name, operator_or_default, optional_text,
+                                 order_stages, PICKUP_STAGES, RESUME_STAGES, RETRY_FROM, TERMINAL)
 
 
 def interrupt(service, order_id, state, detail):
@@ -40,7 +40,7 @@ def interrupt(service, order_id, state, detail):
 
 def confirm_loaded(service, order_id, operator, note, evidence):
     """센서 결과를 생성하지 않고, 현장 확인을 기록한 뒤 실제 구역 이탈부터 재개한다."""
-    identifier(operator, 'operator')
+    operator = operator_name(operator)
     order = service.store.get(identifier(order_id, 'order_id'))
     if not order:
         raise ValueError('없는 주문')
@@ -132,8 +132,11 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     operator = operator_or_default(operator)
     note = optional_text(note, '복구 note', '화면에서 현장 확인 후 복구')
     order = service.store.get(identifier(order_id, 'order_id'))
-    if not order or order['state'] not in BLOCKED:
-        raise ValueError('중단된 주문만 복구 가능')
+    # 로봇 배정 전 주문은 움직인 장치가 없어 멈추지 않고도 취소할 수 있다.
+    unassigned = (decision == 'fail' and bool(order) and not order['robot_id']
+                  and order['state'] in BLOCKED | {'WAITING'})
+    if not order or (order['state'] not in BLOCKED and not unassigned):
+        raise ValueError('중단된 주문만 복구 가능 (취소는 로봇 배정 전 주문도 가능)')
     if evidence is not None and not isinstance(evidence, dict):
         raise ValueError('evidence는 객체')
     if decision not in ('resume', 'done', 'fail'):
@@ -162,6 +165,8 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
     service.trees.pop(order_id, None)
     if decision == 'fail':
         order.update(state='FAILED', detail=note, request_id=None, updated_at=time.time())
+        if unassigned:
+            order['operator_cancelled'] = True  # 화면이 처리 실패와 구분하는 데 쓴다
         # 배정 전에는 어떤 장치에도 보낼 수 없으므로 예약분을 확실히 반환할 수 있다.
         service.store.close_order(order, restock=order['kind'] == 'delivery' and robot is None)
     else:

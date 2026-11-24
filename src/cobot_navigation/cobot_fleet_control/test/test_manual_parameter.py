@@ -2,10 +2,12 @@
 
 import json
 from types import SimpleNamespace
+import unicodedata
 
 import pytest
 
 from cobot_fleet_control.control_api import manual_load_request
+from cobot_fleet_control.scenario_contracts import operator_name, operator_or_default
 
 
 def payload():
@@ -22,6 +24,33 @@ def test_parameter_is_scoped_to_order_and_does_not_generate_sensor_result():
     assert request['request_id'].startswith('loaded-')
     assert 'measured' not in request
     assert manual_load_request('') is None
+
+
+def test_parameter_accepts_korean_operator_but_not_korean_order_id():
+    """사람 이름만 한글을 받고 주문 ID 는 식별자 규칙을 지킨다."""
+    request = manual_load_request(json.dumps({**payload(), 'operator': ' 김지혜 '}))
+    assert request['operator'] == '김지혜'
+    for changes in ({'order_id': '주문1'}, {'operator': ''}, {'operator': None}):
+        with pytest.raises(ValueError):
+            manual_load_request(json.dumps({**payload(), **changes}))
+
+
+def test_operator_name_is_trimmed_and_normalized():
+    """이름은 공백을 떼고 NFC 로 맞추며 40자까지 받는다."""
+    assert operator_name(' kim jihye ') == 'kim jihye'
+    assert operator_name(unicodedata.normalize('NFD', '김지혜')) == '김지혜'
+    assert operator_name('가' * 40) == '가' * 40
+    assert operator_or_default(None) == operator_or_default('  ') == 'control-center'
+    assert operator_or_default('김지혜') == '김지혜'
+
+
+@pytest.mark.parametrize('value', [
+    '', '  ', '가' * 41, 'a\nb', 'a\x00b', 'a\u200bb', 'a\u202eb', 'a\u2028b', 'a\ud800b',
+    None, 3, True, ['김지혜']])
+def test_operator_name_rejects_unsafe_values(value):
+    """안 보이는 문자와 글자가 아닌 값은 기록에 남기지 않는다."""
+    with pytest.raises(ValueError):
+        operator_name(value)
 
 
 @pytest.mark.parametrize('value', ['{}', 'null', '[]', 'true', 'x', 'x' * 8193])

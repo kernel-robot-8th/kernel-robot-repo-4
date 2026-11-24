@@ -282,7 +282,7 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 좌표는 `cobot_pinky_patrol/config/sites/lab.yaml`에서 관리합니다.
 주문·수령·시나리오 복구는 내부 요청 타입이 준비돼 있고, 해당 HTTP 엔드포인트·화면은 기존 웹에 추가해야 합니다.
 운영자가 실물 상차를 끝낸 경우 `/fleet_control`의 `manual_load_confirmation` 문자열 파라미터에
-주문 ID·operator·note·evidence JSON을 넣어 기존 주문에 확인값만 반영합니다.
+주문 ID·operator(처리한 사람, 한글 가능 1~40자)·note·evidence JSON을 넣어 기존 주문에 확인값만 반영합니다.
 내부 `type=confirm_loaded` ROS 요청도 같은 경로를 사용합니다. 주문 ID·operator·note와
 `evidence.sku`, `load_present=true`, `arm_safe=true`, `pickup_path_clear=true`를 전달합니다.
 상차장 도착·정지·최신 통신·구역과 예약을 검증한 뒤 실제 구역 이탈부터 재개하며,

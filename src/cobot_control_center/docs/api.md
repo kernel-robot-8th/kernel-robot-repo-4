@@ -47,11 +47,11 @@ GET·WS 가 돌려주는 값은 모두 `fleet_api_node` 가 토픽으로 받아 
 | `POST /api/robots/{robot_id}/stop` | `{"client_request_id", "emergency": false}` → `202`. 바쁨과 무관하게 항상 보냄. `emergency: true` 면 그 로봇 `estop` 으로 바꿔 보냄 |
 | `POST /api/commands/estop` | `{"client_request_id"}` → 전체 비상정지. 백엔드가 먼저 등록된 팔 전부에 `soft_latch`(잠금)를 발행만 하고(응답 안 기다림), 이어서 작업 노드에 로봇 지정 없는 `estop` 을 보냄 (전 로봇 정지 잠금·작업 명령 꺼짐, 경로 팔에 `hold` 도 따로 감). 응답은 작업 노드 응답에 `arms: {"latched": [팔 이름], "detail": 못 보냈을 수 있는 이유}` 를 더한 것. 작업 노드가 없어 503 이어도 팔 잠금은 이미 나감. 풀기: `POST /api/arms/unlatch_all` → 로봇 `release_control` → 작업 명령 켜기 |
 | `POST /api/robots/{robot_id}/initial_pose` | AMCL 위치를 다시 잡음 (로봇은 움직이지 않음). body `{"client_request_id", "pose"?}`. `pose` 가 없으면 fleet 이 순찰 설정의 홈을 씀. `pose: {x, y, yaw}` ([m], [m], [rad], map 프레임)면 그 좌표 (화면 상세 지도의 좌표 지정). 숫자가 아니거나 지도 밖이면 이 백엔드가 400. 누가는 접속 IP(`source`). 202 면 `{robot_id, mode: home\|manual, point, x, y, yaw, topic}` (좌표면 `point` 는 `좌표`), 거절이면 fleet 사유를 `detail` 로 |
-| `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구 (주문 없는 로봇). `operator`·`note`는 선택. 최신 정지 상태를 확인한 뒤 `202 {robot_id, released: false, reset_pending: true}`. 로봇 해제 응답 후 `/api/health`의 보류가 사라짐. 상태 미확인은 409 |
+| `POST /api/robots/{robot_id}/release_control` | 정지 잠금 복구 (주문 없는 로봇). `operator`·`note`는 선택. `operator`(처리한 사람)는 이 표의 모든 요청에서 한글·공백을 포함한 1~40자이고 줄바꿈·제어 문자는 `400`. 비면 `control-center` (`confirm_loaded` 는 필수). 최신 정지 상태를 확인한 뒤 `202 {robot_id, released: false, reset_pending: true}`. 로봇 해제 응답 후 `/api/health`의 보류가 사라짐. 상태 미확인은 409 |
 | `POST /api/zones/{zone}/release` | 구역 강제 해제 (토큰을 쥔 채 꺼졌거나 다시 켜져 잊은 로봇). body `{"robot_id", "client_request_id"?, "note"?}`. fleet 이 최신 zone_manager 상태(3초 안)가 `occupied_by:<robot_id>` 인지, 로봇이 연결 끊김이거나 멈춰 있고 `held_zone` 이 그 구역이 아닌지 본 뒤 `/zone_manager/notify_exit "<zone>:<robot_id>"` 를 한 번 냄. `202 {zone, robot_id, robot_online, released: "sent"}`. 점유자 다름·아직 잡고 있음·움직임·주문 있음·`held_zone` 보고 없음은 409, 구역 상태 없음은 503. 작업 명령 켜기 불필요. 누가는 접속 IP(`source`) |
 | `POST /api/robots/{robot_id}/raw_cmd` | 개발용. `{"client_request_id", "command": "goto:P3,P7"}` → `202 {"robot_id", "command", "raw_id", "spec": "v1", "topic": "/pinky1/patrol_cmd", "msg_type": "std_msgs/msg/String", "warning"}` / `423` 작업 명령 꺼짐 / `403` allow_raw_cmd 꺼짐 / `400` 빈 명령·여러 줄·200자 넘음 / `409` 진행 중·결과 모름 작업. 검사 없이 `patrol_cmd` 에 그대로 |
 | `POST /api/tasks/{task_id}/resolve` | `{"client_request_id", "result": "FAILED", "note"?}`. UNKNOWN만 접수. 202의 작업은 UNKNOWN·`reset_pending=true`이며 로봇 해제 응답 후 FAILED로 변경. 정지 미확인은 409 |
-| `POST /api/orders/{order_id}/recover` | `{"client_request_id", "decision": "resume" \| "done" \| "fail", "evidence"?, "operator"?, "note"?}`. `resume`: 이동 단계(`MOVE_*`·`RETURN_HOME`·`CUSTOMER`)는 이어서 가기, 팔 단계(`PICK`·`LOAD`·`PICK_DROPOFF`·`UNLOAD`·`ARRANGE`·`RESTOCK`)는 다시 하기 — `evidence` 의 `arms_safe`·`item_ready` true 필요, `LOAD` 는 `PICK` 부터·`UNLOAD` 는 `PICK_DROPOFF` 부터. `done`(사람이 처리함): `PICK_DROPOFF`·`UNLOAD`·`ARRANGE`·`RESTOCK` 만, `arms_safe`·`item_placed` true 필요, 그 단계를 `operator_completed` 로 적고 다음 단계(`VERIFY_UNLOAD`·`LEAVE_ARRANGE`·`LEAVE_RESTOCK`)로. 상차는 `confirm_loaded`. 로봇은 최신 정지 상태여야 함. 잠긴(`SOFT_LATCH`) 팔이 하나라도 있으면 `resume`·`done` 은 이 백엔드가 `409 팔 잠금 먼저 해제 (omx_2)` 로 막음 (취소 `fail` 은 막지 않음). 주문 항목의 `resumable`·`retryable`·`hand_done` 이 화면에 낼 버튼을 알림 (최종 검사는 fleet). 자원을 예약한 주문 취소는 `evidence`의 `arms_safe`·`cargo_reconciled`·`resources_clear` 모두 true 필요. 화면에서 각각 현장 확인. 취소 후에도 로봇 해제 응답 전에는 보류 유지 |
+| `POST /api/orders/{order_id}/recover` | `{"client_request_id", "decision": "resume" \| "done" \| "fail", "evidence"?, "operator"?, "note"?}`. `resume`: 이동 단계(`MOVE_*`·`RETURN_HOME`·`CUSTOMER`)는 이어서 가기, 팔 단계(`PICK`·`LOAD`·`PICK_DROPOFF`·`UNLOAD`·`ARRANGE`·`RESTOCK`)는 다시 하기 — `evidence` 의 `arms_safe`·`item_ready` true 필요, `LOAD` 는 `PICK` 부터·`UNLOAD` 는 `PICK_DROPOFF` 부터. `done`(사람이 처리함): `PICK_DROPOFF`·`UNLOAD`·`ARRANGE`·`RESTOCK` 만, `arms_safe`·`item_placed` true 필요, 그 단계를 `operator_completed` 로 적고 다음 단계(`VERIFY_UNLOAD`·`LEAVE_ARRANGE`·`LEAVE_RESTOCK`)로. 상차는 `confirm_loaded`. 로봇은 최신 정지 상태여야 함. 잠긴(`SOFT_LATCH`) 팔이 하나라도 있으면 `resume`·`done` 은 이 백엔드가 `409 팔 잠금 먼저 해제 (omx_2)` 로 막음 (취소 `fail` 은 막지 않음). 주문 항목의 `resumable`·`retryable`·`hand_done` 이 화면에 낼 버튼을 알림 (최종 검사는 fleet). 자원을 예약한 주문 취소는 `evidence`의 `arms_safe`·`cargo_reconciled`·`resources_clear` 모두 true 필요. 화면에서 각각 현장 확인. 취소 후에도 로봇 해제 응답 전에는 보류 유지. 로봇 배정 전 주문(`cancelable`)의 `fail` 은 확인값·로봇 상태 없이 받고 재고를 돌려줌 |
 | `POST /api/orders/{order_id}/confirm_loaded` | 수동 상차 확인 (화면: 카드의 상차 확인 대기 줄). `{"client_request_id", "operator", "note", "evidence": {"sku", "load_present": true, "arm_safe": true, "pickup_path_clear": true}}` → `200` 갱신된 주문 / `400` 검사 실패(fleet 이 낸 사유를 `detail` 로) / `503` 작업 노드 없음. 통과하면 fleet 이 상차 구역 이탈부터 재개 |
 | `GET /api/service?finished=30` | 서비스 관리화면 값 (읽기 전용). 아래 [서비스 화면](#apiservice-서비스-화면) |
 | `GET /api/tasks?robot_id=&state=&limit=50` | 최근 작업 (최신순) |
@@ -145,10 +145,10 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 {"now": 1793517871.2, "read_only": false, "controller_online": true, "controller_age": 0.4,
  "commands_armed": true, "holds": {"pinky2": "ESTOP"},
  "steps": ["접수", "상품 준비", "이동", "전달", "회수·정리", "복귀"],
- "today": {"total": 12, "active": 2, "sold": 7, "returned": 2, "failed": 1, "done": 0},
+ "today": {"total": 12, "active": 2, "sold": 7, "returned": 2, "failed": 1, "cancelled": 0, "done": 0},
  "active": [{"order_id": "cust-…", "sku": "SHOE-1", "destination": "P22", "robot_id": "pinky2",
              "state": "RUNNING", "stage": "PICK", "step": 1, "step_text": "로봇팔이 상품 꺼내는 중",
-             "returning": false, "outcome": null, "blocked": false, "resumable": false, "retryable": false, "hand_done": false,
+             "returning": false, "outcome": null, "blocked": false, "resumable": false, "retryable": false, "hand_done": false, "cancelable": false,
              "load_confirmable": true, "load_confirmed": false, "failure": null,
              "created_at": 1793517800.0, "updated_at": 1793517860.0, "…": "ORDER_FIELDS 나머지"}],
  "finished": [{"…": "같은 모양", "outcome": "sold", "outcome_text": "구매 완료"}],
@@ -158,14 +158,15 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 | 필드 | 뜻 |
 |---|---|
-| `today` | 이 PC 시간대로 오늘 0시 뒤 접수한 주문 건수 (`fleet_api_utils.service_summary`). `total` 접수, `active` 진행 중, `sold` 구매 완료, `returned` 구매 안 함(시간 초과 포함), `failed` 처리 못 함, `done` 고객 결정 없이 끝남 |
+| `today` | 이 PC 시간대로 오늘 0시 뒤 접수한 주문 건수 (`fleet_api_utils.service_summary`). `total` 접수, `active` 진행 중, `sold` 구매 완료, `returned` 구매 안 함(시간 초과 포함), `failed` 처리 못 함, `cancelled` 로봇 배정 전 접수 취소, `done` 고객 결정 없이 끝남 |
 | `now` | 이 서버 벽시계 [s]. 화면이 `created_at`·`updated_at` 과 빼서 경과 시간을 냅니다 |
 | `active` | 끝나지 않은 주문 전부, 접수 순(오래된 것 먼저) |
 | `finished` | 끝난 주문(`COMPLETED`·`FAILED`) 최근 `finished`(0~200, 기본 30) 건, 최신 먼저. fleet 원장에 남아 있는 것만 |
 | `step`, `step_text` | `steps` 의 위치(0 접수 … 5 복귀)와 지금 하는 일. 단계 표는 `fleet_api_utils.SERVICE_STAGE` (fleet `scenario_tree` 단계 이름을 복사). 모르는 단계면 `step` null, `step_text` 는 코드 그대로 |
 | `returning` | 고객이 사지 않았거나 시간 초과라 회수·정리 단계를 거치는지 |
-| `outcome`, `outcome_text` | 끝난 주문 결과 `sold` 구매 완료 · `declined` 구매 안 함 · `timeout` 고객 응답 없음 · `done` 완료(고객 결정 없는 주문) · `failed` 처리 못 함. 진행 중이면 null |
+| `outcome`, `outcome_text` | 끝난 주문 결과 `sold` 구매 완료 · `declined` 구매 안 함 · `timeout` 고객 응답 없음 · `done` 완료(고객 결정 없는 주문) · `cancelled` 접수 취소(주문의 `operator_cancelled`) · `failed` 처리 못 함. 진행 중이면 null |
 | `blocked`, `resumable`, `retryable`, `hand_done`, `load_confirmable`, `load_confirmed` | [`/api/health` 의 `orders`](#apihealth-의-orders) 와 같은 조건 (표시용, 최종 검사는 fleet) |
+| `cancelable` | 로봇 배정 전 주문(`WAITING`, 또는 관제 재시작으로 멈춘 접수 주문). `recover` 의 `fail` 을 현장 확인값 없이 받고 재고를 돌려줌 |
 
 ## 로봇팔 (arm_command_node)
 

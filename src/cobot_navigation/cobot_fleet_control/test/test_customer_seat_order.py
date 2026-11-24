@@ -193,6 +193,87 @@ def test_decided_order_does_not_hold_robot(env, decision):
     assert env.scenario.store.holds() == {}
 
 
+def cancel(env, order_id='order1', **changes):
+    return env.api.handle({'type': 'resolve', 'order_id': order_id, 'decision': 'fail',
+                           'operator': 'kim', 'source': '10.0.0.5', **changes})
+
+
+def test_cancel_waiting_order_returns_stock_and_never_departs(env):
+    env.scenario.armed = False
+    env.order(quantity=2)
+    assert env.stock('SHOE42') == 8
+    assert cancel(env)['status'] == 200
+    order = env.current()
+    assert order['state'] == 'FAILED' and order['operator_cancelled'] is True
+    assert env.stock('SHOE42') == 10
+    assert env.scenario.store.resources('order1') == [] and env.scenario.store.holds() == {}
+    events = [json.loads(row['payload']) for row in env.repo.pending(1000)]
+    recovery = next(e for e in events if e.get('type') == 'recovery')
+    assert recovery['operator'] == 'kim' and recovery['source'] == '10.0.0.5'
+    # 두 번 취소해도 재고는 한 번만, 다시 켜거나 가동해도 출발하지 않는다.
+    assert cancel(env)['status'] == 400 and env.stock('SHOE42') == 10
+    env.repo.close()
+    env.open()
+    env.scenario.armed = True
+    for _ in range(3):
+        env.now += 10
+        env.tick()
+    assert env.current()['state'] == 'FAILED' and env.current()['robot_id'] is None
+    assert env.commands() == [] and env.works() == []
+
+
+def test_cancel_records_korean_operator_name(env):
+    env.scenario.armed = False
+    env.order()
+    assert cancel(env, operator='  김 지혜 ')['status'] == 200
+    events = [json.loads(row['payload']) for row in env.repo.pending(1000)]
+    assert next(e for e in events if e.get('type') == 'recovery')['operator'] == '김 지혜'
+    assert cancel(env, '주문')['status'] == 400  # 주문 ID 는 그대로 영문 식별자만
+
+
+def test_cancel_waiting_order_works_while_robots_are_offline(env):
+    env.now += 60  # 로봇 상태가 모두 오래됨
+    env.order()
+    env.scenario.tick()
+    assert env.current()['state'] == 'WAITING'
+    assert cancel(env)['status'] == 200 and env.stock('SHOE42') == 10
+
+
+def test_cancel_one_waiting_order_keeps_the_next_one(env):
+    env.scenario.armed = False
+    env.order()
+    env.order('order2')
+    assert cancel(env)['status'] == 200
+    env.scenario.armed = True
+    env.tick()
+    assert env.current('order2')['robot_id'] == 'pinky1'
+    assert env.stock('SHOE42') == 9
+
+
+def test_cancel_after_restart_is_marked_as_cancelled(env):
+    env.scenario.armed = False
+    env.order()
+    env.repo.close()
+    env.open()
+    assert env.current()['state'] == 'UNKNOWN'
+    assert cancel(env)['status'] == 200
+    assert env.current()['operator_cancelled'] is True and env.stock('SHOE42') == 10
+
+
+def test_waiting_order_accepts_only_cancel_and_assigned_order_is_refused(env):
+    env.scenario.armed = False
+    env.order()
+    for decision in ('resume', 'done'):
+        assert cancel(env, decision=decision)['status'] == 400
+    assert env.current()['state'] == 'WAITING' and env.stock('SHOE42') == 9
+    env.scenario.armed = True
+    env.tick()
+    assert env.current()['state'] == 'RUNNING'
+    assert cancel(env)['status'] == 400
+    assert env.current()['state'] == 'RUNNING' and env.stock('SHOE42') == 9
+    assert cancel(env, 'nothing')['status'] == 400
+
+
 def test_unsafe_arrange_failure_holds_order_instead_of_going_home(env):
     env.order()
     env.until('CUSTOMER')

@@ -606,7 +606,7 @@ def service_order(order):
     주문 원장 사본 하나를 서비스 화면용으로 줄인다.
 
     step 은 SERVICE_STEPS 위치, step_text 는 지금 하는 일, outcome 은 끝난 주문의 결과 코드
-    (sold·timeout·declined·done·failed, 진행 중이면 None)다. 조치 표시(blocked·resumable·
+    (sold·timeout·declined·done·cancelled·failed, 진행 중이면 None)다. 조치 표시(blocked·resumable·
     load_confirmable)는 active_orders 와 같은 조건이고 최종 검사는 fleet 이 한다.
     """
     state, stage = order.get('state'), order.get('stage')
@@ -614,12 +614,18 @@ def service_order(order):
     item.update({key: order.get(key) for key in (
         'destination', 'failure', 'created_at', 'updated_at')})
     item['returning'] = bool(order.get('customer_declined') or order.get('customer_timed_out'))
-    if state == 'WAITING' and not order.get('robot_id'):
+    unassigned = not order.get('robot_id')
+    if state == 'WAITING' and unassigned:
         item['step'], item['step_text'] = 0, '로봇 배정 기다리는 중'
+    elif state in ORDER_BLOCKED and unassigned:
+        # fleet 은 재시작 때 대기 주문을 UNKNOWN 으로 바꾼다. 로봇이 없으니 단계(MOVE_PICKUP)는 뜻이 없다.
+        item['step'], item['step_text'] = 0, '관제 재시작으로 멈춤 · 로봇 배정 전'
     else:
         item['step'], item['step_text'] = SERVICE_STAGE.get(stage, (None, stage or ''))
     item['outcome'] = item['outcome_text'] = None
-    if state == 'FAILED':
+    if state == 'FAILED' and order.get('operator_cancelled'):
+        item['outcome'], item['outcome_text'] = 'cancelled', '접수 취소'
+    elif state == 'FAILED':
         item['outcome'], item['outcome_text'] = 'failed', '처리 못 함'
     elif state in ORDER_TERMINAL:
         item['outcome'], item['outcome_text'] = 'done', '완료'
@@ -636,6 +642,8 @@ def service_order(order):
     item['resumable'] = item['blocked'] and stage in ORDER_RESUME_STAGES
     item['retryable'] = item['blocked'] and stage in ORDER_ARM_RETRY_STAGES
     item['hand_done'] = item['blocked'] and stage in ORDER_HAND_DONE_STAGES
+    # 로봇 배정 전(접수) 취소. fleet 의 검사(scenario_safety.recover)와 같은 조건이다.
+    item['cancelable'] = unassigned and state in ORDER_BLOCKED | {'WAITING'}
     return item
 
 
@@ -656,13 +664,14 @@ def service_summary(orders, since):
     관리화면 위 숫자 타일: since [s] 뒤에 접수한 주문 건수.
 
     total 접수, active 진행 중, sold 구매 완료, returned 구매 안 함(시간 초과 포함),
-    failed 처리 못 함, done 고객 결정 없이 끝난 주문.
+    failed 처리 못 함, cancelled 접수 취소, done 고객 결정 없이 끝난 주문.
     """
-    counts = {'total': 0, 'active': 0, 'sold': 0, 'returned': 0, 'failed': 0, 'done': 0}
+    counts = {'total': 0, 'active': 0, 'sold': 0, 'returned': 0, 'failed': 0, 'cancelled': 0,
+              'done': 0}
     if not isinstance(orders, list):
         return counts
     key = {None: 'active', 'sold': 'sold', 'declined': 'returned', 'timeout': 'returned',
-           'failed': 'failed', 'done': 'done'}
+           'failed': 'failed', 'cancelled': 'cancelled', 'done': 'done'}
     for order in orders:
         if not isinstance(order, dict) or not order.get('order_id'):
             continue

@@ -792,6 +792,13 @@ def test_fleet_order_recover_passes_through_with_source():
     evidence = {'arms_safe': True, 'item_placed': True}
     client.post('/api/orders/o1/recover', json={'decision': 'done', 'evidence': evidence})
     assert sent[1]['decision'] == 'done' and sent[1]['evidence'] == evidence
+    # 팔 단계 다시 하기(resume)의 확인값
+    evidence = {'arms_safe': True, 'item_ready': True}
+    client.post('/api/orders/o1/recover', json={'decision': 'resume', 'evidence': evidence})
+    assert sent[2]['decision'] == 'resume' and sent[2]['evidence'] == evidence
+    # 한글 이름은 바꾸지 않고 넘긴다. 이름 검사는 fleet 이 한다.
+    client.post('/api/orders/o1/recover', json={'decision': 'fail', 'operator': '김 지혜'})
+    assert sent[3]['operator'] == '김 지혜'
 
 
 def test_fleet_confirm_loaded_returns_rejection_reason():
@@ -1179,6 +1186,14 @@ def test_service_order_steps_and_flags():
     waiting = service_order(service_raw('o1', state='WAITING', robot_id=None))
     assert (waiting['step'], waiting['step_text']) == (0, '로봇 배정 기다리는 중')
     assert waiting['outcome'] is None and 'input' not in waiting
+    assert waiting['cancelable'] is True and waiting['blocked'] is False
+    # 재시작으로 멈춘 접수 주문: 로봇이 없으니 '상차장으로 이동 중'이 아니다
+    restarted = service_order(service_raw('o1', state='UNKNOWN', robot_id=None))
+    assert restarted['step'] == 0 and '재시작' in restarted['step_text']
+    assert restarted['cancelable'] is True and restarted['blocked'] is False
+    assert service_order(service_raw('o1'))['cancelable'] is False
+    assert service_order(service_raw('o1', state='ESTOP'))['cancelable'] is False
+    assert service_order(service_raw('o1', state='FAILED', robot_id=None))['cancelable'] is False
     pick = service_order(service_raw('o2', stage='PICK', completed=['MOVE_PICKUP']))
     assert pick['step'] == 1 and pick['load_confirmable'] is True and pick['blocked'] is False
     customer = service_order(service_raw('o3', stage='CUSTOMER'))
@@ -1190,6 +1205,10 @@ def test_service_order_steps_and_flags():
     assert stuck_pick['retryable'] is True and stuck_pick['hand_done'] is False
     back = service_order(service_raw('o6', stage='ARRANGE', customer_declined=True))
     assert back['step'] == 4 and back['returning'] is True
+    for stage in ('ARRANGE', 'RESTOCK'):
+        stuck = service_order(service_raw('o8', state='UNKNOWN', stage=stage))
+        assert stuck['retryable'] is True and stuck['hand_done'] is True, stage
+        assert stuck['resumable'] is False
     odd = service_order(service_raw('o7', stage='NEW_STAGE'))
     assert (odd['step'], odd['step_text']) == (None, 'NEW_STAGE')
 
@@ -1201,6 +1220,7 @@ def test_service_order_outcomes():
     assert outcome(state='COMPLETED', customer_declined=True) == 'declined'
     assert outcome(state='COMPLETED', customer_declined=True, customer_timed_out=True) == 'timeout'
     assert outcome(state='COMPLETED') == 'done'
+    assert outcome(state='FAILED', robot_id=None, operator_cancelled=True) == 'cancelled'
     failed = service_order(service_raw('o', state='FAILED', failure='팔 응답 없음',
                                        stage='PICK', completed=['MOVE_PICKUP']))
     assert failed['outcome'] == 'failed' and failed['load_confirmable'] is False
@@ -1258,9 +1278,11 @@ def test_service_summary_counts_today_only():
               service_raw('t', created_at=140.0, state='COMPLETED', customer_declined=True,
                           customer_timed_out=True),
               service_raw('f', created_at=150.0, state='FAILED'),
+              service_raw('c', created_at=160.0, state='FAILED', operator_cancelled=True),
               service_raw('n', created_at=None), 'junk']
     assert service_summary(orders, 100.0) == {
-        'total': 5, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'done': 0}
+        'total': 6, 'active': 1, 'sold': 1, 'returned': 2, 'failed': 1, 'cancelled': 1,
+        'done': 0}
     assert service_summary(None, 0)['total'] == 0
 
 

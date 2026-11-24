@@ -2,6 +2,7 @@
 
 import math
 import re
+import unicodedata
 
 TERMINAL = {'COMPLETED', 'FAILED'}
 BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
@@ -100,9 +101,28 @@ def identifier(value, name):
 DEFAULT_OPERATOR = 'control-center'
 
 
+OPERATOR_MAX = 40  # 화면 입력칸 최대 길이와 같게 둔다
+
+
+def operator_name(value):
+    """처리한 사람 이름. 키가 아니라 감사 기록용 글이므로 한글·공백을 받되 안 보이는 문자는 막는다."""
+    if not isinstance(value, str):
+        raise ValueError('operator: 이름은 문자열')
+    # NFC: 같은 한글 이름이 입력 장치에 따라 다른 글자열로 기록되지 않게 한다.
+    name = unicodedata.normalize('NFC', value.strip())
+    if not 1 <= len(name) <= OPERATOR_MAX:
+        raise ValueError(f'operator: 이름 1~{OPERATOR_MAX}자')
+    if any(unicodedata.category(c)[0] == 'C' or unicodedata.category(c) in ('Zl', 'Zp')
+           for c in name):
+        raise ValueError('operator: 이름에 줄바꿈·제어 문자를 쓸 수 없음')
+    return name
+
+
 def operator_or_default(value):
-    """운영자는 선택. 없으면 기본값, 주면 식별자 형식을 검사한다."""
-    return identifier(value or DEFAULT_OPERATOR, 'operator')
+    """운영자는 선택. 없거나 비면 기본값, 주면 이름 형식을 검사한다."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_OPERATOR
+    return operator_name(value)
 
 
 def optional_text(value, name, default):

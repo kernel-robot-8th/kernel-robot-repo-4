@@ -8,7 +8,7 @@ import uuid
 
 from .contracts import Command
 from .control_release import require_stopped
-from .scenario_contracts import identifier, operator_or_default, optional_text
+from .scenario_contracts import identifier, operator_name, operator_or_default, optional_text
 
 RAW_CMD_MAX_LEN = 200   # 개발용 수동 명령 최대 길이 [글자]
 # 구역 강제 해제 때 믿을 zone_manager 상태의 최대 나이 [s]. zone_manager 는 1초마다 다시 낸다.
@@ -39,8 +39,8 @@ def manual_load_request(value):
     allowed = {'order_id', 'operator', 'note', 'evidence', 'request_id'}
     if not isinstance(data, dict) or set(data) - allowed:
         raise ValueError('수동 상차 파라미터 필드 오류')
-    for key in ('order_id', 'operator'):
-        identifier(data.get(key), key)
+    identifier(data.get('order_id'), 'order_id')
+    data['operator'] = operator_name(data.get('operator'))
     if not isinstance(data.get('note'), str) or not data['note'].strip():
         raise ValueError('실제 확인 근거 note 필요')
     evidence = data.get('evidence')

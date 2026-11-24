@@ -365,7 +365,7 @@ def test_arm_and_raw_manual_web_contract_and_latched_stop_without_order(env):
 
 def test_release_control_optional_fields_are_still_checked(env):
     env.api.handle(dict(type='estop', robot_id='pinky1'))
-    bad = [dict(operator='이름 공백'), dict(note=3), dict(evidence='yes')]
+    bad = [dict(operator='줄\n바꿈'), dict(note=3), dict(evidence='yes')]
     for extra in bad:
         reply = env.api.handle(dict(type='release_control', robot_id='pinky1', **extra))
         assert reply['status'] == 400, extra
