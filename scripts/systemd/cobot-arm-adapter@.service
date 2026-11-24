@@ -13,7 +13,8 @@
 
 [Unit]
 Description=cobot Station PC arm adapter (%i)
-After=network-online.target
+# 사용자 서비스에는 network-online.target 이 없어 After= 로 순서를 맞출 수 없다.
+# 대신 ExecStartPre 가 DDS 인터페이스(Wi-Fi) 주소가 생길 때까지 기다린다.
 # 실행기가 포트를 잡고 있는 등 사전 검사 실패가 반복되면 재시작을 멈춘다
 StartLimitIntervalSec=120
 StartLimitBurst=5
@@ -21,6 +22,8 @@ StartLimitBurst=5
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/cobot/station.env
+ExecStartPre=@REPO@/scripts/systemd/wait_for_dds_iface.sh
+TimeoutStartSec=90
 ExecStart=@REPO@/scripts/run_arm_adapter.sh --arm %i --domain ${ROS_DOMAIN_ID} --backend auto
 Restart=on-failure
 RestartSec=5

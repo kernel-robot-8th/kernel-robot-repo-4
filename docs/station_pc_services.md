@@ -13,7 +13,7 @@ Station PC 에서 아래 노드를 계속 띄워 둔다. 노드가 죽으면 다
 
 | PC | `COBOT_ARMS` | `COBOT_WORKER_ARMS` | 이유 | 적용 상태 |
 |---|---|---|---|---|
-| OMEN-11 | `omx3` (ZC 하차) | (없음, 옛 `COBOT_ARM_BACKEND=none`) | ZC 팔 모델이 아직 없다. 이 PC 에 있는 모델은 ZB 팔 것이다 | 2026-11-16 두 서비스 켬, 부팅 자동 시작 등록. 재부팅 확인 전. 템플릿 전 단일 서비스(`cobot-arm-adapter`)로 등록됨 → 설치 스크립트를 다시 돌리면 `@omx3` 로 옮겨진다 |
+| OMEN-11 | `omx3` (ZC 하차) | `omx3` (옛 `COBOT_ARM_BACKEND=worker`) | 2026-11-17 번들 `omx_arrange_shoe_zc`(신발 정리 `arrange_shoe`)·`omx_load_zc`(싣기) v1. 쉬는 자세는 임시값(saverest 전) | 2026-11-16 두 서비스 켬, 부팅 자동 시작 등록. 2026-11-17 재부팅 뒤 노드가 DDS 에 안 보임 → 인터페이스 대기 추가. 대기 추가 뒤 재부팅 확인 전. 템플릿 전 단일 서비스(`cobot-arm-adapter`)로 등록됨 → 설치 스크립트를 다시 돌리면 `@omx3` 로 옮겨진다 |
 | 8-OMEN | `omx1 omx2` (ZA 창고 하차 · ZB 상차) | `omx1 omx2` | 실행기 `OMX_FLEET_DIR=<저장소>/omx_fleet`. 모델: omx1 = `omx_1119_act` 16번, omx2 = `omx_1031_act_smolvla` 25번, 둘 다 `ACT_ENSEMBLE_K=5` | 2026-11-18 `@omx2` 켬. 2026-11-21 omx1 을 worker 로 추가(설정만, 켜기는 시험 때), 카메라를 by-path 로 바꿈. 부팅 자동 시작 등록 안 함 |
 
 2026-11-16 OMEN-11 시험 결과:
@@ -98,6 +98,7 @@ systemctl --user stop 'cobot-arm-adapter@*'
 사전 검사가 계속 실패해 재시작이 멈췄으면, 원인을 고친 뒤 `systemctl --user reset-failed cobot-arm-adapter@<팔>` 하고 다시 켠다.
 
 ## 주의
+- 두 서비스는 켜기 전에 [`wait_for_dds_iface.sh`](../scripts/systemd/wait_for_dds_iface.sh) 로 DDS 인터페이스(`CYCLONEDDS_URI` xml 의 `NetworkInterface`, 지금은 `wlo1`)에 IPv4 주소가 생길 때까지 기다린다 (최대 `COBOT_NET_WAIT_SEC`, 기본 60 s). Cyclone DDS 는 켜질 때 한 번만 주소를 정하므로, Wi-Fi 연결 전에 켜지면 프로세스는 살아 있어도 관제에 "보이는 노드 없음"으로 나온다. 사용자 서비스에는 `network-online.target` 이 없어 `After=` 로는 막을 수 없다. 이 증상이 보이면 `systemctl --user restart cobot-host-status 'cobot-arm-adapter@*'` 한다.
 - 팔 어댑터는 꺼짐(DISARMED), `auto_start=false` 로 시작한다. 그래서 **부팅만으로는 팔이 움직이지 않는다.**
 - backend=worker 이면 관제에서 '켜기'(START)를 누르면 실제 팔에 토크가 켜지고, PICK 단계를 보내면 팔이 움직인다. 관제 웹에는 아직 로그인이 없다. **팔 옆에 사람이 없으면 `cobot-arm-adapter@*` 를 끈다.**
 - 끌 때는 SIGINT 를 보낸다. 터미널에서 Ctrl+C 한 것과 같아서, 켜져 있던 팔은 토크가 꺼진다. 팔을 받친다.
