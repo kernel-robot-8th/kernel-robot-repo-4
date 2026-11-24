@@ -33,7 +33,7 @@ build 경로 밖에 있어서 .docker-context/control-center로 복사해 넘기
 `smoke`는 외부 네트워크가 없는 임시 컨테이너(`--network none`)에서 도메인 77·localhost로
 중앙 실행기·상태 수집기·웹 서버를 시작합니다. 웹 화면·지도·작업 목록의 HTTP 응답과
 `/ws/fleet`·`/ws/tasks`의 실제 WebSocket 연결, 작업 명령 꺼짐 상태를 확인합니다.
-고객 게이트웨이도 띄워 `customer.html` 200, 관제 화면 `index.html` 404, `BENCH_1` 신발 목록 응답을 확인한 뒤 종료합니다.
+고객 게이트웨이도 띄워 `customer.html` 200, 관제 화면 `index.html` 404, `scenario.yaml` 첫 자리(`destinations`)의 신발 목록 응답을 확인한 뒤 종료합니다.
 운영 DB 볼륨과 호스트 포트를 연결하지 않으며, 테스트 DB는 컨테이너 종료 시 제거됩니다.
 
 ## Python 가상환경
@@ -58,7 +58,7 @@ sudo bash cobot_fleet_control/config/docker/fleet_docker.sh down
 ```
 
 관제 PC 브라우저: **http://127.0.0.1:8080**. 다른 PC 에서는 **http://<관제 PC IP>:8080** (예: http://192.168.45.9:8080).
-고객 주문 화면(핸드폰, 자리 QR): **http://<관제 PC IP>:8081/?loc=BENCH_1**. 포트는 `COBOT_CUSTOMER_PORT` 로 바꿉니다.
+고객 주문 화면(핸드폰, 자리 QR): **http://<관제 PC IP>:8081/?loc=P22**. 포트는 `COBOT_CUSTOMER_PORT` 로 바꿉니다.
 고객 화면 포트에서는 관제 화면이 열리지 않습니다. 설명: `src/cobot_gui/docs/customer_app.md`.
 웹은 기본으로 내부망에 공개(0.0.0.0)합니다. 로그인 기능이 없어 같은 망의 누구나 명령 화면을 쓸 수 있으니, 이 PC 에서만 보려면 `COBOT_WEB_HOST=127.0.0.1` 을 줍니다.
 `up`은 bridge → zone-manager/fleet → web·customer의 의존 관계에 따라 다섯 서비스를 실행합니다.

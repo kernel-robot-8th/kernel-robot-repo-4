@@ -18,6 +18,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from cobot_fleet_control.control_center_web import build_plan
 from cobot_fleet_control.web_profiles import export_profiles
+import yaml
 
 
 def websocket_snapshot(port, path):
@@ -73,20 +74,29 @@ def http_status(url):
         return error.code
 
 
-def check_customer(port, deadline_sec=15):
+def first_destination(scenario_path):
+    """Return the first customer location ID configured for the fleet."""
+    with open(scenario_path, encoding='utf-8') as stream:
+        destinations = (yaml.safe_load(stream) or {}).get('destinations') or {}
+    if not destinations:
+        raise RuntimeError(f'No customer destination in {scenario_path}')
+    return next(iter(destinations))
+
+
+def check_customer(port, location, deadline_sec=15):
     """Check the customer screen is served, the control screen is not, and the catalog opens."""
     base = f'http://127.0.0.1:{port}'
     deadline, catalog = time.monotonic() + deadline_sec, None
     while time.monotonic() < deadline:
         try:
-            # 503 = fleet 스냅숏을 아직 못 받음. 받으면 자리 BENCH_1 이 보여야 한다.
-            with urlopen(base + '/api/customer/catalog?loc=BENCH_1', timeout=1) as response:
+            # 503 = fleet 스냅숏을 아직 못 받음. 받으면 설정한 자리가 보여야 한다.
+            with urlopen(f'{base}/api/customer/catalog?loc={location}', timeout=1) as response:
                 catalog = json.load(response)
             break
         except OSError:
             time.sleep(0.2)
-    if not catalog or not catalog.get('location'):
-        raise RuntimeError(f'Customer catalog did not open: {catalog}')
+    if not catalog or (catalog.get('location') or {}).get('id') != location:
+        raise RuntimeError(f'Customer catalog did not open for {location}: {catalog}')
     checks = {path: http_status(base + path) for path in ('/customer.html', '/index.html')}
     if checks != {'/customer.html': 200, '/index.html': 404}:
         raise RuntimeError(f'Unexpected customer gateway files: {checks}')
@@ -103,6 +113,9 @@ def main():
     root = Path('/opt/cobot_ws/src')
     port = 8080
     customer_port = 8081
+    # 자리 이름은 현장 설정에서 바뀌므로 여기에 적어 두지 않는다 (fleet 이 읽는 설치본과 같은 파일).
+    location = first_destination(
+        Path(get_package_share_directory('cobot_fleet_control')) / 'config/scenario.yaml')
     processes, logs = [], []
     with tempfile.TemporaryDirectory(prefix='cobot-smoke-') as scratch:
         profiles = Path(scratch) / 'profiles'
@@ -154,7 +167,7 @@ def main():
                 raise RuntimeError('Missing initial fleet or tasks WebSocket snapshot')
             result = {'health': health, 'http': checks,
                       'websocket': {'/ws/fleet': 101, '/ws/tasks': 101},
-                      'customer': check_customer(customer_port)}
+                      'customer': check_customer(customer_port, location)}
             print(json.dumps(result, ensure_ascii=False, indent=2))
         except Exception:
             for log in logs:
