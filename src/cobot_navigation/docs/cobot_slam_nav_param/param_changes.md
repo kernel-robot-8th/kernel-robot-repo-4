@@ -22,6 +22,7 @@
 | controller (FollowPath) | `inflation_cost_scaling_factor` | 3.0 | 5.0 |
 | goal checker | `xy_goal_tolerance` | 0.25 | 0.1 |
 | goal checker | `yaw_goal_tolerance` | 0.25 | 0.17 |
+| planner (GridBased) | `tolerance` | 0.5 | 0.05 (막힌 목표 대신 먼 대체점에서 끝나 도착으로 잘못 보는 것을 막음, 2026-11-25) |
 | progress checker | `movement_time_allowance` | 10.0 | 20.0 |
 | progress checker | `required_movement_radius` | 0.5 | 0.25 |
 | local costmap | `resolution` | 0.05 | 0.025 |
