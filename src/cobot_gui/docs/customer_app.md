@@ -61,6 +61,7 @@ http://<관제 PC IP>:8081/?loc=P22
 
 - 화면 단계 이름은 고객 화면의 진행 표시에 맞춘 것이다. 바꾸는 규칙은 `customer_gateway_utils.order_progress` 에 있다.
 - 고객 결정: [구매하기] → `type=received`, [구매하지 않을게요] → `type=declined`. fleet_control 은 `CUSTOMER` 단계에서만 받는다.
+- 구매는 결제 화면 전에, 구매하지 않기는 보내기 전에 현장 확인을 체크한다 (신발을 꺼냄 / Cobot 위에 올림, 로봇에서 물러남). 결정을 보내면 로봇이 출발한다.
 - 고객 자리에는 팔이 없다. 고객이 핑키에서 신발을 직접 꺼내고 그 자리에서 결제한다.
 - **도착 뒤 5분(`customer_timeout_sec: 300`) 안에 고르지 않으면** fleet_control 이 시간 초과로 기록하고 로봇이 신발을 실은 채 HOME 으로 돌아간다. 재고는 운영자가 맞춘다. 화면은 '시간이 지나 Cobot이 돌아갔어요' 로 바뀐다.
 - [구매하지 않을게요] = 회수: 로봇이 ZC 로 가서 omx3 가 신발을 정리해 핑키에 다시 올리고, ZA 에서 omx1 이 선반에 반환한 뒤 HOME. 반환이 끝나면 재고가 1 돌아온다 (fleet_control README '고객 자리(지점) 주문').
@@ -76,13 +77,15 @@ http://<관제 PC IP>:8081/?loc=P22
 |---|---|---|
 | `GET /catalog?loc=` | | `{location: {id,name}\|null, items: [{sku,name,brand,size,color,price,image,available}]}` |
 | `POST /orders` | `{sku, loc, client_key, session}` | `{order_id, view}` |
-| `GET /orders/<id>?session=` | | `{order_id, sku, stage, view, failure_reason, paused, accepting}` |
-| `POST /orders/<id>/decision` | `{decision: PAID\|CANCEL, session}` | `{order_id, sku, stage, view, failure_reason, paused, accepting}` |
+| `GET /orders/<id>?session=` | | `{order_id, sku, stage, view, failure_reason, paused, stale, accepting}` |
+| `POST /orders/<id>/decision` | `{decision: PAID\|CANCEL, session}` | `{order_id, sku, stage, view, failure_reason, paused, stale, accepting}` |
 
 - `view`: `preparing`, `arrived`, `paid`, `cancelled`, `store_cancelled`, `timed_out`, `failed`, `out_of_stock`
 - 오류: 400 (형식), 404 (모르는 주문·다른 세션), 409 (fleet_control 거절: `ORDER_REJECTED`, `WRONG_STAGE`. `detail` 에 거절 이유), 503 (fleet_control 응답 없음 또는 스냅숏을 아직 못 받음)
 - `GET /catalog` 도 스냅숏을 한 번도 못 받았으면 503 이다 (`location: null` 은 '모르는 자리' 에만 쓴다). 화면은 "매장 시스템에 연결하는 중" 을 보이고 3초마다 다시 묻는다. 그래서 게이트웨이를 fleet_control 보다 먼저 켜도 QR 안내 화면에 멈추지 않는다.
 - `client_key` 는 주문 버튼 한 번마다 새로 만든다 (영문·숫자·밑줄·하이픈). 게이트웨이가 `cust-<client_key>` 를 fleet_control 의 `order_id` 로 쓴다. 같은 `order_id` 를 다시 보내면 fleet_control 이 같은 주문을 돌려준다.
+- 응답을 못 받은 주문(503·통신 오류)을 다시 누르면 화면이 같은 `client_key` 를 쓴다. 다른 신발을 눌렀으면 앞 주문이 접수됐는지 먼저 찾는다.
+- 접수 뒤 10초가 지나도 최신 스냅숏에 없는 주문은 404 다. 스냅숏이 오래됐으면 `stale: true` 이고 화면이 연결 끊김을 알린다.
 - `available` 은 스냅숏의 `stock` 에서 온다. 스냅숏이 5초 넘게 없으면 `null` (모름), fleet_control 재고에 없는 SKU 는 0 이다.
 - 재고가 없으면 주문을 만들지 않고 `view: out_of_stock` 을 돌려준다.
 

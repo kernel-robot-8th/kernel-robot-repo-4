@@ -105,6 +105,11 @@ class CustomerGatewayNode(Node):
                 return None
             return self._stock.get(sku, 0)
 
+    def online(self):
+        """스냅숏을 받았고 오래되지 않았는지."""
+        with self._lock:
+            return self._fresh()
+
     def accepting(self):
         """주문 받기(작업 명령)가 켜졌는지. 스냅숏이 없거나 오래됐으면 None."""
         with self._lock:

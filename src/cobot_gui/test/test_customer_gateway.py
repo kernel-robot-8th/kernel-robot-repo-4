@@ -37,10 +37,14 @@ class FakeFleet:
         self.down = False
         self.stock = {SHOE: 3, SOLD_OUT: 0}
         self.armed = True
+        self.live = True
         self.places = {'BENCH_1': {'name': '고객 벤치 1'}}
 
     def available(self, sku):
         return self.stock.get(sku, 0)
+
+    def online(self):
+        return self.live
 
     def accepting(self):
         return self.armed
@@ -122,7 +126,8 @@ def test_order_goes_to_fleet_with_destination(api):
         'order_id': 'cust-k1', 'sku': SHOE, 'quantity': 1, 'destination': 'BENCH_1'}}]
     assert _status(api_obj)[1] == {
         'order_id': 'cust-k1', 'sku': SHOE, 'stage': 'RECEIVED', 'view': 'preparing',
-        'failure_reason': '', 'paused': False, 'accepting': True}
+        'failure_reason': '', 'paused': False,
+        'stale': False, 'accepting': True}
     fleet.armed = False
     assert _status(api_obj)[1]['accepting'] is False
 
@@ -246,6 +251,49 @@ def test_fleet_down_is_503(api):
 ])
 def test_order_progress(order, expected):
     assert gw.order_progress(order) == expected
+
+
+def test_late_reply_retry_returns_same_order(api):
+    api_obj, fleet = api
+    fleet.stock[SHOE] = 1
+    request = fleet.request
+
+    def late(payload):
+        request(payload)
+        return None
+
+    fleet.request = late
+    assert _order(api_obj)[0] == 503
+    fleet.request = request
+    # 접수됐으면 만든 화면이 찾을 수 있고, 마지막 재고를 잡은 재시도도 품절이 아니다.
+    assert _status(api_obj)[1]['view'] == 'preparing'
+    assert _order(api_obj) == (200, {'order_id': 'cust-k1', 'view': 'preparing'})
+    assert _order(api_obj, sku='SHOE_BOOT_BROWN_250')[0] == 409
+    assert list(fleet.orders) == ['cust-k1']
+    assert _status(api_obj, session='s2')[0] == 404
+
+
+def test_unaccepted_order_is_not_found(api):
+    api_obj, fleet = api
+    fleet.down = True
+    assert _order(api_obj)[0] == 503
+    assert _status(api_obj)[0] == 404
+
+
+def test_missing_order_is_404_after_grace(api):
+    _, fleet = api
+    now = [0.0]
+    api_obj = gw.CustomerApi(gw.load_catalog(str(CATALOG)), fleet, clock=lambda: now[0])
+    _order(api_obj)
+    fleet.orders.clear()
+    # 접수 직후에는 옛 스냅숏일 수 있다.
+    assert _status(api_obj)[1]['view'] == 'preparing'
+    now[0] = gw.ORDER_GRACE_SEC + 1.0
+    # 관제가 끊겼으면 사라졌다고 하지 않고 오래된 상태라고 알린다.
+    fleet.live = False
+    assert _status(api_obj)[1]['stale'] is True
+    fleet.live = True
+    assert _status(api_obj)[0] == 404
 
 
 def test_paused_order_comes_back_when_resumed(api):

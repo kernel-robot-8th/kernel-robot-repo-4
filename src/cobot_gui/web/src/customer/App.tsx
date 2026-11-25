@@ -23,6 +23,9 @@ const POLL_MS = 1000;
 // 관제(fleet_control)와 아직 연결되지 않았을 때 신발 목록을 다시 묻는 간격
 const CATALOG_RETRY_MS = 3000;
 const STORAGE_KEY = "cobot-customer-order";
+const PENDING_KEY = "cobot-customer-pending";
+// 상태 조회가 이만큼 잇달아 실패하면 연결이 끊겼다고 알린다 (한 번은 Wi-Fi 흔들림일 수 있다)
+const OFFLINE_FAILS = 3;
 
 const STEPS = [
   { label: "주문 접수", stages: ["", "RECEIVED"], icon: Check },
@@ -44,6 +47,36 @@ interface Saved {
   sku: string;
   loc: string;
 }
+
+/** 응답을 못 받아 접수됐는지 모르는 주문. 다시 누를 때 같은 키를 써서 두 번 접수되지 않게 한다. */
+interface Pending {
+  session: string;
+  key: string;
+  sku: string;
+  loc: string;
+}
+
+function loadPending(loc: string): Pending | null {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    const value = raw ? (JSON.parse(raw) as Pending) : null;
+    return value && value.loc === loc ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePending(value: Pending | null) {
+  try {
+    if (value) localStorage.setItem(PENDING_KEY, JSON.stringify(value));
+    else localStorage.removeItem(PENDING_KEY);
+  } catch {
+    // 저장이 막혀도 이 화면이 열려 있는 동안은 ref 로 기억한다.
+  }
+}
+
+/** 도착 뒤 고객이 보는 화면. null 은 구매/구매 안 함을 고르는 첫 화면이다. */
+type ArrivedStep = null | "buy" | "pay" | "decline";
 
 function randomId(): string {
   const bytes = new Uint8Array(12);
@@ -90,10 +123,23 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
     return value && value.loc === loc ? value : null;
   });
   const [order, setOrder] = useState<OrderState | null>(null);
-  const [paying, setPaying] = useState(false);
+  const [step, setStep] = useState<ArrivedStep>(null);
+  const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const session = useRef(saved?.session ?? randomId());
+  const pending = useRef<Pending | null>(loadPending(loc));
+  const session = useRef(saved?.session ?? pending.current?.session ?? randomId());
+
+  const keepPending = useCallback((value: Pending | null) => {
+    pending.current = value;
+    savePending(value);
+  }, []);
+
+  const applyOrder = useCallback((state: OrderState) => {
+    setOrder(state);
+    // 멈췄다 재개되면 로봇이 그 사이 움직였을 수 있으니 안전 확인부터 다시 받는다.
+    if (state.view !== "arrived") setStep(null);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -124,22 +170,36 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
   }, [api, loc]);
 
   const view = order?.view ?? (saved ? "preparing" : null);
+  const outOfStock = view === "out_of_stock";
   const polling = saved !== null && (view === "preparing" || view === "arrived");
 
   useEffect(() => {
-    if (!saved) return;
+    // 품절은 주문이 만들어지지 않아 조회할 것이 없다 (조회하면 404).
+    if (!saved || outOfStock) return;
     let alive = true;
+    let fails = 0;
     const tick = () =>
       api
         .status(saved.orderId, saved.session)
-        .then((state) => alive && setOrder(state))
+        .then((state) => {
+          if (!alive) return;
+          fails = 0;
+          setOffline(false);
+          applyOrder(state);
+        })
         .catch((e) => {
           if (!alive) return;
           if (e instanceof ApiError && e.status === 404) {
             save(null);
             setSaved(null);
             setOrder(null);
+            setStep(null);
+            setOffline(false);
+            setNotice("진행하던 주문을 찾지 못했어요. 새로 주문하기 전에 직원에게 확인해 주세요.");
+            return;
           }
+          fails += 1;
+          if (fails >= OFFLINE_FAILS) setOffline(true);
         });
     tick();
     if (!polling) return () => {
@@ -150,26 +210,54 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
       alive = false;
       clearInterval(timer);
     };
-  }, [api, saved, polling]);
+  }, [api, saved, polling, outOfStock, applyOrder]);
 
   const submit = useCallback(
     async (shoe: Shoe) => {
       setBusy(true);
       setNotice("");
       try {
-        const state = await api.submit(shoe.sku, loc, randomId(), session.current);
-        const value = { session: session.current, orderId: state.order_id, sku: shoe.sku, loc };
-        save(value);
-        setSaved(value);
-        setOrder(state);
-        setSelected(null);
+        const accept = (state: OrderState, sku: string) => {
+          keepPending(null);
+          const value = { session: session.current, orderId: state.order_id, sku, loc };
+          save(state.view === "out_of_stock" ? null : value);
+          setSaved(value);
+          applyOrder(state);
+          setSelected(null);
+          setOffline(false);
+        };
+        const before = pending.current;
+        if (before && before.sku !== shoe.sku) {
+          // 응답을 못 받은 앞 주문이 접수돼 있으면 새로 주문하지 않고 그 주문을 이어 본다.
+          const found = await api.find(before.key, session.current).catch((e) => {
+            if (e instanceof ApiError && e.status === 404) return null;
+            throw e;
+          });
+          if (found) {
+            accept(found, before.sku);
+            setNotice("앞서 고르신 신발이 이미 주문돼 있어요.");
+            return;
+          }
+        }
+        // 앞 요청이 늦게 닿아도 관제가 하나만 받도록 같은 키를 쓴다.
+        const key = before?.key ?? randomId();
+        if (!before) keepPending({ session: session.current, key, sku: shoe.sku, loc });
+        try {
+          const state = await api.submit(shoe.sku, loc, key, session.current);
+          accept(state, shoe.sku);
+        } catch (e) {
+          const rejected = e instanceof ApiError && e.status >= 400 && e.status < 500;
+          // 다른 신발로 다시 누른 주문의 거절은 앞 주문이 접수됐다는 뜻일 수 있어 키를 남긴다.
+          if (rejected && (!before || before.sku === shoe.sku)) keepPending(null);
+          throw e;
+        }
       } catch (e) {
         setNotice(errorText(e));
       } finally {
         setBusy(false);
       }
     },
-    [api, loc],
+    [api, loc, applyOrder, keepPending],
   );
 
   const decide = useCallback(
@@ -178,22 +266,23 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
       setBusy(true);
       setNotice("");
       try {
-        setOrder(await api.decide(saved.orderId, decision, saved.session));
-        setPaying(false);
+        applyOrder(await api.decide(saved.orderId, decision, saved.session));
+        setStep(null);
       } catch (e) {
         setNotice(errorText(e));
       } finally {
         setBusy(false);
       }
     },
-    [api, saved],
+    [api, saved, applyOrder],
   );
 
   const restart = useCallback(() => {
     save(null);
     setSaved(null);
     setOrder(null);
-    setPaying(false);
+    setStep(null);
+    setOffline(false);
     setNotice("");
   }, []);
 
@@ -223,10 +312,34 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
     );
   } else if (saved && view === "preparing") {
     body = <Preparing order={order} shoe={shoe} />;
-  } else if (saved && view === "arrived" && paying && shoe) {
-    body = <Payment shoe={shoe} busy={busy} onPaid={() => decide("PAID")} onBack={() => setPaying(false)} />;
+  } else if (saved && view === "arrived" && step === "pay" && shoe) {
+    body = <Payment shoe={shoe} busy={busy} onPaid={() => decide("PAID")} onBack={() => setStep(null)} />;
+  } else if (saved && view === "arrived" && step === "buy") {
+    body = (
+      <SafetyCheck
+        key="buy"
+        title="신발을 꺼내셨나요?"
+        checks={["신발을 Cobot에서 모두 꺼냈어요", AWAY_CHECK]}
+        action="결제로 가기"
+        busy={busy}
+        onConfirm={() => setStep("pay")}
+        onBack={() => setStep(null)}
+      />
+    );
+  } else if (saved && view === "arrived" && step === "decline") {
+    body = (
+      <SafetyCheck
+        key="decline"
+        title="신발을 Cobot 위에 올려 주세요"
+        checks={["신발을 상자에 담아 Cobot 위에 올려 뒀어요", AWAY_CHECK]}
+        action="Cobot 돌려보내기"
+        busy={busy}
+        onConfirm={() => decide("CANCEL")}
+        onBack={() => setStep(null)}
+      />
+    );
   } else if (saved && view === "arrived") {
-    body = <Arrived shoe={shoe} busy={busy} onBuy={() => setPaying(true)} onCancel={() => decide("CANCEL")} />;
+    body = <Arrived shoe={shoe} busy={busy} onBuy={() => setStep("buy")} onCancel={() => setStep("decline")} />;
   } else if (saved && view) {
     body = <Finished view={view} shoe={shoe} onRestart={restart} />;
   } else {
@@ -247,6 +360,11 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
           </div>
         )}
       </header>
+      {polling && (offline || order?.stale) && (
+        <p role="status" className="c-hint">
+          매장 시스템과 연결이 끊겼어요. 다시 연결하는 중이라 화면이 실제와 다를 수 있어요.
+        </p>
+      )}
       <main className="c-main">{body}</main>
       {notice && (
         <div role="alert" className="c-toast">
@@ -451,7 +569,60 @@ function Arrived({
           구매하지 않을게요
         </button>
       </div>
-      <p className="c-hint">구매하지 않으셔도 괜찮아요. 신발은 그대로 두시면 Cobot이 정리해서 가져갈게요.</p>
+      <p className="c-hint">구매하지 않으셔도 괜찮아요. 신발을 Cobot 위에 다시 올려 주시면 정리해서 가져갈게요.</p>
+    </section>
+  );
+}
+
+const AWAY_CHECK = "손과 몸을 Cobot에서 떼고 물러났어요";
+
+/** 로봇이 출발하기 전 현장 확인. 모두 체크해야 다음으로 간다. */
+function SafetyCheck({
+  title,
+  checks,
+  action,
+  busy,
+  onConfirm,
+  onBack,
+}: {
+  title: string;
+  checks: string[];
+  action: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onBack: () => void;
+}) {
+  const [done, setDone] = useState<string[]>([]);
+  return (
+    <section className="c-center">
+      <h1 className="c-title">{title}</h1>
+      <p className="c-sub">확인하시면 Cobot이 출발할 수 있어요.</p>
+      <div className="c-checks">
+        {checks.map((text) => (
+          <label key={text} className="c-check">
+            <input
+              type="checkbox"
+              checked={done.includes(text)}
+              onChange={(e) => setDone(e.target.checked ? [...done, text] : done.filter((t) => t !== text))}
+            />
+            {text}
+          </label>
+        ))}
+      </div>
+      <div className="c-actions">
+        <button
+          type="button"
+          className="c-btn c-btn-primary"
+          disabled={busy || done.length < checks.length}
+          onClick={onConfirm}
+        >
+          {action}
+        </button>
+        <button type="button" className="c-btn c-btn-text" disabled={busy} onClick={onBack}>
+          <Undo2 size={18} />
+          이전으로
+        </button>
+      </div>
     </section>
   );
 }
@@ -493,6 +664,7 @@ function Payment({
           이전으로
         </button>
       </div>
+      <p className="c-hint">결제하면 Cobot이 바로 출발해요. Cobot에서 떨어져 계세요.</p>
       <p className="c-hint">시연용 결제 화면이에요. 실제로 결제되지 않아요.</p>
     </section>
   );

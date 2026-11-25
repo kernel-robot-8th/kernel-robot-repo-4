@@ -30,6 +30,8 @@ export interface OrderState {
   failure_reason?: string;
   /** 정지·현장 확인으로 멈췄다. 재개되면 false 로 돌아온다. */
   paused?: boolean;
+  /** 관제와 끊겨 오래된 상태일 수 있다. */
+  stale?: boolean;
   /** 매장이 주문을 받는 중인지. null 이면 모른다. */
   accepting?: boolean | null;
 }
@@ -38,6 +40,8 @@ export interface CustomerApi {
   catalog(loc: string): Promise<Catalog>;
   submit(sku: string, loc: string, clientKey: string, session: string): Promise<OrderState>;
   status(orderId: string, session: string): Promise<OrderState>;
+  /** 응답을 못 받은 주문이 실제로 접수됐는지 주문 버튼의 키로 찾는다. 없으면 404. */
+  find(clientKey: string, session: string): Promise<OrderState>;
   decide(orderId: string, decision: Decision, session: string): Promise<OrderState>;
 }
 
@@ -80,6 +84,8 @@ export const httpApi: CustomerApi = {
       "GET",
       `/orders/${encodeURIComponent(orderId)}?session=${encodeURIComponent(session)}`,
     ),
+  // 게이트웨이가 client_key 앞에 cust- 를 붙여 주문 번호로 쓴다 (customer_app.md 4절).
+  find: (clientKey, session) => httpApi.status(`cust-${clientKey}`, session),
   decide: (orderId, decision, session) =>
     request<OrderState>("POST", `/orders/${encodeURIComponent(orderId)}/decision`, {
       decision,
@@ -143,6 +149,9 @@ export function createMockApi(stepMs = 2500, now: () => number = () => Date.now(
       const order = orders.get(id);
       if (order?.decided === "RECEIVED") return { order_id: id, stage: "RECEIVED", view: "out_of_stock" };
       return state(id);
+    },
+    find: async () => {
+      throw new ApiError(404, "UNKNOWN_ORDER");
     },
     decide: async (id, decision) => {
       if (stageOf(id) !== "UNLOADING") throw new ApiError(409, "WRONG_STAGE");

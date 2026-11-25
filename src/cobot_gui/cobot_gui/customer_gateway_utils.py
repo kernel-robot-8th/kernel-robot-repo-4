@@ -27,6 +27,7 @@ import mimetypes
 import os
 import re
 import threading
+import time
 from urllib.parse import parse_qs, urlparse
 
 import yaml
@@ -37,6 +38,8 @@ CUSTOMER_PAGE = 'customer.html'
 # 관제 화면(index.html)은 이 포트로 열리지 않아야 한다.
 STATIC_DIRS = ('assets', 'customer')
 MAX_BODY_BYTES = 4096
+# [s] 접수 직후 옛 스냅숏이 새 주문을 덮어도 '사라진 주문' 으로 보지 않고 기다리는 시간
+ORDER_GRACE_SEC = 10.0
 
 VIEW_PREPARING = 'preparing'
 VIEW_ARRIVED = 'arrived'
@@ -143,15 +146,18 @@ class CustomerApi:
       - request(payload): /control_center/task_request 요청. {'status', 'body'} 또는 None(응답 없음)
       - get_order(order_id): 스냅숏의 주문 dict 또는 None
       - available(sku): 주문할 수 있는 수량 또는 None(모름)
+      - online(): 스냅숏이 최근 것인지
       - accepting(): 주문 받기(작업 명령)가 켜졌는지. 모르면 None
       - destinations(): {자리 ID: {'name'}} 또는 None(스냅숏을 아직 못 받음)
     """
 
-    def __init__(self, catalog, backend):
+    def __init__(self, catalog, backend, clock=time.monotonic):
         """catalog: load_catalog() 결과."""
         self._catalog = catalog
         self._backend = backend
+        self._clock = clock
         self._owners = {}
+        self._accepted_at = {}
         self._lock = threading.Lock()
 
     def handle(self, method, path, query, body):
@@ -212,8 +218,17 @@ class CustomerApi:
             return 400, {'error': 'BAD_REQUEST'}
         # 주문 버튼 한 번 = client_key 하나. 같은 order_id 의 재전송은 fleet_control 이 같은 주문으로 돌려준다.
         order_id = 'cust-{}'.format(client_key)
+        existing = self._backend.get_order(order_id)
+        if existing is not None and self._owned(order_id, session):
+            if existing.get('sku') != sku:
+                return 409, {'error': 'ORDER_REJECTED', 'detail': '같은 주문 번호에 다른 상품'}
+            # 응답만 늦었던 주문의 재시도다. 마지막 재고를 이 주문이 잡았어도 품절로 답하지 않는다.
+            return 200, {'order_id': order_id, 'view': order_progress(existing)[1]}
         if self._backend.available(sku) == 0:
             return 200, {'order_id': order_id, 'view': VIEW_OUT_OF_STOCK}
+        # 응답이 늦어도 주문은 접수될 수 있다. 만든 화면이 나중에 찾을 수 있게 먼저 적어 둔다.
+        with self._lock:
+            self._owners.setdefault(order_id, session)
         reply = self._backend.request({'type': 'order', 'order': {
             'order_id': order_id, 'sku': sku, 'quantity': 1, 'destination': loc}})
         if reply is None:
@@ -224,7 +239,7 @@ class CustomerApi:
                 return 200, {'order_id': order_id, 'view': VIEW_OUT_OF_STOCK}
             return 409, {'error': 'ORDER_REJECTED', 'detail': detail}
         with self._lock:
-            self._owners.setdefault(order_id, session)
+            self._accepted_at[order_id] = self._clock()
         return 200, {'order_id': order_id, 'view': order_progress(reply['body'])[1]}
 
     def _owned(self, order_id, session):
@@ -243,6 +258,8 @@ class CustomerApi:
             'failure_reason': (order.get('failure') or order.get('detail', '')
                                if view == VIEW_FAILED else ''),
             'paused': order_paused(order),
+            # 관제 스냅숏이 끊겨 이 상태가 오래된 것일 수 있다.
+            'stale': not self._backend.online(),
             # None 은 모른다는 뜻이다. 화면은 False 일 때만 안내한다.
             'accepting': self._backend.accepting(),
         }
@@ -250,7 +267,13 @@ class CustomerApi:
     def _status(self, order_id, session):
         if not self._owned(order_id, session):
             return 404, {'error': 'UNKNOWN_ORDER'}
-        return 200, self._state(order_id, self._backend.get_order(order_id))
+        order = self._backend.get_order(order_id)
+        if order is None and self._backend.online():
+            with self._lock:
+                accepted = self._accepted_at.get(order_id)
+            if accepted is None or self._clock() - accepted > ORDER_GRACE_SEC:
+                return 404, {'error': 'UNKNOWN_ORDER'}
+        return 200, self._state(order_id, order)
 
     def _decide(self, order_id, body):
         session = str(body.get('session', ''))

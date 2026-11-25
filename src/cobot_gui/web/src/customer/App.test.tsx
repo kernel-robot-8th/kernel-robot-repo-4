@@ -40,6 +40,15 @@ function renderApp(search = "?loc=P22") {
   return api;
 }
 
+function checkAll() {
+  screen.getAllByRole("checkbox").forEach((box) => fireEvent.click(box));
+}
+
+function press(name: string) {
+  fireEvent.click(screen.getByRole("button", { name }));
+  fireEvent.click(screen.getByRole("button", { name: /Cobot에게 가져다/ }));
+}
+
 describe("고객 주문 화면", () => {
   it("자리 QR 없이 들어오면 QR 을 찍으라고 한다", async () => {
     renderApp("");
@@ -83,6 +92,9 @@ describe("고객 주문 화면", () => {
     await advance(5000);
     expect(screen.getByText("신발이 도착했어요!")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /구매하기/ }));
+    expect(screen.getByRole("button", { name: "결제로 가기" })).toBeDisabled();
+    checkAll();
+    fireEvent.click(screen.getByRole("button", { name: "결제로 가기" }));
     expect(screen.getByAltText("결제 QR 코드 (예시)")).toBeInTheDocument();
     expect(screen.getByText("89,000원")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /QR 결제를 완료했어요/ })).toBeInTheDocument();
@@ -100,7 +112,11 @@ describe("고객 주문 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: /Cobot에게 가져다/ }));
     await flush();
     await advance(5000);
+    expect(screen.getByText(/Cobot 위에 다시 올려 주시면/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /구매하지 않을게요/ }));
+    expect(screen.getByRole("button", { name: "Cobot 돌려보내기" })).toBeDisabled();
+    checkAll();
+    fireEvent.click(screen.getByRole("button", { name: "Cobot 돌려보내기" }));
     await flush();
     expect(screen.getByText("구매를 취소했어요")).toBeInTheDocument();
     expect(screen.getByText(/Cobot이 신발을 정리해서 창고로 돌아가요/)).toBeInTheDocument();
@@ -147,6 +163,132 @@ describe("고객 주문 화면", () => {
     expect(screen.getByText(title)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /다른 신발 보기/ }));
     expect(screen.getByText("어떤 신발을 신어 볼까요?")).toBeInTheDocument();
+  });
+
+  it("응답을 못 받고 다시 누르면 새로고침 뒤에도 같은 키로 보낸다", async () => {
+    const keys: string[] = [];
+    const api = createMockApi(1000, () => clock);
+    const real = api.submit;
+    api.submit = (sku, loc, key, session) => {
+      keys.push(`${key}/${session}`);
+      return keys.length < 3 ? Promise.reject(new ApiError(503, "CONTROL_CENTER_UNAVAILABLE")) : real(sku, loc, key, session);
+    };
+    const first = render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: /Cobot에게 가져다/ }));
+    await flush();
+    first.unmount();
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    expect(keys).toHaveLength(3);
+    expect(new Set(keys).size).toBe(1);
+    expect(localStorage.getItem("cobot-customer-pending")).toBeNull();
+  });
+
+  it("앞 주문이 접수돼 있으면 다른 신발을 눌러도 앞 주문을 이어 본다", async () => {
+    const api = createMockApi(1000, () => clock);
+    api.submit = vi.fn(() => Promise.reject(new ApiError(503, "CONTROL_CENTER_UNAVAILABLE")));
+    api.find = async () => ({ order_id: "cust-a", view: "preparing", stage: "RECEIVED" });
+    api.status = api.find.bind(api, "", "");
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    press("클래식 스니커즈 270");
+    await flush();
+    expect(api.submit).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("이미 주문돼 있어요");
+    expect(JSON.parse(localStorage.getItem("cobot-customer-order")!).sku).toBe("SHOE_RUN_WHITE_260");
+  });
+
+  it("품절 응답은 주문을 조회하거나 저장하지 않고 재고 없음을 보인다", async () => {
+    const api = createMockApi(1000, () => clock);
+    api.submit = async () => ({ order_id: "cust-a", view: "out_of_stock", stage: "" });
+    api.status = vi.fn(() => Promise.reject(new ApiError(404, "UNKNOWN_ORDER")));
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    await advance(2000);
+    expect(screen.getByText("지금은 재고가 없어요")).toBeInTheDocument();
+    expect(api.status).not.toHaveBeenCalled();
+    expect(localStorage.getItem("cobot-customer-order")).toBeNull();
+  });
+
+  it("거절된 주문은 다음에 새 키로 보낸다", async () => {
+    const keys: string[] = [];
+    const api = createMockApi(1000, () => clock);
+    api.submit = (_sku, _loc, key) => {
+      keys.push(key);
+      return Promise.reject(new ApiError(409, "ORDER_REJECTED"));
+    };
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: /Cobot에게 가져다/ }));
+    await flush();
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it("주문을 잃으면 알리고, 다음 주문은 결제 화면으로 바로 가지 않는다", async () => {
+    const api = createMockApi(1000, () => clock);
+    const real = api.status;
+    let lost = false;
+    api.status = (id, session) => (lost ? Promise.reject(new ApiError(404, "UNKNOWN_ORDER")) : real(id, session));
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    await advance(5000);
+    fireEvent.click(screen.getByRole("button", { name: /구매하기/ }));
+    checkAll();
+    fireEvent.click(screen.getByRole("button", { name: "결제로 가기" }));
+    lost = true;
+    await advance(1000);
+    expect(screen.getByRole("alert")).toHaveTextContent("주문을 찾지 못했어요");
+    lost = false;
+    press("에어 러너 260");
+    await flush();
+    await advance(5000);
+    expect(screen.getByText("신발이 도착했어요!")).toBeInTheDocument();
+  });
+
+  it("안전 확인 중 멈췄다 재개되면 처음부터 다시 고른다", async () => {
+    const set = await orderWith({ view: "arrived", stage: "UNLOADING" });
+    fireEvent.click(screen.getByRole("button", { name: /구매하지 않을게요/ }));
+    set({ view: "preparing", stage: "UNLOADING", paused: true });
+    await advance(1000);
+    set({ view: "arrived", stage: "UNLOADING", paused: false });
+    await advance(1000);
+    expect(screen.getByText("신발이 도착했어요!")).toBeInTheDocument();
+  });
+
+  it("연결이 끊기면 알리고, 다시 되면 안내를 지운다", async () => {
+    const api = createMockApi(1000, () => clock);
+    const real = api.status;
+    let down = false;
+    api.status = (id, session) => (down ? Promise.reject(new TypeError("network")) : real(id, session));
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    press("에어 러너 260");
+    await flush();
+    down = true;
+    for (let i = 0; i < 3; i += 1) await advance(1000);
+    expect(screen.getByText(/연결이 끊겼어요/)).toBeInTheDocument();
+    down = false;
+    await advance(1000);
+    expect(screen.queryByText(/연결이 끊겼어요/)).not.toBeInTheDocument();
+  });
+
+  it("관제 상태가 오래됐으면 연결 끊김을 알린다", async () => {
+    await orderWith({ view: "preparing", stage: "LOADING", stale: true });
+    expect(screen.getByText(/연결이 끊겼어요/)).toBeInTheDocument();
   });
 
   it("새로고침해도 진행 중인 주문을 이어 본다", async () => {
