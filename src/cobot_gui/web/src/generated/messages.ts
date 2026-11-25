@@ -99,8 +99,10 @@ export const ArmCommandConst = {
   CMD_RESET: 2,
   /** DISARMED -> 가동. 새 epoch 에서만 */
   CMD_START: 3,
-  /** 소프트 정지 래치 (전원 차단 아님). RESET 으로만 해제 */
+  /** 소프트 정지 래치 (전원 차단 아님). UNLATCH 또는 RESET 으로 해제 */
   CMD_SOFT_LATCH: 4,
+  /** 소프트 정지 래치 해제 -> 가동. 구동 없음. 사람 확인 뒤에만 보낸다 */
+  CMD_UNLATCH: 5,
 } as const;
 
 /** ArmMode.msg */
