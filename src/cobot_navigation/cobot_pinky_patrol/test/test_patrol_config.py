@@ -43,7 +43,7 @@ def test_unused_points_are_rejected_before_navigation(robot_id, point):
     controller = PatrolController(
         parse_points(config['points']), config['home_name'],
         parse_zone_points(config['zone_points']), navigation, Gate(), events.append,
-        lambda: None, lambda: True, lambda: None)
+        lambda: None, lambda: True, lambda: None, is_near=lambda target: True)
     controller.submit(f'goto:{point}', 'unused-point')
     assert navigation.goals == []
     assert events[-1]['state'] == 'FAILED'

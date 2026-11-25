@@ -21,11 +21,13 @@ class PatrolController:
 
     def __init__(self, points, home_name, zone_points, navigation, gate, emit,
                  prepare, ready, abort_preparation, clock=time.monotonic,
-                 idle_return_sec=120.0, retries=3, ready_timeout_sec=60.0):
+                 idle_return_sec=120.0, retries=3, ready_timeout_sec=60.0, *, is_near):
         self.points, self.home_name, self.zone_points = points, home_name, zone_points
         self.navigation, self.gate, self.emit = navigation, gate, emit
         self.prepare, self.ready, self.abort_preparation = prepare, ready, abort_preparation
         self.clock = clock
+        # 목표 좌표를 받아 로봇이 실제로 그 근처인지 답한다. 모르면 False.
+        self.is_near = is_near
         self.idle_return_sec, self.retries = idle_return_sec, retries
         self.ready_timeout_sec = ready_timeout_sec
         self.phase = 'IDLE'
@@ -44,6 +46,7 @@ class PatrolController:
         self._gate_zone = None
         self._slot_target = None
         self._slot_done = False
+        self._target = None
         self._stop = False
         self._emergency = False
         self._final = None
@@ -215,15 +218,27 @@ class PatrolController:
         state = ('RETREATING' if self._stop else 'LEAVING_ZONE') if self.step.kind == 'exit' else (
             'RETURNING' if self.step.kind == 'home' else 'MOVING')
         self._report(state, name, self.step.index)
-        self.navigation.start(self.points[name] if name in self.points
-                              else self.extra_points[name])
+        self._target = self.points[name] if name in self.points else self.extra_points[name]
+        self.navigation.start(self._target)
         self._attempts += 1
         self.phase = 'NAVIGATING'
+
+    def _pop_result(self, target):
+        """
+        Nav2 성공도 실제 위치가 목표 근처일 때만 성공으로 본다.
+
+        플래너가 막힌 목표 대신 가까운 대체점을 고르면 목표에 못 가도 성공이 온다.
+        그대로 믿으면 구역 밖에서 도착하고, 구역 안에서 토큰을 반납하게 된다.
+        """
+        result = self.navigation.pop_result()
+        if result == 'SUCCEEDED' and not self.is_near(target):
+            return 'FAILED'
+        return result
 
     def _move_tick(self):
         if self.navigation.busy:
             return
-        result = self.navigation.pop_result()
+        result = self._pop_result(self._target)
         if result is None:
             return
         if result != 'SUCCEEDED':
@@ -277,7 +292,7 @@ class PatrolController:
         if target is None:
             return
         if not self.navigation.busy:
-            result = self.navigation.pop_result()
+            result = self._pop_result(target)
             if result == 'SUCCEEDED':
                 self._slot_done = True
             elif result is not None and self._attempts >= self.retries:

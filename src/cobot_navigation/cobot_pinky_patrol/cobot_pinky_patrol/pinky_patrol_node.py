@@ -44,6 +44,7 @@ class PinkyPatrolNode(Node):
             'initialpose_timeout_sec': 5.0, 'initialpose_settle_sec': 0.5,
             'initial_rotation_sec': 4.0, 'initial_rotation_speed': 0.5,
             'led_blink_sec': 1.0,
+            'arrival_tolerance_m': 0.10, 'arrival_pose_max_age_sec': 1.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -51,7 +52,7 @@ class PinkyPatrolNode(Node):
         positive = ('tick_sec', 'nav_retries', 'nav_ready_timeout_sec',
                     'lifecycle_poll_sec', 'lifecycle_response_timeout_sec',
                     'initialpose_timeout_sec', 'led_blink_sec', 'status_period_sec',
-                    'central_timeout_sec')
+                    'central_timeout_sec', 'arrival_tolerance_m', 'arrival_pose_max_age_sec')
         if any(not math.isfinite(self.config[key]) or self.config[key] <= 0
                for key in positive):
             raise ValueError('주기·타임아웃·재시도 횟수는 양수여야 합니다')
@@ -75,6 +76,8 @@ class PinkyPatrolNode(Node):
         self.pose_sub = self.create_subscription(
             PoseWithCovarianceStamped, 'amcl_pose', self._pose_cb, 10)
         self._current_pose = None
+        # 도착 검사용 (x, y, 받은 시각). 주행 피드백만 쓴다. AMCL 은 멈춰 있으면 갱신되지 않는다.
+        self._feedback_pose = None
         self._lifecycle = {name: self.create_client(GetState, name + '/get_state')
                            for name in self.config['lifecycle_nodes']}
         self._states = {name: False for name in self._lifecycle}
@@ -101,7 +104,8 @@ class PinkyPatrolNode(Node):
             idle_return_sec=(0.0 if self.config['central_controlled']
                              else self.config['idle_return_sec']),
             retries=self.config['nav_retries'],
-            ready_timeout_sec=self.config['nav_ready_timeout_sec'])
+            ready_timeout_sec=self.config['nav_ready_timeout_sec'],
+            is_near=self._is_near)
         self.timer = self.create_timer(self.config['tick_sec'], self._tick)
         self._emit({'state': 'IDLE', 'waypoint': -1, 'detail': '', 'time': time.time()})
         self.status_timer = self.create_timer(self.config['status_period_sec'], self._heartbeat)
@@ -371,7 +375,26 @@ class PinkyPatrolNode(Node):
         return goal
 
     def _feedback(self, message):
-        self._update_pose(message.feedback.current_pose.pose)
+        pose = message.feedback.current_pose.pose
+        self._feedback_pose = (pose.position.x, pose.position.y, time.monotonic())
+        self._update_pose(pose)
+
+    def _is_near(self, target):
+        """주행 피드백 위치가 최근 것이고 목표 근처일 때만 참. 모르면 도착으로 보지 않는다."""
+        if self._feedback_pose is None:
+            self.get_logger().warning('도착 확인 실패: 주행 피드백 위치 없음')
+            return False
+        x, y, received = self._feedback_pose
+        age = time.monotonic() - received
+        distance = math.dist((x, y), target[:2])
+        # NaN 은 비교가 거짓이므로 통과하지 못한다.
+        if (distance <= self.config['arrival_tolerance_m']
+                and age <= self.config['arrival_pose_max_age_sec']):
+            return True
+        self.get_logger().warning(
+            f'도착 확인 실패: 목표 ({target[0]:.2f}, {target[1]:.2f}), '
+            f'위치 ({x:.2f}, {y:.2f}), 거리 {distance:.2f} m, {age:.1f}초 전 위치')
+        return False
 
     def _pose_cb(self, message):
         self._update_pose(message.pose.pose)

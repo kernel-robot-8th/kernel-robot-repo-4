@@ -4,6 +4,9 @@ pinky_patrol_node:
     tick_sec: 0.05
     nav_retries: 3
     nav_ready_timeout_sec: 60.0
+    # Nav2 성공 뒤 실제 위치가 목표에서 이 안일 때만 도착으로 본다. xy_goal_tolerance 보다 커야 한다.
+    arrival_tolerance_m: 0.10       # [m]
+    arrival_pose_max_age_sec: 1.0   # [s] 이보다 오래된 주행 피드백 위치는 믿지 않음
     lifecycle_nodes: [amcl, bt_navigator]
     initial_rotation_sec: 4.0
     restore_pose: true

@@ -69,13 +69,21 @@ def make_environment():
               'ZA': (3, 0, 0), 'ZA_EXIT': (3, -1, 0),
               'ZB': (4, 0, 0), 'ZB_EXIT': (4, -1, 0)}
     nav, gate, events, clock, ready = Navigation(), Gate(), [], [0], [True]
+    near, checked = [True], []
+
+    def is_near(target):
+        checked.append(target)
+        return near[0]
+
     prep = []
     controller = PatrolController(
         points, 'I1', {'A': ('ZA',), 'B': ('ZB',)}, nav, gate, events.append,
         lambda: prep.append('prepare'), lambda: ready[0], lambda: prep.append('abort'),
-        clock=lambda: clock[0], idle_return_sec=10, ready_timeout_sec=5)
+        clock=lambda: clock[0], idle_return_sec=10, ready_timeout_sec=5,
+        is_near=is_near)
     return SimpleNamespace(c=controller, nav=nav, gate=gate, events=events,
-                           clock=clock, ready=ready, prep=prep, points=points)
+                           clock=clock, ready=ready, prep=prep, points=points,
+                           near=near, checked=checked)
 
 
 @pytest.fixture
@@ -409,3 +417,85 @@ def test_bad_poses_never_move(env, command, poses, detail):
     env.c.submit(command, 'bad_pose', poses)
     assert not env.c.busy and not env.nav.goals
     assert detail in completed(env)[-1]['detail']
+
+
+def states(env):
+    return [event['state'] for event in env.events]
+
+
+def enter_zone(env):
+    env.c.submit('zone:ZA', 'enter')
+    advance(env, 'QUEUEING')
+    env.gate.grant = True
+    advance(env, 'NAVIGATING')
+
+
+def finish_attempts(env, count):
+    """같은 목표의 가짜 성공을 count 번 돌려준다."""
+    for _ in range(count):
+        advance(env, 'NAVIGATING')
+        env.nav.finish()
+        env.c.tick()
+
+
+def test_false_success_in_zone_never_reports_arrival(env):
+    """홈에서 돌기만 하고 성공해도 구역 도착으로 보지 않고 출구로 나온다."""
+    env.near[0] = False
+    enter_zone(env)
+    finish_attempts(env, 3)
+    assert env.checked == [env.points['ZA']] * 3
+    assert env.c.arrived_zone is None
+    assert 'ARRIVED' not in states(env) and 'HOLDING_ZONE' not in states(env)
+    env.near[0] = True
+    advance(env, 'NAVIGATING')
+    assert env.nav.goals[-1] == env.points['ZA_EXIT']
+    env.nav.finish()
+    advance(env, 'IDLE')
+    assert completed(env)[-1]['state'] == 'FAILED' and env.gate.exits == ['A']
+
+
+def test_false_success_then_real_arrival_holds_zone(env):
+    env.near[0] = False
+    enter_zone(env)
+    finish_attempts(env, 1)
+    env.near[0] = True
+    finish_attempts(env, 1)
+    advance(env, 'IDLE')
+    assert env.c.arrived_zone == 'A' and 'HOLDING_ZONE' in states(env)
+
+
+def test_false_exit_success_keeps_token(env):
+    """출구에 못 갔는데 반납하면 구역 안에 있는 채 다른 로봇이 들어온다."""
+    enter_zone(env)
+    finish_attempts(env, 1)
+    advance(env, 'IDLE')
+    env.near[0] = False
+    env.c.submit('leave', 'leave')
+    finish_attempts(env, 3)
+    assert not env.c.busy and completed(env)[-1]['state'] == 'FAILED'
+    assert env.gate.exits == [] and env.c.held_zone == 'A'
+    assert env.c.arrived_zone is None
+    assert env.checked[-1] == env.points['ZA_EXIT']
+
+
+def test_false_slot_success_retries_then_fails(env):
+    env.near[0] = False
+    env.c.submit('zone:ZA', 'slot')
+    advance(env, 'QUEUEING')
+    env.gate.current_slot = (0, 1, -1, 0)
+    for _ in range(3):
+        env.c.tick()
+        assert env.nav.busy
+        env.nav.finish()
+    advance(env, 'IDLE')
+    assert env.checked[-1] == (1, -1, 0) and not env.c._slot_done
+    assert completed(env)[-1]['detail'] == 'slot'
+    assert env.gate.cancels == ['A'] and env.c.held_zone is None
+
+
+def test_false_home_success_is_not_home(env):
+    env.near[0] = False
+    env.c.submit('home', 'home')
+    finish_attempts(env, 3)
+    assert completed(env)[-1]['state'] == 'FAILED'
+    assert env.c.last_point != 'I1'

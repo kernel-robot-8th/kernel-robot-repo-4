@@ -85,6 +85,8 @@ ROS_DOMAIN_ID=10 ros2 launch cobot_pinky_patrol patrol.launch.xml robot_id:=pink
 도착했다는 뜻이 아닙니다. 빈 구역은 대기 슬롯을 거치지 않고 즉시 허가할 수 있습니다.
 `arrived_zone`은 해당 구역 목표의 Nav2 성공 결과를 받은 경우에만 설정하며,
 다음 이동이 시작되면 비웁니다. 정상 도착 후에만 `HOLDING_ZONE`을 발행합니다.
+Nav2가 성공이라고 해도 최근 주행 피드백 위치가 목표에서 `arrival_tolerance_m`(0.10 m) 안일 때만 도착으로 봅니다.
+구역·출구·홈·대기 슬롯 모두 같고, 출구 도착이 확인되지 않으면 토큰을 반납하지 않습니다.
 주행·후퇴 실패나 비상정지는 `FAILED`·`STOPPED` 상태를 유지하며, 이탈이 확인되지
 않은 토큰은 계속 보유합니다. 매니저의 `occupied_by` 표시는 이 토큰 소유자입니다.
 

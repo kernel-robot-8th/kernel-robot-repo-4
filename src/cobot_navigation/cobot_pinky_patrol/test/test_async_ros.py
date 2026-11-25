@@ -38,17 +38,29 @@ def ros_env(tmp_path, monkeypatch):
     rclpy.init(args=['--ros-args', '--params-file', str(param_file)])
     hardware = Node('fake_nav2')
     jobs, goals, events = [], [], []
-    options = {'travel': 0.03, 'allow_cancel': True, 'reject': False, 'fail': False}
+    options = {'travel': 0.03, 'allow_cancel': True, 'reject': False, 'fail': False,
+               'feedback': True, 'offset': 0.0}
 
     async def execute(handle):
         future = Future()
         jobs.append((handle, future, time.monotonic() + options['travel']))
         return await future
 
+    def publish_feedback(handle):
+        feedback = NavigateToPose.Feedback()
+        goal = handle.request.pose.pose.position
+        feedback.current_pose.pose.position.x = goal.x + options['offset']
+        feedback.current_pose.pose.position.y = goal.y
+        feedback.current_pose.pose.orientation.w = 1.0
+        handle.publish_feedback(feedback)
+
     def advance():
         for handle, future, deadline in list(jobs):
             if future.done():
                 continue
+            # 실제 Nav2 처럼 주행 중에도 위치를 계속 보낸다.
+            if options['feedback']:
+                publish_feedback(handle)
             if handle.is_cancel_requested:
                 handle.canceled()
                 future.set_result(NavigateToPose.Result())
@@ -56,6 +68,8 @@ def ros_env(tmp_path, monkeypatch):
                 if options['fail']:
                     handle.abort()
                 else:
+                    if options['feedback']:
+                        publish_feedback(handle)
                     handle.succeed()
                 future.set_result(NavigateToPose.Result())
 
@@ -124,6 +138,28 @@ def test_real_action_callbacks_complete_without_workers(ros_env):
     assert terminal(env, 'ros-job')[-1]['state'] == 'DONE'
     assert len(env.goals) == 2
     assert not env.robot.controller.busy
+
+
+@pytest.mark.parametrize('broken', [{'offset': 0.58}, {'feedback': False}])
+def test_nav2_success_away_from_goal_is_not_arrival(ros_env, broken):
+    """목표에서 멀거나 위치를 모르면 Nav2 성공을 도착으로 보지 않는다."""
+    env = ros_env
+    env.options.update(broken)
+    env.send('ros-false', 'goto:P1')
+    assert env.pump(lambda: terminal(env, 'ros-false'))
+    assert terminal(env, 'ros-false')[-1]['state'] == 'FAILED'
+    assert len(env.goals) == 3
+    assert not any(e['state'] == 'ARRIVED' for e in env.events)
+
+
+@pytest.mark.parametrize('pose, near', [
+    ((0.05, 0.0, 0.5), True), ((0.2, 0.0, 0.5), False),
+    ((0.0, 0.0, 5.0), False), ((float('nan'), 0.0, 0.5), False),
+])
+def test_arrival_needs_recent_nearby_pose(ros_env, pose, near):
+    robot = ros_env.robot
+    robot._feedback_pose = (pose[0], pose[1], time.monotonic() - pose[2])
+    assert robot._is_near((0.0, 0.0, 0.0)) is near
 
 
 def test_stop_is_processed_during_action_and_no_next_waypoint(ros_env):
