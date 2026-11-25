@@ -576,7 +576,7 @@ def active_orders(orders):
 # ---------- 서비스 화면 (/api/service, 매장 직원용) ----------
 
 # 서비스 화면의 큰 단계. 단계 번호는 이 순서의 위치다 (0 접수 ... 5 복귀).
-SERVICE_STEPS = ('접수', '상품 준비', '이동', '전달', '회수·정리', '복귀')
+SERVICE_STEPS = ('접수', '상품 준비', '이동', '고객 응대', '회수·정리', '복귀')
 # fleet 주문 단계(cobot_fleet_control scenario_tree.STAGES·CUSTOMER_STAGES) → (큰 단계 번호, 직원용 설명).
 # 패키지끼리 import 하지 않으므로 이름만 복사한다. 모르는 단계는 코드 그대로 보인다.
 SERVICE_STAGE = {

@@ -83,31 +83,31 @@ source install/control_center_web/local_setup.bash</code></pre>
   <li class="device"><h3>ZA·ZB 도착·상차</h3><p>상차 구역 이동 → 후미 이탈 → 정차 실측·보정 → 상품 마커 → 피킹 → 상차. 단계별 실제 결과를 기다립니다.</p></li>
   <li class="device"><h3>적재·팔 퇴피 확인</h3><p><code>VERIFY_LOAD</code><br>같은 결과의 <code>data</code>에서 <code>load_present=true</code>, <code>arm_safe=true</code>를 확인합니다.</p></li>
   <li class="device"><h3>ZC 운반·하차</h3><p>상차 지점 이탈 → ZC 이동 → 후미 이탈·정차·QR 확인 → 피킹·하차 → 배치·빈 적재함·팔 퇴피 검증.</p></li>
-  <li><h3>고객 수령 대기</h3><p><code>CUSTOMER</code><br><code>received</code> 입력 또는 기본 120초 제한 시간까지 기다립니다. 무응답은 수령 미확인으로 기록합니다.</p></li>
+  <li><h3>고객 수령 대기</h3><p><code>CUSTOMER</code><br><code>received</code> 입력 또는 제한 시간(설정 300초)까지 기다립니다. 무응답은 수령 미확인으로 기록합니다.</p></li>
   <li class="finish"><h3>HOME 복귀·주문 종결</h3><p>ZC 이탈 → 로봇별 HOME → 후미 이탈 확인. 필수 단계와 자원 정리가 끝나면 <code>COMPLETED</code>로 종결합니다.</p></li>
 </ol>
 <div class="callout info"><b>요청 접수와 실행 완료를 각각 확인합니다.</b> CLI의 <code>publishing #1</code>은 ROS 발행 출력입니다. 관제의 <code>reply.status=200</code>은 재고 등록 처리, <code>202</code>는 신규 주문 접수를 뜻합니다. 주문의 실제 단계·종결 상태는 <code>/control_center/tasks</code>의 <code>orders</code>에서 확인합니다.</div>
 <div class="table-wrap"><table><thead><tr><th>요청 종류</th><th>지정하는 값</th><th>진행 범위</th></tr></thead><tbody>
 <tr><td>개별 이동</td><td><code>type=create</code>, <code>robot_id</code>, <code>operation=goto</code>, <code>points=["P1"]</code></td><td>현재 로봇 위치에서 등록된 웨이포인트까지 주행. 웹의 <code>POST /api/tasks</code>로 접수 가능.</td></tr>
-<tr><td>전체 주문</td><td><code>type=order</code>, <code>order_id</code>, <code>sku</code>, <code>quantity</code>, <code>route</code></td><td>재고 예약·로봇 자동 배정·상차·운반·하차·수령·복귀. 현재는 내부 ROS 요청으로 접수.</td></tr>
+<tr><td>전체 주문</td><td><code>type=order</code>, <code>order_id</code>, <code>sku</code>, <code>quantity</code>, <code>destination</code></td><td>재고 예약·로봇 자동 배정·상차·운반·하차·수령·복귀. 현재는 내부 ROS 요청으로 접수.</td></tr>
 <tr><td>임의 좌표</td><td>주문 입력에 <code>x / y / yaw</code> 필드는 없음</td><td>현장 웨이포인트와 운송 경로를 먼저 등록·배포해야 함. 현재 전체 주문의 이동 단계는 구역 지점을 사용.</td></tr>
 </tbody></table></div>
-<p><a href="../cobot_fleet_control/config/scenario.yaml">scenario.yaml</a>의 주문은 고객 자리(<code>destination</code>)로 접수합니다. 상차는 <b>ZB · omx2</b>, 고객 자리는 <b>P22</b>, 회수하면 <b>ZC · omx3</b> 정리 → <b>ZA · omx1</b> 선반 반환입니다. <b>하차 구역 경로 <code>lab_delivery</code>, <code>lab_delivery_zb</code>는 2026-11-24에 지웠습니다. 아래에서 이 이름을 쓰는 주문 예시는 접수되지 않습니다.</b> <a href="../cobot_pinky_patrol/config/sites/lab.yaml">lab.yaml</a> 기준 ZA는 <code>[0.6, 0.5, -1.5]</code>, ZB는 <code>[0.6, -0.15, -1.5]</code>, ZC는 <code>[-0.5, 0.3, 1.5]</code>이며 단위는 map 좌표의 m·rad입니다. 주문을 보낸 PC의 위치를 출발점으로 입력하는 기능은 없습니다.</p>
+<p><a href="../cobot_fleet_control/config/scenario.yaml">scenario.yaml</a>의 주문은 고객 자리(<code>destination</code>)로 접수합니다. 상차는 <b>ZB · omx2</b>, 고객 자리는 <b>P22</b>, 회수하면 <b>ZC · omx3</b> 정리 → <b>ZA · omx1</b> 선반 반환입니다. <b>하차 구역 경로 <code>lab_delivery</code>, <code>lab_delivery_zb</code>는 2026-11-24에 지웠습니다. 그 이름의 주문은 거절합니다.</b> <a href="../cobot_pinky_patrol/config/sites/lab.yaml">lab.yaml</a> 기준 ZA는 <code>[0.6, 0.5, -1.5]</code>, ZB는 <code>[0.6, -0.15, -1.5]</code>, ZC는 <code>[-0.5, 0.3, 1.5]</code>이며 단위는 map 좌표의 m·rad입니다. 주문을 보낸 PC의 위치를 출발점으로 입력하는 기능은 없습니다.</p>
 
 <details open><summary>관제 PC에서 전체 주문을 접수하는 명령</summary>
-<p>Docker 서비스가 실행된 상태에서 사용합니다. 상품·수량·경로는 실제 현장 값으로 바꿉니다. 예시는 SHOE42의 가용 재고가 2개인 경우입니다. 재고를 등록한 뒤 주문을 접수하고, 현장 준비와 접수 응답을 확인한 후 웹에서 <b>작업 명령 켜기</b>를 누릅니다. 이미 가동 허용이 켜져 있으면 준비된 주문은 접수 후 실행될 수 있습니다.</p>
+<p>Docker 서비스가 실행된 상태에서 사용합니다. 상품·수량·경로는 실제 현장 값으로 바꿉니다. 선반 칸(<code>shelf_row</code>·<code>shelf_col</code>)은 상품이 실제로 놓인 자리를 적습니다. 예시는 SHOE42의 가용 재고가 2개인 경우입니다. 재고를 등록한 뒤 주문을 접수하고, 현장 준비와 접수 응답을 확인한 후 웹에서 <b>작업 명령 켜기</b>를 누릅니다. 이미 가동 허용이 켜져 있으면 준비된 주문은 접수 후 실행될 수 있습니다.</p>
 <div class="code-title">별도 터미널: 관제의 처리 응답을 먼저 관찰</div>
 <pre><button type="button" class="copy">복사</button><code>docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
   ros2 topic echo /control_center/task_events std_msgs/msg/String</code></pre>
 <div class="code-title">1. 예약분을 제외한 가용 재고를 절대값으로 등록</div>
 <pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
-  '{data: "{\"type\":\"inventory\",\"request_id\":\"stock-001\",\"sku\":\"SHOE42\",\"available\":2}"}'</code></pre>
+  '{data: "{\"type\":\"inventory\",\"request_id\":\"stock-001\",\"sku\":\"SHOE42\",\"available\":2,\"shelf_row\":1,\"shelf_col\":1}"}'</code></pre>
 <p class="sub"><code>request_id=stock-001</code>의 <code>reply.status=200</code>을 확인합니다. <code>available=2</code>는 2개를 더하는 요청이 아니라 가용 수량을 2개로 설정하는 요청입니다. 주문 접수 후 같은 재고 등록을 반복하면 가용 수량을 다시 설정하므로 실제 재고를 확인해야 합니다.</p>
-<div class="code-title">2. 전체 주문 접수 — ZA 상차 → ZC 하차 → HOME (지운 경로라 접수되지 않음)</div>
+<div class="code-title">2. 전체 주문 접수 — ZB 상차 → 고객 자리 P22 → HOME</div>
 <pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
-  '{data: "{\"type\":\"order\",\"request_id\":\"submit-001\",\"order\":{\"order_id\":\"order-001\",\"sku\":\"SHOE42\",\"quantity\":1,\"route\":\"lab_delivery\"}}"}'</code></pre>
+  '{data: "{\"type\":\"order\",\"request_id\":\"submit-001\",\"order\":{\"order_id\":\"order-001\",\"sku\":\"SHOE42\",\"quantity\":1,\"destination\":\"P22\"}}"}'</code></pre>
 <p class="sub"><code>request_id=submit-001</code>의 <code>reply.status=202</code>와 주문 내용을 확인합니다. 재고 부족·필드 오류는 거절됩니다. 같은 <code>order_id</code>와 동일 내용의 재전송은 기존 주문을 반환하며, 새로운 주문에는 새로운 주문 ID를 사용합니다.</p>
 <div class="code-title">3. 전체 주문의 현재 단계와 배정 로봇 조회</div>
 <pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
@@ -181,16 +181,16 @@ docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
 <pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
   '{data: "{\"type\":\"received\",\"request_id\":\"received-001\",\"order_id\":\"order-001\"}"}'</code></pre>
-<p>현재 <code>CUSTOMER</code>에서 대기 중인 주문만 수령 확인을 받습니다. 기본 120초 무응답도 복귀를 허용하지만 <code>customer_received=false</code>, <code>customer_timed_out=true</code>로 기록합니다.</p>
+<p>현재 <code>CUSTOMER</code>에서 대기 중인 주문만 수령 확인을 받습니다. 설정 300초(<code>customer_timeout_sec</code>) 무응답도 복귀를 허용하지만 <code>customer_received=false</code>, <code>customer_timed_out=true</code>로 기록합니다.</p>
 </details>
 
 <details><summary>핑키 1·2에 주문 두 개를 넣으면 동시에 진행되나요?</summary>
 <p>전체 주문은 준비된 로봇에 자동 배정합니다. 현재 주문 입력에는 <code>robot_id</code> 지정 필드가 없으므로 핑키 1·2로 고정되지 않으며, 조건이 맞으면 핑키3도 배정 대상입니다. 웹의 온라인 표시는 위치·배터리 수신 기준이고, 배정에는 최신 patrol 상태·배터리·중앙 제어·정지 잠금 해제와 자원 조건이 추가로 필요합니다.</p>
-<p>가용 재고가 남아 있다면 <code>order-002</code>와 <code>route=lab_delivery_zb</code>로 ZB 상차 → ZC 하차 주문을 접수할 수 있었습니다(2026-11-24에 지운 경로라 지금은 접수되지 않음). 재고 등록 요청을 다시 보낼 필요는 없습니다.</p>
+<p>가용 재고가 남아 있다면 <code>order-002</code>로 같은 고객 자리(<code>destination=P22</code>) 주문을 접수할 수 있습니다. 재고 등록 요청을 다시 보낼 필요는 없습니다.</p>
 <pre><button type="button" class="copy">복사</button><code>docker exec cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
   ros2 topic pub --once /control_center/task_request std_msgs/msg/String \
-  '{data: "{\"type\":\"order\",\"request_id\":\"submit-002\",\"order\":{\"order_id\":\"order-002\",\"sku\":\"SHOE42\",\"quantity\":1,\"route\":\"lab_delivery_zb\"}}"}'</code></pre>
-<p>배정 간격은 기본 3초입니다. 실제 출발은 별도로 자원 확보를 기다립니다. 두 경로는 하차 지점 ZC·상차 팔 omx1·하차 팔 omx2·통로 main을 공유합니다. 출발 전에 양쪽 작업장·팔·공유 통로를 예약하므로 뒤 주문이 자원 대기 상태에 머물 수 있습니다. 두 주문의 접수는 가능하지만 같은 경로의 전체 과정을 동시 진행한다고 보장하지 않습니다. 별도 자원을 쓰는 경로는 병행할 수 있고, 로봇 지정·경로·자원 정책 변경은 추가 구현 대상입니다.</p>
+  '{data: "{\"type\":\"order\",\"request_id\":\"submit-002\",\"order\":{\"order_id\":\"order-002\",\"sku\":\"SHOE42\",\"quantity\":1,\"destination\":\"P22\"}}"}'</code></pre>
+<p>배정 간격은 기본 3초입니다. 실제 출발은 별도로 자원 확보를 기다립니다. 두 주문은 상차장 ZB·상차 팔 omx2·통로 main을 공유합니다. 출발 전에 상차장·팔·공유 통로를 예약하므로 뒤 주문이 자원 대기 상태에 머물 수 있습니다. 두 주문의 접수는 가능하지만 같은 경로의 전체 과정을 동시 진행한다고 보장하지 않습니다. 별도 자원을 쓰는 경로는 병행할 수 있고, 로봇 지정·경로·자원 정책 변경은 추가 구현 대상입니다.</p>
 </details>
 </section>
 <section id="flow"><h2>02. 실행 흐름을 직접 확인하세요</h2><p class="sub">실제 주문 전체 BT + SQLite + 하위 주행 BT를 가짜 장치와 실행해 수집한 기록입니다. 아래 재생기는 로봇 명령을 전송하지 않습니다.</p><div class="playback"><div class="play-top"><span class="badge gray">로컬 테스트 기록 재생</span><div class="controls"><select id="trace-select" aria-label="테스트 시나리오 선택"><option value="delivery">정상 배송</option><option value="customer_timeout">수령 120초 초과</option><option value="sku_mismatch">상품 불일치</option><option value="link_loss">통신 단절</option><option value="restart">관제 재시작</option></select><button id="prev" type="button">이전</button><button id="play" type="button" class="primary">재생</button><button id="next" type="button">다음</button></div></div><div class="play-body"><div id="stages" class="stage-grid"></div><input type="range" id="position" min="0" max="1" value="0" aria-label="기록 위치"><div class="trace-info" aria-live="polite"><div><small>현재 상태</small><b id="state"></b></div><div><small>로봇 / 기록 위치</small><b id="robot"></b></div><div><small>판정·확인 내용</small><span id="detail"></span></div></div></div></div><div class="callout info"><b>같은 요청은 다시 실행하지 않습니다.</b> 주문은 <code>order_id</code>, 주행은 <code>command_id</code>, 팔·비전 작업은 단계마다 새 <code>request_id</code>로 추적합니다. 이전 단계·다른 로봇·다른 장치·이전 시도의 응답은 다음 단계를 열지 못합니다.</div></section>
@@ -206,7 +206,7 @@ docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
 <tr><td>9</td><td>마커·대상 일치</td><td>SKU 일치 전 피킹 금지, 불일치는 자동 중단</td><td>QR/SKU 인식기에서 실제 해석된 상품 ID 제공</td></tr>
 <tr><td>10</td><td>통행·하차 대기열</td><td>주문 순서로 상·하차 자원 묶음 예약, 모든 주행 구간 통로 점유</td><td>교착 방지를 위해 출발 전 양쪽 작업 구역·팔을 함께 예약. 물리 진입 FIFO는 zone_manager. 실제 도착 순서 재정렬은 미구현</td></tr>
 <tr><td>11</td><td>정차·재보정</td><td>측정 오차 ≤ 0.01 m / 15°, 정지·베이스 잠금 확인, 보정 후 재측정</td><td>정밀 보정기 필요. 상차 전 보정 소진은 복귀 후 실패, 적재 후 불명은 현장 확인</td></tr>
-<tr><td>12</td><td>수령·주문 종결</td><td>고객 확인 또는 120초 기록 후 복귀. 필수 단계와 HOME 완료를 확인</td><td>타임아웃 주문은 customer_received=false로 보존. 배송 작업 완료와 수령 확인을 구분</td></tr>
+<tr><td>12</td><td>수령·주문 종결</td><td>고객 확인 또는 300초(설정) 무응답 기록 후 복귀. 필수 단계와 HOME 완료를 확인</td><td>타임아웃 주문은 customer_received=false로 보존. 배송 작업 완료와 수령 확인을 구분</td></tr>
 <tr><td>13</td><td>접근·작업 영역 안전</td><td>중앙 중단·예약 유지·명시적 복구</td><td>거리 기반 감속, 작업 영역 감지, 팔 로컬 안전 제어는 장치 담당</td></tr>
 <tr><td>14</td><td>개별·전체 비상정지</td><td>대상 베이스와 관련 팔 정지 요청, 로봇별 영속 보류</td><td>소프트 정지 구현. 하드웨어 전원 차단·안전 정지 증거는 미연결</td></tr>
 <tr><td>15</td><td>수동·일시정지</td><td>manual로 자동 제어권 보류, pause로 단계 보존, 근거를 갖춘 제어권 반환</td><td>텔레옵 속도 송신·콘솔 임대는 미구현. 피킹 중간 단계의 임의 재실행은 금지</td></tr>
@@ -216,11 +216,11 @@ docker exec -it cobot-fleet-fleet-1 /opt/cobot/entrypoint.sh \
 </tbody></table></div></section>
 <section id="safety"><h2>04. 기존 로직에서 바꾼 점</h2><div class="two"><div class="card"><h3>통신 타임아웃은 “끝났다”가 아닙니다</h3><ul class="list"><li>주행·팔 작업의 결과가 불명확하면 UNKNOWN으로 두고 예약을 유지합니다.</li><li>관제 재시작은 자동 명령 재전송을 하지 않습니다.</li><li>로봇도 관제 하트비트 단절을 감시하고 정지 래치를 유지합니다.</li><li>링크 회복만으로 해제하지 않습니다. 운영자 복구와 control_reset 반향이 필요합니다.</li></ul></div><div class="card"><h3>시간 경과로 구역을 비우지 않습니다</h3><ul class="list"><li>zone_manager의 max_hold_sec 경과는 경고만 발생시킵니다.</li><li>통로·작업 구역 점유는 실제 이탈이나 현장 정리 확인 뒤 해제합니다.</li><li>운반 도착과 공유 통로의 후미 이탈은 다른 증거로 받습니다.</li><li>팔 동작 중 로봇이 스스로 복귀하지 않도록 중앙 모드에서 유휴 복귀를 끕니다.</li></ul></div></div><div class="callout"><b>시나리오에서 보수적으로 바꾼 분기.</b> 전체 비상정지 해제 직후 전 로봇을 자동 HOME으로 보내지 않습니다. 상하차 도중 중단한 물리 작업은 확인 없이 이어서 피킹하지 않습니다. 적재 후 정차 실패·상품 불일치·화물 불명은 UNKNOWN으로 남깁니다. 운영자가 안전·화물·자원을 확인한 후 재개 가능한 주행 단계만 새 요청 ID로 재개합니다.</div><p class="sub">공통 작업 구역을 쓰는 배송·반품은 출발 전에 양쪽 작업 자원을 묶어서 예약합니다. 반대 방향 주문이 서로의 구역을 기다리는 교착을 막는 보수적인 정책이며, 동일 경로의 처리량보다 안전한 순차 처리를 우선합니다. 별도 작업 구역의 주문은 병행할 수 있습니다.</p><p class="sub">이 JSON 세션 가드는 지연·중복 방지용입니다. 인증·서명, 하드웨어 비상정지, 실시간 안전 제어의 대체물이 아닙니다. 팔·비전 어댑터도 자체 워치독·작업 ID 중복 방지·유효시간 검사가 필요합니다.</p></section>
 <section id="contract"><h2>05. 웹과 장치 담당자가 맞출 계약</h2><div class="table-wrap"><table><thead><tr><th>토픽</th><th>방향 / 타입</th><th>역할</th></tr></thead><tbody><tr><td>/control_center/task_request</td><td>웹 백엔드 → fleet · String JSON</td><td>기존 웹 create / stop / arm 요청 + order / received / pause / estop / resolve / inventory / manual / release_control 확장</td></tr><tr><td>/control_center/task_events</td><td>fleet → 웹 백엔드 · String JSON</td><td>기존 reply(request_id, status, body) / task 구조. scenario·alarm·recovery 이벤트 추가</td></tr><tr><td>/control_center/tasks</td><td>fleet → 웹 백엔드 · String JSON</td><td>1초 주기 + 요청 처리 직후. TRANSIENT_LOCAL 최근 tasks, orders, holds, armed</td></tr><tr><td>/fleet/work_request</td><td>fleet → 장치 어댑터 · String JSON</td><td>상하차·비전·정밀 정차·안전 정지 요청. target 기준으로 담당 장치만 처리</td></tr><tr><td>/fleet/work_result</td><td>장치 어댑터 → fleet · String JSON</td><td>해당 시도의 실제 완료 결과. 정확한 ID·장치·단계 일치 필요</td></tr><tr><td>/fleet/heartbeat</td><td>fleet → 장치 어댑터 · String JSON</td><td>현재 관제 세션·증가 seq·issued_at·ttl_sec. 어댑터의 링크 감시용</td></tr><tr><td>/pinkyN/fleet_heartbeat</td><td>fleet → bridge → 로봇 · String JSON</td><td>관제 프로세스 생존 감시. 기존 domain 100 → 10/20/30 경로 추가</td></tr><tr><td>/pinkyN/patrol_cmd / patrol_status</td><td>fleet ↔ bridge ↔ patrol · String JSON</td><td>명령 ID·실제 task_finished. 중앙 명령에 session_id / seq / issued_at / ttl_sec 포함</td></tr><tr><td>/pinkyN/battery/percent</td><td>로봇 → bridge → fleet · Float32</td><td>0~100 퍼센트. 누락·NaN·오래된 수신은 배정 가능 상태로 취급하지 않음</td></tr></tbody></table></div>
-<div class="two"><div><div class="code-title">신규 주문 요청 (웹 백엔드가 발행 · 예시의 route는 지운 경로라 접수되지 않음)</div><pre><button type="button" class="copy">복사</button><code>{
+<div class="two"><div><div class="code-title">신규 주문 요청 (웹 백엔드가 발행)</div><pre><button type="button" class="copy">복사</button><code>{
   "type": "order", "request_id": "web-order-001",
   "order": {
     "order_id": "order-001", "sku": "SHOE42",
-    "quantity": 1, "route": "lab_delivery",
+    "quantity": 1, "destination": "P22",
     "kind": "delivery"
   }
 }</code></pre></div><div><div class="code-title">마커 인식 결과 예시 (장치 어댑터가 발행)</div><pre><button type="button" class="copy">복사</button><code>{

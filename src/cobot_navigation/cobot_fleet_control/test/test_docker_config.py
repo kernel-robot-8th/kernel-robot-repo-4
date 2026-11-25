@@ -33,7 +33,10 @@ def test_compose_uses_one_image_and_persistent_db():
     assert 'broker' not in services
     assert services['web']['depends_on'] == {'fleet': {'condition': 'service_started'}}
     # 관제 웨이포인트·묶음은 컨테이너를 다시 만들어도 남는다.
-    assert services['web']['volumes'] == ['web-data:/home/cobot/.ros/cobot_control_center']
+    # 정차 위치 '맞추기' 기준 화면은 호스트 폴더를 읽기 전용으로 붙인다.
+    assert services['web']['volumes'] == [
+        'web-data:/home/cobot/.ros/cobot_control_center',
+        '${COBOT_ALIGN_REFS:-${HOME}/il_ws/align/refs}:/home/cobot/il_ws/align/refs:ro']
     assert 'web-data' in config['volumes']
     assert 'fleet:=existing' in services['web']['command']
     assert 'mode:=execute' in services['web']['command']

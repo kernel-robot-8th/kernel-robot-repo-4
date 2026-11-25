@@ -132,7 +132,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 
 | 필드 | 뜻 |
 |---|---|
-| `order_id`, `robot_id`, `sku`, `route` | 주문 ID, 배정된 로봇(없으면 null), 상품, 경로 (`lab_delivery` 등) |
+| `order_id`, `robot_id`, `sku`, `route` | 주문 ID, 배정된 로봇(없으면 null), 상품, 경로 (`col1__P22` 등) |
 | `state`, `stage`, `completed`, `detail` | fleet 주문 상태(`WAITING`·`RUNNING`·`UNKNOWN` 등), 지금 단계(`MOVE_PICKUP` 등), 끝낸 단계 목록, 설명 |
 | `load_confirmed` | 운영자 수동 상차 확인을 이미 받았는지 |
 | `load_confirmable` | 화면에 **상차 확인** 을 보일지. `state` 가 `RUNNING`/`UNKNOWN`, `stage` 가 `PICKUP_EXIT`~`VERIFY_LOAD` 또는 `CORRECT_PICKUP`, `completed` 에 `MOVE_PICKUP`, 로봇 배정됨, 실패 없음, 아직 확인 안 함 (`fleet_api_utils.load_confirmable`). fleet 의 검사(`scenario_safety.confirm_loaded`)와 같은 조건이지만 표시용이고, 최종 검사(정지·통신·구역·예약)는 fleet 이 합니다 |
@@ -145,7 +145,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 ```json
 {"now": 1793517871.2, "read_only": false, "controller_online": true, "controller_age": 0.4,
  "commands_armed": true, "holds": {"pinky2": "ESTOP"},
- "steps": ["접수", "상품 준비", "이동", "전달", "회수·정리", "복귀"],
+ "steps": ["접수", "상품 준비", "이동", "고객 응대", "회수·정리", "복귀"],
  "today": {"total": 12, "active": 2, "sold": 7, "returned": 2, "failed": 1, "cancelled": 0, "done": 0},
  "active": [{"order_id": "cust-…", "sku": "SHOE-1", "destination": "P22", "robot_id": "pinky2",
              "state": "RUNNING", "stage": "PICK", "step": 1, "step_text": "로봇팔이 상품 꺼내는 중",
