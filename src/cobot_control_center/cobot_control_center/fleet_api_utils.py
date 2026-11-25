@@ -472,6 +472,10 @@ ORDER_TERMINAL = {'COMPLETED', 'FAILED'}
 # fleet 의 검사(scenario_safety.confirm_loaded)와 같은 조건이다. 화면 표시용이고 최종 검사는 fleet 이 한다.
 LOAD_CONFIRM_STAGES = {'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER', 'PICK', 'LOAD',
                        'VERIFY_LOAD'}
+# 위 단계 가운데 팔·로봇이 실제로 움직여 오래 걸리는 것 (load_waiting 의 긴 한도를 쓴다).
+LOAD_MOVING_STAGES = {'PICK', 'LOAD', 'CORRECT_PICKUP'}
+# 상차 확인 경고를 띄우기까지 기다리는 시간 [s]: (자동 확인 단계, 움직이는 단계). 노드 파라미터가 덮는다.
+LOAD_WAIT_LIMITS = (10.0, 120.0)
 # 멈춘 주문(복구가 필요한) 상태와, 이어서 가기를 받는 이동 단계. fleet 의 scenario_contracts.BLOCKED·
 # RESUME_STAGES 를 복사한 값이다 (패키지끼리 import 하지 않음). 화면 표시용이고 최종 검사는 fleet 이 한다.
 ORDER_BLOCKED = {'UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'}
@@ -553,8 +557,26 @@ def load_confirmable(order):
             and not order.get('manual_load_pending'))
 
 
-def active_orders(orders):
-    """주문 목록(fleet 이 낸 것)에서 끝나지 않은 것만 골라 화면용 필드와 load_confirmable 을 붙인다."""
+def load_waiting(order, now, limits=LOAD_WAIT_LIMITS):
+    """
+    상차에 사람이 필요해 보이는지 (화면 경고용).
+
+    load_confirmable 은 정상 진행 중에도 참이라 경고로 쓰면 늘 뜬다. 결과 모름이거나, 지금 단계가
+    한도보다 오래 멈춰 있을 때만 참이다. 시각을 모르면 경고를 놓치지 않게 참으로 본다.
+    now·updated_at 은 벽시계 [s]. fleet 은 단계를 바꾸고 요청을 낼 때마다 updated_at 을 고친다.
+    """
+    if not load_confirmable(order):
+        return False
+    updated = order.get('updated_at')
+    if (order.get('state') == 'UNKNOWN' or isinstance(updated, bool)
+            or not isinstance(updated, (int, float))):
+        return True
+    return now - updated >= limits[order.get('stage') in LOAD_MOVING_STAGES]
+
+
+def active_orders(orders, now=None, load_limits=LOAD_WAIT_LIMITS):
+    """주문 목록(fleet 이 낸 것)에서 끝나지 않은 것만 골라 화면용 필드와 상차 확인 표시를 붙인다."""
+    now = time.time() if now is None else now
     if not isinstance(orders, list):
         return []
     result = []
@@ -565,6 +587,7 @@ def active_orders(orders):
         item['load_confirmed'] = bool(order.get('operator_load_confirmation')
                                       or order.get('manual_load_pending'))
         item['load_confirmable'] = load_confirmable(order)
+        item['load_waiting'] = load_waiting(order, now, load_limits)
         item['blocked'] = order.get('state') in ORDER_BLOCKED and bool(order.get('robot_id'))
         item['resumable'] = item['blocked'] and order.get('stage') in ORDER_RESUME_STAGES
         item['retryable'] = item['blocked'] and order.get('stage') in ORDER_ARM_RETRY_STAGES
@@ -604,13 +627,13 @@ SERVICE_OUTCOMES = (
 )
 
 
-def service_order(order):
+def service_order(order, now=None, load_limits=LOAD_WAIT_LIMITS):
     """
     주문 원장 사본 하나를 서비스 화면용으로 줄인다.
 
     step 은 SERVICE_STEPS 위치, step_text 는 지금 하는 일, outcome 은 끝난 주문의 결과 코드
     (sold·timeout·declined·done·cancelled·failed, 진행 중이면 None)다. 조치 표시(blocked·resumable·
-    load_confirmable)는 active_orders 와 같은 조건이고 최종 검사는 fleet 이 한다.
+    load_confirmable·load_waiting)는 active_orders 와 같은 조건이고 최종 검사는 fleet 이 한다.
     """
     state, stage = order.get('state'), order.get('stage')
     item = {key: order.get(key) for key in ORDER_FIELDS}
@@ -652,6 +675,7 @@ def service_order(order):
     item['load_confirmed'] = bool(order.get('operator_load_confirmation')
                                   or order.get('manual_load_pending'))
     item['load_confirmable'] = state not in ORDER_TERMINAL and load_confirmable(order)
+    item['load_waiting'] = load_waiting(order, time.time() if now is None else now, load_limits)
     item['blocked'] = state in ORDER_BLOCKED and bool(order.get('robot_id'))
     item['resumable'] = item['blocked'] and stage in ORDER_RESUME_STAGES
     item['retryable'] = item['blocked'] and stage in ORDER_ARM_RETRY_STAGES
@@ -673,11 +697,12 @@ def service_order(order):
     return item
 
 
-def service_orders(orders, finished_limit):
+def service_orders(orders, finished_limit, now=None, load_limits=LOAD_WAIT_LIMITS):
     """진행 중 주문 전부(오래된 것부터)와 끝난 주문 최근 finished_limit 건(최신부터)."""
     if not isinstance(orders, list):
         return [], []
-    items = [service_order(o) for o in orders if isinstance(o, dict) and o.get('order_id')]
+    items = [service_order(o, now, load_limits) for o in orders
+             if isinstance(o, dict) and o.get('order_id')]
     active = [o for o in items if o['outcome'] is None]
     finished = [o for o in items if o['outcome'] is not None]
     active.sort(key=lambda o: o.get('created_at') or 0)
@@ -720,9 +745,11 @@ class TaskStore:
     # 바뀐 작업을 이만큼만 기억한다. 더 밀린 WebSocket 은 전체 목록을 다시 받는다.
     CHANGE_LOG = 200
 
-    def __init__(self, stale_sec, reply_timeout_sec, clock=time.monotonic):
+    def __init__(self, stale_sec, reply_timeout_sec, clock=time.monotonic,
+                 load_limits=LOAD_WAIT_LIMITS):
         self.stale_sec = float(stale_sec)
         self.reply_timeout_sec = float(reply_timeout_sec)
+        self.load_limits = tuple(float(v) for v in load_limits)
         self.clock = clock
         self._cond = threading.Condition()
         self._tasks = {}
@@ -808,7 +835,7 @@ class TaskStore:
         return {'controller_online': online, 'controller_age': age, 'spec': spec,
                 'raw_cmd_enabled': online and raw, 'commands_armed': online and armed,
                 'holds': holds if online and isinstance(holds, dict) else {},
-                'orders': active_orders(orders) if online else []}
+                'orders': active_orders(orders, load_limits=self.load_limits) if online else []}
 
     def service(self, finished_limit, today_start=0.0):
         """
@@ -822,7 +849,8 @@ class TaskStore:
         with self._cond:
             age = None if self._received is None else round(self.clock() - self._received, 3)
             snapshot = self._snapshot or {}
-        active, finished = service_orders(snapshot.get('orders'), finished_limit)
+        active, finished = service_orders(
+            snapshot.get('orders'), finished_limit, load_limits=self.load_limits)
         stock = snapshot.get('stock')
         destinations = snapshot.get('destinations')
         holds = snapshot.get('holds')

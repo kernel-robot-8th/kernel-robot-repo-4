@@ -115,7 +115,7 @@ function loadBarUi(order) {
 
 test('load bar offers order cancel only for a blocked order', () => {
   const blocked = { order_id: 'o1', robot_id: 'pinky1', sku: 'SHOE42', blocked: true,
-    load_confirmable: true, resumable: false };
+    load_confirmable: true, load_waiting: true, resumable: false };
   const shown = loadBarUi(blocked);
   shown.context.openLoad('pinky1');
   assert.equal(shown.el('load-abort').hidden, false);
@@ -127,7 +127,7 @@ test('load bar offers order cancel only for a blocked order', () => {
 
 test('load bar order cancel closes the bar and sends confirmed cleanup evidence', () => {
   const order = { order_id: 'o1', robot_id: 'pinky1', sku: 'SHOE42', blocked: true,
-    load_confirmable: true, resumable: false };
+    load_confirmable: true, load_waiting: true, resumable: false };
   const { context, el } = loadBarUi(order);
   const requests = [];
   context.sendOrderRecover = (...args) => requests.push(args);

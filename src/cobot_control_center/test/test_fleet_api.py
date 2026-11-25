@@ -25,8 +25,8 @@ import threading
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
     active_orders, ArmStore, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
-    load_robot_params, MapError, mjpeg_part, order_events, service_order, service_orders,
-    service_summary, SnapshotStore, TaskStore)
+    load_robot_params, load_waiting, MapError, mjpeg_part, order_events, service_order,
+    service_orders, service_summary, SnapshotStore, TaskStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -897,6 +897,33 @@ def test_load_confirmable_matches_fleet_rule():
     assert load_confirmable(dict(WAITING_LOAD, manual_load_pending={'operator': 'a'})) is False
 
 
+def test_load_waiting_only_when_stuck():
+    for stage, limit in (('VERIFY_LOAD', 10.0), ('MARKER', 10.0), ('PICK', 120.0),
+                         ('LOAD', 120.0), ('CORRECT_PICKUP', 120.0)):
+        stuck = dict(WAITING_LOAD, stage=stage, updated_at=1000.0)
+        assert load_waiting(stuck, 1000.0 + limit - 0.1) is False, stage
+        assert load_waiting(stuck, 1000.0 + limit) is True, stage
+    fresh = dict(WAITING_LOAD, stage='PICK', updated_at=1000.0)
+    assert load_waiting(dict(fresh, state='UNKNOWN'), 1000.0) is True
+    # 시각을 모르면 경고를 놓치지 않는다
+    assert load_waiting(dict(fresh, updated_at=None), 1000.0) is True
+    # 수동 확인을 받을 수 없는 주문은 오래돼도 경고하지 않는다
+    assert load_waiting(dict(fresh, operator_load_confirmation={'operator': 'a'}), 9e9) is False
+    assert load_waiting(dict(fresh, stage='LEAVE_PICKUP'), 9e9) is False
+    assert load_waiting(fresh, 1005.0, limits=(1.0, 5.0)) is True
+    # 화면 목록: 정상 진행 중이면 버튼만 되고 경고는 없다
+    for item in (active_orders([fresh], now=1030.0)[0], service_order(fresh, now=1030.0)):
+        assert item['load_confirmable'] is True and item['load_waiting'] is False
+
+
+def test_task_store_load_limits():
+    tasks = TaskStore(3.0, 0.5, load_limits=(1e12, 1e12))
+    tasks.put_snapshot(json.dumps(dict(
+        FLEET_SNAPSHOT, orders=[dict(WAITING_LOAD, updated_at=1.0)])))
+    assert tasks.health()['orders'][0]['load_waiting'] is False
+    assert tasks.service(5)['active'][0]['load_waiting'] is False
+
+
 def test_active_orders_hide_finished_and_internal_fields():
     orders = [WAITING_LOAD,
               dict(WAITING_LOAD, order_id='o2', state='COMPLETED'),
@@ -912,6 +939,7 @@ def test_active_orders_hide_finished_and_internal_fields():
                          'stage': 'DOCK_PICKUP', 'completed': ['MOVE_PICKUP'], 'sku': 'box_a',
                          'route': 'lab_delivery', 'detail': '정차 실측 대기',
                          'load_confirmed': False, 'load_confirmable': True,
+                         'load_waiting': True,
                          'blocked': False, 'resumable': False, 'retryable': False,
                          'hand_done': False}
     assert result[1]['load_confirmable'] is False

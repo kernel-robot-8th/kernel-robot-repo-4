@@ -323,7 +323,7 @@ function collectTodo() {
       // 관제 재시작으로 멈춘 접수 주문: 로봇이 없어 이어서 갈 것이 없고 저절로 출발하지 않는다.
       add("warn", `주문 ${order.order_id} 접수 멈춤`, `${who} · ${order.step_text}`,
         { label: "주문 취소", run: () => openCancelDialog(order) });
-    } else if (order.load_confirmable) {
+    } else if (order.load_waiting) {
       add("warn", `주문 ${order.order_id} 상차 확인 필요`, `${who} · 사람이 직접 싣고 확인`,
         { label: "확인하기", run: () => openLoadDialog(order) });
     } else if (order.failure) {
@@ -398,7 +398,7 @@ function renderTodo() {
 
 function orderChip(order) {
   const service = view.service;
-  const cls = order.blocked ? "stuck" : order.load_confirmable || order.cancel_requested ? "attention" : "";
+  const cls = order.blocked ? "stuck" : order.load_waiting || order.cancel_requested ? "attention" : "";
   const chip = el("button", `order-chip ${cls}`);
   chip.type = "button";
   const top = el("div", "chip-top");
@@ -407,7 +407,7 @@ function orderChip(order) {
   chip.appendChild(top);
   chip.appendChild(el("div", "chip-item", `${order.sku || "—"} → ${destinationName(order)}`));
   chip.appendChild(el("div", "chip-now", order.blocked ? `멈춤 · ${orderStateText(order)}`
-    : order.load_confirmable && !order.cancel_requested ? "상차 확인 필요" : order.step_text));
+    : order.load_waiting && !order.cancel_requested ? "상차 확인 필요" : order.step_text));
   chip.appendChild(el("div", "chip-robot", order.robot_id || "로봇 배정 전"));
   chip.addEventListener("click", () => openOrderDialog(order));
   return chip;
@@ -645,7 +645,7 @@ function openOrderDialog(order) {
   const finished = Boolean(order.outcome);
   const status = finished ? order.outcome_text
     : order.blocked ? `멈춤 (${orderStateText(order)}) · ${order.step_text}`
-      : order.load_confirmable ? "상차장에서 멈춤 · 상차 확인 필요" : order.step_text;
+      : order.load_waiting ? "상차 확인 필요" : order.step_text;
   const actions = [];
   if (!finished && order.load_confirmable) {
     actions.push({ label: "상차 확인", run: () => openLoadDialog(order), disabled: !commandsAllowed() });

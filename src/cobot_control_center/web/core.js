@@ -67,7 +67,7 @@ const view = {
   cameras: {},      // /api/health 의 cameras: 로봇별 {age_sec, frames}
   spec: null,       // /api/health 의 spec: 로봇별 명령 규격 v1/v2 (작업 노드가 없으면 null)
   holds: {},        // /api/health 의 holds: fleet_control 이 보류한 로봇 → 사유 (STOP·ESTOP 등)
-  orders: [],       // /api/health 의 orders: 끝나지 않은 주문 (load_confirmable 이면 상차 확인 대기)
+  orders: [],       // /api/health 의 orders: 끝나지 않은 주문 (load_waiting 이면 상차 확인 대기)
   routeTotals: new Map(), // route_id → 구간 수 (작업 목록 '경로 n/N' 꼬리표용, /api/routes·health 로 채움)
   routes: {},       // /api/health 의 routes: 로봇별 마지막 경로 (state RUNNING 이면 진행 중, route_utils)
   netAlerts: [],    // /api/network 의 alerts: 경고 띠에 더할 네트워크·PC 경고 (network.js)

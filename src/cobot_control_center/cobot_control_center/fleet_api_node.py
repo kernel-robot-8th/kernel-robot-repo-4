@@ -93,8 +93,13 @@ class FleetApiNode(Node):
         self.create_subscription(String, '/control_center/fleet_status', self._on_fleet, 10)
 
         # 작업 노드(fleet_control_node)와 같은 QoS. 목록은 transient_local 이라 늦게 켜져도 마지막 값을 받는다.
+        # 상차 확인 경고까지 기다리는 시간: 자동 확인 단계, 팔·로봇이 움직이는 단계
+        self.declare_parameter('load_wait_sec', 10.0)
+        self.declare_parameter('load_wait_arm_sec', 120.0)
         self.tasks = TaskStore(self.get_parameter('task_stale_sec').value,
-                               self.get_parameter('reply_timeout_sec').value)
+                               self.get_parameter('reply_timeout_sec').value,
+                               load_limits=(self.get_parameter('load_wait_sec').value,
+                                            self.get_parameter('load_wait_arm_sec').value))
         command_qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.RELIABLE)
         # 읽기 전용이면 요청 발행자를 아예 만들지 않는다 (작업 목록·이벤트는 그대로 받는다).
         self.request_pub = None if self.read_only else self.create_publisher(

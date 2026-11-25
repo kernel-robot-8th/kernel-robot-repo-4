@@ -135,7 +135,8 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `order_id`, `robot_id`, `sku`, `route` | 주문 ID, 배정된 로봇(없으면 null), 상품, 경로 (`col1__P22` 등) |
 | `state`, `stage`, `completed`, `detail` | fleet 주문 상태(`WAITING`·`RUNNING`·`UNKNOWN` 등), 지금 단계(`MOVE_PICKUP` 등), 끝낸 단계 목록, 설명 |
 | `load_confirmed` | 운영자 수동 상차 확인을 이미 받았는지 |
-| `load_confirmable` | 화면에 **상차 확인** 을 보일지. `state` 가 `RUNNING`/`UNKNOWN`, `stage` 가 `PICKUP_EXIT`~`VERIFY_LOAD` 또는 `CORRECT_PICKUP`, `completed` 에 `MOVE_PICKUP`, 로봇 배정됨, 실패 없음, 아직 확인 안 함 (`fleet_api_utils.load_confirmable`). fleet 의 검사(`scenario_safety.confirm_loaded`)와 같은 조건이지만 표시용이고, 최종 검사(정지·통신·구역·예약)는 fleet 이 합니다 |
+| `load_confirmable` | 화면에 **상차 확인** 을 보일지. `state` 가 `RUNNING`/`UNKNOWN`, `stage` 가 `PICKUP_EXIT`~`VERIFY_LOAD` 또는 `CORRECT_PICKUP`, `completed` 에 `MOVE_PICKUP`, 로봇 배정됨, 실패 없음, 아직 확인 안 함 (`fleet_api_utils.load_confirmable`). fleet 의 검사(`scenario_safety.confirm_loaded`)와 같은 조건이지만 표시용이고, 최종 검사(정지·통신·구역·예약)는 fleet 이 합니다. 정상 진행 중에도 참이므로 경고에는 쓰지 않습니다 |
+| `load_waiting` | 화면에 **상차 확인 필요** 경고를 띄울지. `load_confirmable` 이고, `state` 가 `UNKNOWN` 이거나 `updated_at` 뒤로 한도 이상 지났을 때 (`fleet_api_utils.load_waiting`). 한도는 `fleet_api_node` 파라미터: `PICK`·`LOAD`·`CORRECT_PICKUP` 은 `load_wait_arm_sec`(120초), 나머지는 `load_wait_sec`(10초) |
 
 ### `/api/service` (서비스 화면)
 
@@ -150,7 +151,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
  "active": [{"order_id": "cust-…", "sku": "SHOE-1", "destination": "P22", "robot_id": "pinky2",
              "state": "RUNNING", "stage": "PICK", "step": 1, "step_text": "로봇팔이 상품 꺼내는 중",
              "returning": false, "outcome": null, "blocked": false, "resumable": false, "retryable": false, "hand_done": false, "cancelable": false,
-             "load_confirmable": true, "load_confirmed": false, "failure": null,
+             "load_confirmable": true, "load_waiting": false, "load_confirmed": false, "failure": null,
              "created_at": 1793517800.0, "updated_at": 1793517860.0, "…": "ORDER_FIELDS 나머지"}],
  "finished": [{"…": "같은 모양", "outcome": "sold", "outcome_text": "구매 완료"}],
  "stock": [{"sku": "SHOE-1", "available": 2, "shelf_row": 1, "shelf_col": 1}],
@@ -166,7 +167,7 @@ fleet 이 `/control_center/tasks` 에 싣는 주문 원장 사본(`orders`)에�
 | `step`, `step_text` | `steps` 의 위치(0 접수 … 5 복귀)와 지금 하는 일. 단계 표는 `fleet_api_utils.SERVICE_STAGE` (fleet `scenario_tree` 단계 이름을 복사). 모르는 단계면 `step` null, `step_text` 는 코드 그대로 |
 | `returning` | 고객이 사지 않았거나 시간 초과라 회수·정리 단계를 거치는지 |
 | `outcome`, `outcome_text` | 끝난 주문 결과 `sold` 구매 완료 · `declined` 구매 안 함 · `timeout` 고객 응답 없음 · `done` 완료(고객 결정 없는 주문) · `cancelled` 접수 취소(주문의 `operator_cancelled`)·직원 취소(`cancel_requested`, `operator_restocked`) · `failed` 처리 못 함. 진행 중이면 null |
-| `blocked`, `resumable`, `retryable`, `hand_done`, `load_confirmable`, `load_confirmed` | [`/api/health` 의 `orders`](#apihealth-의-orders) 와 같은 조건 (표시용, 최종 검사는 fleet) |
+| `blocked`, `resumable`, `retryable`, `hand_done`, `load_confirmable`, `load_waiting`, `load_confirmed` | [`/api/health` 의 `orders`](#apihealth-의-orders) 와 같은 조건 (표시용, 최종 검사는 fleet) |
 | `returnable`, `cancel_requested` | 진행 중 취소(`cancel`)를 보낼 수 있는지(표시용), 이미 취소를 요청했는지 |
 | `shelf_returnable`, `purchased` | 멈춘 주문을 취소할 때 `item_on_shelf` 를 쓸 수 있는지(표시용), 고객이 구매했는지 |
 | `cancelable` | 로봇 배정 전 주문(`WAITING`, 또는 관제 재시작으로 멈춘 접수 주문). `recover` 의 `fail` 을 현장 확인값 없이 받고 재고를 돌려줌 |
