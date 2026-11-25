@@ -48,21 +48,25 @@ http://<관제 PC IP>:8081/?loc=P22
 |---|---|---|
 | 신발 선택 → 상세 | | 재고 0 이면 품절 |
 | "Cobot이 물건을 준비 중이에요" (접수) | `RECEIVED` | `WAITING` (로봇 배정 전) |
-| 〃 (꺼내는 중) | `ASSIGNED`, `LOADING` | `MOVE_PICKUP`, 상차 구역 안 단계(`PICKUP_EXIT`~`VERIFY_LOAD`) |
-| 〃 (가는 중) | `IN_TRANSIT` | `LEAVE_PICKUP`, `MOVE_CUSTOMER` (고객 자리로 이동) |
+| 〃 (꺼내는 중) | `ASSIGNED`, `LOADING` | `MOVE_PICKUP`, 상차 구역 안 단계(`PICKUP_EXIT`~`VERIFY_LOAD`, `LEAVE_PICKUP`) |
+| 〃 (가는 중) | `IN_TRANSIT` | `MOVE_CUSTOMER` (고객 자리로 이동) |
 | 도착 → [구매하기] / [구매하지 않을게요] | `UNLOADING` | `CUSTOMER` 이고 `RUNNING` |
 | 결제 → [결제하기] 또는 QR 스캔 뒤 [QR 결제를 완료했어요] | | 구매하기를 누른 뒤. 핸드폰 하나로도 결제할 수 있게 버튼을 둔다. 둘 다 가짜 결제다 |
 | 구매 완료 | `HANDOVER_CONFIRMED` | `customer_received` |
-| 구매 취소 | `CANCELLED` | `customer_declined`, 수령 시간 초과(`customer_timed_out`), 수령 확인 없이 종결 |
-| 실패 | `FAILED` | `FAILED` |
+| 구매 취소 | `CANCELLED` | `customer_declined`, 수령 확인 없이 종결 |
+| 매장 취소 (`view: store_cancelled`) | `CANCELLED` | `cancel_requested`(실패 종결 제외), `operator_cancelled`, `operator_restocked` |
+| 시간 초과 (`view: timed_out`) | `CANCELLED` | `customer_timed_out` |
+| 실패 | `FAILED` | `FAILED`, 피킹 전 실패(`failure`)로 복귀 중 |
 | QR 을 찍어 달라는 안내 | | 주소에 `loc` 가 없거나 모르는 자리 |
 
 - 화면 단계 이름은 고객 화면의 진행 표시에 맞춘 것이다. 바꾸는 규칙은 `customer_gateway_utils.order_progress` 에 있다.
 - 고객 결정: [구매하기] → `type=received`, [구매하지 않을게요] → `type=declined`. fleet_control 은 `CUSTOMER` 단계에서만 받는다.
 - 고객 자리에는 팔이 없다. 고객이 핑키에서 신발을 직접 꺼내고 그 자리에서 결제한다.
-- **도착 뒤 5분(`customer_timeout_sec: 300`) 안에 고르지 않으면** fleet_control 이 시간 초과로 기록하고 로봇이 신발을 실은 채 HOME 으로 돌아간다. 재고는 운영자가 맞춘다. 화면은 구매 취소로 바뀐다.
+- **도착 뒤 5분(`customer_timeout_sec: 300`) 안에 고르지 않으면** fleet_control 이 시간 초과로 기록하고 로봇이 신발을 실은 채 HOME 으로 돌아간다. 재고는 운영자가 맞춘다. 화면은 '시간이 지나 Cobot이 돌아갔어요' 로 바뀐다.
 - [구매하지 않을게요] = 회수: 로봇이 ZC 로 가서 omx3 가 신발을 정리해 핑키에 다시 올리고, ZA 에서 omx1 이 선반에 반환한 뒤 HOME. 반환이 끝나면 재고가 1 돌아온다 (fleet_control README '고객 자리(지점) 주문').
-- 정지·현장 확인 중(`UNKNOWN`, `PAUSED`, `ESTOP`, `MANUAL`)에는 준비 중 화면을 유지한다.
+- 정지·현장 확인 중(`UNKNOWN`, `PAUSED`, `ESTOP`, `MANUAL`)에는 준비 중 화면에 '잠시 멈췄어요' 를 보이고(`paused`), 재개되면 원래 화면으로 돌아온다. 로봇 배정 전에 멈춘 주문은 접수 단계로 보인다.
+- 주문 받기가 꺼져 있으면(`accepting: false`) 접수 단계에서 '지금은 로봇이 쉬고 있어요' 를 보인다.
+- 구매 완료는 그 뒤 로봇 복귀가 실패해도 유지한다.
 - 진행 중인 주문은 브라우저 `localStorage` 에 남겨서 새로고침해도 이어진다.
 - 주문은 만든 화면(세션)만 조회·결정할 수 있다. 세션 소유는 게이트웨이 메모리에만 있어서 게이트웨이를 다시 켜면 진행 중이던 화면은 처음으로 돌아간다 (주문 자체는 fleet_control 에 남는다).
 
@@ -72,10 +76,10 @@ http://<관제 PC IP>:8081/?loc=P22
 |---|---|---|
 | `GET /catalog?loc=` | | `{location: {id,name}\|null, items: [{sku,name,brand,size,color,price,image,available}]}` |
 | `POST /orders` | `{sku, loc, client_key, session}` | `{order_id, view}` |
-| `GET /orders/<id>?session=` | | `{order_id, sku, stage, view, failure_reason}` |
-| `POST /orders/<id>/decision` | `{decision: PAID\|CANCEL, session}` | `{order_id, sku, stage, view, failure_reason}` |
+| `GET /orders/<id>?session=` | | `{order_id, sku, stage, view, failure_reason, paused, accepting}` |
+| `POST /orders/<id>/decision` | `{decision: PAID\|CANCEL, session}` | `{order_id, sku, stage, view, failure_reason, paused, accepting}` |
 
-- `view`: `preparing`, `arrived`, `paid`, `cancelled`, `failed`, `out_of_stock`
+- `view`: `preparing`, `arrived`, `paid`, `cancelled`, `store_cancelled`, `timed_out`, `failed`, `out_of_stock`
 - 오류: 400 (형식), 404 (모르는 주문·다른 세션), 409 (fleet_control 거절: `ORDER_REJECTED`, `WRONG_STAGE`. `detail` 에 거절 이유), 503 (fleet_control 응답 없음 또는 스냅숏을 아직 못 받음)
 - `GET /catalog` 도 스냅숏을 한 번도 못 받았으면 503 이다 (`location: null` 은 '모르는 자리' 에만 쓴다). 화면은 "매장 시스템에 연결하는 중" 을 보이고 3초마다 다시 묻는다. 그래서 게이트웨이를 fleet_control 보다 먼저 켜도 QR 안내 화면에 멈추지 않는다.
 - `client_key` 는 주문 버튼 한 번마다 새로 만든다 (영문·숫자·밑줄·하이픈). 게이트웨이가 `cust-<client_key>` 를 fleet_control 의 `order_id` 로 쓴다. 같은 `order_id` 를 다시 보내면 fleet_control 이 같은 주문을 돌려준다.
@@ -102,4 +106,4 @@ ros2 launch cobot_gui customer_gateway.launch.xml          # 고객 화면
   ```
   `customer_catalog.yaml` 의 SKU 와 같아야 화면에 재고가 보인다. 지금 상차 구역은 1열(ZA)·2열(ZB)뿐이라 3열 신발은 주문이 거절된다.
 - 로봇이 움직이려면 관제에서 작업 명령을 켜야 한다 (`type=arm`). 꺼져 있으면 주문은 접수되고 `WAITING` 에 머문다.
-- 화면만 볼 때 (ROS 없이): `cd src/cobot_gui/web && npm run dev` 후 `http://localhost:5173/customer.html?loc=BENCH_1` (모의 서버). 빌드본은 주소에 `&mock=1` 을 붙이면 모의 서버를 쓴다.
+- 화면만 볼 때 (ROS 없이): `cd src/cobot_gui/web && npm run dev` 후 `http://localhost:5173/customer.html?loc=P22` (모의 서버). 빌드본은 주소에 `&mock=1` 을 붙이면 모의 서버를 쓴다.

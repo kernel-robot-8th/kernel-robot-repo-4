@@ -42,12 +42,17 @@ VIEW_PREPARING = 'preparing'
 VIEW_ARRIVED = 'arrived'
 VIEW_PAID = 'paid'
 VIEW_CANCELLED = 'cancelled'
+VIEW_STORE_CANCELLED = 'store_cancelled'
+VIEW_TIMED_OUT = 'timed_out'
 VIEW_FAILED = 'failed'
 VIEW_OUT_OF_STOCK = 'out_of_stock'
 
-# fleet_control 의 상차 구역 안 단계 (scenario_tree.STAGES 의 PICKUP_EXIT ~ VERIFY_LOAD 와 보정).
+# fleet_control 의 멈춤 상태와 같은 값 (scenario_contracts.BLOCKED). 패키지끼리 import 하지 않는다.
+_BLOCKED = frozenset(('UNKNOWN', 'PAUSED', 'ESTOP', 'MANUAL'))
+# fleet_control 의 상차 구역 안 단계와 보정, 구역 이탈 (관리화면의 '상품 준비' 와 같은 범위).
 _PICKUP_STAGES = frozenset((
-    'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER', 'PICK', 'LOAD', 'VERIFY_LOAD'))
+    'PICKUP_EXIT', 'DOCK_PICKUP', 'CORRECT_PICKUP', 'MARKER', 'PICK', 'LOAD', 'VERIFY_LOAD',
+    'LEAVE_PICKUP'))
 # 고객 결정 -> fleet_control 요청 type
 _DECISION_REQUEST = {'PAID': 'received', 'CANCEL': 'declined'}
 # fleet_control 이 재고가 없을 때 돌려주는 거절 문구의 앞부분 (scenario_repository.create).
@@ -70,24 +75,40 @@ def order_progress(order):
     if order is None:
         return '', VIEW_PREPARING
     state, stage = order.get('state', ''), order.get('stage', '')
-    if state == 'FAILED':
-        return 'FAILED', VIEW_FAILED
     if order.get('customer_received'):
+        # 구매한 뒤 로봇 복귀가 실패해도 고객의 구매는 끝난 것이다.
         return 'HANDOVER_CONFIRMED', VIEW_PAID
-    if order.get('customer_declined') or order.get('customer_timed_out'):
+    if (order.get('operator_cancelled') or order.get('operator_restocked')
+            or (order.get('cancel_requested') and state != 'FAILED')):
+        # 직원 취소도 fleet_control 이 failure·customer_declined 를 쓰므로 그보다 먼저 본다.
+        return 'CANCELLED', VIEW_STORE_CANCELLED
+    if state == 'FAILED' or order.get('failure'):
+        # failure 는 피킹 전 실패다. 로봇이 홈으로 돌아가는 동안에도 고객에게 오지 않는다.
+        return 'FAILED', VIEW_FAILED
+    if order.get('customer_timed_out'):
+        return 'CANCELLED', VIEW_TIMED_OUT
+    if order.get('customer_declined'):
         return 'CANCELLED', VIEW_CANCELLED
     if state == 'COMPLETED':
         # 수령 확인 없이 끝난 주문(운영자 복구 등)을 구매 완료로 보이지 않는다.
         return 'CANCELLED', VIEW_CANCELLED
-    if stage == 'CUSTOMER' and state == 'RUNNING':
-        return 'UNLOADING', VIEW_ARRIVED
-    if state == 'WAITING':
+    if stage == 'CUSTOMER':
+        # 멈춘 동안에는 fleet_control 이 결정을 받지 않으므로 도착 화면(버튼)을 띄우지 않는다.
+        return 'UNLOADING', VIEW_ARRIVED if state == 'RUNNING' else VIEW_PREPARING
+    if state == 'WAITING' or (state in _BLOCKED and not order.get('robot_id')):
+        # 관제 재시작은 배정 전 주문도 UNKNOWN 으로 바꾼다. 로봇이 없으면 아직 접수 단계다.
         return 'RECEIVED', VIEW_PREPARING
     if stage == 'MOVE_PICKUP':
         return 'ASSIGNED', VIEW_PREPARING
     if stage in _PICKUP_STAGES:
         return 'LOADING', VIEW_PREPARING
     return 'IN_TRANSIT', VIEW_PREPARING
+
+
+def order_paused(order):
+    """고객이 기다리는 주문이 정지·현장 확인으로 멈췄는가 (끝난 화면에는 쓰지 않는다)."""
+    return bool(order) and order.get('state') in _BLOCKED \
+        and order_progress(order)[1] == VIEW_PREPARING
 
 
 def load_catalog(path):
@@ -122,6 +143,7 @@ class CustomerApi:
       - request(payload): /control_center/task_request 요청. {'status', 'body'} 또는 None(응답 없음)
       - get_order(order_id): 스냅숏의 주문 dict 또는 None
       - available(sku): 주문할 수 있는 수량 또는 None(모름)
+      - accepting(): 주문 받기(작업 명령)가 켜졌는지. 모르면 None
       - destinations(): {자리 ID: {'name'}} 또는 None(스냅숏을 아직 못 받음)
     """
 
@@ -218,7 +240,11 @@ class CustomerApi:
             'sku': order.get('sku', ''),
             'stage': stage,
             'view': view,
-            'failure_reason': order.get('detail', '') if view == VIEW_FAILED else '',
+            'failure_reason': (order.get('failure') or order.get('detail', '')
+                               if view == VIEW_FAILED else ''),
+            'paused': order_paused(order),
+            # None 은 모른다는 뜻이다. 화면은 False 일 때만 안내한다.
+            'accepting': self._backend.accepting(),
         }
 
     def _status(self, order_id, session):

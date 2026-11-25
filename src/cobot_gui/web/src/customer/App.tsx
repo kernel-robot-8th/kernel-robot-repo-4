@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   MapPin,
   PackageCheck,
+  PauseCircle,
   QrCode,
   ShoppingBag,
   Truck,
@@ -33,6 +34,7 @@ const STEPS = [
 const ERROR_TEXT: Record<string, string> = {
   CONTROL_CENTER_UNAVAILABLE: "매장 시스템에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   UNKNOWN_LOCATION: "자리 정보를 알 수 없어요. 자리의 QR 코드를 다시 찍어 주세요.",
+  ORDER_REJECTED: "지금은 이 신발을 주문할 수 없어요. 직원에게 말씀해 주세요.",
   WRONG_STAGE: "아직 신발이 도착하지 않았어요.",
 };
 
@@ -220,7 +222,7 @@ export default function App({ api, search }: { api: CustomerApi; search: string 
       />
     );
   } else if (saved && view === "preparing") {
-    body = <Preparing stage={order?.stage ?? ""} shoe={shoe} />;
+    body = <Preparing order={order} shoe={shoe} />;
   } else if (saved && view === "arrived" && paying && shoe) {
     body = <Payment shoe={shoe} busy={busy} onPaid={() => decide("PAID")} onBack={() => setPaying(false)} />;
   } else if (saved && view === "arrived") {
@@ -361,7 +363,10 @@ function Detail({
   );
 }
 
-function Preparing({ stage, shoe }: { stage: string; shoe: Shoe | null }) {
+function Preparing({ order, shoe }: { order: OrderState | null; shoe: Shoe | null }) {
+  const stage = order?.stage ?? "";
+  const paused = order?.paused === true;
+  const resting = !paused && stage === "RECEIVED" && order?.accepting === false;
   const current = Math.max(
     0,
     STEPS.findIndex((step) => step.stages.includes(stage)),
@@ -369,9 +374,19 @@ function Preparing({ stage, shoe }: { stage: string; shoe: Shoe | null }) {
   return (
     <section className="c-center">
       <div className="c-robot" aria-hidden>
-        <Bot size={56} />
+        {paused ? <PauseCircle size={56} /> : <Bot size={56} />}
       </div>
-      <h1 className="c-title">Cobot이 물건을 준비 중이에요</h1>
+      <h1 className="c-title">{paused ? "잠시 멈췄어요" : "Cobot이 물건을 준비 중이에요"}</h1>
+      {paused && (
+        <p className="c-sub" role="status">
+          직원이 확인하고 있어요. 잠시만 기다려 주세요.
+        </p>
+      )}
+      {resting && (
+        <p className="c-sub" role="status">
+          지금은 로봇이 쉬고 있어요. 매장에서 주문 받기를 시작하면 출발해요.
+        </p>
+      )}
       {shoe && (
         <p className="c-sub">
           {shoe.name} · {shoe.size}
@@ -488,6 +503,16 @@ const FINISHED: Record<string, { title: string; text: string; icon: typeof Check
   cancelled: {
     title: "구매를 취소했어요",
     text: "Cobot이 신발을 정리해서 창고로 돌아가요. 다른 신발도 둘러보세요.",
+    icon: Undo2,
+  },
+  store_cancelled: {
+    title: "매장에서 주문을 취소했어요",
+    text: "신발이 로봇 위에 있으면 그대로 두세요. 궁금한 점은 직원에게 말씀해 주세요.",
+    icon: Undo2,
+  },
+  timed_out: {
+    title: "시간이 지나 Cobot이 돌아갔어요",
+    text: "신발을 다시 보고 싶으시면 새로 주문하거나 직원에게 말씀해 주세요.",
     icon: Undo2,
   },
   out_of_stock: { title: "지금은 재고가 없어요", text: "다른 신발을 골라 주세요.", icon: X },

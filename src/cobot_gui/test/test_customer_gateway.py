@@ -36,10 +36,14 @@ class FakeFleet:
         self.calls = []
         self.down = False
         self.stock = {SHOE: 3, SOLD_OUT: 0}
+        self.armed = True
         self.places = {'BENCH_1': {'name': '고객 벤치 1'}}
 
     def available(self, sku):
         return self.stock.get(sku, 0)
+
+    def accepting(self):
+        return self.armed
 
     def destinations(self):
         return self.places
@@ -118,7 +122,9 @@ def test_order_goes_to_fleet_with_destination(api):
         'order_id': 'cust-k1', 'sku': SHOE, 'quantity': 1, 'destination': 'BENCH_1'}}]
     assert _status(api_obj)[1] == {
         'order_id': 'cust-k1', 'sku': SHOE, 'stage': 'RECEIVED', 'view': 'preparing',
-        'failure_reason': ''}
+        'failure_reason': '', 'paused': False, 'accepting': True}
+    fleet.armed = False
+    assert _status(api_obj)[1]['accepting'] is False
 
 
 def test_purchase_and_decline_map_to_fleet_requests(api):
@@ -202,8 +208,30 @@ def test_fleet_down_is_503(api):
     ({'state': 'RUNNING', 'stage': 'VERIFY_UNLOAD'}, ('IN_TRANSIT', 'preparing')),
     ({'state': 'RUNNING', 'stage': 'CUSTOMER'}, ('UNLOADING', 'arrived')),
     # 정지·현장 확인 중에는 결정을 받을 수 없으므로 도착 화면을 띄우지 않는다.
-    ({'state': 'ESTOP', 'stage': 'CUSTOMER'}, ('IN_TRANSIT', 'preparing')),
-    ({'state': 'UNKNOWN', 'stage': 'LOAD'}, ('LOADING', 'preparing')),
+    ({'state': 'ESTOP', 'stage': 'CUSTOMER', 'robot_id': 'pinky1'}, ('UNLOADING', 'preparing')),
+    ({'state': 'UNKNOWN', 'stage': 'LOAD', 'robot_id': 'pinky1'}, ('LOADING', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'LEAVE_PICKUP'}, ('LOADING', 'preparing')),
+    ({'state': 'RUNNING', 'stage': 'MOVE_CUSTOMER'}, ('IN_TRANSIT', 'preparing')),
+    # 관제 재시작으로 멈춘 배정 전 주문은 아직 접수 단계다.
+    ({'state': 'UNKNOWN', 'stage': 'MOVE_PICKUP', 'robot_id': None}, ('RECEIVED', 'preparing')),
+    # 직원 취소: 집기 전(홈 복귀·종결), 집기 뒤(이동·반납·종결), 접수 취소, 직접 처리.
+    ({'state': 'RUNNING', 'stage': 'RETURN_HOME', 'failure': '직원 취소',
+      'operator_cancelled': True, 'cancel_requested': {'stage': 'MOVE_PICKUP'}},
+     ('CANCELLED', 'store_cancelled')),
+    ({'state': 'FAILED', 'stage': 'RETURN_EXIT', 'failure': '직원 취소',
+      'operator_cancelled': True}, ('CANCELLED', 'store_cancelled')),
+    ({'state': 'RUNNING', 'stage': 'CUSTOMER', 'cancel_requested': {'stage': 'CUSTOMER'}},
+     ('CANCELLED', 'store_cancelled')),
+    ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT', 'customer_declined': True,
+      'cancel_requested': {'stage': 'PICK'}}, ('CANCELLED', 'store_cancelled')),
+    ({'state': 'FAILED', 'stage': 'LOAD', 'operator_restocked': True},
+     ('CANCELLED', 'store_cancelled')),
+    # 취소한 주문의 반납이 실패하면 관리화면처럼 처리 못 함이다.
+    ({'state': 'FAILED', 'stage': 'RESTOCK', 'customer_declined': True,
+      'cancel_requested': {'stage': 'PICK'}}, ('FAILED', 'failed')),
+    # 피킹 전 실패로 홈에 돌아가는 중이다.
+    ({'state': 'RUNNING', 'stage': 'RETURN_HOME', 'failure': '정차 공차 초과'},
+     ('FAILED', 'failed')),
     ({'state': 'RUNNING', 'stage': 'RETURN_HOME', 'customer_received': True},
      ('HANDOVER_CONFIRMED', 'paid')),
     ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT', 'customer_received': True},
@@ -211,13 +239,28 @@ def test_fleet_down_is_503(api):
     ({'state': 'RUNNING', 'stage': 'LEAVE_DROPOFF', 'customer_declined': True},
      ('CANCELLED', 'cancelled')),
     ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT', 'customer_timed_out': True},
-     ('CANCELLED', 'cancelled')),
+     ('CANCELLED', 'timed_out')),
     ({'state': 'COMPLETED', 'stage': 'RETURN_EXIT'}, ('CANCELLED', 'cancelled')),
     ({'state': 'FAILED', 'stage': 'DOCK_PICKUP', 'customer_received': True},
-     ('FAILED', 'failed')),
+     ('HANDOVER_CONFIRMED', 'paid')),
 ])
 def test_order_progress(order, expected):
     assert gw.order_progress(order) == expected
+
+
+def test_paused_order_comes_back_when_resumed(api):
+    api_obj, fleet = api
+    _order(api_obj)
+    fleet.move('cust-k1', state='ESTOP', stage='CUSTOMER', robot_id='pinky1')
+    body = _status(api_obj)[1]
+    assert (body['view'], body['paused']) == ('preparing', True)
+    fleet.move('cust-k1', state='RUNNING')
+    body = _status(api_obj)[1]
+    assert (body['view'], body['paused']) == ('arrived', False)
+    # 이미 끝난 화면(구매 완료)에는 멈춤을 알리지 않는다.
+    fleet.move('cust-k1', state='ESTOP', stage='RETURN_HOME', customer_received=True)
+    body = _status(api_obj)[1]
+    assert (body['view'], body['paused']) == ('paid', False)
 
 
 def test_failed_order_shows_reason(api):

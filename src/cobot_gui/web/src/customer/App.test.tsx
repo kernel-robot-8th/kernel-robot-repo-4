@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import { formatPrice } from "./format";
-import { ApiError, createMockApi, isMockMode, viewOf } from "./api";
+import { ApiError, createMockApi, isMockMode, viewOf, type OrderState } from "./api";
 
 let clock = 0;
 
@@ -34,7 +34,7 @@ async function advance(ms: number) {
   await flush();
 }
 
-function renderApp(search = "?loc=BENCH_1") {
+function renderApp(search = "?loc=P22") {
   const api = createMockApi(1000, () => clock);
   render(<App api={api} search={search} />);
   return api;
@@ -55,19 +55,19 @@ describe("고객 주문 화면", () => {
       calls += 1;
       return calls === 1 ? Promise.reject(new ApiError(503, "CONTROL_CENTER_UNAVAILABLE")) : real(loc);
     };
-    render(<App api={api} search="?loc=BENCH_1" />);
+    render(<App api={api} search="?loc=P22" />);
     await flush();
     expect(screen.getByText("매장 시스템에 연결하는 중이에요")).toBeInTheDocument();
     expect(screen.queryByText("자리의 QR 코드를 찍어 주세요")).not.toBeInTheDocument();
     await advance(3000);
     expect(calls).toBe(2);
-    expect(screen.getByLabelText("주문 자리")).toHaveTextContent("고객 벤치 1");
+    expect(screen.getByLabelText("주문 자리")).toHaveTextContent("P22 자리");
   });
 
   it("신발 목록과 자리, 품절을 보인다", async () => {
     renderApp();
     await flush();
-    expect(screen.getByLabelText("주문 자리")).toHaveTextContent("고객 벤치 1");
+    expect(screen.getByLabelText("주문 자리")).toHaveTextContent("P22 자리");
     expect(screen.getByRole("button", { name: "에어 러너 260" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "컴포트 샌들 240" })).toBeDisabled();
     expect(screen.getByText("품절")).toBeInTheDocument();
@@ -106,6 +106,49 @@ describe("고객 주문 화면", () => {
     expect(screen.getByText(/Cobot이 신발을 정리해서 창고로 돌아가요/)).toBeInTheDocument();
   });
 
+  async function orderWith(state: Partial<OrderState>) {
+    const api = createMockApi(1000, () => clock);
+    let current: Partial<OrderState> = state;
+    const real = api.status;
+    api.status = async (id, session) => ({ ...(await real(id, session)), ...current });
+    render(<App api={api} search="?loc=P22" />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "에어 러너 260" }));
+    fireEvent.click(screen.getByRole("button", { name: /Cobot에게 가져다/ }));
+    await flush();
+    await advance(1000);
+    return (next: Partial<OrderState>) => {
+      current = next;
+    };
+  }
+
+  it("멈추면 안내하고, 재개되면 원래 화면으로 돌아온다", async () => {
+    const set = await orderWith({ view: "preparing", stage: "UNLOADING", paused: true });
+    expect(screen.getByText("잠시 멈췄어요")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /구매하기/ })).not.toBeInTheDocument();
+    set({ view: "arrived", stage: "UNLOADING", paused: false });
+    await advance(1000);
+    expect(screen.getByRole("button", { name: /구매하기/ })).toBeInTheDocument();
+  });
+
+  it("주문 받기가 꺼져 있으면 접수 단계에서만 안내한다", async () => {
+    const set = await orderWith({ view: "preparing", stage: "RECEIVED", accepting: false });
+    expect(screen.getByText(/지금은 로봇이 쉬고 있어요/)).toBeInTheDocument();
+    set({ view: "preparing", stage: "LOADING", accepting: false });
+    await advance(1000);
+    expect(screen.queryByText(/지금은 로봇이 쉬고 있어요/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["store_cancelled", "매장에서 주문을 취소했어요"],
+    ["timed_out", "시간이 지나 Cobot이 돌아갔어요"],
+  ] as const)("끝난 이유를 구분한다: %s", async (view, title) => {
+    await orderWith({ view, stage: "CANCELLED" });
+    expect(screen.getByText(title)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /다른 신발 보기/ }));
+    expect(screen.getByText("어떤 신발을 신어 볼까요?")).toBeInTheDocument();
+  });
+
   it("새로고침해도 진행 중인 주문을 이어 본다", async () => {
     renderApp();
     await flush();
@@ -128,6 +171,6 @@ describe("도우미", () => {
   });
 
   it("주소에 mock=1 이 있으면 모의 모드다", () => {
-    expect(isMockMode("?loc=BENCH_1&mock=1")).toBe(true);
+    expect(isMockMode("?loc=P22&mock=1")).toBe(true);
   });
 });

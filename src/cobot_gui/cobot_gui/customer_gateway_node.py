@@ -65,6 +65,7 @@ class CustomerGatewayNode(Node):
         self._orders = {}
         self._stock = {}
         self._destinations = None
+        self._armed = None
         self._snapshot_at = None
         self._waiting = {}
         self._lock = threading.Lock()
@@ -103,6 +104,11 @@ class CustomerGatewayNode(Node):
             if not self._fresh():
                 return None
             return self._stock.get(sku, 0)
+
+    def accepting(self):
+        """주문 받기(작업 명령)가 켜졌는지. 스냅숏이 없거나 오래됐으면 None."""
+        with self._lock:
+            return self._armed if self._fresh() else None
 
     def destinations(self):
         """자리 목록 {위치 ID: {'name'}}. 스냅숏을 한 번도 못 받았으면 None."""
@@ -180,6 +186,8 @@ class CustomerGatewayNode(Node):
             self._orders = orders
             self._stock = stock
             self._destinations = dict(data.get('destinations') or {})
+            armed = data.get('armed')
+            self._armed = armed if isinstance(armed, bool) else None
             self._snapshot_at = time.monotonic()
 
 

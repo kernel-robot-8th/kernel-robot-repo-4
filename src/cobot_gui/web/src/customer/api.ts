@@ -3,7 +3,7 @@
 // 모의 모드: 개발 서버(npm run dev)에서 VITE_DATA 가 gateway 가 아니거나, 주소에 ?mock=1 이 있으면
 // 브라우저 안의 가짜 서버로 흐름을 흉내 낸다. 설치본(npm run build)은 기본으로 실제 서버를 부른다.
 
-export type View = "preparing" | "arrived" | "paid" | "cancelled" | "failed" | "out_of_stock";
+export type View = "preparing" | "arrived" | "paid" | "cancelled" | "store_cancelled" | "timed_out" | "failed" | "out_of_stock";
 export type Decision = "PAID" | "CANCEL";
 
 export interface Shoe {
@@ -28,6 +28,10 @@ export interface OrderState {
   view: View;
   stage: string;
   failure_reason?: string;
+  /** 정지·현장 확인으로 멈췄다. 재개되면 false 로 돌아온다. */
+  paused?: boolean;
+  /** 매장이 주문을 받는 중인지. null 이면 모른다. */
+  accepting?: boolean | null;
 }
 
 export interface CustomerApi {
@@ -121,7 +125,7 @@ export function createMockApi(stepMs = 2500, now: () => number = () => Date.now(
   };
   return {
     catalog: async (loc) => ({
-      location: loc === "BENCH_1" ? { id: "BENCH_1", name: "고객 벤치 1" } : null,
+      location: loc === "P22" ? { id: "P22", name: "P22 자리" } : null,
       items: MOCK_ITEMS,
     }),
     submit: async (sku) => {
