@@ -70,6 +70,15 @@ function zoneReleaseAllowed(zone, robotId) {
   return extra.busy === false && "held_zone" in extra && extra.held_zone !== zone;
 }
 
+// 홈 초기위치 때 같이 풀 후보: 연결된 로봇이 다시 켜져 잊은 구역 (위 (b)). 끊긴 로봇은 넣지 않는다.
+function forgottenZones(robotId) {
+  const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
+  if (!robot || !robot.online || (robot.extra || {}).held_zone !== null) return [];
+  return Object.entries(view.snapshot.zones || {})
+    .filter(([zone, value]) => value === `occupied_by:${robotId}` && zoneReleaseAllowed(zone, robotId))
+    .map(([zone]) => zone);
+}
+
 function zoneReleaseHint(robotId) {
   const robot = view.snapshot && view.snapshot.robots && view.snapshot.robots[robotId];
   return robot && robot.online ? `${robotId} 가 다시 켜져 구역 토큰을 잊음 · 현장 확인 후 해제`

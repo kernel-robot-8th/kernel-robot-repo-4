@@ -474,6 +474,13 @@ def test_robot_boot_change_invalidates_current_stage(env):
     assert env.gateway.sent == []
 
 
+def test_telemetry_keeps_boot_of_last_zone_holder(env):
+    for status in ({'held_zone': 'A', 'boot_id': 'boot1'},
+                   {'held_zone': None, 'boot_id': 'boot2'}, {'held_zone': 'A'}):
+        env.scenario.telemetry('pinky1', {'state': 'IDLE', **status})
+    assert env.scenario.store.zone_claim('A') == ('pinky1', 'boot1')
+
+
 def test_operator_recovery_cannot_resume_until_robot_reset_is_echoed(env):
     env.order()
     env.scenario.tick()

@@ -122,6 +122,9 @@ class ScenarioService:
                     if order['robot_id'] == robot_id and order['state'] not in TERMINAL | BLOCKED:
                         self.interrupt(order['order_id'], 'UNKNOWN', '로봇 재기동·세션 변경')
             health.update(status=status, status_at=self.clock())
+            zone, boot = status.get('held_zone'), status.get('boot_id')
+            if all(isinstance(value, str) and value for value in (zone, boot)):
+                self.store.claim_zone(zone, robot_id, boot)
         if battery is not None:
             if not finite(battery) or not 0 <= battery <= 100:
                 raise ValueError('battery: 0~100 실측 퍼센트')

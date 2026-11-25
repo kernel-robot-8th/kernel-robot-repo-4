@@ -598,6 +598,15 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
         payload = {'type': 'initial_pose', 'robot_id': robot_id,
                    'client_request_id': body.get('client_request_id'),
                    'source': source(request)}
+        # 현장에서 비었다고 확인한 구역 (홈 초기위치만). 다시 켜져 잊었는지는 fleet_control 이 검사한다.
+        zones = body.get('release_zones')
+        if zones is not None:
+            if not isinstance(zones, list) or any(not isinstance(z, str) for z in zones):
+                raise HTTPException(status_code=400, detail='release_zones 는 구역 이름 목록')
+            if body.get('pose') is not None:
+                raise HTTPException(status_code=400,
+                                    detail='release_zones 는 홈 초기위치에서만 쓸 수 있습니다')
+            payload['release_zones'] = zones
         if body.get('pose') is not None:
             map_info = map_data[0] if map_data else None
             try:

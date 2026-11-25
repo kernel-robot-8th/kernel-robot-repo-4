@@ -9,10 +9,9 @@ import uuid
 from .contracts import Command
 from .control_release import require_stopped
 from .scenario_contracts import identifier, operator_name, operator_or_default, optional_text
+from .zone_reclaim import ZONE_STATUS_MAX_AGE_SEC, ZoneReclaim
 
 RAW_CMD_MAX_LEN = 200   # 개발용 수동 명령 최대 길이 [글자]
-# 구역 강제 해제 때 믿을 zone_manager 상태의 최대 나이 [s]. zone_manager 는 1초마다 다시 낸다.
-ZONE_STATUS_MAX_AGE_SEC = 3.0
 ZONE_NAME_RE = re.compile(r'[A-Za-z0-9_]{1,32}')
 
 
@@ -92,12 +91,24 @@ def manual_pose(value):
     return pose
 
 
+def release_zone_names(value):
+    """초기위치와 함께 풀기로 현장에서 확인한 구역 목록. 없으면 빈 목록."""
+    if value is None:
+        return []
+    if (not isinstance(value, list) or len(value) > 32
+            or any(not isinstance(z, str) or not ZONE_NAME_RE.fullmatch(z) for z in value)):
+        raise ApiError(400, 'release_zones 는 구역 이름 목록')
+    return list(dict.fromkeys(value))
+
+
 class ControlAPI:
     """웹 서버는 control-center에 두고 실행·복구 정책만 처리한다."""
 
-    def __init__(self, scenario, fleet, gateway, point_rules=None, allow_raw_cmd=False):
+    def __init__(self, scenario, fleet, gateway, point_rules=None, allow_raw_cmd=False,
+                 reclaim=None):
         self.scenario, self.fleet, self.gateway = scenario, fleet, gateway
         self.point_rules = point_rules
+        self.reclaim = reclaim or ZoneReclaim(scenario, fleet, gateway)
         # 개발용 수동 명령. 가짜 핑키·가제보 설정에서만 켠다 (실물 기본 꺼짐).
         self.allow_raw_cmd = bool(allow_raw_cmd)
 
@@ -230,6 +241,9 @@ class ControlAPI:
         if not isinstance(robot, str) or robot not in self.fleet.robots:
             raise ApiError(404, '등록되지 않은 로봇')
         manual = manual_pose(request.get('pose'))
+        zones = release_zone_names(request.get('release_zones'))
+        if zones and manual is not None:
+            raise ApiError(400, 'release_zones 는 홈 초기위치에서만 쓸 수 있습니다')
         if manual is None and self.point_rules is None:
             raise ApiError(503, '순찰 지점 설정(patrol_config_dir)이 없어 홈 좌표를 모릅니다')
         if self._orders_for(robot):
@@ -254,10 +268,17 @@ class ControlAPI:
         scenario.store.event(dict(type='operator_initial_pose', robot_id=robot, mode=mode,
                                   point=name, x=x, y=y, yaw=yaw,
                                   source=request.get('source', '')))
+        # 위치를 다시 잡으면 앞선 확인 대기는 근거를 잃는다 (좌표 지정 포함).
+        self.reclaim.discard(robot, '새 초기위치 요청')
         self.gateway.set_initial_pose(robot, x, y, yaw)
-        return dict(robot_id=robot, mode=mode, point=name, x=x, y=y, yaw=yaw,
+        body = dict(robot_id=robot, mode=mode, point=name, x=x, y=y, yaw=yaw,
                     topic=f'/{robot}/initialpose',
                     client_request_id=request.get('client_request_id'))
+        if zones:
+            pending, skipped = self.reclaim.request(robot, zones, (x, y),
+                                                    request.get('source', ''))
+            body.update(zones_pending=pending, zones_skipped=skipped)
+        return body
 
     def _raw(self, request):
         """개발용 1회성 문자열 명령. 기록·결과 추적 없이 세션 봉투만 붙여 로봇에 보낸다."""

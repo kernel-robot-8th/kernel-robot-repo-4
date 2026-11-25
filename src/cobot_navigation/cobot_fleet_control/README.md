@@ -17,7 +17,7 @@
 | `POST /api/tasks/{id}/resolve` | `type=resolve, task_id, result, note` | 202: UNKNOWN 유지, 로봇 해제 응답 후 FAILED. 최신 정지·취소 상태 필요 |
 | `POST /api/robots/{id}/release_control` | `type=release_control, robot_id` | 202: `released=false, reset_pending=true`. 일치하는 로봇 해제 응답 후 보류 해제 |
 | `POST /api/orders/{id}/confirm_loaded` | `type=confirm_loaded, order_id, operator, note, evidence` | 수동 상차 확인. 파라미터 `manual_load_confirmation`과 같은 검사. 고객 자리 주문은 상차장·상차 팔 예약만, 하차 구역 주문은 상하차 예약을 모두 확인 |
-| `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source, pose?` | 202. `pose {x, y, yaw}` 가 있으면 그 좌표(잘못되면 400), 없으면 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503 |
+| `POST /api/robots/{id}/initial_pose` | `type=initial_pose, robot_id, source, pose?, release_zones?` | 202. `pose {x, y, yaw}` 가 있으면 그 좌표(잘못되면 400), 없으면 순찰 설정의 그 로봇 홈 좌표로 `/{id}/initialpose`(AMCL 재초기화) 발행. 작업 명령 켜기 불필요. 진행 중 작업·주문, 상태 수신 만료, `busy=false` 미확인이면 409·503. `release_zones` 는 홈일 때만(좌표와 함께면 400) 현장에서 비었다고 확인한 구역 목록. 점유 때와 `boot_id` 가 다르고 로봇이 토큰을 잊었으면 AMCL 이 홈 근처로 온 뒤 `notify_exit`. 응답에 `zones_pending`·`zones_skipped`(이유) |
 | `POST /api/robots/{id}/raw_cmd` | `type=raw` | 중앙 모드에서는 403. 화면에는 비활성으로 보고 |
 | `GET /api/tasks`, `WS /ws/tasks` | `tasks`, `task` | 현재 작업 목록·개별 변경 |
 
@@ -193,6 +193,7 @@ feature/control-center의 웹 실행 파일이 있는 소스가 필요합니다.
 | `allow_raw_cmd` | `false` | 개발용 수동 명령(`type=raw`). 켜면 작업 명령 켜짐·로봇 보류 없음·연결 확인 뒤 세션 봉투를 붙여 `patrol_cmd` 로 보냄. 결과는 추적하지 않음 |
 | `start_armed` | `false` | 작업 명령 켜진 채로 시작. 격리 도메인 시뮬 전용 |
 | `initial_pose_xy_var`, `initial_pose_yaw_var` | `0.0625`, `0.068` | 화면 초기위치 버튼이 내는 initialpose 의 x·y [m²]·yaw [rad²] 분산 |
+| `zone_reclaim_radius_m`, `zone_reclaim_timeout_sec` | `0.3`, `10.0` | 홈 초기위치 뒤 잊힌 구역을 풀 때 AMCL 이 와야 할 거리 [m]·기다리는 시간 [s] |
 | `db_path` | `~/.cobot/fleet_control.sqlite3` | 실행 원장. 가짜 핑키·가제보는 다른 파일 |
 
 가짜 핑키(`cobot_mock` `mock_fleet.launch.xml`)·가제보(`cobot_gazebo` `sim_fleet.launch.xml`)·`cobot_bringup` 은 이 노드를 작업 노드로 띄웁니다.

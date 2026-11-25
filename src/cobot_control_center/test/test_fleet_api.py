@@ -727,6 +727,22 @@ def test_fleet_initial_pose_passes_through_with_source():
                        'request_id': sent[0]['request_id']}
 
 
+@pytest.mark.parametrize('extra, code', [
+    ({'release_zones': ['A']}, 202),
+    ({'release_zones': 'A'}, 400),
+    ({'release_zones': [1]}, 400),
+    ({'release_zones': ['A'], 'pose': {'x': 0.0, 'y': 0.0, 'yaw': 0.0}}, 400),
+])
+def test_fleet_initial_pose_release_zones(extra, code):
+    store, _ = make_store()
+    tasks, _ = make_task_store()
+    tasks.put_snapshot(json.dumps(FLEET_SNAPSHOT))
+    publish, sent = fake_controller(tasks, 202, {})
+    client = TestClient(create_app(store, tasks=tasks, publish_request=publish))
+    assert client.post('/api/robots/pinky2/initial_pose', json=extra).status_code == code
+    assert [r['release_zones'] for r in sent] == ([['A']] if code == 202 else [])
+
+
 MAP_INFO = {'image_width': 200, 'image_height': 100, 'resolution': 0.01,
             'origin': [-1.0, -0.5, 0.0]}   # 지도 범위 x -1.0~1.0, y -0.5~0.5 [m]
 

@@ -414,15 +414,23 @@ async function sendInitialPose(robotId, pose = null) {
         + `${toDeg(Number(home.pose[2]) || 0)}°)`
       : "홈";
   }
+  const zones = pose ? [] : forgottenZones(robotId);
   if (!confirm(`${robotId} 로봇이 ${where} 에 있나요?\n`
-      + "AMCL 위치를 그 자리로 다시 잡습니다. 로봇은 움직이지 않습니다.")) return false;
+      + "AMCL 위치를 그 자리로 다시 잡습니다. 로봇은 움직이지 않습니다."
+      + (zones.length ? `\n\n다시 켜져 잊은 구역 ${zones.join(", ")} 점유도 풉니다.\n`
+        + `현장에서 구역 ${zones.join(", ")} 이(가) 비어 있는지 확인했나요? `
+        + "풀면 대기 중인 로봇이 바로 들어올 수 있습니다." : ""))) return false;
   const body = { client_request_id: newRequestId() };
   if (pose) body.pose = pose;
+  if (zones.length) body.release_zones = zones;
   const result = await postJson(`/api/robots/${encodeURIComponent(robotId)}/initial_pose`, body);
   if (result.ok) {
     const d = result.data;
     showMessage(robotId, `초기위치 보냄: ${d.point} (${Number(d.x).toFixed(2)}, `
-      + `${Number(d.y).toFixed(2)}) · 지도에서 로봇 위치를 확인하세요`, false);
+      + `${Number(d.y).toFixed(2)}) · 지도에서 로봇 위치를 확인하세요`
+      + ((d.zones_pending || []).length ? ` · 구역 ${d.zones_pending.join(", ")} 해제 확인 중` : "")
+      + Object.entries(d.zones_skipped || {})
+        .map(([zone, reason]) => ` · 구역 ${zone} 유지 (${reason}, 강제 해제 사용)`).join(""), false);
     return true;
   }
   showMessage(robotId, `초기위치 거절 (${result.status}): ${errorText(result)}`, true);

@@ -5,6 +5,7 @@ import sqlite3
 import time
 
 from .repository import encode
+from .scenario_contracts import TERMINAL
 
 
 class ScenarioRepository:
@@ -25,6 +26,9 @@ class ScenarioRepository:
             );
             CREATE TABLE IF NOT EXISTS scenario_holds (
                 robot_id TEXT PRIMARY KEY, reason TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS zone_claims (
+                zone TEXT PRIMARY KEY, robot_id TEXT NOT NULL, boot_id TEXT NOT NULL
             );
         ''')
         # 선반 칸은 나중에 추가한 선택 항목이다. 현장 원장을 지우지 않도록 칼럼만 더한다.
@@ -62,6 +66,25 @@ class ScenarioRepository:
         """운영자가 현장 상태를 명시적으로 확인한 뒤에만 호출한다."""
         with self.db:
             self.db.execute('DELETE FROM scenario_holds WHERE robot_id=?', (robot_id,))
+
+    def zone_claim(self, zone):
+        """그 구역을 마지막으로 잡았다고 보고한 (로봇, boot_id). 없으면 None."""
+        row = self.db.execute('SELECT robot_id, boot_id FROM zone_claims WHERE zone=?',
+                              (zone,)).fetchone()
+        return tuple(row) if row else None
+
+    def claim_zone(self, zone, robot_id, boot_id):
+        """로봇이 다시 켜져 토큰을 잊었는지 나중에 알 수 있게 바뀔 때만 남긴다."""
+        if self.zone_claim(zone) == (robot_id, boot_id):
+            return
+        with self.db:
+            self.db.execute('INSERT OR REPLACE INTO zone_claims VALUES (?,?,?)',
+                            (zone, robot_id, boot_id))
+
+    def has_open_order(self, robot_id):
+        """끝나지 않은 주문(보류·결과 모름 포함)이 이 로봇에 있는지 본다."""
+        return any(order['robot_id'] == robot_id and order['state'] not in TERMINAL
+                   for order in self.orders())
 
     def set_stock(self, sku, quantity, shelf_row=None, shelf_col=None):
         """이미 예약된 수량과 별개로 가용 재고를 설정한다. 칸을 생략하면 기존 칸을 유지한다."""

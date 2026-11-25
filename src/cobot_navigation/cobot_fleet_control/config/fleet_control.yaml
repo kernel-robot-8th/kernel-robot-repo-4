@@ -13,6 +13,9 @@ fleet_control:
     tasks_topic: /control_center/tasks
     work_request_topic: /fleet/work_request
     work_result_topic: /fleet/work_result
+    # 홈 초기위치 뒤 AMCL 이 홈 근처로 온 것을 보고, 다시 켜져 잊은 구역 점유를 푼다.
+    zone_reclaim_radius_m: 0.3       # [m] 홈에서 이 거리 안이면 확인
+    zone_reclaim_timeout_sec: 10.0   # [s] 이 안에 확인되지 않으면 풀지 않음
     # 개발 설정: 가짜 핑키·가제보 launch 에서만 true 로 준다. 실물은 false.
     allow_raw_cmd: false        # 개발용 수동 명령 (검사·결과 추적 없이 patrol_cmd 에 문자열)
     start_armed: false          # 작업 명령 켜진 상태로 시작

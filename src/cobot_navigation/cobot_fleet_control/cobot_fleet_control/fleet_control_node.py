@@ -11,7 +11,8 @@ from rcl_interfaces.msg import SetParametersResult
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import (
+    DurabilityPolicy, HistoryPolicy, qos_profile_sensor_data, QoSProfile, ReliabilityPolicy)
 from std_msgs.msg import Float32, String
 import yaml
 
@@ -22,6 +23,7 @@ from .scenario import ScenarioService
 from .scenario_contracts import ROUTE_ARMS
 from .service import FleetService
 from .web_profiles import load_profiles
+from .zone_reclaim import ZoneReclaim
 
 
 class FleetControlNode(Node):
@@ -46,6 +48,7 @@ class FleetControlNode(Node):
             'patrol_config_dir': '', 'site': 'lab',
             # 화면 '초기위치' 버튼이 내는 initialpose 의 분산. 손으로 넣던 README 명령과 같은 값.
             'initial_pose_xy_var': 0.0625, 'initial_pose_yaw_var': 0.068,
+            'zone_reclaim_radius_m': 0.3, 'zone_reclaim_timeout_sec': 10.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -89,8 +92,11 @@ class FleetControlNode(Node):
         self.scenario = ScenarioService(self.repository, self.service, self, **scenario_config)
         rules = (load_profiles(config['patrol_config_dir'], config['site'], robots)
                  if config['patrol_config_dir'] else None)
+        reclaim = ZoneReclaim(
+            self.scenario, self.service, self, radius_m=config['zone_reclaim_radius_m'],
+            timeout_sec=config['zone_reclaim_timeout_sec'])
         self.api = ControlAPI(self.scenario, self.service, self, point_rules=rules,
-                              allow_raw_cmd=config['allow_raw_cmd'])
+                              allow_raw_cmd=config['allow_raw_cmd'], reclaim=reclaim)
         if config['start_armed']:
             # 격리 도메인 시뮬 전용. 실물에서는 화면에서 작업 명령을 켠다.
             self.scenario.armed = True
@@ -103,6 +109,10 @@ class FleetControlNode(Node):
         self.status_subscriptions = []
         for robot in robots:
             self.status_subscriptions.extend([
+                # 위치는 best effort 로 받는다. 브릿지가 어떤 QoS 로 내보내도 연결된다.
+                self.create_subscription(
+                    PoseWithCovarianceStamped, f'/{robot}/amcl_pose',
+                    lambda msg, r=robot: self._amcl_pose(r, msg), qos_profile_sensor_data),
                 self.create_subscription(String, f'/{robot}/patrol_status',
                                          lambda msg, r=robot: self._status(r, msg), 10),
                 self.create_subscription(Float32, f'/{robot}/battery/percent',
@@ -239,6 +249,10 @@ class FleetControlNode(Node):
         except ValueError as error:
             self.get_logger().warning(str(error))
 
+    def _amcl_pose(self, robot_id, message):
+        position = message.pose.pose.position
+        self.api.reclaim.observe_pose(robot_id, position.x, position.y)
+
     def _result(self, message):
         try:
             self.scenario.result(self._decode(message))
@@ -280,6 +294,7 @@ class FleetControlNode(Node):
                     self.service.quarantine(row[0], '통신·배터리 상태 수신 만료')
                     self.scenario.store.hold(robot_id, 'LINK_LOST')
                     self.halt(robot_id, {}, '')
+        self.api.reclaim.tick()
         self.scenario.tick()
         for command_id in self.service.tick(allow_dispatch=self.scenario.armed):
             robot = self.repository.get(command_id)['robot_id']
