@@ -184,9 +184,12 @@ class ArmAdapterNode(Node):
             self.by_id_dir)
         if (state, port) == (self.state, self.port):
             return
-        logger = self.get_logger()
-        log = logger.info if state == registry_utils.READY else logger.warning
-        log(f'{self.arm_id} 탐지 {state}: {reason}')
+        # rclpy 는 같은 호출 줄에서 로그 등급이 바뀌면 ValueError 를 낸다. 노드가 죽지 않게 줄을 나눈다.
+        text = f'{self.arm_id} 탐지 {state}: {reason}'
+        if state == registry_utils.READY:
+            self.get_logger().info(text)
+        else:
+            self.get_logger().warning(text)
         lost = self.state == registry_utils.READY and state != registry_utils.READY
         self.state, self.port, self.reason = state, port, reason
         if state == registry_utils.READY:
