@@ -253,8 +253,9 @@ function overlapArea(rect, others) {
 // 이름표 크기와 놓을 수 있는 자리 후보 (이름 → [x, y]). 글꼴도 맞춰 둔다.
 function labelBox(ctx, label, scale) {
   const robot = label.kind === "robot";
-  const size = (robot ? 12 : 11) / scale;
-  ctx.font = `${robot ? 700 : 600} ${size}px system-ui, sans-serif`;
+  // faint: 웨이포인트 P 이름표. 개수가 많아 작고 연하게 해서 로봇·구역이 앞에 보이게 한다.
+  const size = (robot ? 12 : label.faint ? 10 : 11) / scale;
+  ctx.font = `${robot ? 700 : label.faint ? 500 : 600} ${size}px system-ui, sans-serif`;
   const padX = (robot ? 5 : 1) / scale;
   const padY = (robot ? 2 : 0) / scale;
   const w = ctx.measureText(label.text).width + padX * 2;
@@ -341,7 +342,7 @@ function drawLabelBox(ctx, label, rect, size, padX, padY, robot, scale) {
   } else {
     ctx.lineWidth = 3 / scale;   // 상세 지도는 배율이 달라 그 지도 배율을 쓴다
     ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-    ctx.fillStyle = "#1c2129";
+    ctx.fillStyle = label.faint ? "#6b7280" : "#1c2129";
     ctx.strokeText(label.text, rect.x + padX, rect.y + padY + size * 0.1);
   }
   ctx.fillText(label.text, rect.x + padX, rect.y + padY + size * 0.1);
@@ -379,13 +380,14 @@ function drawMarks(ctx, info, marks, scale, labels) {
       ctx.moveTo(px - r, py - r); ctx.lineTo(px + r, py + r);
       ctx.moveTo(px + r, py - r); ctx.lineTo(px - r, py + r);
       ctx.stroke();
-    } else if (mark.kind === "point") { // 일반 지점: 점 + 도착 방향 화살표
-      ctx.arc(px, py, r * 0.8, 0, Math.PI * 2);
+    } else if (mark.kind === "point") { // 일반 지점: 점 + 도착 방향 화살표 (작고 반투명, 로봇·구역보다 뒤로)
+      ctx.globalAlpha = 0.55;
+      ctx.arc(px, py, r * 0.55, 0, Math.PI * 2);
       ctx.fill();
       const heading = -mark.pose[2]; // 지도 y 는 위가 +, canvas y 는 아래가 +
       ctx.beginPath();
       ctx.moveTo(px, py);
-      ctx.lineTo(px + Math.cos(heading) * r * 2.6, py + Math.sin(heading) * r * 2.6);
+      ctx.lineTo(px + Math.cos(heading) * r * 2, py + Math.sin(heading) * r * 2);
       ctx.stroke();
     } else if (mark.kind === "waypoint") { // 관제 웨이포인트: 빈 마름모 + 도착 방향
       ctx.moveTo(px, py - r * 1.2); ctx.lineTo(px + r * 1.2, py);
@@ -408,7 +410,8 @@ function drawMarks(ctx, info, marks, scale, labels) {
       ctx.stroke();
     }
     ctx.restore();
-    labels.push({ text: mark.labels.join("·"), x: px, y: py, r, kind: "mark" });
+    const faint = mark.kind === "point";
+    labels.push({ text: mark.labels.join("·"), x: px, y: py, r: faint ? r * 0.55 : r, kind: "mark", faint });
   }
 }
 

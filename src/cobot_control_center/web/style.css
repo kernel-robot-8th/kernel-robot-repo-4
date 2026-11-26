@@ -634,27 +634,25 @@ h2 { font-size: 13px; letter-spacing: 0.02em; color: var(--muted); }
 .arm-facts dd[data-level="warn"] { color: var(--warn); }
 .arm-facts dd[data-level="bad"] { color: var(--bad); }
 .arm-facts dd[data-level="idle"], .arm-facts dd[data-level="na"] { color: var(--muted); font-weight: 400; }
-/* 카드 높이를 글에 따라 바꾸지 않는다: 글 줄은 모두 한 줄 고정(말줄임), 비어 있어도 자리를 지킨다 */
-.arm-card .alias, .arm-ack, .arm-work, .arm-alarm, .arm-exec {
+/* 카드 높이를 글에 따라 바꾸지 않는다: 글 줄은 실행기·상태 두 줄, 한 줄 고정(말줄임), 비어 있어도 자리를 지킨다 */
+.arm-card .alias, .arm-status, .arm-exec {
   min-height: 1.45em; line-height: 1.45em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.arm-ack { font-size: 12px; font-variant-numeric: tabular-nums; }
-.arm-ack.msg { color: var(--text); font-weight: 600; }   /* 버튼 결과 메시지 (잠깐) */
-.arm-ack[data-bad="true"] { color: var(--bad); }
-.arm-work { font-size: 12px; font-variant-numeric: tabular-nums; }
-.arm-work[data-state="RUNNING"] { color: var(--active); font-weight: 600; }
-.arm-work[data-state="SUCCEEDED"] { color: var(--good); }
-.arm-work[data-state="FAILED"], .arm-work[data-state="NO_RESULT"] { color: var(--bad); }
+/* 상태 줄: 버튼 결과(msg) > 알람(alarm) > 작업(work) > 마지막 응답(ack) 중 하나 */
+.arm-status { font-size: 12px; font-variant-numeric: tabular-nums; }
+.arm-status[data-kind="msg"] { color: var(--text); font-weight: 600; }   /* 버튼 결과 메시지 (잠깐) */
+.arm-status[data-kind="alarm"] { font-weight: 600; color: var(--warn); }
+.arm-status[data-kind="work"][data-level="RUNNING"] { color: var(--active); font-weight: 600; }
+.arm-status[data-kind="work"][data-level="SUCCEEDED"] { color: var(--good); }
+.arm-status[data-level="bad"], .arm-status[data-level="FAILED"], .arm-status[data-level="NO_RESULT"] { color: var(--bad); }
 .arm-work-row select { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px; padding: 4px 6px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
 .arm-work-row select:disabled { opacity: 0.45; }
 .arm-work-row .arm-work-row-no { flex: 0 0 auto; }
 .card .arm-work-row button { flex: 0 0 auto; white-space: nowrap; }
-.arm-alarm { font-size: 12px; font-weight: 600; color: var(--warn); }
 /* 실행기 줄: 작업별 모델·버전, 또는 켜기가 안 되는 이유 (팔 노드 info) */
 .arm-exec { font-size: 12px; }
 .arm-exec[data-level="warn"] { color: var(--warn); font-weight: 600; }
 .arm-exec[data-level="bad"] { color: var(--bad); font-weight: 600; }
-.arm-alarm[data-level="bad"] { color: var(--bad); }
 
 /* ---------- 개발: 수동 명령 ---------- */
 

@@ -33,12 +33,12 @@ import socket
 import threading
 import time
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from cobot_control_center.cctv_relay import CctvRelay
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    ArmStore, CameraStore, LayerError, load_map, load_map_layers, MapError, SnapshotStore,
-    TaskStore)
+    ArmStore, CameraStore, LayerError, load_catalog, load_map, load_map_layers, MapError,
+    SnapshotStore, TaskStore)
 from cobot_control_center.net_status_utils import (
     collect_network, HostStore, local_info, NetAlertTracker, NetStore, network_alerts)
 from cobot_control_center.route_utils import RouteRunner
@@ -164,11 +164,30 @@ class FleetApiNode(Node):
         self.declare_parameter('align_refs_dir', '~/il_ws/align/refs')
         self.align_refs_dir = self.get_parameter('align_refs_dir').value or None
         self.get_logger().info(f'정차 위치 기준 화면: {self.align_refs_dir or "끔"}')
+        self.catalog = self._load_catalog()
         self._setup_network()
         self.get_logger().info(
             f'fleet_api_node 시작: 화면 http://{self.host}:{self.port}/ '
             + ('(읽기 전용: 명령 경로 503, task_request 를 내지 않음)' if self.read_only
                else '(로봇 토픽에 발행하지 않음. 명령은 작업 노드 fleet_control_node 로 넘김)'))
+
+    def _load_catalog(self):
+        # 매장 화면의 상품 이름. 고객 주문 화면(cobot_gui)과 같은 목록 파일을 읽기만 한다.
+        # 비어 있으면 설치된 cobot_gui 의 기본 파일을 찾고, 없으면 이름 없이 SKU 를 그대로 보인다.
+        self.declare_parameter('catalog_file', '')
+        path = self.get_parameter('catalog_file').value
+        if not path:
+            try:
+                path = os.path.join(get_package_share_directory('cobot_gui'),
+                                    'config', 'customer_catalog.yaml')
+            except PackageNotFoundError:
+                path = ''
+        catalog = load_catalog(path)
+        if catalog:
+            self.get_logger().info(f'상품 이름: {len(catalog)}종 ({path})')
+        else:
+            self.get_logger().warning(f'상품 이름: 없음, SKU 를 그대로 보임 ({path or "파일 못 찾음"})')
+        return catalog
 
     def _subscribe_cameras(self):
         # 비전 시험 발행기(cobot_camera_topic_test)와 같은 QoS. 지난 프레임은 다시 받지 않고 최신 1장만 본다.
@@ -404,7 +423,7 @@ def main(args=None):
                          publish_teleop=None if node.read_only else node.publish_teleop,
                          waypoints=node.waypoints, cctv=node.cctv,
                          vision_label=node.vision_label, arm_videos=node.arm_videos,
-                         align_refs_dir=node.align_refs_dir)
+                         align_refs_dir=node.align_refs_dir, catalog=node.catalog)
         uvicorn.run(app, host=node.host, port=node.port,
                     log_level='info', lifespan='off')
     except (KeyboardInterrupt, ExternalShutdownException):

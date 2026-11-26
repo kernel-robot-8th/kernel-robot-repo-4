@@ -79,7 +79,7 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                net=None, local_network=None, network_ids=None, request_net_check=None,
                hosts=None, routes=None, teleop=None, publish_teleop=None, waypoints=None,
                cctv=None, vision_label=None, arm_videos=None,
-               align_refs_dir=None):
+               align_refs_dir=None, catalog=None):
     """
     웹 앱을 만든다. 데이터는 인자로 받은 SnapshotStore 에서만 읽는다.
 
@@ -107,6 +107,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
     없는 팔·역할의 /api/arms/{arm_id}/camera/{role} 은 404 다.
     align_refs_dir 는 정차 위치 맞추기 기준 화면 폴더(<폴더>/<팔>/<이름>.jpg) 또는 None 이다.
     None 이면 /api/arms/{arm_id}/align/refs 는 404 다.
+    catalog 는 load_catalog() 결과 {sku: {name, size, color}} 또는 None 이다. /api/service 에
+    그대로 실어 매장 화면이 SKU 대신 상품 이름을 쓰게 한다.
     """
     arm_videos = arm_videos or {}
     app = FastAPI(title='cobot control center API', version='0.1.0')
@@ -865,7 +867,8 @@ def create_app(store, map_data=None, web_dir=None, domain_id=None, layers=None,
                     'stock': [], 'destinations': {}, 'steps': list(SERVICE_STEPS)}
         else:
             body = tasks.service(finished, today_start)
-        return {'now': time.time(), 'read_only': publish_request is None, **body}
+        return {'now': time.time(), 'read_only': publish_request is None,
+                'catalog': catalog or {}, **body}
 
     @app.get('/api/tasks')
     def list_tasks(robot_id: str = None, state: str = None, limit: int = 50):

@@ -24,9 +24,9 @@ import threading
 
 from cobot_control_center.fleet_api_app import create_app
 from cobot_control_center.fleet_api_utils import (
-    active_orders, ArmStore, CameraStore, LayerError, load_confirmable, load_map, load_map_layers,
-    load_robot_params, load_waiting, MapError, mjpeg_part, order_events, service_order,
-    service_orders, service_summary, SnapshotStore, TaskStore)
+    active_orders, ArmStore, CameraStore, LayerError, load_catalog, load_confirmable, load_map,
+    load_map_layers, load_robot_params, load_waiting, MapError, mjpeg_part, order_events,
+    service_order, service_orders, service_summary, SnapshotStore, TaskStore)
 from fastapi.testclient import TestClient
 import pytest
 
@@ -1367,6 +1367,35 @@ def test_api_service_view():
     assert body['controller_online'] is False and body['commands_armed'] is False
     assert body['holds'] == {} and body['stock'][0]['sku'] == 'SHOE-1'
     assert client.get('/api/service?finished=999').status_code == 422
+    assert body['catalog'] == {}
+
+
+def test_load_catalog(tmp_path):
+    path = tmp_path / 'catalog.yaml'
+    path.write_text(
+        'items:\n'
+        '  - {sku: SHOE_BOOT_BROWN_250, name: 워커 부츠, size: 250, color: 브라운, price: 1}\n'
+        '  - {sku: NO_NAME}\n'
+        '  - {name: SKU 없음}\n'
+        '  - 문자열 항목\n', encoding='utf-8')
+    assert load_catalog(str(path)) == {
+        'SHOE_BOOT_BROWN_250': {'name': '워커 부츠', 'size': '250', 'color': '브라운'}}
+    # 없는 파일·빈 경로·깨진 YAML·items 없음은 이름 없이 (화면은 SKU 를 그대로 보인다)
+    assert load_catalog(str(tmp_path / 'none.yaml')) == {}
+    assert load_catalog('') == {}
+    broken = tmp_path / 'broken.yaml'
+    broken.write_text('items: [', encoding='utf-8')
+    assert load_catalog(str(broken)) == {}
+    empty = tmp_path / 'empty.yaml'
+    empty.write_text('other: 1\n', encoding='utf-8')
+    assert load_catalog(str(empty)) == {}
+
+
+def test_api_service_carries_catalog():
+    store, _ = make_store()
+    catalog = {'SHOE-1': {'name': '에어 러너', 'size': '260', 'color': '화이트'}}
+    body = TestClient(create_app(store, catalog=catalog)).get('/api/service').json()
+    assert body['catalog'] == catalog
 
 
 def test_service_summary_counts_today_only():

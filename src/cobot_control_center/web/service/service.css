@@ -300,7 +300,9 @@ h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
   grid-template-rows: auto 1fr;
   gap: 8px;
 }
+.board-col.empty { min-height: 72px; }   /* 빈 칸은 낮게: 주문이 없을 때 큰 빈 상자가 늘어서지 않게 */
 .board-col.empty .board-head { color: var(--muted); }
+.board-none { font-size: 12px; color: var(--muted); }
 .board-head {
   display: flex;
   justify-content: space-between;
@@ -353,7 +355,7 @@ h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
 .stock-item.bad .stock-qty { color: var(--bad); }
 .stock-item.warn .stock-qty { color: var(--warn); }
 .stock-bar { height: 6px; border-radius: 999px; background: var(--soft); overflow: hidden; }
-.stock-bar i { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
+.stock-bar i { display: block; height: 100%; border-radius: inherit; background: var(--good); }
 .stock-item.warn .stock-bar i { background: var(--warn); }
 .stock-shelf { color: var(--muted); font-size: 12px; }
 

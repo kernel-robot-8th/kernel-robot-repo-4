@@ -298,27 +298,31 @@ function renderArmCard(arm, canCommand, card = ensureArmCard(arm.arm_id)) {
   execEl.dataset.level = exec.level;
   execEl.title = exec.title || exec.text;
 
-  // 응답 줄: 버튼을 누른 직후(MSG_MS)는 그 결과 메시지, 그 밖에는 팔 노드의 마지막 응답
+  // 상태 줄 하나: 버튼 결과 메시지 > 알람 > 작업 > 마지막 응답 순으로 하나만 보인다.
+  // 줄을 하나로 둬야 평소 카드 가운데가 비지 않는다. 나머지는 마우스를 올리면 툴팁으로 본다.
   const msg = armsView.msg.get(arm.arm_id);
   const showMsg = msg && msg.until > Date.now();
-  const ackEl = card.querySelector(".arm-ack");
-  ackEl.textContent = showMsg ? msg.text : ackText(arm.last_ack);
-  ackEl.title = ackEl.textContent;  // 한 줄 말줄임이라 전체는 마우스로
-  ackEl.dataset.bad = String(showMsg ? Boolean(msg.bad) : Boolean(arm.last_ack && !arm.last_ack.accepted));
-  ackEl.classList.toggle("msg", Boolean(showMsg));
   // 그 팔의 활성 알람 요약 (전체 목록은 상단 경고 띠)
   const alarms = arm.state === "STALE" && !arm.online ? (arm.alarms || []).filter((a) => a.code === "offline")
     : arm.alarms || [];
-  const alarmEl = card.querySelector(".arm-alarm");
-  alarmEl.textContent = alarms.length ? `알람 ${alarms.length} · ${alarms.map((a) => a.text.split(":")[0].split(" (")[0]).join(" · ")}` : "";
-  alarmEl.title = alarms.map((a) => a.text).join("\n");
-  alarmEl.dataset.level = alarms.some((a) => a.level === "bad") ? "bad" : "warn";
-  const workEl = card.querySelector(".arm-work");
-  workEl.textContent = workText(arm.work);
-  workEl.dataset.state = arm.work ? arm.work.state : "";
+  const alarmLine = alarms.length
+    ? `알람 ${alarms.length} · ${alarms.map((a) => a.text.split(":")[0].split(" (")[0]).join(" · ")}` : "";
+  const workLine = workText(arm.work);
+  const ackLine = ackText(arm.last_ack);
+  let line = { text: "", kind: "", level: "" };
+  if (showMsg) line = { text: msg.text, kind: "msg", level: msg.bad ? "bad" : "" };
+  else if (alarmLine) {
+    line = { text: alarmLine, kind: "alarm", level: alarms.some((a) => a.level === "bad") ? "bad" : "warn" };
+  } else if (workLine) line = { text: workLine, kind: "work", level: arm.work.state };
+  else if (ackLine) line = { text: ackLine, kind: "ack", level: arm.last_ack.accepted ? "" : "bad" };
+  const statusEl = card.querySelector(".arm-status");
+  statusEl.textContent = line.text;
+  statusEl.dataset.kind = line.kind;
+  statusEl.dataset.level = line.level;
   const robot = arm.work && arm.work.robot_id ? ` · ${arm.work.robot_id}` : "";
-  workEl.title = arm.work
-    ? `${workEl.textContent}\nrequest ${arm.work.request_id} · seq ${arm.work.seq}${robot}` : "";
+  const workTitle = arm.work ? `${workLine}\nrequest ${arm.work.request_id} · seq ${arm.work.seq}${robot}` : "";
+  statusEl.title = [showMsg ? msg.text : "", alarms.map((a) => a.text).join("\n"), workTitle, ackLine]
+    .filter(Boolean).join("\n\n");
 
   const allowed = new Set(arm.allowed || []);
   const waiting = armsView.busy.has(arm.arm_id) || arm.pending > 0;

@@ -546,6 +546,40 @@ def order_events(prev_orders, orders, now):
     return events
 
 
+CATALOG_FIELDS = ('name', 'size', 'color')
+
+
+def load_catalog(path):
+    """
+    고객 상품 목록 YAML(cobot_gui config/customer_catalog.yaml)에서 SKU → 보여 줄 이름을 읽는다.
+
+    매장 화면이 'SHOE_BOOT_BROWN_250' 대신 '워커 부츠 250 · 브라운' 을 쓰게 하려는 것뿐이라,
+    파일이 없거나 깨졌으면 빈 dict 를 돌려준다 (화면은 SKU 를 그대로 보인다).
+    돌려주는 값: {sku: {'name', 'size', 'color'}} (값은 문자열, 없으면 '').
+    """
+    if not path:
+        return {}
+    try:
+        with open(os.path.expanduser(path), encoding='utf-8') as stream:
+            data = yaml.safe_load(stream)
+    except (OSError, yaml.YAMLError):
+        return {}
+    items = data.get('items') if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return {}
+    catalog = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sku = item.get('sku')
+        if not isinstance(sku, str) or not sku:
+            continue
+        entry = {key: str(item.get(key) or '') for key in CATALOG_FIELDS}
+        if entry['name']:
+            catalog[sku] = entry
+    return catalog
+
+
 def load_confirmable(order):
     """이 주문에 화면의 수동 상차 확인 버튼을 보일지."""
     completed = order.get('completed')

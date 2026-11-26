@@ -207,6 +207,24 @@ function orderStateText(order) {
   return ORDER_STATE_TEXT[order.state] || HOLD_TEXT[order.state] || order.state;
 }
 
+// 상품 이름: /api/service 의 catalog (고객 주문 화면과 같은 목록). 없으면 SKU 그대로.
+// 예: SHOE_BOOT_BROWN_250 → "워커 부츠 250 · 브라운". 서버로 보내는 값은 늘 SKU 를 쓴다.
+function productName(sku) {
+  if (!sku) return "—";
+  const catalog = view.service && view.service.catalog;
+  const item = catalog && catalog[sku];
+  if (!item || !item.name) return sku;
+  return [item.size ? `${item.name} ${item.size}` : item.name, item.color].filter(Boolean).join(" · ");
+}
+
+// 화면에 보일 짧은 주문 번호: 고객 주문은 "cust-" 를 떼고 앞 8자, 그 밖에 12자 넘는 것은 앞 10자 + "…".
+// 짧은 번호(t-order-1 등)는 그대로 둔다. 전체는 툴팁·대화상자에서 본다.
+function shortOrderId(id) {
+  const text = String(id || "");
+  if (text.startsWith("cust-")) return text.slice(5, 13);
+  return text.length > 12 ? `${text.slice(0, 10)}…` : text;
+}
+
 function destinationName(order) {
   const dest = order.destination;
   if (!dest) return order.route || "—";
@@ -313,7 +331,7 @@ function collectTodo() {
     add("bad", "주문 처리기가 응답하지 않습니다", "새 주문이 처리되지 않습니다. 엔지니어에게 알려 주세요.");
   }
   for (const order of service.active) {
-    const who = `${order.robot_id || "로봇 배정 전"} · ${order.sku || "상품 ?"} · ${destinationName(order)}`;
+    const who = `${order.robot_id || "로봇 배정 전"} · ${order.sku ? productName(order.sku) : "상품 ?"} · ${destinationName(order)}`;
     if (order.blocked) {
       // 상차 확인도 기다리면 둘 다 고를 수 있게 주문 상세 창으로 간다.
       add("bad", `주문 ${order.order_id} 멈춤 (${orderStateText(order)})`, `${who} · ${order.step_text}`,
@@ -366,7 +384,7 @@ function collectTodo() {
     }
   }
   for (const item of view.service.stock || []) {
-    if (!(item.available > 0)) add("info", `${item.sku} 품절`, "선반을 채운 뒤 엔지니어에게 재고 수정을 요청하세요");
+    if (!(item.available > 0)) add("info", `${productName(item.sku)} 품절`, "선반을 채운 뒤 엔지니어에게 재고 수정을 요청하세요");
   }
   const rank = { bad: 0, warn: 1, info: 2 };
   return items.sort((a, b) => (Boolean(b.action) - Boolean(a.action)) || (rank[a.level] - rank[b.level]));
@@ -402,10 +420,12 @@ function orderChip(order) {
   const chip = el("button", `order-chip ${cls}`);
   chip.type = "button";
   const top = el("div", "chip-top");
-  top.append(el("strong", "", order.order_id),
+  const idEl = el("strong", "", shortOrderId(order.order_id));
+  idEl.title = order.order_id;
+  top.append(idEl,
     el("span", "chip-age", durationText(service.now - order.created_at)));
   chip.appendChild(top);
-  chip.appendChild(el("div", "chip-item", `${order.sku || "—"} → ${destinationName(order)}`));
+  chip.appendChild(el("div", "chip-item", `${productName(order.sku)} → ${destinationName(order)}`));
   chip.appendChild(el("div", "chip-now", order.blocked ? `멈춤 · ${orderStateText(order)}`
     : order.load_waiting && !order.cancel_requested ? "상차 확인 필요" : order.step_text));
   chip.appendChild(el("div", "chip-robot", order.robot_id || "로봇 배정 전"));
@@ -423,7 +443,8 @@ function renderBoard() {
     head.append(el("span", "", title), el("span", "board-count", String(orders.length)));
     col.appendChild(head);
     const list = el("div", "board-list");
-    list.append(...orders.map(orderChip));
+    if (orders.length) list.append(...orders.map(orderChip));
+    else list.appendChild(el("span", "board-none", "없음"));
     col.appendChild(list);
     return col;
   });
@@ -440,14 +461,16 @@ function renderStock() {
     const level = qty <= 0 ? "bad" : qty <= LOW_STOCK ? "warn" : "good";
     const li = el("li", `stock-item ${level}`);
     const head = el("div", "stock-head");
-    head.append(el("span", "stock-sku", item.sku),
+    head.append(el("span", "stock-sku", productName(item.sku)),
       el("strong", "stock-qty", qty > 0 ? `${qty}개` : "품절"));
     const bar = el("div", "stock-bar");
     const fill = el("i");
     fill.style.width = `${Math.round((qty / top) * 100)}%`;
     bar.appendChild(fill);
     li.append(head, bar);
-    if (item.shelf_row) li.appendChild(el("span", "stock-shelf", `선반 ${item.shelf_col}열 ${item.shelf_row}번`));
+    // 이름 아래에 SKU 와 선반 칸을 작게 (현장에서 상자 라벨과 대조)
+    const shelf = item.shelf_row ? ` · 선반 ${item.shelf_col}열 ${item.shelf_row}번` : "";
+    if (productName(item.sku) !== item.sku || shelf) li.appendChild(el("span", "stock-shelf", `${item.sku}${shelf}`));
     return li;
   }));
   $("stock-empty").hidden = stock.length > 0;
@@ -543,6 +566,12 @@ function setEquipOpen(open) {
 
 // ---------- 최근 주문 내역 ----------
 
+function orderIdCell(id) {
+  const td = el("td", "mono", shortOrderId(id));
+  td.title = id;
+  return td;
+}
+
 function renderHistory() {
   const finished = view.service.finished;
   $("history").replaceChildren(...finished.map((order) => {
@@ -550,8 +579,8 @@ function renderHistory() {
     const result = el("td");
     result.appendChild(el("span", `badge ${OUTCOME_CLASS[order.outcome] || ""}`, order.outcome_text));
     if (order.failure) result.appendChild(el("div", "why", order.failure));
-    tr.append(el("td", "", clockText(order.updated_at)), el("td", "mono", order.order_id),
-      el("td", "", order.sku || "—"), el("td", "", destinationName(order)), result,
+    tr.append(el("td", "", clockText(order.updated_at)), orderIdCell(order.order_id),
+      el("td", "", productName(order.sku)), el("td", "", destinationName(order)), result,
       el("td", "num", durationText(order.updated_at - order.created_at)));
     tr.addEventListener("click", () => openOrderDialog(order));
     return tr;
@@ -669,7 +698,7 @@ function openOrderDialog(order) {
     body: [
       el("p", `dialog-status ${finished ? OUTCOME_CLASS[order.outcome] || "" : order.blocked ? "bad" : ""}`, status),
       stepBar(order),
-      factList([["상품", order.sku || "—"], ["자리", destinationName(order)],
+      factList([["상품", productName(order.sku)], ["자리", destinationName(order)],
         ["로봇", order.robot_id || "배정 전"], ["접수", clockText(order.created_at)],
         [finished ? "끝남" : "경과", finished ? `${clockText(order.updated_at)} (${durationText(order.updated_at - order.created_at)})`
           : durationText(service.now - order.created_at)],
@@ -682,7 +711,7 @@ function openOrderDialog(order) {
 function openLoadDialog(order) {
   openDialog({
     title: `주문 ${order.order_id} 상차 확인`,
-    body: [`${order.robot_id} · 상품 ${order.sku}`,
+    body: [`${order.robot_id} · 상품 ${productName(order.sku)}`,
       "로봇팔이 상품을 싣지 못했습니다. 사람이 직접 실은 뒤 아래를 확인하세요.",
       "확인하면 로봇이 상차장을 나와 고객 자리로 갑니다."],
     checks: LOAD_CHECKS,
@@ -734,7 +763,7 @@ function openRecoverDialog(order) {
   if (order.shelf_returnable) checks.push(SHELF_CHECK);
   openDialog({
     title: `주문 ${order.order_id} 멈춤`,
-    body: [`${order.robot_id} · 상품 ${order.sku} · ${orderStateText(order)}`, `멈춘 곳: ${order.step_text}`,
+    body: [`${order.robot_id} · 상품 ${productName(order.sku)} · ${orderStateText(order)}`, `멈춘 곳: ${order.step_text}`,
       order.failure ? `문제: ${order.failure}` : "",
       order.resumable ? "이어서 가거나 주문을 취소할 수 있습니다." : "",
       order.cancel_requested ? "취소를 요청한 주문입니다. 계속하면 고객에게 가지 않고 홈이나 선반으로 돌아갑니다." : "",
@@ -759,7 +788,7 @@ function openCancelChoice(order) {
     : "이미 반납·복귀 중이거나 자동 반납이 안 되는 주문입니다. 그대로 두거나 문제가 있으면 직접 처리하세요.";
   openDialog({
     title: `주문 ${order.order_id} 취소 방법`,
-    body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
+    body: [`${order.robot_id} · 상품 ${productName(order.sku)} → ${destinationName(order)}`, `지금: ${order.step_text}`,
       "자동 반납(권장): 로봇이 홈이나 선반으로 돌아갑니다. 재고도 저절로 돌아옵니다.",
       "직접 처리: 로봇과 로봇팔을 세우고 사람이 신발을 꺼냅니다.",
       why ? el("p", "dialog-status bad", why) : ""],
@@ -804,7 +833,7 @@ function openReturnDialog(order) {
   if (atSeat) checks.push(["shoe_on_robot", "신발이 로봇 위에 있고 고객이 로봇에서 물러났다"]);
   openDialog({
     title: `주문 ${order.order_id} 자동 반납`,
-    body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
+    body: [`${order.robot_id} · 상품 ${productName(order.sku)} → ${destinationName(order)}`, `지금: ${order.step_text}`,
       BEFORE_PICK.has(order.stage)
         ? "지금 단계를 마치면 로봇이 홈으로 돌아갑니다. 그 사이 상품을 집기 시작하면 선반에 반납합니다."
         : atSeat ? "지금 단계를 마치면 정리 구역을 거쳐 선반에 반납합니다."
@@ -836,7 +865,7 @@ function canStopCancel(order) {
 function openStopCancelDialog(order) {
   openDialog({
     title: `주문 ${order.order_id} 직접 처리`,
-    body: [`${order.robot_id} · 상품 ${order.sku || "—"} → ${destinationName(order)}`, `지금: ${order.step_text}`,
+    body: [`${order.robot_id} · 상품 ${productName(order.sku)} → ${destinationName(order)}`, `지금: ${order.step_text}`,
       ARM_STAGES.has(order.stage) ? el("p", "dialog-status bad", "로봇팔이 상품을 쥔 채 멈출 수 있습니다.") : "",
       "누르면 로봇이 그 자리에 서고 이 주문의 로봇팔도 멈춥니다. 아직 취소되지는 않습니다.",
       "멈춘 것을 확인하면 처리 창이 열립니다. 신발을 꺼내고 정리한 뒤 거기서 취소하세요."],
@@ -908,7 +937,7 @@ function checkStopWait() {
 function openCancelDialog(order) {
   openDialog({
     title: `주문 ${order.order_id} 취소`,
-    body: [`상품 ${order.sku || "—"} → ${destinationName(order)}`, "아직 로봇이 배정되지 않은 주문입니다. 취소하면 되돌릴 수 없습니다.",
+    body: [`상품 ${productName(order.sku)} → ${destinationName(order)}`, "아직 로봇이 배정되지 않은 주문입니다. 취소하면 되돌릴 수 없습니다.",
       "예약한 재고는 돌아옵니다.", "고객 화면에는 주문을 처리하지 못했다고 나옵니다."],
     checks: [["customer_informed", "고객에게 알렸거나 취소해도 되는 것을 확인했다"]],
     actions: [{
