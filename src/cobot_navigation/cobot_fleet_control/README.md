@@ -130,6 +130,7 @@ flowchart TB
 구매·반납·복귀가 시작된 뒤에는 `cancel`을 거절합니다. 화면에서 쓰는 방법은 [매장 관리화면 사용법](../../cobot_control_center/docs/service_screen.md)을 봅니다.
 
 멈춘 주문을 `fail` 로 취소할 때 `evidence.item_on_shelf: true`(사람이 원래 선반 칸에 돌려놓음)를 주면 예약 재고를 돌려줍니다. 구매한 주문은 거절합니다. 집기 전 취소로 이미 홈 복귀 중(`operator_cancelled`)에 멈춘 주문은 이 값이 없어도 예약 재고를 돌려줍니다.
+상차 정차(`DOCK_PICKUP`) 재시도를 다 써서 홈으로 돌아가는 주문도 집기를 보낸 적이 없고 수동 상차도 아니면(`stock_on_shelf`) 신발이 선반에 그대로 있으므로, 끝나거나 도중에 `fail` 로 닫을 때 예약 재고를 돌려줍니다.
 
 예외 처리 (재시도는 `max_retries`, 설정 3회까지):
 

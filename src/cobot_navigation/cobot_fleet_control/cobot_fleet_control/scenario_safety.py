@@ -212,7 +212,8 @@ def recover(service, order_id, operator, note, decision, evidence, source=''):
             order['operator_restocked'] = True
         # 배정 전이거나 집기 전에 취소한 주문, 사람이 선반에 돌려놓은 주문은 예약분을 반환한다.
         service.store.close_order(order, restock=order['kind'] == 'delivery' and (
-            robot is None or on_shelf or bool(order.get('operator_cancelled'))))
+            robot is None or on_shelf
+            or bool(order.get('operator_cancelled') or order.get('stock_on_shelf'))))
     else:
         _apply_checkpoint(service, order, stage, checkpoint, decision)
         service._save(order, state='RUNNING' if robot else 'WAITING', request_id=None,

@@ -999,3 +999,52 @@ def test_navigation_still_running_after_the_deadline_times_out(env):
     env.tick()
     assert env.current()['state'] == 'UNKNOWN'
     assert env.current()['detail'] == '단계 결과 시간 초과'
+
+
+def exhaust_dock_pickup(env):
+    """상차 정차를 매번 허용 오차 밖으로 답해 재시도를 모두 쓰게 한다."""
+    far = {'xy_m': 0.5, 'yaw_deg': 0, 'stopped': True, 'base_hold': True}
+    for _ in range(env.scenario.config['max_retries'] + 1):
+        env.result(far)
+        env.tick()
+        if env.current()['failure']:
+            return
+        env.result()
+        env.tick()
+    pytest.fail('dock retries did not run out')
+
+
+def test_dock_failure_before_pick_returns_the_reserved_stock(env):
+    env.order()
+    assert env.stock('SHOE42') == 9
+    env.until('DOCK_PICKUP')
+    exhaust_dock_pickup(env)
+    final = env.finish()
+    assert final['state'] == 'FAILED' and final['stock_on_shelf']
+    assert not any(w['action'] == 'pick' for w in env.gateway.work_sent)
+    # 팔이 손대지 않아 신발은 선반에 그대로 있다.
+    assert env.stock('SHOE42') == 10
+
+
+def test_dock_failure_after_a_manual_load_keeps_the_stock_reserved(env):
+    env.order()
+    env.until('DOCK_PICKUP')
+    # 사람이 실었다고 확인했으면 신발은 로봇 위에 있다.
+    env.scenario._save(env.current(), manual_load_pending=True)
+    exhaust_dock_pickup(env)
+    final = env.finish()
+    assert final['state'] == 'FAILED' and not final.get('stock_on_shelf')
+    assert env.stock('SHOE42') == 9
+
+
+def test_dock_failure_stopped_on_the_way_home_still_returns_the_stock(env):
+    env.order()
+    env.until('DOCK_PICKUP')
+    exhaust_dock_pickup(env)
+    env.until('RETURN_HOME')
+    env.api.handle({'type': 'estop', 'robot_id': 'pinky1', 'request_id': 'r1'})
+    env.tick()
+    env.scenario.recover('order1', None, None, 'fail', {
+        'arms_safe': True, 'cargo_reconciled': True, 'resources_clear': True})
+    assert env.current()['state'] == 'FAILED'
+    assert env.stock('SHOE42') == 10

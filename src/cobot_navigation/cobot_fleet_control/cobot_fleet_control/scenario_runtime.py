@@ -122,7 +122,11 @@ class ScenarioContext:
             self.service._alarm(self.order, 'RETRIES_EXHAUSTED', detail)
             if stage == 'DOCK_PICKUP':
                 # 피킹 이전의 정차 실패만 안전 복귀 분기로 넘긴다.
-                self.save(failure=detail, request_id=None, attempt=0)
+                # 집기를 보낸 적 없고 사람이 싣지도 않았으면 상품은 선반에 그대로 있다.
+                on_shelf = not (self.order.get('pick_started')
+                                or self.order.get('manual_load_pending'))
+                self.save(failure=detail, request_id=None, attempt=0,
+                          **({'stock_on_shelf': True} if on_shelf else {}))
             else:
                 self.interrupt(detail + ': 관리자 확인 필요')
             return False
@@ -150,8 +154,10 @@ class ScenarioContext:
             self.service.store.hold(order['robot_id'], 'CARGO_ONBOARD')
             self.service._alarm(order, 'CARGO_ONBOARD',
                                 '무응답 복귀: 로봇 위 신발을 내린 뒤 정지 해제 필요')
+        # 직원 취소나 집기 전 정차 실패는 상품이 선반에 그대로 있어 예약분을 돌려준다.
+        untouched = bool(order.get('operator_cancelled') or order.get('stock_on_shelf'))
         self.service.store.close_order(
-            order, restock=bool(order.get('operator_cancelled')) or (
+            order, restock=untouched or (
                 not order['failure'] and (order['kind'] == 'return' or restocked)))
         if (order.get('customer_declined') and order['kind'] == 'delivery'
                 and not order['failure'] and not customer):
