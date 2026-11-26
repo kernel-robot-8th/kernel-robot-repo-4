@@ -150,7 +150,7 @@ flowchart TB
   운영자가 현장을 보고 다시(`resume`)·사람이 처리함(`done`)·취소(`fail`) 중 고릅니다.
 - 재고는 선반 반환(`RESTOCK`)이 끝나야 돌아옵니다. 별도 회수 주문(`-return`)은 만들지 않습니다.
 - 이어서 가기(복구)는 `MOVE_CUSTOMER`·`MOVE_ARRANGE`·`MOVE_RESTOCK`에서도 받습니다.
-- QR 주소: `http://<관제 PC IP>:<포트>/?loc=P22`.
+- QR 주소: `http://<관제 PC IP>:<포트>/?loc=<자리 ID>` (P13, P22, P28). 예: `?loc=P22`.
 
 ### 하차 구역 자리 주문 (기존)
 
@@ -300,7 +300,7 @@ ROS publish는 원격 수신 확인이 아니며, 배터리 만료는 상태 만
 
 | 자리 경로 | 상차 | 고객 자리 | 회수 정리 | 선반 반환 |
 |---|---|---|---|---|
-| `col1__P22`, `col2__P22` | ZB · omx2 | P22 | ZC · omx3 | ZA · omx1 |
+| `col1__<자리>`, `col2__<자리>` | ZB · omx2 | P13, P22, P28 | ZC · omx3 | ZA · omx1 |
 
 하차 구역 경로 `lab_delivery`, `lab_delivery_zb`는 2026-11-24에 지웠고 그 이름의 주문은 거절합니다
 (팔이 하지 않는 `pick`·`load`·`unload`를 시켰음). 같은 팔·구역·통로 예약을 쓰는 단계는 자원을 기다립니다.

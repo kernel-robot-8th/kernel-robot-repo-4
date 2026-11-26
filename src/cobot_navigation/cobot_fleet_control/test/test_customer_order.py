@@ -216,12 +216,18 @@ def test_packaged_scenario_config_builds_shelf_routes(tmp_path):
         (Path(__file__).resolve().parents[1] / 'config/scenario.yaml').read_text('utf-8'))
     repo = SqliteRepository(str(tmp_path / 'fleet.sqlite3'))
     scenario = ScenarioService(repo, FleetService(repo, None, ['pinky1']), None, **config)
-    # 현장 구역: ZB 상차(omx2), ZC 회수 정리(omx3), ZA 선반 반환(omx1). 고객 자리 P22.
-    seat = dict(pickup='ZB', pickup_arm='omx2', customer='P22', dropoff='ZC',
-                dropoff_arm='omx3', restock='ZA', restock_arm='omx1', lane='main')
-    assert scenario.routes['col1__P22'] == scenario.routes['col2__P22'] == seat
+    # 현장 구역: ZB 상차(omx2), ZC 회수 정리(omx3), ZA 선반 반환(omx1). 고객 자리 P13·P22·P28.
+    seats = ('P13', 'P22', 'P28')
+    for point in seats:
+        seat = dict(pickup='ZB', pickup_arm='omx2', customer=point, dropoff='ZC',
+                    dropoff_arm='omx3', restock='ZA', restock_arm='omx1', lane='main')
+        assert scenario.routes[f'col1__{point}'] == scenario.routes[f'col2__{point}'] == seat
     # 자리 경로만 있다. 팔이 하지 않는 작업을 시키는 하차 구역 경로가 없고, 3열은 아직 쓰지 않는다.
-    assert set(scenario.routes) == {'col1__P22', 'col2__P22'}
+    assert set(scenario.routes) == {f'col{c}__{p}' for c in (1, 2) for p in seats}
+    # 로봇이 모르는 지점이면 상차까지 끝낸 뒤 주행에서 멈추므로 현장 좌표에 있는지 미리 본다.
+    site = yaml.safe_load((Path(__file__).resolve().parents[2]
+                           / 'cobot_pinky_patrol/config/sites/lab.yaml').read_text('utf-8'))
+    assert set(seats) <= set(site['pinky_patrol_node']['ros__parameters']['points'])
     assert scenario.shelf['rows'] == 4  # 팔 박스 번호 1~4
     assert scenario.config['customer_timeout_sec'] == 300.0  # 5분
     repo.close()
