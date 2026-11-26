@@ -220,7 +220,9 @@ def test_packaged_scenario_config_builds_shelf_routes(tmp_path):
     seats = ('P13', 'P22', 'P28')
     for point in seats:
         seat = dict(pickup='ZB', pickup_arm='omx2', customer=point, dropoff='ZC',
-                    dropoff_arm='omx3', restock='ZA', restock_arm='omx1', lane='main')
+                    dropoff_arm='omx3', restock='ZA', restock_arm='omx1')
+        if point == 'P22':
+            seat['lane'] = 'main'  # P13·P28 은 통로 예약 없이 간다
         assert scenario.routes[f'col1__{point}'] == scenario.routes[f'col2__{point}'] == seat
     # 자리 경로만 있다. 팔이 하지 않는 작업을 시키는 하차 구역 경로가 없고, 3열은 아직 쓰지 않는다.
     assert set(scenario.routes) == {f'col{c}__{p}' for c in (1, 2) for p in seats}

@@ -17,13 +17,14 @@ shelf:
 # (warehouse_store) → HOME. 반환이 끝나야 재고가 1 돌아온다. 지점 자리(point)를 쓰려면 꼭 적는다.
 customer_return: {arrange: ZC, arrange_arm: omx3, restock: ZA, restock_arm: omx1}
 # 자리 QR 의 위치 ID -> 로봇이 갈 곳. QR 주소: http://<관제 PC IP>:<포트>/?loc=<자리 ID>
-#   {point: <지점>, lane}: 로봇 순찰 설정(cobot_pinky_patrol config/sites/<현장>.yaml points)의 일반 지점(P1~P50).
-#     고객이 핑키에서 신발을 직접 꺼내고 그 자리에서 결제한다.
+#   {point: <지점>[, lane]}: 로봇 순찰 설정(cobot_pinky_patrol config/sites/<현장>.yaml points)의 일반 지점(P1~P50).
+#     고객이 핑키에서 신발을 직접 꺼내고 그 자리에서 결제한다. lane 을 빼면 통로 예약 없이 간다
+#     (구역 진입은 zone_manager 가 한 대씩 막는다). lane 이 같은 자리끼리는 한 대씩만 간다.
 #   {dropoff, dropoff_arm, lane}: 하차 구역에서 하차 팔이 내려놓는 기존 방식.
 destinations:
   P22: {name: "P22 자리", point: P22, lane: main}
-  P13: {name: "P13 자리", point: P13, lane: main}
-  P28: {name: "P28 자리", point: P28, lane: main}
+  P13: {name: "P13 자리", point: P13}
+  P28: {name: "P28 자리", point: P28}
 max_retries: 3                 # initial attempt + at most three safe retries
 step_timeout_sec: 300.0
 customer_timeout_sec: 300.0   # 고객 자리 도착 뒤 결제·회수 대기 (5분). 넘으면 신발을 실은 채 HOME (사람이 내리고 정지 해제할 때까지 배정 안 함)

@@ -204,8 +204,9 @@ class PathClear(DeviceStep):
     def accept(self, data):
         if data.get('clear') is not True:
             return False
-        self.ctx.service.store.release(
-            self.ctx.order['order_id'], ['lane_' + self.ctx.service._route(self.ctx.order)['lane']])
+        route = self.ctx.service._route(self.ctx.order)
+        if 'lane' in route:
+            self.ctx.service.store.release(self.ctx.order['order_id'], ['lane_' + route['lane']])
         return True
 
 

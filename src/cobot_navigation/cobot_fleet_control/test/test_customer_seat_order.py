@@ -25,12 +25,14 @@ DEVICE_OK = dict(xy_m=0.005, yaw_deg=1.0, stopped=True, base_hold=True, sku='SHO
 class SeatEnvironment(Environment):
     """고객 자리 설정을 켠 관제. 고객 결정은 시험이 직접 넣는다 (자동 수령 없음)."""
 
+    destinations = DESTINATIONS
+
     def open(self):
         self.repo = SqliteRepository(self.path)
         self.fleet = FleetService(self.repo, self.gateway, ['pinky1', 'pinky2'], lambda: self.now)
         self.scenario = ScenarioService(
             self.repo, self.fleet, self.gateway, ROUTES, clock=lambda: self.now,
-            customer_timeout_sec=TIMEOUT, shelf=SHELF, destinations=DESTINATIONS,
+            customer_timeout_sec=TIMEOUT, shelf=SHELF, destinations=self.destinations,
             customer_return=RETURN)
         self.api = ControlAPI(self.scenario, self.fleet, self.gateway)
         self.healthy()
@@ -817,7 +819,7 @@ def test_arrange_result_from_wrong_arm_is_ignored(env):
 @pytest.mark.parametrize('destinations,back,message', [
     (DESTINATIONS, None, 'customer_return'),
     (DESTINATIONS, dict(arrange='ZC', arrange_arm='omx3'), 'customer_return'),
-    ({'P22': dict(point='P22')}, RETURN, 'point, lane'),
+    ({'P22': {'point': 'P22', 'dropoff': 'ZC'}}, RETURN, r'point\[, lane\]'),
     (DESTINATIONS, dict(RETURN, restock='ZB'), '서로 달라야'),
     (DESTINATIONS, dict(RETURN, restock_arm='omx2'), '서로 다른'),
 ])
@@ -1048,3 +1050,28 @@ def test_dock_failure_stopped_on_the_way_home_still_returns_the_stock(env):
         'arms_safe': True, 'cargo_reconciled': True, 'resources_clear': True})
     assert env.current()['state'] == 'FAILED'
     assert env.stock('SHOE42') == 10
+
+
+class LanelessSeatEnvironment(SeatEnvironment):
+    """P13 자리는 통로(lane)를 적지 않았다."""
+
+    destinations = dict(DESTINATIONS, P13={'name': 'P13 자리', 'point': 'P13'})
+
+
+def test_seat_without_lane_does_not_hold_the_shared_lane(tmp_path):
+    env = LanelessSeatEnvironment(tmp_path / 'fleet.sqlite3')
+    env.scenario.store.set_stock('SHOE42', 10, 3, 1)
+    assert 'lane' not in env.scenario.routes['col1__P13']
+    env.order('order1', destination='P13')
+    env.until('CUSTOMER')
+    assert not [r for r in env.scenario.store.resources('order1') if r.startswith('lane_')]
+    # 1번 로봇이 고객 자리에서 기다리는 동안 2번 주문(통로 main)이 다른 로봇으로 출발한다.
+    env.order('order2')
+    for _ in range(4):
+        env.now += 1
+        env.healthy()
+        env.tick()
+    second = env.current('order2')
+    assert second['robot_id'] == 'pinky2'
+    assert second['stage'] == 'MOVE_PICKUP' and second['request_id']
+    env.repo.close()

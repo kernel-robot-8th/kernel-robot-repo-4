@@ -86,7 +86,7 @@ class ScenarioContext:
             resources = station(self.order, 'dropoff')
         elif stage == 'MOVE_RESTOCK':
             resources = station(self.order, 'restock')
-        if stage in NAVIGATION:
+        if stage in NAVIGATION and 'lane' in route:
             resources += ['lane_' + route['lane']]
         return resources
 

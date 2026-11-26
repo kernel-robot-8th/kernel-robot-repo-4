@@ -5,12 +5,14 @@ from .scenario_contracts import identifier, ROUTE_ARMS
 ROUTE_KEYS = {'pickup', 'dropoff', 'pickup_arm', 'dropoff_arm', 'lane'}
 # 지점 자리(고객 자리) 경로: 고객 지점과 회수 반환 구역·팔이 더 있다.
 CUSTOMER_ROUTE_KEYS = ROUTE_KEYS | {'customer', 'restock', 'restock_arm'}
+# 고객 자리는 구역 밖 매장 바닥이다. 구역 진입은 zone_manager 가 한 대씩 막으므로 통로(lane)는 생략할 수 있다.
+ROUTE_KEY_SETS = (ROUTE_KEYS, CUSTOMER_ROUTE_KEYS, CUSTOMER_ROUTE_KEYS - {'lane'})
 
 
 def check_routes(routes):
     """경로 칸이 빠짐없고, 한 경로 안의 작업장과 팔이 서로 다른지 본다."""
     for route in routes.values():
-        if set(route) not in (ROUTE_KEYS, CUSTOMER_ROUTE_KEYS):
+        if set(route) not in ROUTE_KEY_SETS:
             raise ValueError('route: pickup, dropoff, pickup_arm, dropoff_arm, lane 필요')
         for name, value in route.items():
             identifier(value, name)
@@ -28,9 +30,10 @@ def build_layout(routes, shelf, destinations, customer_return=None):
 
     자리는 두 가지다.
     - 하차 구역 자리 {dropoff, dropoff_arm, lane}: 하차 팔이 내려놓고 고객이 받는다 (기존).
-    - 지점 자리 {point, lane}: 로봇이 그 지점(고객 자리, 구역이 아닌 일반 지점)으로 가서 고객이
+    - 지점 자리 {point[, lane]}: 로봇이 그 지점(고객 자리, 구역이 아닌 일반 지점)으로 가서 고객이
       핑키에서 직접 꺼낸다. 회수하면 customer_return 의 정리 구역(arrange)·반환 구역(restock)을 거친다.
       경로 칸: customer=지점, dropoff/dropoff_arm=정리 구역·팔, restock/restock_arm=반환 구역·팔.
+      lane 을 생략하면 통로 예약 없이 주행한다.
     """
     routes = dict(routes)
     shelf = dict(shelf or {})
@@ -54,9 +57,10 @@ def build_layout(routes, shelf, destinations, customer_return=None):
     for name, target in destinations.items():
         identifier(name, 'destination')
         keys = set(target) - {'name'} if isinstance(target, dict) else None
-        if (keys not in ({'dropoff', 'dropoff_arm', 'lane'}, {'point', 'lane'})
+        if (keys not in ({'dropoff', 'dropoff_arm', 'lane'}, {'point', 'lane'}, {'point'})
                 or not isinstance(target.get('name', name), str)):
-            raise ValueError('destinations: 자리마다 dropoff, dropoff_arm, lane 또는 point, lane 필요')
+            raise ValueError(
+                'destinations: 자리마다 dropoff, dropoff_arm, lane 또는 point[, lane] 필요')
         if 'point' in target and not back:
             raise ValueError('지점 자리(point)는 customer_return(회수 정리·반환 구역) 설정 필요')
         for column, pickup in columns.items():
@@ -67,7 +71,7 @@ def build_layout(routes, shelf, destinations, customer_return=None):
                 routes[route] = dict(pickup, customer=target['point'],
                                      dropoff=back['arrange'], dropoff_arm=back['arrange_arm'],
                                      restock=back['restock'], restock_arm=back['restock_arm'],
-                                     lane=target['lane'])
+                                     **({'lane': target['lane']} if 'lane' in target else {}))
             else:
                 routes[route] = dict(pickup, dropoff=target['dropoff'],
                                      dropoff_arm=target['dropoff_arm'], lane=target['lane'])
