@@ -445,8 +445,12 @@ def test_cancel_at_the_seat_beats_later_payment_while_disarmed(env):
     env.order()
     env.until('CUSTOMER')
     env.scenario.armed = False
+    sent = len(env.gateway.sent)
     assert request_cancel(env, evidence={'shoe_on_robot': True})['status'] == 202
-    assert env.current()['stage'] == 'CUSTOMER'
+    # 꺼져 있어도 취소는 바로 반영해 정리 구역 쪽으로 넘어가지만, 새 주행 명령은 보내지 않는다.
+    assert env.current()['stage'] == 'MOVE_ARRANGE' and not env.current()['request_id']
+    env.tick()
+    assert len(env.gateway.sent) == sent
     assert env.api.handle({'type': 'received', 'order_id': 'order1'})['status'] == 400
     env.scenario.armed = True
     assert env.finish()['state'] == 'COMPLETED' and env.stock('SHOE42') == 10
@@ -930,3 +934,68 @@ def test_manual_load_is_refused_without_the_pickup_station(env):
     env.scenario.store.release('order1', ['station_ZB'])
     assert confirm_loaded(env)['status'] == 400
     assert env.current()['stage'] == 'MARKER'
+
+
+def nav_done(env):
+    """지금 주행 명령이 로봇에서 끝났다고 알린다 (관제 트리는 아직 돌리지 않는다)."""
+    order = env.current()
+    env.fleet.tick()
+    env.fleet.on_status(order['robot_id'], {
+        'command_id': order['request_id'], 'state': 'DONE', 'task_finished': True})
+    env.fleet.tick()
+
+
+def test_disarmed_keeps_reading_results_but_sends_no_new_command(env):
+    """주문 받기를 멈춰도 끝난 주행은 반영하고, 다음 명령은 다시 켤 때만 보낸다."""
+    env.order()
+    env.tick()
+    assert env.current()['stage'] == 'MOVE_PICKUP' and env.current()['request_id']
+    env.scenario.armed = False
+    nav_done(env)
+    sent, works = len(env.gateway.sent), len(env.works())
+    for _ in range(3):
+        env.now += TIMEOUT
+        env.tick()
+    order = env.current()
+    assert order['state'] == 'RUNNING' and 'MOVE_PICKUP' in order['completed']
+    assert order['stage'] == 'PICKUP_EXIT' and not order['request_id']
+    assert (len(env.gateway.sent), len(env.works())) == (sent, works)
+    env.scenario.armed = True
+    env.tick()
+    assert env.current()['request_id'] and env.works()[-1][0] == 'PICKUP_EXIT'
+
+
+def test_payment_while_disarmed_is_recorded_at_once(env):
+    """멈춘 동안 고객이 결제해도 바로 기록돼, 뒤이은 정지·복구로 잃지 않는다."""
+    env.order()
+    env.until('CUSTOMER')
+    env.scenario.armed = False
+    assert env.api.handle({'type': 'received', 'order_id': 'order1'})['status'] == 200
+    order = env.current()
+    assert order['customer_received'] and 'CUSTOMER' in order['completed']
+    assert order['stage'] == 'RETURN_HOME' and not order['request_id']
+    env.scenario.armed = True
+    order = env.finish()
+    assert order['state'] == 'COMPLETED' and not order['customer_timed_out']
+    assert env.stock('SHOE42') == 9
+
+
+def test_navigation_success_seen_after_the_deadline_is_accepted(env):
+    """관제 갱신이 늦어 기한 뒤에 본 주행 성공은 시간 초과가 아니라 완료다."""
+    env.order()
+    env.tick()
+    nav_done(env)
+    env.now += TIMEOUT + 1
+    env.tick()
+    order = env.current()
+    assert order['state'] == 'RUNNING' and 'MOVE_PICKUP' in order['completed']
+
+
+def test_navigation_still_running_after_the_deadline_times_out(env):
+    """기한이 지나도 끝나지 않은 주행은 그대로 시간 초과로 멈춘다."""
+    env.order()
+    env.tick()
+    env.now += TIMEOUT + 1
+    env.tick()
+    assert env.current()['state'] == 'UNKNOWN'
+    assert env.current()['detail'] == '단계 결과 시간 초과'

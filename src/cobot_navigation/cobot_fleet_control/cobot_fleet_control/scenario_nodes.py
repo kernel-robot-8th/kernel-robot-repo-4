@@ -12,7 +12,12 @@ Status = py_trees.common.Status
 
 
 class SafetyGate(py_trees.decorators.Decorator):
-    """매번 안전 조건을 검사하되 가동 허용을 끈 동안 완료된 하위 트리의 기억은 보존한다."""
+    """
+    매번 안전 조건을 검사한다. 작업 명령(주문 받기)을 끈 동안에도 트리는 돈다.
+
+    꺼짐은 새 장치 명령만 막는다. 이미 보낸 명령의 결과와 고객 결제·회수 입력은 계속 반영해야
+    다시 켤 때 끝난 주행을 시간 초과로 보거나 고객 입력을 잃지 않는다 (2026-11-26).
+    """
 
     def __init__(self, context, child):
         super().__init__('안전 감시·가동 허용', child)
@@ -30,9 +35,6 @@ class SafetyGate(py_trees.decorators.Decorator):
         elif not service._fresh(order['robot_id']):
             ctx.interrupt('통신·배터리 상태 수신 만료')
             self.status, permit = Status.FAILURE, False
-        elif not service.armed:
-            self.feedback_message = '작업 명령 꺼짐: 실행 위치 유지'
-            self.status, permit = Status.RUNNING, False
         else:
             status = service.health[order['robot_id']]['status']
             latched = status.get('central_latched')
@@ -52,7 +54,12 @@ class SafetyGate(py_trees.decorators.Decorator):
                 ctx.save(reset_pending=False)
                 service.deadlines.pop(order['order_id'], None)
         if permit:
-            self.feedback_message = '최신 상태·가동 허용 확인'
+            if service.armed:
+                self.feedback_message = '최신 상태·가동 허용 확인'
+            else:
+                # 이번 순회에서만 명령 전달을 막는다. ScenarioRuntime.tick 이 매번 다시 정한다.
+                ctx.allow_dispatch = False
+                self.feedback_message = '작업 명령 꺼짐: 새 명령 없이 결과만 반영'
             for node in self.decorated.tick():
                 yield node
             self.status = self.decorated.status
@@ -113,10 +120,14 @@ class Step(py_trees.behaviour.Behaviour):
             self.feedback_message = ('명령 결과 대기' if ctx.order['request_id']
                                      else '자원 또는 타이머의 명령 전달 대기')
             return Status.RUNNING if ctx.running else Status.FAILURE
-        if ctx.service.clock() >= ctx.service.deadlines.get(ctx.order['order_id'], math.inf):
+        # 결과를 먼저 본다. 갱신이 늦어 기한 뒤에 확인한 성공도 이미 끝난 일이다.
+        # 장치 결과는 receive() 가 받을 때 기한을 이미 검사했다.
+        status = self.poll()
+        if (status == Status.RUNNING and ctx.service.clock()
+                >= ctx.service.deadlines.get(ctx.order['order_id'], math.inf)):
             ctx.interrupt('단계 결과 시간 초과')
             return Status.FAILURE
-        return self.poll()
+        return status
 
     def poll(self):
         raise NotImplementedError
