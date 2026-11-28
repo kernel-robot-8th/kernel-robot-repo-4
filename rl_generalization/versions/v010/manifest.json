@@ -1,0 +1,33 @@
+{
+  "version": "v010",
+  "files": {
+    "README.md": {
+      "sha256": "2ade0274a57be38f7ced1bd9afc1e82cb156baa4745ed57ebefafa22f3033151",
+      "bytes": 2040
+    },
+    "code/check.py": {
+      "sha256": "84e521e0f9004dcb7e518a371531050ddeb14553dec831bd7e6afa6341435b26",
+      "bytes": 2850
+    },
+    "code/prepare.py": {
+      "sha256": "f51969c832a30dcb3a3d02f1461f7fd9919bc529811f76c688074ebbd78d4c89",
+      "bytes": 3675
+    },
+    "code/run_remote.sh": {
+      "sha256": "27b3a97e532596b0b6e72499f9933c84206a2da63c798e28936215783e3f599d",
+      "bytes": 437
+    },
+    "configs/dynamics.json": {
+      "sha256": "d50809a6cba40d5b4759d6d576f2bddecf629a0ecda329343c39f4d2292eb660",
+      "bytes": 683
+    },
+    "evidence/settling_smoke.json": {
+      "sha256": "f1a12b18d60314bcbcf157e362850c0ff82f8fa0cc115d22237d70870073d9f3",
+      "bytes": 317
+    },
+    "requirements.txt": {
+      "sha256": "a865595a2fe6894877c0e751ab54c900938df22cb05470f8d9ebd79cae1973c7",
+      "bytes": 27
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "version": "v007",
+  "files": {
+    "README.md": {
+      "bytes": 1991,
+      "sha256": "d600cf1a31730442d1568bf9296baca2b08b5192fe59bd4e7b427ff8bc39d6d9"
+    },
+    "code/layout.py": {
+      "bytes": 5906,
+      "sha256": "d4b12d0e8756d299b3bd916c06453f2624871b1a825b9e5dc0d1e1f9fd375c1a"
+    },
+    "evidence/arrange_inspection.json": {
+      "bytes": 1064,
+      "sha256": "948c076d654d40fd178cf4bb5c38d42810a8d98f48fc0c1cd7cf856c1215e8b9"
+    },
+    "evidence/layout_preview.png": {
+      "bytes": 87041,
+      "sha256": "c1e88d619167cc797ee8b008e84cf59ced406b9342230697552bf1679cdeb34a"
+    },
+    "configs/layout.json": {
+      "bytes": 1725,
+      "sha256": "f84b602ad2b2d0f2f16031c55c08c17aa240e8f2d5759f50a7d95ba8b4648e04"
+    }
+  }
+}

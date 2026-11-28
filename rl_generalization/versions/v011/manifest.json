@@ -1,0 +1,37 @@
+{
+  "version": "v011",
+  "files": {
+    "requirements.txt": {
+      "sha256": "a865595a2fe6894877c0e751ab54c900938df22cb05470f8d9ebd79cae1973c7",
+      "bytes": 27
+    },
+    "README.md": {
+      "sha256": "416677704eb70f359df54a6f44ec52b26858e8f2171d9fb606b1f9ee42a1d5bd",
+      "bytes": 1328
+    },
+    "code/replace_mobile.py": {
+      "sha256": "4cb12e8c2fb8d3f6c3373ad0ce6d9b169a7fdd368ebff4b2806def5f1bbeeb82",
+      "bytes": 2084
+    },
+    "code/run_remote.sh": {
+      "sha256": "27b3a97e532596b0b6e72499f9933c84206a2da63c798e28936215783e3f599d",
+      "bytes": 437
+    },
+    "code/check.py": {
+      "sha256": "1bf161417ca444c016606828788bf2d29c3fc1babec9763db4b6ee29aa1abcf0",
+      "bytes": 2893
+    },
+    "evidence/tray_drop.json": {
+      "sha256": "5fc09dd09267aa488e540821f64125daa4d8c655dae613f5ca98f44ec0f2a735",
+      "bytes": 210
+    },
+    "evidence/settling_smoke.json": {
+      "sha256": "4c2addbd2f30c9d52ba731af3bc2327aa31b358f9fc311806d5a05214d4fefab",
+      "bytes": 360
+    },
+    "configs/mobile_layout.json": {
+      "sha256": "f9b3eb0b7737b80d473a7582fc5fa8f37ddb66a6902619bfc70d8ffb6c2bbec6",
+      "bytes": 1045
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "units": "m",
+  "measured": {
+    "wood_width_y": 0.27,
+    "wood_depth_x": 0.2,
+    "wood_height": 0.08,
+    "table_width_y": 0.28,
+    "table_depth_x": 0.172,
+    "table_height": 0.175,
+    "edge_gap_x": 0.025,
+    "shoe_length_x": 0.035,
+    "shoe_width_y": 0.02,
+    "shoe_height_min": 0.007,
+    "shoe_height_max": 0.025,
+    "box_width_y": 0.06,
+    "box_depth_x": 0.06,
+    "box_height": 0.055,
+    "rim_outer_width_y": 0.07,
+    "rim_outer_depth_x": 0.07,
+    "rim_height": 0.01
+  },
+  "assumed": {
+    "robot_origin_xy_on_wood": [
+      0.0,
+      0.0
+    ],
+    "robot_yaw_rad": 0.0,
+    "table_center_y": 0.0,
+    "shoe_centers_relative_table_xy": [
+      [
+        -0.0385,
+        -0.1
+      ],
+      [
+        0.0335,
+        -0.1
+      ]
+    ],
+    "box_center_relative_table_xy": [
+      0.0125,
+      0.001
+    ],
+    "rim_wall_thickness": 0.005,
+    "shoe_rear_height": 0.022,
+    "visual_sole_thickness": 0.003
+  },
+  "limitations": [
+    "Robot base origin assumed at wood center; exact base mounting transform unmeasured.",
+    "Both supports assumed on same floor; width/depth orientation interpreted from photos.",
+    "Object positions and orientations are layout placeholders, not measured.",
+    "Box is a solid closed placeholder without cavity or lid joint.",
+    "All props fixed: layout/collision inspection only, not grasp training.",
+    "Yellow reference edge unclear: center estimated by opposing gap differences, not exact edge fitting.",
+    "Rim has no bottom in this draft; inner width6cm and thickness0.5cm inferred from box6cm, clearance unmeasured.",
+    "Red3cm used as rightmost gap for both axis-aligned shoe proxies; yaw and blue mark endpoints unconfirmed.",
+    "Smooth shoe envelope: toe0.7cm, central peak2.5cm; rear2.2cm assumed. Decorative laces only; no scanned shape, opening or material compliance. Toe direction +x provisional."
+  ],
+  "material_observations": {
+    "shoe_upper": "User reports soft compressible canvas (Converse).",
+    "shoe_sole": "User reports rigid sole.",
+    "box": "User reports paper/cardboard box.",
+    "contact_parameters": "Unmeasured; visual material labels do not implement deformation."
+  }
+}

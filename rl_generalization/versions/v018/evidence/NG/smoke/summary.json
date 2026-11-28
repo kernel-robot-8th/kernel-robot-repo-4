@@ -1,0 +1,27 @@
+{
+  "status": "NG_REPLAY_RECORDED",
+  "video": "versions/v018/evidence/NG/smoke/ng_replay.mp4",
+  "plan": {
+    "max_position_error_m": 0.0001271817610318482,
+    "max_orientation_error_deg": 1.8411122285637853,
+    "shift_is_calibrated": false,
+    "initial_pose_changed_to_retargeted_start": true
+  },
+  "scene": "/home/noma/dev_ws/Project2/rl_generalization/.local/finger_proxy_z20_v018/scene.xml",
+  "shift_m": [
+    0.0349720067,
+    -0.0034275971,
+    -0.018
+  ],
+  "peak_shoe_lift_m": [
+    0.0,
+    0.0
+  ],
+  "bilateral_contact_steps": [
+    0,
+    0
+  ],
+  "max_finger_shoe_penetration_m": 0.0,
+  "max_finger_pair": null,
+  "interpretation": "Apparent lift is rejected as a grasp when penetration exceeds 1 mm; this video documents the collision-model failure."
+}

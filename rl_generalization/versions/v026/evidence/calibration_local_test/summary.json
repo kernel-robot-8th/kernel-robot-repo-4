@@ -1,0 +1,520 @@
+{
+  "status": "PHYSICAL_CALIBRATION_SWEEP_COMPLETE",
+  "scene": ".local/robot_facing_hinge_v022/scene.xml",
+  "trials": [
+    {
+      "gripper_zero": 46.6,
+      "shift_z_m": -0.005,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 26
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0016708265596320447
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.001401554013849754
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.6,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 1
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0007894885248267425
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0011504248122371497
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 4
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0008996651861098629
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.001063245084572173
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 7
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0009954308323755574
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.001047912675874313
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.0,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 6
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0010096202070508872
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0010244308825684556
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.6,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 8
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0010325333232301032
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0008460376148460569
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 9
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011107413436097842
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0008332521693127093
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.0,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 11
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011441574514275714
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0007954206698168875
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 11
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011385121386073688
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.00076301025023362
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.005,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 13
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.00117104873827051
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0006431331158786857
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.005,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 18
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011672662228316632
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0005415626721959887
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.0,
+      "shift_z_m": -0.005,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 15
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011674071218859142
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.000536279996141531
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    }
+  ],
+  "best": [
+    {
+      "gripper_zero": 46.6,
+      "shift_z_m": -0.005,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 26
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0016708265596320447
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.001401554013849754
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.6,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 1
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0007894885248267425
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0011504248122371497
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 4
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0008996651861098629
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.001063245084572173
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 7
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0009954308323755574
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.001047912675874313
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.0,
+      "shift_z_m": -0.003,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 6
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0010096202070508872
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0010244308825684556
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.6,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 8
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0010325333232301032
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0008460376148460569
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 9
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011107413436097842
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0008332521693127093
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.0,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 11
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011441574514275714
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0007954206698168875
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.004,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 11
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.0011385121386073688
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.00076301025023362
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    },
+    {
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.005,
+      "shoes": [
+        "shoe1"
+      ],
+      "attachment_mode": "physical",
+      "bilateral_contact_steps": {
+        "shoe1": 13
+      },
+      "max_finger_shoe_penetration_m": {
+        "shoe1": 0.00117104873827051
+      },
+      "peak_shoe_lift_m": {
+        "shoe1": 0.0006431331158786857
+      },
+      "success": false,
+      "criteria": {
+        "penetration_le_m": 0.001,
+        "lift_ge_m": 0.03,
+        "bilateral_required": true
+      }
+    }
+  ],
+  "criteria": {
+    "penetration_le_m": 0.001,
+    "lift_ge_m": 0.03,
+    "bilateral_required": true
+  },
+  "warning": "No parameter set is accepted as hardware calibration without a real contact/current check."
+}

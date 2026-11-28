@@ -1,0 +1,10 @@
+{
+  "completed": 9,
+  "requested": 9,
+  "elapsed_s": 0.8238973617553711,
+  "finite_trials": 9,
+  "trials_with_warnings": 0,
+  "task_success_rate": null,
+  "task_stages": "NOT_RUN: reach/grasp/open/insert/close/load",
+  "warning": "Rigid proxies; assumed masses/friction; logistics robot dimensions/pose UNMEASURED."
+}

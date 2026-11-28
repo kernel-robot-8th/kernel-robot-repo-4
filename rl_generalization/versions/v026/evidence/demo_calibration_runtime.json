@@ -1,0 +1,34 @@
+{
+  "episodes": 50,
+  "rows": 73559,
+  "initial_observation_median_lerobot": [
+    -12.967033386230469,
+    -17.313796997070312,
+    -0.8547008633613586,
+    43.589744567871094,
+    -0.8547008633613586,
+    59.68254089355469
+  ],
+  "initial_observation_max_abs_error_from_user": 0.004700863361358665,
+  "action_gripper_range_lerobot": [
+    46.837608337402344,
+    60.02442169189453
+  ],
+  "state_gripper_range_lerobot": [
+    47.05738830566406,
+    59.85348129272461
+  ],
+  "action_gripper_final_median_lerobot": 46.94749641418457,
+  "aux_gripper_current_range_raw": [
+    -268.0,
+    75.0
+  ],
+  "gain_rad_per_lerobot_unit": 0.062816513263917,
+  "candidate_zeros_lerobot": [
+    46.6,
+    46.8,
+    47.0,
+    47.2
+  ],
+  "warning": "Data-derived candidates only; select zero using contact/lift sweep, not current alone."
+}

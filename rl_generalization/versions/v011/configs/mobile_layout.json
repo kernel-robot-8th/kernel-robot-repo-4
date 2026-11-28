@@ -1,0 +1,34 @@
+{
+  "confirmed": {
+    "stationary": true,
+    "chassis_proxy": "rectangular",
+    "tray_shape": "circular_with_raised_rim",
+    "tray_floor_height_m": 0.14
+  },
+  "image_reading": {
+    "tray_outer_diameter_m": 0.115,
+    "diameter_reference": "outer assumed; annotation says diameter 11.5cm",
+    "raw_annotations_cm": [
+      10,
+      4,
+      5.5,
+      9,
+      15.5
+    ]
+  },
+  "assumed": {
+    "center_xy_m": [
+      0.08,
+      -0.2325
+    ],
+    "chassis_size_xy_m": [
+      0.09,
+      0.1
+    ],
+    "tray_floor_thickness_m": 0.002,
+    "rim_height_m": 0.008,
+    "rim_thickness_m": 0.003
+  },
+  "placement_reasoning": "y=-0.135 wood edge -0.04 gap -0.0575 tray radius; table right edge -0.14 to center gives9.25cm vs annotated9. x provisional, red10cm endpoints ambiguous. 15.5=4+11.5 consistent. Do not treat position as measured.",
+  "limitations": "Inner diameter, rim profile, chassis dimensions and exact parking pose unmeasured. Flat disk and vertical segmented rim approximate curved dish. No navigation or wheels needed."
+}

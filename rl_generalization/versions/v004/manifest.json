@@ -1,0 +1,81 @@
+{
+  "version": "v004",
+  "files": {
+    "README.md": {
+      "bytes": 2581,
+      "sha256": "450905bb66c42532884b5ba331e21a41ef476ec37dc427f01399bd1e3cc0efbe"
+    },
+    "code/omx_rl/__init__.py": {
+      "bytes": 80,
+      "sha256": "3f3937ff1227679d123485cf5c5c7cd8d7ed54143e6bab17ea0019a6815fd905"
+    },
+    "code/omx_rl/device.py": {
+      "bytes": 700,
+      "sha256": "5ddc21ab255ac895b5958c88632bb0b86e997c93207ccf6084d647517a452447"
+    },
+    "code/omx_rl/env.py": {
+      "bytes": 5505,
+      "sha256": "d3830cb6b291c26e6333b9d0414b894553f5c0cd58fe4cc36353551870493ec3"
+    },
+    "code/omx_rl/evaluate.py": {
+      "bytes": 4698,
+      "sha256": "e1818e3f755981eb582fa5f275c9b51ee61ca427a29101b3293d1cedc49126ca"
+    },
+    "code/omx_rl/hardware_contract.py": {
+      "bytes": 1119,
+      "sha256": "cc18dd8bd4307a907aa4791671bcc13b98fdb8e758ee376a515082bec778d522"
+    },
+    "code/omx_rl/jitter.py": {
+      "bytes": 2109,
+      "sha256": "5f779cea6d27dc915f3b816000670187c7ca291217a97db9ebdbcc297f200539"
+    },
+    "code/omx_rl/train.py": {
+      "bytes": 2658,
+      "sha256": "3e2f74b2decc072f43a041eff1b4a28a76ea081f73babad9471616b50b5d623d"
+    },
+    "configs/toy_sac.json": {
+      "bytes": 389,
+      "sha256": "aed35bd4c6ccbd4318379b46f2609ebcd31455bb2dd58fc89b7f1cb4e19f0be0"
+    },
+    "docs/TRANSFER.md": {
+      "bytes": 984,
+      "sha256": "796f492fa7e5ac0c5a16f508b8b33349554a7107f2cb095aa302771704656f59"
+    },
+    "docs/VALIDATION.md": {
+      "bytes": 1457,
+      "sha256": "ae924379cb367b3de8401e9ae40aba9c7b9ebee17e3ff1f41c8b40dfd066b5f0"
+    },
+    "evidence/cpu_seed0_episodes.csv": {
+      "bytes": 15070,
+      "sha256": "d31c295508a95d8dbde91c0edc526f18c634a4a61468be37d0f909f8db574630"
+    },
+    "evidence/cpu_seed0_run.json": {
+      "bytes": 591,
+      "sha256": "106e21ae30c674ccb9ad09245634f0b1da80d24e9d1fb2d21877351690f8c62e"
+    },
+    "evidence/cpu_seed0_summary.json": {
+      "bytes": 652,
+      "sha256": "aa3c6c9e0bc400563c36ea6b2f14d888bab7ff9fde6f5f839484d9920a18e089"
+    },
+    "remote_experiment.sh": {
+      "bytes": 891,
+      "sha256": "6b5963a822ab9f67aa0495ce685ce279cb47ad93feeab6b22dca6149a275597e"
+    },
+    "tests/test_env.py": {
+      "bytes": 2011,
+      "sha256": "9939e4597a96a316ee17ebc5ec7d5479bf3c45970b0c601cec4d9d7b4ddc05eb"
+    },
+    "tests/test_jitter.py": {
+      "bytes": 480,
+      "sha256": "7ba35c8f73c017e67750f050edf526c2bac2488137c221663cde19b3c4b15fc8"
+    },
+    "tests/test_portability.py": {
+      "bytes": 2093,
+      "sha256": "97f8be7a74562156fba58c85cbfce2c7016b8e2afeac7d91afd323bd942a6a44"
+    },
+    "tests/test_reward.py": {
+      "bytes": 1301,
+      "sha256": "a9e341c23de5027bca85716e1253c030edda1516d7ba789ff6f9a0a1de4541ca"
+    }
+  }
+}

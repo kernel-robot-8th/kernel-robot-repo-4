@@ -1,0 +1,133 @@
+{
+  "version": "v003",
+  "date": "2026-11-18",
+  "status": "cpu_setup_and_toy_verified_cuda_hardware_pending",
+  "files": {
+    "README.md": {
+      "sha256": "38094fd7099770c459150a9924a47b7cae614d578c7c8b42b5ebf1df7365b5a2",
+      "bytes": 1244
+    },
+    "code/omx_rl/__init__.py": {
+      "sha256": "3f3937ff1227679d123485cf5c5c7cd8d7ed54143e6bab17ea0019a6815fd905",
+      "bytes": 80
+    },
+    "code/omx_rl/device.py": {
+      "sha256": "5ddc21ab255ac895b5958c88632bb0b86e997c93207ccf6084d647517a452447",
+      "bytes": 700
+    },
+    "code/omx_rl/env.py": {
+      "sha256": "ef365fc65dbebc4c3c864599debf0f4fbf20c3fd3810e7968d648cf9365df081",
+      "bytes": 4689
+    },
+    "code/omx_rl/evaluate.py": {
+      "sha256": "dfeaf70dac14b8b4c59fdb429ce505b01b06c49153cf9018d2f572e39dc50a51",
+      "bytes": 2940
+    },
+    "code/omx_rl/hardware_contract.py": {
+      "sha256": "cc18dd8bd4307a907aa4791671bcc13b98fdb8e758ee376a515082bec778d522",
+      "bytes": 1119
+    },
+    "code/omx_rl/jitter.py": {
+      "sha256": "5f779cea6d27dc915f3b816000670187c7ca291217a97db9ebdbcc297f200539",
+      "bytes": 2109
+    },
+    "code/omx_rl/train.py": {
+      "sha256": "4f1961fce44e5ffb5dc76fb2d5bfa18b3660c26b127343e09d3c764990fdaf54",
+      "bytes": 2492
+    },
+    "configs/toy_sac.json": {
+      "sha256": "36b2d4b7c7b0643ca614fc4a2c93f62c0f8f994981581305e1e556ba90e41020",
+      "bytes": 301
+    },
+    "docs/VALIDATION.md": {
+      "sha256": "ba5ebade34d9d386fab589a89081961b18c639383e0843345a09302fff915e2c",
+      "bytes": 1144
+    },
+    "evidence/cpu_requirements.resolved.txt": {
+      "sha256": "9cc67bce0f9fc52d1c3bacc10fcbcd43896bb7ae65318238ef09ae61d9557e92",
+      "bytes": 522
+    },
+    "evidence/cpu_setup.json": {
+      "sha256": "3239bebac066eb707f3469d6b7c4c72723674566df0079a0a86b124a6f145d29",
+      "bytes": 112
+    },
+    "evidence/smoke_eval.json": {
+      "sha256": "c5de9409cded3a439bbb0efe8a3f58e11896eba1f26630bdc8b9a0738e324dbd",
+      "bytes": 484
+    },
+    "evidence/smoke_run.json": {
+      "sha256": "5cbabe65bbfd6725dca91c7d24c8d18d76dc81536e4f9ec357316c1dd41b772d",
+      "bytes": 557
+    },
+    "tests/test_env.py": {
+      "sha256": "9939e4597a96a316ee17ebc5ec7d5479bf3c45970b0c601cec4d9d7b4ddc05eb",
+      "bytes": 2011
+    },
+    "tests/test_jitter.py": {
+      "sha256": "7ba35c8f73c017e67750f050edf526c2bac2488137c221663cde19b3c4b15fc8",
+      "bytes": 480
+    },
+    "tests/test_portability.py": {
+      "sha256": "97f8be7a74562156fba58c85cbfce2c7016b8e2afeac7d91afd323bd942a6a44",
+      "bytes": 2093
+    }
+  },
+  "external_files": {
+    "CURRENT": {
+      "sha256": "27c420ee148bfa955f8d6989a4b90b3f2bddc79f309b7919b5b5b728aea66937",
+      "bytes": 5
+    },
+    "README.md": {
+      "sha256": "0bf2504176bcf612de719f6ac78d223ae224b2f7fbd9dc54bc039b40127fc659",
+      "bytes": 3065
+    },
+    "ENVIRONMENT.md": {
+      "sha256": "fc9e1a18cb1849a83ae547ac7f0c048b08ad21b83bf80a43ae4ff74cf3975c3b",
+      "bytes": 3989
+    },
+    "HANDOFF.md": {
+      "sha256": "03d91c7540792d1e5a31d7adc24b6d3d6f88ea2db6f92946f54b44b849868e5e",
+      "bytes": 4459
+    },
+    "GITHUB.md": {
+      "sha256": "93a97247005975624b390d2416e1eeefd52685b9edeef3959d27352b41408695",
+      "bytes": 3612
+    },
+    "AGENTS.md": {
+      "sha256": "e210cdee30bea0a876aa57608d1a16be69d2a79ad2e965ee500b303e58dc11d1",
+      "bytes": 509
+    },
+    "requirements.txt": {
+      "sha256": "475cb58c36e8ff5e070505a9266b3db0446adef3f80362ff6e5aba8bf07f8e7d",
+      "bytes": 179
+    },
+    "setup.sh": {
+      "sha256": "41fb17c537ca52b0ce037b1e34748ada6c1b8cf2f9597c4b85e6eb233fc12dfb",
+      "bytes": 178
+    },
+    "run.sh": {
+      "sha256": "77479421a85321e0c5ce13632354f5f630c0634eeec379431edcbef1f21a7e40",
+      "bytes": 788
+    },
+    "shell/aliases.bash": {
+      "sha256": "3fd670cd13b9946bd689c6e4c166065ab8e0cee7fd8b18448019927aaf2a1f15",
+      "bytes": 619
+    },
+    "tools/bootstrap.py": {
+      "sha256": "42b7f8a36eadcd73a3a2e75484c883701159b1eaa9c115cf8606862d7a7d2465",
+      "bytes": 4505
+    },
+    "tools/export_project.py": {
+      "sha256": "4e6ceee8c741dde6f720341d0b63f1fb53eee30d44709935652428f1f52b62a8",
+      "bytes": 833
+    },
+    ".gitignore": {
+      "sha256": "ebfb09bea4b60c134e1a3726669eaab6a1e2871720bc7a50170d47041d83f2a4",
+      "bytes": 106
+    },
+    "CHANGELOG.md": {
+      "sha256": "3d719818ed1e9aff20032efb50d95af84b9fad455ef75c29238edfa92ef35326",
+      "bytes": 1757
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "version": "v019",
+  "files": {
+    "README.md": {
+      "sha256": "4e8039260b7b72e7f0ddea510af889232b38579cd49090c82cfd28d735d69b26",
+      "bytes": 1631
+    },
+    "code/build_finger_proxy.py": {
+      "sha256": "e31c6f358613798437f7e23d96b837e33d8a6865f3f7f8fc8637f5de667e5642",
+      "bytes": 2180
+    },
+    "code/build_hinged_lid.py": {
+      "sha256": "3a7aee17a4376e23af656d114c253c93e6e1f32e5aee0f6c90428d020298a0d6",
+      "bytes": 3943
+    },
+    "code/check.py": {
+      "sha256": "fc15bece9f545d0eda149eaa96b65bef502ed1ea2c478f163112be03b9f2ca83",
+      "bytes": 1971
+    },
+    "code/grasp_latch.py": {
+      "sha256": "a9d2136909eb74118600fef099477f6c4aad93c87cc9924a7e36f1e7696fa8fe",
+      "bytes": 9382
+    },
+    "code/retarget.py": {
+      "sha256": "1c2647f6bde7d6969b521f012f01ddc3b82a09aa607f880f3966cf00cc4e174e",
+      "bytes": 1665
+    },
+    "evidence/compile_check.json": {
+      "sha256": "d112ce25760c7bad8ba6fb330d3ef3f92c498d07e562b0023979d4faaee28e83",
+      "bytes": 554
+    },
+    "evidence/latch_box/diagnostics.csv": {
+      "sha256": "68bdbb0343f735d395710f81c3a56a3a810ff2ef5948ed3b2e007588f2271e3c",
+      "bytes": 653087
+    },
+    "evidence/latch_box/summary.json": {
+      "sha256": "750a2219988963273a02c0263b2d427f2bd0c37b41364cc06b59ce751abb94f6",
+      "bytes": 1144
+    },
+    "evidence/latch_box/trajectory.csv": {
+      "sha256": "fae60afffdb7a94f90f327d716c280aeceb200e603f4c819b1189030da0ccacd",
+      "bytes": 101763
+    },
+    "evidence/latch_box_strict/diagnostics.csv": {
+      "sha256": "68bdbb0343f735d395710f81c3a56a3a810ff2ef5948ed3b2e007588f2271e3c",
+      "bytes": 653087
+    },
+    "evidence/latch_box_strict/summary.json": {
+      "sha256": "da9dcb38c6adf83e7748e74dd650e62811f733b5fd4e6964625d1571facd85fe",
+      "bytes": 1272
+    },
+    "evidence/latch_box_strict/trajectory.csv": {
+      "sha256": "fae60afffdb7a94f90f327d716c280aeceb200e603f4c819b1189030da0ccacd",
+      "bytes": 101763
+    }
+  },
+  "v018_ng_recorder_files": [
+    {
+      "path": "versions/v018/evidence_proxy/summary.json",
+      "sha256": "0bd910e94c1d98af89da815ab0e17c51a81db98bffe7117ef66c3ccfbda8ce90",
+      "bytes": 1133
+    },
+    {
+      "path": "versions/v018/evidence_proxy/force_summary.json",
+      "sha256": "b7fe2faa9155e34e8b599cb95e12c8ced283fdf4290bbbcf7b738098ad4a1783",
+      "bytes": 465
+    },
+    {
+      "path": "versions/v018/evidence_proxy/contact_diagnostics.csv",
+      "sha256": "9e5002960d9a3064528cafb5d56b56bd3277ff3034c11b07856c91b0440c5207",
+      "bytes": 1264177
+    },
+    {
+      "path": "versions/v018/evidence_proxy/trajectory.csv",
+      "sha256": "365ba41fbb6dfd4c0ea59f72439f864c8cba28eb3b2e3c3f73a9932fc1948824",
+      "bytes": 121791
+    },
+    {
+      "path": "versions/v018/evidence_proxy/states.npz",
+      "sha256": "a02060dfe5edcf09703c0652e4e4a517cd4dc90b9f5d4e70dcbdc61122acfa4d",
+      "bytes": 61252
+    },
+    {
+      "path": "versions/v018/evidence/low_proxy_trial/summary.json",
+      "sha256": "a80299afcf9cd2c53c7501f16ab667eedb4595c5ec3daa5301c6ba80c2823627",
+      "bytes": 1133
+    },
+    {
+      "path": "versions/v018/evidence/low_proxy_trial/force_summary.json",
+      "sha256": "94543c62e00d068c1c7359278ee79602eaf96ce59c22c8e6d487ad3dc86bd399",
+      "bytes": 464
+    },
+    {
+      "path": "versions/v018/evidence/low_proxy_trial/contact_diagnostics.csv",
+      "sha256": "e5037ffdd83a70d0c8214e2fcc53fda20e01d1829ba09db18d3d8e89468a3966",
+      "bytes": 1264824
+    },
+    {
+      "path": "versions/v018/evidence/low_proxy_trial/trajectory.csv",
+      "sha256": "3c7b49643c3839844f50f6bb36c2c4bc42757879edcfd22cf91a44fb06b0b8b7",
+      "bytes": 121791
+    },
+    {
+      "path": "versions/v018/evidence/low_proxy_trial/states.npz",
+      "sha256": "18e84e4f673f080f5d168e55c4f1a9ad0187cc33c3daa93256419a410ee138b0",
+      "bytes": 61168
+    }
+  ],
+  "notes": [
+    "v019 latch result is diagnostic: 0.9279322074631919 mm maximum penetration and 2.060464372384164 mm peak lift; broad 1 mm ceiling passes, strict 0.3 mm target and 30 mm lift criterion fail.",
+    "v018 NG recorder files remain authoritative for the rejected thin-proxy replay; they are not overwritten."
+  ]
+}

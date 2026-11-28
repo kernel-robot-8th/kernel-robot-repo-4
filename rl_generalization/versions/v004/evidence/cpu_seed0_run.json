@@ -1,0 +1,30 @@
+{
+  "backend": "toy",
+  "total_timesteps": 20000,
+  "env": {
+    "reward_mode": "staged_v1",
+    "spread_m": 0.03,
+    "max_steps": 100,
+    "delta_m": 0.01,
+    "hold_steps": 3
+  },
+  "sac": {
+    "learning_rate": 0.0003,
+    "buffer_size": 100000,
+    "learning_starts": 256,
+    "batch_size": 128,
+    "gamma": 0.99,
+    "tau": 0.005,
+    "train_freq": 1,
+    "gradient_steps": 1
+  },
+  "seed": 0,
+  "versions": {
+    "torch": "2.11.0+cpu",
+    "gymnasium": "1.2.2",
+    "stable-baselines3": "2.7.1",
+    "numpy": "2.5.5"
+  },
+  "device": "cpu",
+  "deployment": "TOY_ONLY_NOT_FOR_ROBOT"
+}

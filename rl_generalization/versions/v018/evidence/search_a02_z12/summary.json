@@ -1,0 +1,42 @@
+{
+  "status": "DURATION_COMPLETE",
+  "experimental_translation_m": [
+    0.0349720067,
+    -0.0034275971,
+    -0.018
+  ],
+  "plan": {
+    "max_position_error_m": 0.0001271817610318482,
+    "max_orientation_error_deg": 1.8411122285637853,
+    "shift_is_calibrated": false,
+    "initial_pose_changed_to_retargeted_start": true
+  },
+  "simulated_seconds": 8.999999999999675,
+  "mapping_status": "UNCALIBRATED_CANDIDATE",
+  "gripper_zero_normalized_assumed": 46.8,
+  "gripper_gain_rad_per_unit": 0.062816513263917,
+  "scene_objects_repositioned": false,
+  "grasp_constraint_added": false,
+  "peak_shoe_lift_m": [
+    0.0,
+    0.09260746232047479
+  ],
+  "finger_contact_steps": [
+    0,
+    742
+  ],
+  "bilateral_contact_steps": [
+    0,
+    736
+  ],
+  "max_bilateral_lift_hold_s": [
+    0.0,
+    0.6180000000000004
+  ],
+  "candidate_lift_criterion_met": [
+    false,
+    true
+  ],
+  "warnings": 0,
+  "limitation": "Physical command replay is not calibrated sim-to-real. Candidate zero inferred from near-closed low-load recorded state; camera gap fitting not done. Props differ from historical demo. Grasp detection only heuristic."
+}

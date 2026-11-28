@@ -1,0 +1,20 @@
+{
+  "domain": "toy_only",
+  "successes": 0,
+  "episodes": 3,
+  "success_rate": 0.0,
+  "wilson_95_interval": [
+    0.0,
+    0.5615060804490177
+  ],
+  "seed_start": 10000,
+  "env": {
+    "spread_m": 0.03,
+    "max_steps": 100,
+    "delta_m": 0.01,
+    "hold_steps": 3
+  },
+  "training_seed": 0,
+  "checkpoint_sha256": "53f098f22bade5080f6a4eaa7cee2d0e3dee90654a435c8f1916aac18a4ffefb",
+  "warning": "Software check only. Not robot performance or proof of transfer."
+}

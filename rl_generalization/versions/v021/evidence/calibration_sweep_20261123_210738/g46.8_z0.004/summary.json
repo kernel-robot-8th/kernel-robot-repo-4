@@ -1,0 +1,43 @@
+{
+  "status": "ARM_REPLAY_FINITE_CONTACT_DIAGNOSTIC",
+  "scene": "/home/noma/dev_ws/Project2/rl_generalization/.local/robot_facing_hinge_v020/scene.xml",
+  "episode": 0,
+  "seconds": 12.0,
+  "initial_angle_rad": -2.7,
+  "shift_m": [
+    0.0349720067,
+    -0.0034275971,
+    -0.004
+  ],
+  "plan": {
+    "max_position_error_m": 0.00012718175868897696,
+    "max_orientation_error_deg": 1.8411122291850877,
+    "shift_is_calibrated": false,
+    "initial_pose_changed_to_retargeted_start": true
+  },
+  "finite": true,
+  "peak_shoe_lift_m": [
+    0.0,
+    0.0008742635428607703
+  ],
+  "contact_steps": [
+    0,
+    282
+  ],
+  "bilateral_contact_steps": [
+    0,
+    255
+  ],
+  "max_finger_shoe_penetration_m": 0.0017449666797518212,
+  "max_finger_pair": {
+    "time_s": 7.559999999999389,
+    "geom_names": [
+      "finger7_proxy",
+      "shoe1_sole"
+    ],
+    "dist_m": -0.0017449666797518212
+  },
+  "grasp_success": false,
+  "grasp_status": "NOT_VALIDATED_CALIBRATION_AND_ATTACHMENT",
+  "warning": "Arm and gripper actuators were replayed, but gripper zero, finger geometry, compliance, and attachment/lift criteria are not calibrated; finite/contact output is not a successful grasp."
+}

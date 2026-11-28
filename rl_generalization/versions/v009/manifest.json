@@ -1,0 +1,29 @@
+{
+  "version": "v009",
+  "files": {
+    "README.md": {
+      "bytes": 2580,
+      "sha256": "331092737f4b107d1e0429ad1596a0691a07bfefd9c4dcfcacdf5d321fdd9d11"
+    },
+    "code/layout.py": {
+      "bytes": 8979,
+      "sha256": "7bae914009d04cc3cd0d6aaab34628cd5bb9333e423de0ce072f6347f98bc20e"
+    },
+    "code/shoe_mesh.py": {
+      "bytes": 1947,
+      "sha256": "7f44f965d40e1a4e2cf4492f8886d0a3a8f2b627436c897fd42bfccf8b48f2ad"
+    },
+    "evidence/shoe_design.png": {
+      "bytes": 72902,
+      "sha256": "02f82497d6ba7b29e951f48aeb486dd74ea3fff07972ce8742dc3b1323f01eb5"
+    },
+    "evidence/inspection.json": {
+      "bytes": 1166,
+      "sha256": "3ee15060855b6eb56ff45d61b3e1d7b7d11d3c7bcd7f66f9c8a2e2b85cc8626b"
+    },
+    "configs/layout.json": {
+      "bytes": 2185,
+      "sha256": "65caf80ea4e5854791d876e9daf2d8088c6195ccc1383d18824dd111b8621fe2"
+    }
+  }
+}

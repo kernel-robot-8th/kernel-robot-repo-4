@@ -1,0 +1,120 @@
+{
+  "status": "CEM_RESIDUAL_TRAIN_COMPLETE",
+  "scene": ".local/grasp_proxy_v026/scene.xml",
+  "policy": "versions/v026/evidence/cem_proxy_smoke2_20261125_221213/policy_knots.npy",
+  "shoe": "shoe1",
+  "attachment_mode": "welded_proxy",
+  "seed": 0,
+  "iterations": 2,
+  "population": 6,
+  "horizon": 360,
+  "gripper_zero": 46.8,
+  "shift_z_m": -0.004,
+  "best_score": 149.3567302671869,
+  "best_rollout": {
+    "success": false,
+    "proxy_success": true,
+    "shoes": [
+      "shoe1"
+    ],
+    "attachment_mode": "welded_proxy",
+    "bilateral_contact_steps": {
+      "shoe1": 477
+    },
+    "max_finger_shoe_penetration_m": {
+      "shoe1": 0.004190600102104456
+    },
+    "attachment_penetration_m": {
+      "shoe1": 0.0038624778943811716
+    },
+    "peak_shoe_lift_m": {
+      "shoe1": 0.10702843000887835
+    },
+    "criteria": {
+      "penetration_le_m": 0.001,
+      "lift_ge_m": 0.03,
+      "bilateral_required": true
+    }
+  },
+  "history": [
+    {
+      "iteration": 1,
+      "best_score": 112.53125066911794,
+      "best_rank": [
+        1.0,
+        0.0,
+        1.0,
+        474.0,
+        0.1073555678444244,
+        -0.004199076853307264,
+        112.53125066911794
+      ],
+      "population": 6,
+      "best": {
+        "success": false,
+        "proxy_success": true,
+        "shoes": [
+          "shoe1"
+        ],
+        "attachment_mode": "welded_proxy",
+        "bilateral_contact_steps": {
+          "shoe1": 474
+        },
+        "max_finger_shoe_penetration_m": {
+          "shoe1": 0.004199076853307264
+        },
+        "attachment_penetration_m": {
+          "shoe1": 0.00364896612821154
+        },
+        "peak_shoe_lift_m": {
+          "shoe1": 0.1073555678444244
+        },
+        "criteria": {
+          "penetration_le_m": 0.001,
+          "lift_ge_m": 0.03,
+          "bilateral_required": true
+        }
+      }
+    },
+    {
+      "iteration": 2,
+      "best_score": 149.3567302671869,
+      "best_rank": [
+        1.0,
+        0.0,
+        1.0,
+        477.0,
+        0.10702843000887835,
+        -0.004190600102104456,
+        149.3567302671869
+      ],
+      "population": 6,
+      "best": {
+        "success": false,
+        "proxy_success": true,
+        "shoes": [
+          "shoe1"
+        ],
+        "attachment_mode": "welded_proxy",
+        "bilateral_contact_steps": {
+          "shoe1": 477
+        },
+        "max_finger_shoe_penetration_m": {
+          "shoe1": 0.004190600102104456
+        },
+        "attachment_penetration_m": {
+          "shoe1": 0.0038624778943811716
+        },
+        "peak_shoe_lift_m": {
+          "shoe1": 0.10702843000887835
+        },
+        "criteria": {
+          "penetration_le_m": 0.001,
+          "lift_ge_m": 0.03,
+          "bilateral_required": true
+        }
+      }
+    }
+  ],
+  "warning": "MuJoCo-only. physical mode requires free-body lift; welded_proxy is curriculum evidence and is not a sim-to-real claim."
+}

@@ -1,0 +1,279 @@
+{
+  "status": "CONTACT_SWEEP_COMPLETE",
+  "scene": "/home/noma/dev_ws/Project2/rl_generalization/.local/robot_facing_hinge_v022/scene.xml",
+  "trials": [
+    {
+      "trial": "zero_46p4_z_0p002",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.002,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p4_z_0p002",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.002,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 30,
+      "penetration_m": 0.0006926155062227136,
+      "lift_m": 0.0008064481765808484,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p4_z_0p004",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.004,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p4_z_0p004",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.004,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.0008051433948598118,
+      "lift_m": 0.0006531991703792039,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p4_z_0p006",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.006,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p4_z_0p006",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.006,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 80,
+      "penetration_m": 0.0004958214417980301,
+      "lift_m": 0.0005285994751151324,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p002",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.002,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p002",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.002,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 376,
+      "penetration_m": 0.0007066505139571844,
+      "lift_m": 0.0008381296955689288,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p004",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.004,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p004",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.004,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 18,
+      "penetration_m": 0.0008637232297712771,
+      "lift_m": 0.0006663349400327645,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p006",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.006,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p006",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.006,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 12,
+      "penetration_m": 0.000486378051208862,
+      "lift_m": 0.0005247030174325706,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p002",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.002,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p002",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.002,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.0007210946719708285,
+      "lift_m": 0.0008429091858639659,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p004",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.004,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p004",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.004,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.001030788962801504,
+      "lift_m": 0.0007993495191349065,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p006",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.006,
+      "shoe": "shoe0",
+      "latched": false,
+      "bilateral_steps": 0,
+      "penetration_m": 0.0,
+      "lift_m": 0.0,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p006",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.006,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.0005822508228883639,
+      "lift_m": 0.0008289387827228045,
+      "candidate": false
+    }
+  ],
+  "best_by_lift": [
+    {
+      "trial": "zero_47p2_z_0p002",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.002,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.0007210946719708285,
+      "lift_m": 0.0008429091858639659,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p002",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.002,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 376,
+      "penetration_m": 0.0007066505139571844,
+      "lift_m": 0.0008381296955689288,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p006",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.006,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.0005822508228883639,
+      "lift_m": 0.0008289387827228045,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p4_z_0p002",
+      "gripper_zero": 46.4,
+      "shift_z_m": -0.002,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 30,
+      "penetration_m": 0.0006926155062227136,
+      "lift_m": 0.0008064481765808484,
+      "candidate": false
+    },
+    {
+      "trial": "zero_47p2_z_0p004",
+      "gripper_zero": 47.2,
+      "shift_z_m": -0.004,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 10,
+      "penetration_m": 0.001030788962801504,
+      "lift_m": 0.0007993495191349065,
+      "candidate": false
+    },
+    {
+      "trial": "zero_46p8_z_0p004",
+      "gripper_zero": 46.8,
+      "shift_z_m": -0.004,
+      "shoe": "shoe1",
+      "latched": true,
+      "bilateral_steps": 18,
+      "penetration_m": 0.0008637232297712771,
+      "lift_m": 0.0006663349400327645,
+      "candidate": false
+    }
+  ],
+  "candidate_count": 0,
+  "criteria": {
+    "penetration_le_m": 0.001,
+    "lift_ge_m": 0.03,
+    "bilateral_required": true
+  },
+  "warning": "Simulation-only sweep; shift and gripper zero remain uncalibrated and no sim-to-real claim is made."
+}

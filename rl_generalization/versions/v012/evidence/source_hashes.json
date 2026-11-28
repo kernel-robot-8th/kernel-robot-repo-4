@@ -1,0 +1,18 @@
+{
+  "mobile_layout.json": "f9b3eb0b7737b80d473a7582fc5fa8f37ddb66a6902619bfc70d8ffb6c2bbec6",
+  "dynamics.json": "7cc3934a6294d3f38eb333ff6fb8f4db46f81323636725e8bf159f006220deb0",
+  "scene.xml": "cf0e41ec6829ac89ce6c3838e7ddcf7a429433645902d526cef54b6ac5a89102",
+  "layout.json": "a34371cdd4a40885c3041dd888e7f074fecaa23150f804eb3f7c87cd1cd427e6",
+  "robotis_omx/omx.png": "5bda69cc017da73a2f92315fceb8d3386a3074af7bf09f081fa5d58f7cc26c35",
+  "robotis_omx/scene.xml": "529cd1134efd6188cd5e8b47474df1385c2619959e5b711cb097f10866786eab",
+  "robotis_omx/omx.xml": "9083fcdaafed283c272d8cde5a73f77f53d6ec524fe930eb325695728c8601c1",
+  "robotis_omx/LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+  "robotis_omx/assets/follower_06_pan_Revised.stl": "ba0c63e47f5bfc728d978f84a5234a79909e47db20b836b881f125841e3bad86",
+  "robotis_omx/assets/follower_08_gripper_gear.stl": "6a492837011578baeec1dca15a493c7af81bf812917c8846f48d1d75a76647ab",
+  "robotis_omx/assets/follower_07_gripper_motorized.stl": "d3811b2c5f6d34bd60f10c42e1a481f16ec1f9117cf944604009691f62c1d6ac",
+  "robotis_omx/assets/follower_03_middle_verticle.stl": "c5751c6bbf5c73aaf6477b215e5fff209e60d970503db97950b3aa66c1e9674e",
+  "robotis_omx/assets/follower_02_base_tilt_Revised.stl": "152bda51fe0dfe2beeae3f7b2bdf5ff7752c10d115e70dac15b4b55adfbf27c5",
+  "robotis_omx/assets/follower_05_tip.stl": "d408c533836fafb9294f07497f494b694122cd0aeccc0e50cfd0632337eaf4e3",
+  "robotis_omx/assets/follower_01_base.stl": "1f57c4f5ec77a2a655bae64f1534121274ec6fff900f7896173126549d50808e",
+  "robotis_omx/assets/follower_04_middle_horizontal.stl": "6fbc08ec36d597ec8a735b9c39085b7f47a7b99f869b8af052e3ad2f46a4d20e"
+}

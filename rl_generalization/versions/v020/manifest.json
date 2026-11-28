@@ -1,0 +1,50 @@
+{
+  "version": "v020",
+  "files": {
+    "README.md": {
+      "sha256": "d5ca7aabd4a0ca9758d432e80bfb0d7b13e06410ebadac811cf6d3454ad21d93",
+      "bytes": 2053
+    },
+    "code/build_robot_facing_hinge.py": {
+      "sha256": "767ee40a57f9c6ce6d8a8f1edcb238f834cda621aa7a05f3d29f5e2f5a841585",
+      "bytes": 3693
+    },
+    "code/check.py": {
+      "sha256": "250fb9e4c724d0b303745c654b045d9f65308c4113f2dc76ae44f3eb787c89ab",
+      "bytes": 2243
+    },
+    "code/open_state.py": {
+      "sha256": "23a460626a580bb49c7e741110be3f48b513954d5b3f5cdf5220d140d67256a5",
+      "bytes": 1032
+    },
+    "code/preview_open.py": {
+      "sha256": "f30b8108458a8593a83686413d9d5967e72f49ad3a515c5cfccf0f2dd65a6a35",
+      "bytes": 1215
+    },
+    "evidence/compile_check.json": {
+      "sha256": "5b4bbcfcca041af88ce9499d329eedad6a2c834fbd1bb77d75ebe0a5e2ce3616",
+      "bytes": 669
+    },
+    "evidence/video_sequence_notes.json": {
+      "sha256": "971f9772b74bce9297b7afb9543fd3797f2d92e7cc09f057807c557d6cd17aef",
+      "bytes": 1506
+    }
+  },
+  "compile_check_sha256": "5b4bbcfcca041af88ce9499d329eedad6a2c834fbd1bb77d75ebe0a5e2ce3616",
+  "state": {
+    "video_reference": "lid starts open toward OMX (negative-x direction)",
+    "hinge_range_rad": [
+      -3.14159265359,
+      0.0
+    ],
+    "default_initial_qpos_rad": {
+      "lid_hinge": 0.0
+    },
+    "initial_open_qpos_implemented": false,
+    "close_stage_implemented": false
+  },
+  "warnings": [
+    "Structural geometry only; no open-state initializer, close controller, shoe insertion, grasp, load, or hardware transfer.",
+    "Local .venvs/.local generated scene and caches are not part of this version manifest."
+  ]
+}

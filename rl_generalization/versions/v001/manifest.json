@@ -1,0 +1,64 @@
+{
+  "version": "v001",
+  "date": "2026-11-18",
+  "timezone": "Asia/Seoul",
+  "status": "documentation_only",
+  "source_video": {
+    "path": "/home/noma/Downloads/20261114_140159.mp4",
+    "sha256": "b1f9b97bbd49debb920ff48079cd2b8ef6c40342c998b074057cc401263bdb79",
+    "metadata": {
+      "programs": [],
+      "streams": [
+        {
+          "index": 0,
+          "codec_name": "hevc",
+          "codec_type": "video",
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1"
+        },
+        {
+          "index": 1,
+          "codec_name": "aac",
+          "codec_type": "audio",
+          "r_frame_rate": "0/0"
+        }
+      ],
+      "format": {
+        "duration": "97.958200",
+        "size": "152955009"
+      }
+    }
+  },
+  "contact_sheet_command": "ffmpeg -i INPUT -vf 'fps=1/5,scale=480:-1,tile=4x5' -frames:v 1 OUTPUT.jpg",
+  "files": {
+    "configs/experiment_draft.json": {
+      "sha256": "5aeaeb5c75e1efb1181365bdbbeb7a5e01f0ec173d5ffb6b255451eef7031749",
+      "bytes": 765
+    },
+    "docs/01_plan.md": {
+      "sha256": "af61a10cf86b11eb43cd16e6a97a7f745b989bd6836c6267ad0d7df1eaca242c",
+      "bytes": 5490
+    },
+    "docs/02_video_review.md": {
+      "sha256": "f2f11a7c4cda99e0cbcb82990ddb6ea611166a14f96babbadfd8b2400315d4e3",
+      "bytes": 1495
+    },
+    "docs/03_evaluation.md": {
+      "sha256": "b9b509d8e4a3c8e040259a2bbac8de86e2061292ac819d24ac2e356f72f8d5d6",
+      "bytes": 3080
+    },
+    "docs/04_sources.md": {
+      "sha256": "db80d5d76033aaeaefdd9bc3dc37786acdccfedd208e44880f5866faf29de4f5",
+      "bytes": 2086
+    },
+    "evidence/contact_sheet.jpg": {
+      "sha256": "5c1b1c254ef16ba1ce630ec781f8ccfdda672965b47900c3575d1d4affe5754e",
+      "bytes": 241731
+    },
+    "templates/trials.csv": {
+      "sha256": "d535aa32f69eec927d972bfa0a9161fb029ebd67b6ba398f86e3c4b8caa73b6b",
+      "bytes": 393
+    }
+  }
+}

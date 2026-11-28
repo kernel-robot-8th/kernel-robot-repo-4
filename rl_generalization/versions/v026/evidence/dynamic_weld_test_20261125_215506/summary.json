@@ -1,0 +1,21 @@
+{
+  "status": "DURATION_COMPLETE",
+  "scene": ".local/grasp_proxy_v026_attach2/scene.xml",
+  "plan": {
+    "max_position_error_m": 0.00012718175868897696,
+    "max_orientation_error_deg": 1.8411122291850877,
+    "shift_is_calibrated": false,
+    "initial_pose_changed_to_retargeted_start": true
+  },
+  "attached": false,
+  "attach_step": null,
+  "simulated_seconds": 12.000000000000677,
+  "bilateral_contact_steps": 204,
+  "max_finger_penetration_m": 0.000409974389773722,
+  "peak_shoe_lift_m": 0.0002790486968297645,
+  "criterion_penetration_le_1mm": true,
+  "criterion_lift_ge_30mm": false,
+  "grasp_success": false,
+  "weld_id": 0,
+  "warning": "Runtime weld is a calibrated contact proxy; no sim-to-real claim."
+}

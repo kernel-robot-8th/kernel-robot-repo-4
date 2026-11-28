@@ -1,0 +1,37 @@
+{
+  "version": "v014",
+  "files": {
+    "README.md": {
+      "sha256": "d1ee6911556440b74b960fd9a04f446556cee0d57a37fdb81a9bb94136709827",
+      "bytes": 2149
+    },
+    "code/replay_contact.py": {
+      "sha256": "aff58c3aa4ffaabad25bc0d86da6ae36c99650a5d5fcadf244480ae2ead31c4f",
+      "bytes": 4490
+    },
+    "evidence/recorder_source.json": {
+      "sha256": "f76c5919e78da65941e08e391de7377fa5a3785c55ae72d0cd78e398eb32965c",
+      "bytes": 167
+    },
+    "evidence/episode000_top_contact_sheet.jpg": {
+      "sha256": "e5f9920d48443bcb1731f5ac78d739153fcf010f6f5cf6bf82ba8fce679dbcff",
+      "bytes": 123447
+    },
+    "evidence/physical_replay/summary.json": {
+      "sha256": "78cd676e9ba40d2efe8371764d24c8b9b36d1380b63b1226712dc88e18af65a4",
+      "bytes": 830
+    },
+    "evidence/physical_replay/trajectory.csv": {
+      "sha256": "33e17aa64a09958e23bb2fe371249c8ac6b5620dd856ca233de436d2c19c7c6c",
+      "bytes": 76585
+    },
+    "evidence/zero46_8_sensitivity/summary.json": {
+      "sha256": "2cb7574b3f951156c487534220e248979faa527ab0834b623f9f75b074a588f3",
+      "bytes": 802
+    },
+    "evidence/zero46_8_sensitivity/trajectory.csv": {
+      "sha256": "84246ec3b68e0b3fae65d237bbf59d5b521ac745f3c8649fd91d4e93c66fc407",
+      "bytes": 121883
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "version": "v026",
+  "purpose": "MuJoCo residual RL around shoebox_D demonstrations",
+  "scene": ".local/robot_facing_hinge_v022/scene.xml",
+  "initial_pose_lerobot": [-12.97, -17.31, -0.85, 43.59, -0.85, 59.68],
+  "success": {"bilateral_contact": true, "penetration_m": 0.001, "lift_m": 0.03},
+  "warning": "Simulation-only; physical contact parameters require real robot validation."
+}

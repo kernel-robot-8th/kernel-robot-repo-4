@@ -1,0 +1,31 @@
+{
+  "status": "STOPPED_GRIPPER_CANDIDATE_OUTSIDE_MODEL_LIMIT",
+  "simulated_seconds": 7.501999999999396,
+  "mapping_status": "UNCALIBRATED_CANDIDATE",
+  "gripper_zero_normalized_assumed": 47.16,
+  "gripper_gain_rad_per_unit": 0.062816513263917,
+  "scene_objects_repositioned": false,
+  "grasp_constraint_added": false,
+  "peak_shoe_lift_m": [
+    0.0,
+    0.0
+  ],
+  "finger_contact_steps": [
+    0,
+    0
+  ],
+  "bilateral_contact_steps": [
+    0,
+    0
+  ],
+  "max_bilateral_lift_hold_s": [
+    0.0,
+    0.0
+  ],
+  "candidate_lift_criterion_met": [
+    false,
+    false
+  ],
+  "warnings": 0,
+  "limitation": "Physical command replay is not calibrated sim-to-real. Candidate zero inferred from near-closed low-load recorded state; camera gap fitting not done. Props differ from historical demo. Grasp detection only heuristic."
+}

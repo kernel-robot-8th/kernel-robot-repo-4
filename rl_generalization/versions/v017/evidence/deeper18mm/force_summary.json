@@ -1,0 +1,9 @@
+{
+  "loaded_bilateral_steps": 2245,
+  "loaded_bilateral_first_s": 7.511999999999395,
+  "loaded_bilateral_last_s": 12.000000000000677,
+  "peak_finger6_normal_N": 4.510324770324361,
+  "peak_finger7_normal_N": 5.357242166848617,
+  "peak_gripper_abs_torque_Nm": 3.5,
+  "note": "Simulated forces; recorded current shown as context only, not a torque calibration. Tip landmark gap is not minimum mesh distance."
+}

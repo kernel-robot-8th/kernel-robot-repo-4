@@ -1,0 +1,48 @@
+{
+  "units": "cm",
+  "status": "raw_measurements_pending_reference_edge_confirmation",
+  "white_box_surround": {
+    "outer_width": 7,
+    "outer_depth": 7,
+    "height": 1,
+    "bottom_type": null,
+    "inner_opening": null,
+    "purpose": "User confirmed retaining rim for fitting box"
+  },
+  "yellow": {
+    "left_gap": 10.8,
+    "right_gap": 11,
+    "far_gap": 4,
+    "near_gap": 6.5,
+    "reference_object": null
+  },
+  "blue": {
+    "far_shoe_horizontal_mark": 6.7,
+    "near_shoe_horizontal_mark": 8,
+    "exact_endpoints_confirmed": false
+  },
+  "red": {
+    "far_edge_to_far_shoe_mark": 3.5,
+    "between_shoes_mark": 3.5,
+    "near_edge_to_near_shoe_mark": 3,
+    "right_edge_marks_far_shoe": [
+      3,
+      4.5
+    ],
+    "right_edge_marks_near_shoe": [
+      3,
+      4
+    ],
+    "exact_endpoints_confirmed": false
+  },
+  "orientation": "photo top=away from robot; right=robot right; both shoes right of box",
+  "checks": {
+    "if_yellow_ref_brown_box_implied_width": 27.8,
+    "if_yellow_ref_brown_box_implied_depth": 16.5,
+    "if_yellow_ref_white_surround_implied_width": 28.8,
+    "if_yellow_ref_white_surround_implied_depth": 17.5,
+    "earlier_table_width": 28,
+    "earlier_table_depth": 17.2
+  },
+  "note": "Do not silently fit conflicting edge measurements. v006 object positions remain superseded placeholders until new layout is generated. Photo suggests a retaining rim but does not establish its bottom or inner dimensions."
+}

@@ -1,0 +1,26 @@
+{
+  "units": "m",
+  "measured": {
+    "wood_width_y": 0.27, "wood_depth_x": 0.20, "wood_height": 0.08,
+    "table_width_y": 0.28, "table_depth_x": 0.172, "table_height": 0.175,
+    "edge_gap_x": 0.025,
+    "shoe_length_x": 0.035, "shoe_width_y": 0.02,
+    "shoe_height_min": 0.007, "shoe_height_max": 0.025,
+    "box_width_y": 0.06, "box_depth_x": 0.06, "box_height": 0.055
+  },
+  "assumed": {
+    "robot_origin_xy_on_wood": [0.0, 0.0],
+    "robot_yaw_rad": 0.0,
+    "table_center_y": 0.0,
+    "shoe_centers_relative_table_xy": [[-0.04, -0.05], [-0.04, 0.05]],
+    "box_center_relative_table_xy": [0.04, 0.0]
+  },
+  "limitations": [
+    "Robot base origin assumed at wood center; exact base mounting transform unmeasured.",
+    "Both supports assumed on same floor; width/depth orientation interpreted from photos.",
+    "Object positions and orientations are layout placeholders, not measured.",
+    "Shoes use sole plus heel blocks, not calibrated shoe contact geometry.",
+    "Box is a solid closed placeholder without cavity or lid joint.",
+    "All props fixed: layout/collision inspection only, not grasp training."
+  ]
+}

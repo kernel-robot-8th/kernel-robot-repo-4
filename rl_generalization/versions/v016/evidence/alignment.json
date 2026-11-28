@@ -1,0 +1,77 @@
+{
+  "recorded_points_world_m": [
+    [
+      0.2110237032175064,
+      -0.09379923343658447,
+      0.20468435615301134
+    ],
+    [
+      0.13603228330612183,
+      -0.09934557229280472,
+      0.20450920045375826
+    ]
+  ],
+  "current_shoe_origins_world_m": [
+    [
+      0.1725,
+      -0.1,
+      0.175
+    ],
+    [
+      0.2445,
+      -0.1,
+      0.175
+    ]
+  ],
+  "translation_hypotheses": [
+    {
+      "shoe_order": [
+        0,
+        1
+      ],
+      "per_grasp_xy_offset_cm": [
+        [
+          -3.852370321750642,
+          -0.6200766563415533
+        ],
+        [
+          10.846771669387817,
+          -0.06544277071952875
+        ]
+      ],
+      "common_translation_cm": [
+        3.4972006738185875,
+        -0.342759713530541
+      ],
+      "residual_norm_cm": [
+        7.354801051400542,
+        7.354801051400542
+      ]
+    },
+    {
+      "shoe_order": [
+        1,
+        0
+      ],
+      "per_grasp_xy_offset_cm": [
+        [
+          3.3476296782493584,
+          -0.6200766563415533
+        ],
+        [
+          3.646771669387816,
+          -0.06544277071952875
+        ]
+      ],
+      "common_translation_cm": [
+        3.4972006738185875,
+        -0.342759713530541
+      ],
+      "residual_norm_cm": [
+        0.31508121093714314,
+        0.31508121093714314
+      ]
+    }
+  ],
+  "note": "Lowest recorded computed TCP in video-selected grasp windows, NOT measured shoe centers. Correspondence and grasp offset unknown. Never apply these translations as calibrated transforms."
+}

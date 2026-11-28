@@ -1,0 +1,37 @@
+{
+  "runs": [
+    {
+      "run": "sweep_z0.012",
+      "peak_lift_m": 0.0008745358290699612,
+      "bilateral_hold_s": 0.0,
+      "max_penetration_m": 0.008581586722730744,
+      "apparent_lift": false,
+      "valid_under_1mm_penetration": false
+    },
+    {
+      "run": "sweep_z0.015",
+      "peak_lift_m": 0.10502536288921932,
+      "bilateral_hold_s": 1.448000000000001,
+      "max_penetration_m": 0.00899945130641122,
+      "apparent_lift": true,
+      "valid_under_1mm_penetration": false
+    },
+    {
+      "run": "sweep_z0.018",
+      "peak_lift_m": 0.10547365109581419,
+      "bilateral_hold_s": 3.6259999999998223,
+      "max_penetration_m": 0.009119764124681346,
+      "apparent_lift": true,
+      "valid_under_1mm_penetration": false
+    },
+    {
+      "run": "sweep_z0.021",
+      "peak_lift_m": 0.10470040748290943,
+      "bilateral_hold_s": 3.6219999999998227,
+      "max_penetration_m": 0.009197619785337412,
+      "apparent_lift": true,
+      "valid_under_1mm_penetration": false
+    }
+  ],
+  "acceptance": "lift>3cm and bilateral hold>=0.5s and finger-shoe penetration<=1mm"
+}

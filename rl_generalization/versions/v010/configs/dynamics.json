@@ -1,0 +1,19 @@
+{
+  "status": "unvalidated_provisional_physics",
+  "shoe_mass_kg": 0.01,
+  "box_mass_kg": 0.02,
+  "lid_mass_kg": 0.01,
+  "wall_thickness_m": 0.002,
+  "friction": [0.8, 0.005, 0.0001],
+  "lid_type": "detached_provisional",
+  "lid_clearance_m": 0.001,
+  "logistics_robot": {
+    "measured": false,
+    "shape": "cylinder_placeholder",
+    "radius_m": 0.125,
+    "tray_height_m": 0.10,
+    "center_xy_m": [0.40, -0.35],
+    "note": "All dimensions and parking coordinates unmeasured. Proxy for stationary loading, not navigation."
+  },
+  "note": "Masses/friction/thickness are sensitivity assumptions, not inferred from motor pressure. Rigid proxies; no cloth/cardboard deformation."
+}

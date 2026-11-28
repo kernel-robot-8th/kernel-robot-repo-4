@@ -1,0 +1,29 @@
+{
+  "domain": "toy_only",
+  "device": "cpu",
+  "successes": 0,
+  "episodes": 100,
+  "success_rate": 0.0,
+  "wilson_95_interval": [
+    0.0,
+    0.03699480747600191
+  ],
+  "seed_start": 10000,
+  "env": {
+    "reward_mode": "staged_v1",
+    "spread_m": 0.03,
+    "max_steps": 100,
+    "delta_m": 0.01,
+    "hold_steps": 3
+  },
+  "training_seed": 0,
+  "failure_stages": {
+    "approach": 0,
+    "grasp": 0,
+    "lift_or_hold": 100,
+    "success": 0
+  },
+  "ever_held_episodes": 100,
+  "checkpoint_sha256": "841a9a19b9afd5fc5defd79bafa4d562c228c76328c9308343990b4dd6242156",
+  "warning": "Software check only. Not robot performance or proof of transfer."
+}

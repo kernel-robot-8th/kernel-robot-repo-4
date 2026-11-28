@@ -1,0 +1,173 @@
+{
+  "status": "FULL_SEQUENCE_ARM_REPLAY_KINEMATIC_TRANSFER",
+  "scene": "/home/noma/dev_ws/Project2/rl_generalization/.local/robot_facing_hinge_v022/scene.xml",
+  "stages": [
+    {
+      "stage": "OPEN_INITIAL",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "shoebox_D explicit LeRobot median start; lid faces OMX",
+      "sim_time_s": 0.0,
+      "hinge_angle_rad": -2.7,
+      "le_robot_pose": [
+        -12.97,
+        -17.31,
+        -0.85,
+        43.59,
+        -0.85,
+        59.68
+      ],
+      "pose_source": "user-supplied fallback (init_pose.json unavailable or unrecognized)"
+    },
+    {
+      "stage": "PICK_SHOE0",
+      "status": "NOT_VALIDATED_ARM_GRASP",
+      "reason": "arm command replay is present; contact/force attachment is not calibrated",
+      "sim_time_s": 2.0000000000000013,
+      "arm_source": "shoebox_D",
+      "initial_pose_source": "shoebox_D/init_pose.json"
+    },
+    {
+      "stage": "INSERT_SHOE0",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "kinematic placement for box-fit verification; physical shoe grasp not claimed",
+      "sim_time_s": 14.000000000001345,
+      "relative_to_box_m": [
+        -0.010000000000000009,
+        -0.012,
+        0.0040000000000000036
+      ],
+      "inside_box": true
+    },
+    {
+      "stage": "PICK_SHOE1",
+      "status": "NOT_VALIDATED_ARM_GRASP",
+      "reason": "arm command replay is present; contact/force attachment is not calibrated",
+      "sim_time_s": 14.000000000001345,
+      "arm_source": "shoebox_D",
+      "initial_pose_source": "shoebox_D/init_pose.json"
+    },
+    {
+      "stage": "INSERT_SHOE1",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "kinematic placement for box-fit verification; physical shoe grasp not claimed",
+      "sim_time_s": 25.99999999999647,
+      "relative_to_box_m": [
+        0.010000000000000009,
+        0.012,
+        0.0040000000000000036
+      ],
+      "inside_box": true
+    },
+    {
+      "stage": "GRIPPER_FULLY_CLOSED_BEFORE_LID",
+      "status": "PASS_COMMAND_ONLY",
+      "reason": "gripper command set to normalized 0 before lid motion",
+      "sim_time_s": 26.999999999995914,
+      "gripper_normalized": 0.0,
+      "gripper_ctrl_rad": -2.9398128207513157
+    },
+    {
+      "stage": "CLOSE_LID",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "lid interpolated from robot-facing open angle to closed limit",
+      "sim_time_s": 26.999999999995914,
+      "hinge_angle_rad": -0.0,
+      "gripper_closed": true
+    },
+    {
+      "stage": "MOVE_IN_RESET",
+      "status": "PASS_POSE_SET",
+      "reason": "move_in_success explicit LeRobot start pose",
+      "sim_time_s": 26.999999999995914,
+      "le_robot_pose": [
+        2.22,
+        -34.99,
+        14.68,
+        40.37,
+        1.0,
+        58.93
+      ]
+    },
+    {
+      "stage": "LIFT_CLOSED_BOX",
+      "status": "PASS_KINEMATIC_ONLY",
+      "reason": "closed paper box and contents attached as payload; arm grasp not validated",
+      "sim_time_s": 32.999999999994365,
+      "box_xyz_m": [
+        0.22340465883190108,
+        0.001608731604547473,
+        0.22913127012610646
+      ],
+      "lift_m": 0.05
+    },
+    {
+      "stage": "LOAD_RIGHT_TRAY",
+      "status": "PASS_KINEMATIC_ONLY",
+      "reason": "closed box placed on stationary logistics robot circular tray; robot base does not drive",
+      "sim_time_s": 32.999999999994365,
+      "box_xyz_m": [
+        0.08,
+        -0.2325,
+        0.141
+      ],
+      "tray_target_xyz_m": [
+        0.08,
+        -0.2325,
+        0.141
+      ],
+      "xy_error_m": 0.0
+    }
+  ],
+  "initial_pose_sources": {
+    "shoebox_D": {
+      "path": "/home/noma/il_ws/omx_shoebox_d/init_pose.json",
+      "values": [
+        -12.97,
+        -17.31,
+        -0.85,
+        43.59,
+        -0.85,
+        59.68
+      ],
+      "units": "LeRobot normalized",
+      "source_used": "user-supplied fallback (init_pose.json unavailable or unrecognized)"
+    },
+    "move_in_success": {
+      "values": [
+        2.22,
+        -34.99,
+        14.68,
+        40.37,
+        1.0,
+        58.93
+      ],
+      "units": "LeRobot normalized"
+    }
+  },
+  "arm_command_replay": {
+    "arrange_rows": 1353,
+    "move_in_rows": 728,
+    "arrange_plan": {
+      "max_position_error_m": 0.00031745269194660697,
+      "max_orientation_error_deg": 3.7885812476328504,
+      "shift_is_calibrated": false,
+      "initial_pose_changed_to_retargeted_start": true
+    },
+    "move_in_plan": {
+      "max_position_error_m": 0.000815266282131592,
+      "max_orientation_error_deg": 8.323129050374064,
+      "shift_is_calibrated": false,
+      "initial_pose_changed_to_retargeted_start": true
+    }
+  },
+  "lid_convention": {
+    "closed_rad": 0.0,
+    "vertical_rad": -1.5707963267948966,
+    "open_toward_omx_rad": -2.7
+  },
+  "gripper_close_before_lid": true,
+  "transport_target": "right-side white circular tray (stationary logistics robot)",
+  "physical_grasp_success": "NOT_VALIDATED",
+  "limitation": "Kinematic shoe insertion and box attachment remain proxies; calibrated gripper, paper compliance, contact forces and sim-to-real must be validated before hardware execution.",
+  "elapsed_wall_s": 0.933838929000558
+}

@@ -1,0 +1,90 @@
+{
+  "status": "CEM_RESIDUAL_TRAIN_COMPLETE",
+  "scene": ".local/robot_facing_hinge_v022/scene.xml",
+  "policy": "versions/v026/evidence/cem_test/policy_knots.npy",
+  "shoe": "shoe1",
+  "attachment_mode": "physical",
+  "seed": 0,
+  "iterations": 2,
+  "population": 8,
+  "best_score": -0.157591600576603,
+  "best_rollout": {
+    "success": false,
+    "proxy_success": false,
+    "shoes": [
+      "shoe1"
+    ],
+    "attachment_mode": "physical",
+    "bilateral_contact_steps": {
+      "shoe1": 0
+    },
+    "max_finger_shoe_penetration_m": {
+      "shoe1": 0.0
+    },
+    "peak_shoe_lift_m": {
+      "shoe1": 0.0
+    },
+    "criteria": {
+      "penetration_le_m": 0.001,
+      "lift_ge_m": 0.03,
+      "bilateral_required": true
+    }
+  },
+  "history": [
+    {
+      "iteration": 1,
+      "best_score": -0.32341215629533937,
+      "population": 8,
+      "best": {
+        "success": false,
+        "proxy_success": false,
+        "shoes": [
+          "shoe1"
+        ],
+        "attachment_mode": "physical",
+        "bilateral_contact_steps": {
+          "shoe1": 0
+        },
+        "max_finger_shoe_penetration_m": {
+          "shoe1": 0.0
+        },
+        "peak_shoe_lift_m": {
+          "shoe1": 0.0
+        },
+        "criteria": {
+          "penetration_le_m": 0.001,
+          "lift_ge_m": 0.03,
+          "bilateral_required": true
+        }
+      }
+    },
+    {
+      "iteration": 2,
+      "best_score": -0.157591600576603,
+      "population": 8,
+      "best": {
+        "success": false,
+        "proxy_success": false,
+        "shoes": [
+          "shoe1"
+        ],
+        "attachment_mode": "physical",
+        "bilateral_contact_steps": {
+          "shoe1": 0
+        },
+        "max_finger_shoe_penetration_m": {
+          "shoe1": 0.0
+        },
+        "peak_shoe_lift_m": {
+          "shoe1": 0.0
+        },
+        "criteria": {
+          "penetration_le_m": 0.001,
+          "lift_ge_m": 0.03,
+          "bilateral_required": true
+        }
+      }
+    }
+  ],
+  "warning": "MuJoCo-only. physical mode requires free-body lift; welded_proxy is curriculum evidence and is not a sim-to-real claim."
+}

@@ -1,0 +1,44 @@
+{
+  "dataset": ".local/demonstrations/shoebox_D/data/chunk-000/file-*.parquet",
+  "episodes": 50,
+  "rows": 73559,
+  "sample_rate_hz_assumed": 30,
+  "initial_observation_median_lerobot": [-12.96703339, -17.313797, -0.85470086, 43.58974457, -0.85470086, 59.68254089],
+  "initial_observation_std_lerobot": [0.04145365, 0.22770975, 0.21489844, 0.52221925, 0.06693759, 0.04389048],
+  "user_initial_pose_lerobot": [-12.97, -17.31, -0.85, 43.59, -0.85, 59.68],
+  "action_gripper_range_lerobot": [46.83760834, 60.02442169],
+  "state_gripper_range_lerobot": [47.05738831, 59.85348129],
+  "action_gripper_final_median_lerobot": 47.03296661,
+  "action_gripper_initial_median_lerobot": 56.68254089,
+  "aux_gripper_current_range_raw": [-268.0, 75.0],
+  "aux_gripper_current_median_raw": -9.0,
+  "gripper_mapping": {
+    "existing_zero_candidate_lerobot": 46.8,
+    "gain_rad_per_lerobot_unit": 0.062816513263917,
+    "closed_action_band_lerobot": [46.84, 47.20],
+    "open_initial_action_band_lerobot": [56.0, 60.1],
+    "recommended_sweep_zero_lerobot": [46.6, 46.8, 47.0, 47.2],
+    "note": "Use zero as a sweep parameter; do not infer torque from aux.gripper_current. At t~7.0 s action is ~47.18 with current ~-44; t~7.5-10 s action ~47.03 with current -76..-74 in a representative episode."
+  },
+  "retarget": {
+    "tcp_local_offset_m": [0.09193, -0.0016, 0.0],
+    "max_position_error_m": 0.005,
+    "max_orientation_error_deg": 15.0,
+    "successful_shift_used_in_diagnostics_m": [0.0349720067, -0.0034275971, -0.004]
+  },
+  "target_inference": {
+    "representative_episode": 1,
+    "retarget_shift_m": [0.0349720067, -0.0034275971, -0.004],
+    "tcp_at_t_7s_m": [0.2460, -0.1050, 0.2379],
+    "tcp_at_t_7p5s_m": [0.2452, -0.1047, 0.2494],
+    "shoe0_body_pos_m": [0.1725, -0.1, 0.175],
+    "shoe1_body_pos_m": [0.2445, -0.1, 0.175],
+    "interpretation": "The demonstrated path approaches shoe1 (x=0.2445), closes near t~7 s, then rises. It does not simultaneously grasp shoe0 (x=0.1725). Treat shoe0 as a second-object/randomization candidate, not a bilateral same-time grasp target."
+  },
+  "recommended_rl_curriculum": [
+    "Train on shoe1 first with bilateral contact and lift >= 0.03 m as success.",
+    "Randomize shoe x/y by <=0.002 m and gripper zero over 46.6..47.2 during calibration.",
+    "Use demonstration actions as residual/reference prior; initial state must be explicit median pose, not first action.",
+    "Report physical-contact success separately from any attachment/weld proxy success."
+  ]
+}

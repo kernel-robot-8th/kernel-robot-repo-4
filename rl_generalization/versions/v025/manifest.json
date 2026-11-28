@@ -1,0 +1,7 @@
+{
+  "version": "v025",
+  "purpose": "small gripper-zero and vertical-registration sweep",
+  "script": "code/contact_sweep.py",
+  "base_diagnostic": "versions/v024/code/contact_latch_explicit.py",
+  "hardware_validated": false
+}

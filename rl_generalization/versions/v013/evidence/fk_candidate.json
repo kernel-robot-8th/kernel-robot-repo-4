@@ -1,0 +1,40 @@
+{
+  "mapping": "floor((u+100)/200*4095)-2048 ticks, all signs +1; not hardware calibrated",
+  "comparison": "Recorded FK is computed, not measured. Assumes recorded FK origin at robot base and adds wood height0.08m.",
+  "results": {
+    "shoebox_D": {
+      "samples": 2477,
+      "candidate_link5_local_fk_point_m": [
+        0.09193000015487836,
+        -0.0015999999834244735,
+        6.690126862808888e-13
+      ],
+      "residual_median_m": 5.965226160419697e-09,
+      "residual_p95_m": 1.101410733020181e-08,
+      "samples_outside_sim_joint_limits": [
+        0,
+        0,
+        0,
+        468,
+        0
+      ]
+    },
+    "move_in_success": {
+      "samples": 728,
+      "candidate_link5_local_fk_point_m": [
+        0.09192999996782777,
+        -0.0016000000151279118,
+        2.573974773634008e-10
+      ],
+      "residual_median_m": 6.020461407403186e-09,
+      "residual_p95_m": 1.0299387008969441e-08,
+      "samples_outside_sim_joint_limits": [
+        0,
+        0,
+        1,
+        39,
+        0
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "compiled": true,
+  "nq": 29,
+  "hinge_joint_id": 10,
+  "closed_world_pose_max_error_m": 8.673617379884035e-19,
+  "closed_world_pose_error_m": {
+    "lid_top": 8.673617379884035e-19,
+    "lid_x-1": 8.673617379884035e-19,
+    "lid_x1": 8.673617379884035e-19,
+    "lid_y-1": 0.0,
+    "lid_y1": 0.0
+  },
+  "open_minus_pi_over_2_lid_top_z_m": 0.265,
+  "checks": {
+    "closed_pose_preserved": true,
+    "hinge_opens_upward": true
+  },
+  "warning": "Structural hinge only; hinge direction, clearance, compliance, and hardware behavior are unvalidated."
+}

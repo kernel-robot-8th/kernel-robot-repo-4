@@ -1,0 +1,9 @@
+{
+  "completed": 18,
+  "requested": 18,
+  "elapsed_s": 1.1643116474151611,
+  "finite_trials": 18,
+  "trials_with_warnings": 0,
+  "trials_with_contacts": 0,
+  "median_final_max_error_rad": 0.004216414632217679
+}

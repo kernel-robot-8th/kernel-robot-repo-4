@@ -1,0 +1,47 @@
+{
+  "status": "DURATION_COMPLETE",
+  "scene": ".local/workcell_v019/scene.xml",
+  "plan": {
+    "max_position_error_m": 0.0001271817610318482,
+    "max_orientation_error_deg": 1.8411122285637853,
+    "shift_is_calibrated": false,
+    "initial_pose_changed_to_retargeted_start": true
+  },
+  "simulated_seconds": 12.000000000000677,
+  "gripper_mapping": "UNCALIBRATED_CANDIDATE",
+  "open_backoff_rad": 0.005,
+  "latched": {
+    "shoe0": false,
+    "shoe1": true
+  },
+  "contact_first_s": {
+    "shoe0": null,
+    "shoe1": 7.503999999999396
+  },
+  "hold_target_rad": {
+    "shoe0": null,
+    "shoe1": 0.20160831693429979
+  },
+  "bilateral_contact_steps": {
+    "shoe0": 0,
+    "shoe1": 266
+  },
+  "max_finger_shoe_penetration_m": {
+    "shoe0": 0.0,
+    "shoe1": 0.0040188966216856276
+  },
+  "peak_shoe_lift_m": {
+    "shoe0": 0.0,
+    "shoe1": 0.000845241219353754
+  },
+  "criterion_penetration_le_1mm": {
+    "shoe0": true,
+    "shoe1": false
+  },
+  "criterion_lift_ge_30mm": {
+    "shoe0": false,
+    "shoe1": false
+  },
+  "warning_count": 0,
+  "limitation": "Simulation-only contact latch; no calibrated gripper angle or sim-to-real claim."
+}

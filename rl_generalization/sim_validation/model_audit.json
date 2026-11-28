@@ -1,0 +1,129 @@
+{
+  "domain": "model_audit_only_not_hardware_validation",
+  "mujoco": "3.3.7",
+  "source_commit": "d8344c0dbe7a00208d0301111523dde65efc174a",
+  "source_dirty": false,
+  "assets_sha256": {
+    "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "assets/follower_01_base.stl": "1f57c4f5ec77a2a655bae64f1534121274ec6fff900f7896173126549d50808e",
+    "assets/follower_02_base_tilt_Revised.stl": "152bda51fe0dfe2beeae3f7b2bdf5ff7752c10d115e70dac15b4b55adfbf27c5",
+    "assets/follower_03_middle_verticle.stl": "c5751c6bbf5c73aaf6477b215e5fff209e60d970503db97950b3aa66c1e9674e",
+    "assets/follower_04_middle_horizontal.stl": "6fbc08ec36d597ec8a735b9c39085b7f47a7b99f869b8af052e3ad2f46a4d20e",
+    "assets/follower_05_tip.stl": "d408c533836fafb9294f07497f494b694122cd0aeccc0e50cfd0632337eaf4e3",
+    "assets/follower_06_pan_Revised.stl": "ba0c63e47f5bfc728d978f84a5234a79909e47db20b836b881f125841e3bad86",
+    "assets/follower_07_gripper_motorized.stl": "d3811b2c5f6d34bd60f10c42e1a481f16ec1f9117cf944604009691f62c1d6ac",
+    "assets/follower_08_gripper_gear.stl": "6a492837011578baeec1dca15a493c7af81bf812917c8846f48d1d75a76647ab",
+    "omx.png": "5bda69cc017da73a2f92315fceb8d3386a3074af7bf09f081fa5d58f7cc26c35",
+    "omx.xml": "2ce102b399de1f058f2ae06ca3fd87b8fabf497d77dde1a57924e9ba09026d36",
+    "scene.xml": "529cd1134efd6188cd5e8b47474df1385c2619959e5b711cb097f10866786eab"
+  },
+  "nq": 7,
+  "nu": 6,
+  "joints": [
+    {
+      "name": "Joint1",
+      "range_rad": [
+        -4.712389,
+        6.283185
+      ]
+    },
+    {
+      "name": "Joint2",
+      "range_rad": [
+        -2.094395,
+        1.570796
+      ]
+    },
+    {
+      "name": "Joint3",
+      "range_rad": [
+        -2.094395,
+        1.570796
+      ]
+    },
+    {
+      "name": "Joint4",
+      "range_rad": [
+        -1.745329,
+        1.745329
+      ]
+    },
+    {
+      "name": "Joint5",
+      "range_rad": [
+        -4.712389,
+        4.712389
+      ]
+    },
+    {
+      "name": "Gripper",
+      "range_rad": [
+        0.0,
+        1.745329
+      ]
+    },
+    {
+      "name": "Gripper_mimic",
+      "range_rad": [
+        -1.745329,
+        0.0
+      ]
+    }
+  ],
+  "fk_origins_axes_match": true,
+  "poses": [
+    {
+      "bundle": "omx_arrange_shoe_zc",
+      "candidate_arm_rad": [
+        -0.4095728703654662,
+        -0.5445631796994026,
+        -0.02761165418194154,
+        1.368310862793992,
+        -0.02761165418194154
+      ],
+      "recorded_gripper": 59.68,
+      "gripper_mapping_validated": false,
+      "arm_in_model_ranges": true,
+      "contacts_at_candidate_pose": []
+    },
+    {
+      "bundle": "omx_load_zc",
+      "candidate_arm_rad": [
+        0.0674951546669682,
+        -1.0998642249140047,
+        0.46019423636569234,
+        1.2670681307935396,
+        0.02914563496982718
+      ],
+      "recorded_gripper": 58.93,
+      "gripper_mapping_validated": false,
+      "arm_in_model_ranges": true,
+      "contacts_at_candidate_pose": []
+    }
+  ],
+  "mapping_assumption": "Arm candidate: integer motor ticks -> (tick-2048)*2pi/4096, signs+1 offsets0. Not hardware validated. Gripper held at model0, NOT mapped from recorded gripper.",
+  "home_smoke": {
+    "steps": 500,
+    "sim_time_s": 1.0000000000000007,
+    "finite": true,
+    "final_qpos": [
+      -6.083160841767201e-11,
+      0.005846218236352126,
+      0.004082273334485292,
+      0.00038552109134443966,
+      6.238931945652471e-07,
+      -1.1926446583220192e-11,
+      -1.344857058870095e-09
+    ],
+    "warning_counts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

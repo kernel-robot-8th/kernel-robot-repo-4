@@ -1,0 +1,78 @@
+{
+  "version": "v022",
+  "files": {
+    "README.md": {
+      "sha256": "63d89bc2e8ddfd18d383c71f65f6e8bb5f546b394df6999014b5cb2765e70f81",
+      "bytes": 1440
+    },
+    "code/__pycache__/preview_arm_replay.cpython-312.pyc": {
+      "sha256": "033cae7b15e96220055a2e2c749febf6ed9f71cf255fdd150164d5d9bc88bea0",
+      "bytes": 7637
+    },
+    "code/build_calibrated_proxy.py": {
+      "sha256": "a8a77ad83686660ba0347767d868b5c7a84e3da1368195c2b1e2d6a376abf881",
+      "bytes": 2380
+    },
+    "code/preview_arm_replay.py": {
+      "sha256": "2ab7bcde5567634c468e93f210b224ce29b4b6456256e2f4a46d8d65a835f1d2",
+      "bytes": 3773
+    },
+    "evidence/arm_replay_z0.000/summary.json": {
+      "sha256": "a947532d50f03075b23bea33443186f043dc9e0beb331160d8726dd28d556a8d",
+      "bytes": 1160
+    },
+    "evidence/arm_replay_z0.000.json": {
+      "sha256": "a947532d50f03075b23bea33443186f043dc9e0beb331160d8726dd28d556a8d",
+      "bytes": 1160
+    },
+    "evidence/arm_replay_z0.002/summary.json": {
+      "sha256": "23bf56937fd54734e8de7a11a338926a775ed6bcc8128effff3129e8bcb4a7e2",
+      "bytes": 1183
+    },
+    "evidence/arm_replay_z0.002.json": {
+      "sha256": "23bf56937fd54734e8de7a11a338926a775ed6bcc8128effff3129e8bcb4a7e2",
+      "bytes": 1183
+    },
+    "evidence/arm_replay_z0.004/summary.json": {
+      "sha256": "98d1c2a45144beeb249615e726abaa55208b35d22c0ed98fecafabbc8900b4be",
+      "bytes": 1183
+    },
+    "evidence/arm_replay_z0.004.json": {
+      "sha256": "98d1c2a45144beeb249615e726abaa55208b35d22c0ed98fecafabbc8900b4be",
+      "bytes": 1183
+    },
+    "evidence/arm_replay_z0.006/summary.json": {
+      "sha256": "f4b07ae9f68421c20b46cbb5a2fc11ed782dcc9947bb0a5cfc9f1707eebef47d",
+      "bytes": 1205
+    },
+    "evidence/arm_replay_z0.006.json": {
+      "sha256": "f4b07ae9f68421c20b46cbb5a2fc11ed782dcc9947bb0a5cfc9f1707eebef47d",
+      "bytes": 1205
+    },
+    "evidence/latch_z0.004/diagnostics.csv": {
+      "sha256": "a759a2d96e1cbaaa970914523fbdc60e63c59e7e3feb7041aa5a81fafe05bd91",
+      "bytes": 2477318
+    },
+    "evidence/latch_z0.004/summary.json": {
+      "sha256": "f9f59452809bfd29d9f84476d2bfca67c4f6360490570a646ef72223a2b620ff",
+      "bytes": 1250
+    },
+    "evidence/latch_z0.004/trajectory.csv": {
+      "sha256": "c0c1030667ad987b9a19640edcc1e2f85709cae11c84363cb40a5411b25285cc",
+      "bytes": 380594
+    }
+  },
+  "state": {
+    "proxy_radius_m": 0.001,
+    "source_scene": "v020",
+    "arm_replay": "finite",
+    "best_penetration_m": 0.000863723229614935,
+    "best_peak_lift_m": 0.0006663349398497165,
+    "grasp_validated": false
+  },
+  "warnings": [
+    "Thin proxy is an experiment, not a measured finger geometry.",
+    "No bilateral latch or 30 mm lift was achieved.",
+    ".local scene is generated and not in the manifest."
+  ]
+}

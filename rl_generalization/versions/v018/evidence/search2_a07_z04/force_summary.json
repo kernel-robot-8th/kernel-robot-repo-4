@@ -1,0 +1,18 @@
+{
+  "max_finger_shoe_penetration_m": 0.003307137097755811,
+  "max_finger_pair": {
+    "time_s": 7.687999999999375,
+    "geom_names": [
+      "finger7_proxy",
+      "shoe1_sole"
+    ],
+    "dist_m": -0.003307137097755811
+  },
+  "loaded_bilateral_steps": 709,
+  "loaded_bilateral_first_s": 7.583999999999387,
+  "loaded_bilateral_last_s": 8.999999999999675,
+  "peak_finger6_normal_N": 6.871702334652987,
+  "peak_finger7_normal_N": 7.5796481522142765,
+  "peak_gripper_abs_torque_Nm": 3.5,
+  "note": "Simulated forces; recorded current shown as context only, not a torque calibration. Tip landmark gap is not minimum mesh distance."
+}

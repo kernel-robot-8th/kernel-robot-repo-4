@@ -1,0 +1,29 @@
+{
+  "version": "v015",
+  "files": {
+    "README.md": {
+      "sha256": "d23197475c9b0e07ad3d0c95099496ccd7eb3dd4137c97002d441116eb1376fd",
+      "bytes": 1808
+    },
+    "code/contact_stability.py": {
+      "sha256": "7d5c2012abd9c197a8e44a9a3185c1cd014fe85bfb85938349bf031e5da3670d",
+      "bytes": 2711
+    },
+    "code/replay_contact.py": {
+      "sha256": "1aca5f9052555be5926b02ff29098ee9846b31dff69b2e066259cc0d5d331fab",
+      "bytes": 4490
+    },
+    "evidence/stability.json": {
+      "sha256": "61d76ef0e26ee9e23df8f22796aa8fbc8a9f1c2089c9aebffa595c8a0ed9e2f4",
+      "bytes": 1197
+    },
+    "evidence/replay/summary.json": {
+      "sha256": "2cb7574b3f951156c487534220e248979faa527ab0834b623f9f75b074a588f3",
+      "bytes": 802
+    },
+    "evidence/replay/trajectory.csv": {
+      "sha256": "c7573d2096e0c732a0fc10da81ca89e0c3fd49d728fe265e66a9e7ec0243d9dc",
+      "bytes": 121883
+    }
+  }
+}

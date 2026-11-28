@@ -1,0 +1,122 @@
+{
+  "status": "GEOMETRY_SEQUENCE_PASS_ARM_UNVALIDATED",
+  "scene": "/home/noma/dev_ws/Project2/rl_generalization/.local/robot_facing_hinge_v020/scene.xml",
+  "initial_angle_rad": -2.85,
+  "convention": {
+    "closed_rad": 0.0,
+    "vertical_rad": -1.5707963267948966,
+    "flat_toward_omx_rad": -3.141592653589793
+  },
+  "stages": [
+    {
+      "stage": "OPEN_INITIAL",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "hinge set to measured/provisional open angle",
+      "sim_time_s": 0.0,
+      "hinge_angle_rad": -2.85,
+      "lid_top_xyz_m": [
+        0.15860554314840547,
+        0.001,
+        0.24052898716975085
+      ],
+      "finite": true
+    },
+    {
+      "stage": "PICK_SHOE0",
+      "status": "NOT_VALIDATED_ARM_GRASP",
+      "reason": "requires calibrated arm trajectory and gripper contact/force model",
+      "sim_time_s": 0.0,
+      "finite": true
+    },
+    {
+      "stage": "INSERT_SHOE0",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "shoe teleported into box interior for fit check",
+      "sim_time_s": 0.0,
+      "shoe_xyz_m": [
+        0.2135,
+        -0.011,
+        0.179
+      ],
+      "relative_to_box_m": [
+        -0.010000000000000009,
+        -0.012,
+        0.0040000000000000036
+      ],
+      "inside_box": true,
+      "finite": true
+    },
+    {
+      "stage": "PICK_SHOE1",
+      "status": "NOT_VALIDATED_ARM_GRASP",
+      "reason": "requires calibrated arm trajectory and gripper contact/force model",
+      "sim_time_s": 0.0,
+      "finite": true
+    },
+    {
+      "stage": "INSERT_SHOE1",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "shoe teleported into box interior for fit check",
+      "sim_time_s": 0.0,
+      "shoe_xyz_m": [
+        0.2335,
+        0.013000000000000001,
+        0.179
+      ],
+      "relative_to_box_m": [
+        0.010000000000000009,
+        0.012,
+        0.0040000000000000036
+      ],
+      "inside_box": true,
+      "finite": true
+    },
+    {
+      "stage": "CLOSE_LID",
+      "status": "PASS_GEOMETRY_ONLY",
+      "reason": "hinge driven directly to closed limit; controller not validated",
+      "sim_time_s": 0.0,
+      "hinge_angle_rad": 0.0,
+      "lid_top_xyz_m": [
+        0.2235,
+        0.001,
+        0.23299999999999998
+      ],
+      "contents_remain_inside": true,
+      "finite": true
+    },
+    {
+      "stage": "LIFT_BOX",
+      "status": "PASS_KINEMATIC_ONLY",
+      "reason": "box and contents translated together; no gripper attachment",
+      "sim_time_s": 0.0,
+      "box_xyz_m": [
+        0.2235,
+        0.001,
+        0.22499999999999998
+      ],
+      "finite": true
+    },
+    {
+      "stage": "LOAD_TRAY",
+      "status": "PASS_KINEMATIC_ONLY",
+      "reason": "box placed at stationary tray target; logistics robot motion not simulated",
+      "sim_time_s": 0.0,
+      "box_xyz_m": [
+        0.07999999999999999,
+        -0.2325,
+        0.141
+      ],
+      "tray_target_xyz_m": [
+        0.08,
+        -0.2325,
+        0.141
+      ],
+      "tray_xy_error_m": 1.3877787807814457e-17,
+      "finite": true
+    }
+  ],
+  "arm_grasp_stages": "NOT_VALIDATED",
+  "transport_mode": "KINEMATIC_FREEJOINT_TRANSLATION",
+  "warning": "This run verifies geometry and a scripted full sequence only; it is not robot performance, a learned-policy rollout, or proof of sim-to-real transfer."
+}

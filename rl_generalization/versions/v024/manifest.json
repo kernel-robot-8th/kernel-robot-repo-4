@@ -1,0 +1,10 @@
+{
+  "version": "v024",
+  "purpose": "explicit shoebox_D pose and contact-triggered gripper stop",
+  "script": "code/contact_latch_explicit.py",
+  "scene": ".local/robot_facing_hinge_v022/scene.xml",
+  "initial_pose_le_robot": [-12.97, -17.31, -0.85, 43.59, -0.85, 59.68],
+  "candidate_penetration_m": 0.001,
+  "candidate_lift_m": 0.03,
+  "hardware_validated": false
+}

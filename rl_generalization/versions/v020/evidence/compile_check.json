@@ -1,0 +1,29 @@
+{
+  "compiled": true,
+  "nq": 29,
+  "hinge_joint_id": 10,
+  "closed_world_pose_max_error_m": 0.0,
+  "closed_world_pose_error_m": {
+    "lid_top": 0.0,
+    "lid_x-1": 0.0,
+    "lid_x1": 0.0,
+    "lid_y-1": 0.0,
+    "lid_y1": 0.0
+  },
+  "vertical_minus_pi_over_2_lid_top_xyz_m": [
+    0.1895,
+    0.001,
+    0.265
+  ],
+  "flat_minus_pi_lid_top_xyz_m": [
+    0.1575,
+    0.001,
+    0.23099999999999998
+  ],
+  "checks": {
+    "closed_pose_preserved": true,
+    "vertical_opening_rises": true,
+    "flat_opening_moves_toward_robot_negative_x": true
+  },
+  "warning": "Structural hinge only; real lid edge, clearance, compliance, and hardware behavior remain unvalidated."
+}

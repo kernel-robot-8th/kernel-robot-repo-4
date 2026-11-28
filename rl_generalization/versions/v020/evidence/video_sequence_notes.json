@@ -1,0 +1,36 @@
+{
+  "source": "/home/noma/Downloads/20261114_140159.mp4",
+  "sha256": "b1f9b97bbd49debb920ff48079cd2b8ef6c40342c998b074057cc401263bdb79",
+  "duration_s": 97.9582,
+  "training_video": {
+    "path": "Project2/classification/shoebox_D/videos/observation.images.top/chunk-000/file-000.mp4",
+    "sha256": "8c6a9e412d22c81850df02681ec1df39e62147b5075cbfe0e272b6a00e3c729c",
+    "duration_s": 333.266667,
+    "episode0_window_s": [0.0, 45.1],
+    "episode0_observation": "The lid is open toward the OMX at t=0; shoe insertion occurs approximately 5–20s, lid closing approximately 25–40s, and the closed box is visible near 44s."
+  },
+  "observations": [
+    {
+      "time_s": 0,
+      "event": "box_open_start",
+      "details": "The cardboard lid is already open and lies toward the OMX/arm side; two shoes are outside the box."
+    },
+    {
+      "time_s": 30,
+      "event": "shoe_insertion",
+      "details": "The arm is placing a shoe into the open box."
+    },
+    {
+      "time_s": 60,
+      "event": "box_closed",
+      "details": "The lid is closed after the shoes are inside."
+    },
+    {
+      "time_s": 75,
+      "event": "transport_load",
+      "details": "The closed box is carried toward the logistics robot tray."
+    }
+  ],
+  "coordinate_inference": "In the workcell model the OMX is on negative world-x; the robot-facing lid edge is therefore the box negative-x edge.",
+  "caveat": "Timestamps are sampled visual annotations from supplied videos, not synchronized demonstration labels."
+}

@@ -1,0 +1,24 @@
+{
+  "status": "NO_SUCCESSFUL_CALIBRATION",
+  "trials": 25,
+  "best_low_penetration": {
+    "file": "g44.8_z0.002.stdout.json",
+    "penetration_m": 0.0007297013607976818,
+    "lift_m": 0.0005770904218131145,
+    "contact_steps": [
+      0,
+      206
+    ],
+    "bilateral_contact_steps": [
+      0,
+      0
+    ],
+    "grasp_success": false
+  },
+  "eligible_trials": [],
+  "criteria": {
+    "max_penetration_m": 0.001,
+    "min_lift_m": 0.03
+  },
+  "interpretation": "No tested gripper-zero/vertical-offset combination simultaneously achieved <=1 mm penetration and >=30 mm lift. Low-penetration trials stayed on the support surface; high-lift trials were collision artifacts."
+}

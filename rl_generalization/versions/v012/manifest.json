@@ -1,0 +1,29 @@
+{
+  "version": "v012",
+  "files": {
+    "README.md": {
+      "sha256": "2c174689ec509bbf927040e58dcff560812a128546dcec1746169e2b69955ba0",
+      "bytes": 2532
+    },
+    "code/approach.py": {
+      "sha256": "1968a40bc0bf7629f8c0f63ae472e8eaa5634e8ef28939e1eae02a44ceeca3af",
+      "bytes": 6229
+    },
+    "evidence/source_hashes.json": {
+      "sha256": "bba6e8c378caf9afa87d3eaa1369689d804dba6fdfb170ca6ed1b9c287a5d1bf",
+      "bytes": 1691
+    },
+    "evidence/nominal_approach/summary.json": {
+      "sha256": "e57dc53d2b5cf601ebe2f477a24584d239bafbbfd2b79f00f2627706e6846e2f",
+      "bytes": 2999
+    },
+    "evidence/nominal_approach/shoe0_trajectory.csv": {
+      "sha256": "f3b9444feba79a8cc8045885053efd763d51946818c74589dda61f917fa7b725",
+      "bytes": 116634
+    },
+    "evidence/nominal_approach/shoe1_trajectory.csv": {
+      "sha256": "3332426374d7ebbbdcffecd914e712583c0b570150d302eb18582e24df14a738",
+      "bytes": 91830
+    }
+  }
+}

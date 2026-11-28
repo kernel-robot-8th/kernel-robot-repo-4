@@ -1,0 +1,115 @@
+{
+  "domain": "simulation_only",
+  "stage": "pregrasp_approach_only",
+  "grasp_or_task_success_evaluated": false,
+  "limitations": [
+    "TCP provisional",
+    "Real joint zero/sign/gripper calibration unverified",
+    "Rigid proxies and assumed dynamics",
+    "Simulator provides target position, no camera perception"
+  ],
+  "results": [
+    {
+      "shoe": 0,
+      "target_xyz_m": [
+        0.1725,
+        -0.1,
+        0.24
+      ],
+      "tcp_local_assumed_m": [
+        0.075,
+        -0.00165,
+        0.0
+      ],
+      "ik_error_m": 2.7332787470089792e-06,
+      "axis_error_deg": 0.035138979961048616,
+      "q_target_rad": [
+        -0.500762546581124,
+        -0.11245278835222353,
+        -0.17533938159085075,
+        1.5967914122085887,
+        1.8776771147409008
+      ],
+      "task_success": null,
+      "approach_pitch_deg": 75,
+      "candidate_errors": [
+        {
+          "pitch_deg": 45,
+          "position_error_m": 2.0172803314571675e-05,
+          "axis_error_deg": 0.09496628734585322
+        },
+        {
+          "pitch_deg": 60,
+          "position_error_m": 1.3825961628370673e-05,
+          "axis_error_deg": 0.09180795925711403
+        },
+        {
+          "pitch_deg": 75,
+          "position_error_m": 2.7332787470089792e-06,
+          "axis_error_deg": 0.035138979961048616
+        },
+        {
+          "pitch_deg": 90,
+          "position_error_m": 0.02402849258768037,
+          "axis_error_deg": 13.469581358793791
+        }
+      ],
+      "path_collision": [],
+      "final_axis_error_deg": 0.5640568441967789,
+      "final_tcp_error_m": 0.0020059696850893566,
+      "warnings": 0,
+      "status": "APPROACH_REACHED"
+    },
+    {
+      "shoe": 1,
+      "target_xyz_m": [
+        0.2445,
+        -0.1,
+        0.24
+      ],
+      "tcp_local_assumed_m": [
+        0.075,
+        -0.00165,
+        0.0
+      ],
+      "ik_error_m": 8.890460806500064e-06,
+      "axis_error_deg": 0.0689595086655274,
+      "q_target_rad": [
+        -0.3703275170002427,
+        0.2482686799202442,
+        -0.5754490987617058,
+        1.3743019614757492,
+        -1.1542901539007673
+      ],
+      "task_success": null,
+      "approach_pitch_deg": 60,
+      "candidate_errors": [
+        {
+          "pitch_deg": 45,
+          "position_error_m": 1.593983281872087e-05,
+          "axis_error_deg": 0.09852237505848097
+        },
+        {
+          "pitch_deg": 60,
+          "position_error_m": 8.890460806500064e-06,
+          "axis_error_deg": 0.0689595086655274
+        },
+        {
+          "pitch_deg": 75,
+          "position_error_m": 0.007839656256960889,
+          "axis_error_deg": 8.3527965187273
+        },
+        {
+          "pitch_deg": 90,
+          "position_error_m": 0.007826598780619398,
+          "axis_error_deg": 23.356175135957713
+        }
+      ],
+      "path_collision": [],
+      "final_axis_error_deg": 0.7368053390942648,
+      "final_tcp_error_m": 0.0031740120255555455,
+      "warnings": 0,
+      "status": "APPROACH_REACHED"
+    }
+  ]
+}

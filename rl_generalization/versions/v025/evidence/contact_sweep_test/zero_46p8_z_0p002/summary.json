@@ -1,0 +1,65 @@
+{
+  "status": "DURATION_COMPLETE",
+  "scene": "/home/noma/dev_ws/Project2/rl_generalization/.local/robot_facing_hinge_v022/scene.xml",
+  "plan": {
+    "max_position_error_m": 0.000127181758022956,
+    "max_orientation_error_deg": 1.841112229373181,
+    "shift_is_calibrated": false,
+    "initial_pose_changed_to_retargeted_start": true
+  },
+  "simulated_seconds": 12.000000000000677,
+  "initial_pose_le_robot": [
+    -12.97,
+    -17.31,
+    -0.85,
+    43.59,
+    -0.85,
+    59.68
+  ],
+  "initial_pose_source": "explicit shoebox_D median supplied by user",
+  "gripper_mapping": "UNCALIBRATED_CANDIDATE",
+  "open_backoff_rad": 0.005,
+  "latched": {
+    "shoe0": false,
+    "shoe1": true
+  },
+  "contact_first_s": {
+    "shoe0": null,
+    "shoe1": 7.583999999999387
+  },
+  "hold_target_rad": {
+    "shoe0": null,
+    "shoe1": 0.08096429820011215
+  },
+  "bilateral_contact_steps": {
+    "shoe0": 0,
+    "shoe1": 376
+  },
+  "max_finger_shoe_penetration_m": {
+    "shoe0": 0.0,
+    "shoe1": 0.0007066505139571844
+  },
+  "peak_shoe_lift_m": {
+    "shoe0": 0.0,
+    "shoe1": 0.0008381296955689288
+  },
+  "criterion_penetration_le_1mm": {
+    "shoe0": true,
+    "shoe1": true
+  },
+  "measurement_tolerance_assumed_m": 0.0002,
+  "criterion_penetration_le_0_3mm": {
+    "shoe0": true,
+    "shoe1": false
+  },
+  "criterion_lift_ge_30mm": {
+    "shoe0": false,
+    "shoe1": false
+  },
+  "contact_latch_candidate": {
+    "shoe0": false,
+    "shoe1": false
+  },
+  "warning_count": 0,
+  "limitation": "Simulation-only contact latch; no calibrated gripper angle or sim-to-real claim."
+}

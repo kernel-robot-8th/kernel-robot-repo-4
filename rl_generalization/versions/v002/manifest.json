@@ -1,0 +1,216 @@
+{
+  "version": "v002",
+  "date": "2026-11-18",
+  "timezone": "Asia/Seoul",
+  "status": "toy_code_verified_real_integration_pending",
+  "files": {
+    "README.md": {
+      "sha256": "dfb13112d8bf08e0386df943a33d090f89054b148df952dfe03baa3e28fbf30b",
+      "bytes": 2629
+    },
+    "code/omx_rl/__init__.py": {
+      "sha256": "3f3937ff1227679d123485cf5c5c7cd8d7ed54143e6bab17ea0019a6815fd905",
+      "bytes": 80
+    },
+    "code/omx_rl/env.py": {
+      "sha256": "ef365fc65dbebc4c3c864599debf0f4fbf20c3fd3810e7968d648cf9365df081",
+      "bytes": 4689
+    },
+    "code/omx_rl/evaluate.py": {
+      "sha256": "4e22e8da86ca7260202259cab33830f4056a64d5c73db78dfb920b79b3aa60e1",
+      "bytes": 2769
+    },
+    "code/omx_rl/hardware_contract.py": {
+      "sha256": "cc18dd8bd4307a907aa4791671bcc13b98fdb8e758ee376a515082bec778d522",
+      "bytes": 1119
+    },
+    "code/omx_rl/jitter.py": {
+      "sha256": "5f779cea6d27dc915f3b816000670187c7ca291217a97db9ebdbcc297f200539",
+      "bytes": 2109
+    },
+    "code/omx_rl/train.py": {
+      "sha256": "de4361fc93fcfa4a3319ac3b8f335bcf7f57a90c55ce34654c70522785bd0667",
+      "bytes": 2319
+    },
+    "configs/toy_sac.json": {
+      "sha256": "36b2d4b7c7b0643ca614fc4a2c93f62c0f8f994981581305e1e556ba90e41020",
+      "bytes": 301
+    },
+    "docs/DEPLOYMENT_CONTEXT.md": {
+      "sha256": "9e65264af9672229752fef61730941c4c4427c37023f322e060f0d7ccbba3273",
+      "bytes": 2420
+    },
+    "docs/PLAN.md": {
+      "sha256": "cfa02fec3764a456873511910bbccd76dfbe656f994036667664e4fbb3b19b08",
+      "bytes": 4754
+    },
+    "docs/VALIDATION.md": {
+      "sha256": "5d679ad977dfbd0ae0f96b4e909756687db9faafd51437cfaf62081046a73d44",
+      "bytes": 1124
+    },
+    "evidence/smoke_eval_episodes.csv": {
+      "sha256": "c9e022c3953c6eb6706c65ea09dad5d1453ce5f270fa76620171b123dafa75c3",
+      "bytes": 301
+    },
+    "evidence/smoke_eval_summary.json": {
+      "sha256": "e40cf67e5dac9138f125063aae7d7bfd3cca807739136596670387f4b33ee8b4",
+      "bytes": 465
+    },
+    "evidence/smoke_monitor.csv": {
+      "sha256": "df496da5824b8d2fef514407c328152b836464462fb6f18ef76fa7e2382967db",
+      "bytes": 154
+    },
+    "evidence/smoke_run.json": {
+      "sha256": "2da6e2acb8b31f2e8609630e972f2ff3afceedda13bff5bc9a22e66d6b08530b",
+      "bytes": 538
+    },
+    "references/move_in/SOURCE.json": {
+      "sha256": "5e1928595dc09256e2cde1f0fdf24bc7771ca2ab546c8ce4a9e4c025810181d2",
+      "bytes": 186
+    },
+    "references/move_in/act_ensemble.py": {
+      "sha256": "7065459b84e98e16f5300bb8ae2908c76785a755266f91c6347b6dffb0932d92",
+      "bytes": 1720
+    },
+    "references/move_in/infer.sh": {
+      "sha256": "34c6470205339c17ff2d5ce2a16c3b90b7a6c91c5a92423f6c5d40c6ad942d45",
+      "bytes": 1660
+    },
+    "references/move_in/inference.sh": {
+      "sha256": "6c2afe68a32c3efb10f7384db55a79bc77e6abdeba2d859fd6982f2053dbe4d3",
+      "bytes": 9222
+    },
+    "references/move_in/models/act_move_in_5000step/config.json": {
+      "sha256": "15a862c74af5d5d1dfe8987f1845a48b2d58998291e4f48788b1f3f94c7a3455",
+      "bytes": 1667
+    },
+    "references/move_in/models/act_move_in_5000step/omx_info.json": {
+      "sha256": "c28d9211db543af9a2c3ad0def67a298925d9b94fe530053b31f30cd0939e873",
+      "bytes": 27
+    },
+    "references/move_in/models/act_move_in_5000step/policy_postprocessor.json": {
+      "sha256": "648b415125a183dfd6cbc47c1dc04ab3f2d912654ef22a12ca5e8b93d7d85cdd",
+      "bytes": 660
+    },
+    "references/move_in/models/act_move_in_5000step/policy_preprocessor.json": {
+      "sha256": "f4028a509a703ee34add20e4cbe58ed685c763ef8b1fb221ccc70b5e02e74af2",
+      "bytes": 1326
+    },
+    "references/move_in/models/act_move_in_5000step/train_config.json": {
+      "sha256": "7d4d77b3574bf70234bf2e618cfdaef70444f4ff2a575be510a19188c056a671",
+      "bytes": 5707
+    },
+    "references/move_in/omx_box.py": {
+      "sha256": "5cebbbb024327556dec5ae943097cc2fdfb44d1829c9dbcb6986f57a57ec5153",
+      "bytes": 1286
+    },
+    "references/move_in/omx_grip_robot.py": {
+      "sha256": "bdd61ac6c471c9ff4108142831364b59190c4fc0c15ef3081b7f09ad09dfa9c6",
+      "bytes": 2093
+    },
+    "references/move_in/omx_run.py": {
+      "sha256": "66f7b3743acf5374bd89b5bbb4a55bd4c21bbee1ad86c57bd30ffb1ce68db8ff",
+      "bytes": 1758
+    },
+    "references/move_in/training/README.md": {
+      "sha256": "76e00164026493a889d3048156232b0a319b52b9cbacead1d208f7f8d7e11fa3",
+      "bytes": 5278
+    },
+    "references/move_in/training/tools/delete_episodes.py": {
+      "sha256": "5eceb8d1a70a3453f8ce32a348f5a1aaced1007de98cd88f50dc270fc2320998",
+      "bytes": 1058
+    },
+    "references/move_in/training/tools/merge_datasets.py": {
+      "sha256": "9de13f67a8e914fece64d88b3db74ad66a74d4ee1b3f1d82efe3eed9f0c44e63",
+      "bytes": 963
+    },
+    "references/move_in/training/tools/val_loss.py": {
+      "sha256": "42254ae5f94a9a071f044b6465b378b0a6d72656cded6956f46bb813b1eb3205",
+      "bytes": 4863
+    },
+    "references/move_in/training/train_gradient_accumulation.py": {
+      "sha256": "da111d475cedb54bde23314426c8f3ddd5c8f2303400c1456b3ca1a9f989d528",
+      "bytes": 6262
+    },
+    "references/shoebox/SOURCE.json": {
+      "sha256": "f4cfc6fc5dfe3e6be7cc8cb0274f0f6d4ef6900bcb6447195b3e7029d8b127bf",
+      "bytes": 180
+    },
+    "references/shoebox/act_ensemble.py": {
+      "sha256": "7065459b84e98e16f5300bb8ae2908c76785a755266f91c6347b6dffb0932d92",
+      "bytes": 1720
+    },
+    "references/shoebox/infer.sh": {
+      "sha256": "48225eae60441b49f99fb5a7d8b4c72f455c83c52cfe5460a3fb082e41266a06",
+      "bytes": 1715
+    },
+    "references/shoebox/inference.sh": {
+      "sha256": "6c2afe68a32c3efb10f7384db55a79bc77e6abdeba2d859fd6982f2053dbe4d3",
+      "bytes": 9222
+    },
+    "references/shoebox/models/act_shoebox_d_5000step/config.json": {
+      "sha256": "15a862c74af5d5d1dfe8987f1845a48b2d58998291e4f48788b1f3f94c7a3455",
+      "bytes": 1667
+    },
+    "references/shoebox/models/act_shoebox_d_5000step/omx_info.json": {
+      "sha256": "c28d9211db543af9a2c3ad0def67a298925d9b94fe530053b31f30cd0939e873",
+      "bytes": 27
+    },
+    "references/shoebox/models/act_shoebox_d_5000step/policy_postprocessor.json": {
+      "sha256": "648b415125a183dfd6cbc47c1dc04ab3f2d912654ef22a12ca5e8b93d7d85cdd",
+      "bytes": 660
+    },
+    "references/shoebox/models/act_shoebox_d_5000step/policy_preprocessor.json": {
+      "sha256": "f4028a509a703ee34add20e4cbe58ed685c763ef8b1fb221ccc70b5e02e74af2",
+      "bytes": 1326
+    },
+    "references/shoebox/models/act_shoebox_d_5000step/train_config.json": {
+      "sha256": "cf88392b8568f5ab7a928110c1a1fc0603bb7bded59c480bdd08c833f08b636f",
+      "bytes": 5674
+    },
+    "references/shoebox/omx_box.py": {
+      "sha256": "5cebbbb024327556dec5ae943097cc2fdfb44d1829c9dbcb6986f57a57ec5153",
+      "bytes": 1286
+    },
+    "references/shoebox/omx_grip_robot.py": {
+      "sha256": "bdd61ac6c471c9ff4108142831364b59190c4fc0c15ef3081b7f09ad09dfa9c6",
+      "bytes": 2093
+    },
+    "references/shoebox/omx_run.py": {
+      "sha256": "66f7b3743acf5374bd89b5bbb4a55bd4c21bbee1ad86c57bd30ffb1ce68db8ff",
+      "bytes": 1758
+    },
+    "references/shoebox/training/README.md": {
+      "sha256": "76e00164026493a889d3048156232b0a319b52b9cbacead1d208f7f8d7e11fa3",
+      "bytes": 5278
+    },
+    "references/shoebox/training/tools/delete_episodes.py": {
+      "sha256": "5eceb8d1a70a3453f8ce32a348f5a1aaced1007de98cd88f50dc270fc2320998",
+      "bytes": 1058
+    },
+    "references/shoebox/training/tools/merge_datasets.py": {
+      "sha256": "9de13f67a8e914fece64d88b3db74ad66a74d4ee1b3f1d82efe3eed9f0c44e63",
+      "bytes": 963
+    },
+    "references/shoebox/training/tools/val_loss.py": {
+      "sha256": "42254ae5f94a9a071f044b6465b378b0a6d72656cded6956f46bb813b1eb3205",
+      "bytes": 4863
+    },
+    "references/shoebox/training/train_gradient_accumulation.py": {
+      "sha256": "da111d475cedb54bde23314426c8f3ddd5c8f2303400c1456b3ca1a9f989d528",
+      "bytes": 6262
+    },
+    "requirements.txt": {
+      "sha256": "6f5f85ab25e735d5a3761871feebb04a3ee1c4fafbc5e914ac953ac45664c379",
+      "bytes": 85
+    },
+    "tests/test_env.py": {
+      "sha256": "9939e4597a96a316ee17ebc5ec7d5479bf3c45970b0c601cec4d9d7b4ddc05eb",
+      "bytes": 2011
+    },
+    "tests/test_jitter.py": {
+      "sha256": "7ba35c8f73c017e67750f050edf526c2bac2488137c221663cde19b3c4b15fc8",
+      "bytes": 480
+    }
+  }
+}

@@ -1,0 +1,1462 @@
+{
+  "shoebox_D": {
+    "repo": "Yuzriha00/shoebox_D",
+    "revision": "d641442875f08264680b19fe7d961c0f1343c40c",
+    "frames": 73559,
+    "episodes": 50,
+    "fps_metadata": 30,
+    "names": [
+      "shoulder_pan.pos",
+      "shoulder_lift.pos",
+      "elbow_flex.pos",
+      "wrist_flex.pos",
+      "wrist_roll.pos",
+      "gripper.pos"
+    ],
+    "units": {
+      "action": "leader→follower 실제 전송 목표값 (LeRobot 정규화: 관절 -100~100, gripper 0~100)",
+      "observation.state": "follower Present_Position (LeRobot 정규화)",
+      "aux.leader_action": "리더암 원본 값 (step 제한 전)",
+      "aux.velocity": "Present_Velocity raw (x0.229 rpm)",
+      "aux.current": "Present_Current raw (XL330: 1 mA, XL430: Present_Load 0.1 %)",
+      "aux.gripper_current": "gripper Present_Current raw (XL330-M288: 1 mA)",
+      "aux.temperature": "Present_Temperature (°C), status_hz 주기로 갱신",
+      "aux.voltage": "Present_Input_Voltage (V), status_hz 주기로 갱신",
+      "aux.ee_pose": "FK 결과 x, y, z (m), roll, pitch, yaw (rad) — omx_f URDF 기준",
+      "episode_success": "1 = Success, 0 = Fail"
+    },
+    "success_labels": [
+      1
+    ],
+    "action": {
+      "min": [
+        -21.709402084350586,
+        -66.69108581542969,
+        -30.158729553222656,
+        -12.283272743225098,
+        -10.476190567016602,
+        46.837608337402344
+      ],
+      "max": [
+        6.568986415863037,
+        -0.3174603283405304,
+        45.4945068359375,
+        59.36507797241211,
+        10.329669952392578,
+        60.02442169189453
+      ],
+      "median": [
+        1.245421290397644,
+        -17.41147804260254,
+        -0.17094017565250397,
+        46.03174591064453,
+        -0.07326007634401321,
+        47.03296661376953
+      ],
+      "nonfinite_count": 0
+    },
+    "state": {
+      "min": [
+        -21.367521286010742,
+        -64.5909652709961,
+        -29.572649002075195,
+        -12.673993110656738,
+        -10.036629676818848,
+        47.05738830566406
+      ],
+      "max": [
+        6.129426002502441,
+        0.3663003742694855,
+        45.29914474487305,
+        59.31623840332031,
+        10.183150291442871,
+        59.85348129272461
+      ],
+      "median": [
+        1.1477411985397339,
+        -16.288156509399414,
+        0.2686202824115753,
+        47.10622787475586,
+        0.07326007634401321,
+        48.986568450927734
+      ],
+      "nonfinite_count": 0
+    },
+    "abs_same_frame_action_state_error": {
+      "min": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "max": [
+        2.7838830947875977,
+        3.5653233528137207,
+        3.614164352416992,
+        16.117216110229492,
+        2.8815627098083496,
+        7.1929168701171875
+      ],
+      "median": [
+        0.1953601837158203,
+        0.879119873046875,
+        0.3907203674316406,
+        1.2210006713867188,
+        0.1953601837158203,
+        0.21977996826171875
+      ],
+      "nonfinite_count": 0
+    },
+    "gripper_current_raw": {
+      "min": -268.0,
+      "max": 75.0,
+      "median": -9.0,
+      "nonfinite_count": 0
+    },
+    "gripper_current_nonzero_frames": 72699,
+    "episodes_detail": [
+      {
+        "episode": 0,
+        "frames": 1353,
+        "duration_last_timestamp_s": 45.06666564941406,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -106.0,
+        "gripper_current_max_raw": 50.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 1,
+        "frames": 1439,
+        "duration_last_timestamp_s": 47.93333435058594,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -125.0,
+        "gripper_current_max_raw": 38.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 2,
+        "frames": 1383,
+        "duration_last_timestamp_s": 46.06666564941406,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -104.0,
+        "gripper_current_max_raw": 36.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 3,
+        "frames": 1512,
+        "duration_last_timestamp_s": 50.36666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -140.0,
+        "gripper_current_max_raw": 38.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 4,
+        "frames": 1413,
+        "duration_last_timestamp_s": 47.06666564941406,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -82.0,
+        "gripper_current_max_raw": 19.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.70695877075195
+      },
+      {
+        "episode": 5,
+        "frames": 1481,
+        "duration_last_timestamp_s": 49.33333206176758,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -164.0,
+        "gripper_current_max_raw": 31.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 6,
+        "frames": 1417,
+        "duration_last_timestamp_s": 47.20000076293945,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -117.0,
+        "gripper_current_max_raw": 35.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 7,
+        "frames": 1498,
+        "duration_last_timestamp_s": 49.900001525878906,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -183.0,
+        "gripper_current_max_raw": 25.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.63370132446289
+      },
+      {
+        "episode": 8,
+        "frames": 1574,
+        "duration_last_timestamp_s": 52.43333435058594,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -105.0,
+        "gripper_current_max_raw": 21.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 9,
+        "frames": 1521,
+        "duration_last_timestamp_s": 50.66666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -121.0,
+        "gripper_current_max_raw": 20.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.658119201660156
+      },
+      {
+        "episode": 10,
+        "frames": 1563,
+        "duration_last_timestamp_s": 52.06666564941406,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -148.0,
+        "gripper_current_max_raw": 32.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 11,
+        "frames": 1610,
+        "duration_last_timestamp_s": 53.63333511352539,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -184.0,
+        "gripper_current_max_raw": 22.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 12,
+        "frames": 1380,
+        "duration_last_timestamp_s": 45.96666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -128.0,
+        "gripper_current_max_raw": 23.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 13,
+        "frames": 1572,
+        "duration_last_timestamp_s": 52.36666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -179.0,
+        "gripper_current_max_raw": 17.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.658119201660156
+      },
+      {
+        "episode": 14,
+        "frames": 1452,
+        "duration_last_timestamp_s": 48.36666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -82.0,
+        "gripper_current_max_raw": 37.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 15,
+        "frames": 1389,
+        "duration_last_timestamp_s": 46.266666412353516,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -101.0,
+        "gripper_current_max_raw": 22.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 16,
+        "frames": 1485,
+        "duration_last_timestamp_s": 49.46666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -132.0,
+        "gripper_current_max_raw": 20.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.731380462646484
+      },
+      {
+        "episode": 17,
+        "frames": 1341,
+        "duration_last_timestamp_s": 44.66666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -91.0,
+        "gripper_current_max_raw": 33.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 18,
+        "frames": 1415,
+        "duration_last_timestamp_s": 47.13333511352539,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -84.0,
+        "gripper_current_max_raw": 30.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 19,
+        "frames": 1334,
+        "duration_last_timestamp_s": 44.43333435058594,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -83.0,
+        "gripper_current_max_raw": 38.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 20,
+        "frames": 1390,
+        "duration_last_timestamp_s": 46.29999923706055,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -173.0,
+        "gripper_current_max_raw": 26.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 21,
+        "frames": 1478,
+        "duration_last_timestamp_s": 49.233333587646484,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -102.0,
+        "gripper_current_max_raw": 18.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 22,
+        "frames": 1513,
+        "duration_last_timestamp_s": 50.400001525878906,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -132.0,
+        "gripper_current_max_raw": 51.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 23,
+        "frames": 1371,
+        "duration_last_timestamp_s": 45.66666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -268.0,
+        "gripper_current_max_raw": 18.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 24,
+        "frames": 1412,
+        "duration_last_timestamp_s": 47.03333282470703,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -141.0,
+        "gripper_current_max_raw": 59.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 25,
+        "frames": 1540,
+        "duration_last_timestamp_s": 51.29999923706055,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -101.0,
+        "gripper_current_max_raw": 17.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 26,
+        "frames": 1495,
+        "duration_last_timestamp_s": 49.79999923706055,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -93.0,
+        "gripper_current_max_raw": 32.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 27,
+        "frames": 1602,
+        "duration_last_timestamp_s": 53.36666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -131.0,
+        "gripper_current_max_raw": 20.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 28,
+        "frames": 1527,
+        "duration_last_timestamp_s": 50.86666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -119.0,
+        "gripper_current_max_raw": 30.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.70695877075195
+      },
+      {
+        "episode": 29,
+        "frames": 1440,
+        "duration_last_timestamp_s": 47.96666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -115.0,
+        "gripper_current_max_raw": 41.0,
+        "gripper_state_min": 47.05738830566406,
+        "gripper_state_max": 59.85348129272461
+      },
+      {
+        "episode": 30,
+        "frames": 1647,
+        "duration_last_timestamp_s": 54.86666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -95.0,
+        "gripper_current_max_raw": 22.0,
+        "gripper_state_min": 47.08180618286133,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 31,
+        "frames": 1362,
+        "duration_last_timestamp_s": 45.36666488647461,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -102.0,
+        "gripper_current_max_raw": 40.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 32,
+        "frames": 1427,
+        "duration_last_timestamp_s": 47.53333282470703,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -118.0,
+        "gripper_current_max_raw": 75.0,
+        "gripper_state_min": 47.08180618286133,
+        "gripper_state_max": 59.731380462646484
+      },
+      {
+        "episode": 33,
+        "frames": 1404,
+        "duration_last_timestamp_s": 46.766666412353516,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -102.0,
+        "gripper_current_max_raw": 30.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 34,
+        "frames": 1418,
+        "duration_last_timestamp_s": 47.233333587646484,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -99.0,
+        "gripper_current_max_raw": 29.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.70695877075195
+      },
+      {
+        "episode": 35,
+        "frames": 1519,
+        "duration_last_timestamp_s": 50.599998474121094,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -96.0,
+        "gripper_current_max_raw": 34.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 36,
+        "frames": 1595,
+        "duration_last_timestamp_s": 53.13333511352539,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -103.0,
+        "gripper_current_max_raw": 30.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 37,
+        "frames": 1468,
+        "duration_last_timestamp_s": 48.900001525878906,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -111.0,
+        "gripper_current_max_raw": 43.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.70695877075195
+      },
+      {
+        "episode": 38,
+        "frames": 1517,
+        "duration_last_timestamp_s": 50.53333282470703,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -171.0,
+        "gripper_current_max_raw": 28.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 39,
+        "frames": 1552,
+        "duration_last_timestamp_s": 51.70000076293945,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -179.0,
+        "gripper_current_max_raw": 18.0,
+        "gripper_state_min": 47.05738830566406,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 40,
+        "frames": 1271,
+        "duration_last_timestamp_s": 42.33333206176758,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -193.0,
+        "gripper_current_max_raw": 30.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.731380462646484
+      },
+      {
+        "episode": 41,
+        "frames": 1551,
+        "duration_last_timestamp_s": 51.66666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -107.0,
+        "gripper_current_max_raw": 20.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 42,
+        "frames": 1833,
+        "duration_last_timestamp_s": 61.06666564941406,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -140.0,
+        "gripper_current_max_raw": 22.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.85348129272461
+      },
+      {
+        "episode": 43,
+        "frames": 1249,
+        "duration_last_timestamp_s": 41.599998474121094,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -102.0,
+        "gripper_current_max_raw": 40.0,
+        "gripper_state_min": 47.08180618286133,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 44,
+        "frames": 1789,
+        "duration_last_timestamp_s": 59.599998474121094,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -89.0,
+        "gripper_current_max_raw": 50.0,
+        "gripper_state_min": 47.10622787475586,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 45,
+        "frames": 1481,
+        "duration_last_timestamp_s": 49.33333206176758,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -133.0,
+        "gripper_current_max_raw": 60.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.80463790893555
+      },
+      {
+        "episode": 46,
+        "frames": 1376,
+        "duration_last_timestamp_s": 45.83333206176758,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -153.0,
+        "gripper_current_max_raw": 32.0,
+        "gripper_state_min": 47.08180618286133,
+        "gripper_state_max": 59.80463790893555
+      },
+      {
+        "episode": 47,
+        "frames": 1506,
+        "duration_last_timestamp_s": 50.16666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -91.0,
+        "gripper_current_max_raw": 40.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      },
+      {
+        "episode": 48,
+        "frames": 1390,
+        "duration_last_timestamp_s": 46.29999923706055,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -162.0,
+        "gripper_current_max_raw": 47.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.75579833984375
+      },
+      {
+        "episode": 49,
+        "frames": 1304,
+        "duration_last_timestamp_s": 43.43333435058594,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333282470703125,
+        "gripper_current_min_raw": -110.0,
+        "gripper_current_max_raw": 65.0,
+        "gripper_state_min": 47.130645751953125,
+        "gripper_state_max": 59.68254089355469
+      }
+    ],
+    "warning": "Collector labels are not independent outcome validation; demonstrations are teleoperation, not ACT inference rollout. Current is not contact force/pressure. Same-frame error includes command timing/latency."
+  },
+  "move_in_success": {
+    "repo": "hfhfhf111/move_in_success",
+    "revision": "71f08f2ca8ec29386ead547542578ccbc09b17e7",
+    "frames": 21284,
+    "episodes": 37,
+    "fps_metadata": 30,
+    "names": [
+      "shoulder_pan.pos",
+      "shoulder_lift.pos",
+      "elbow_flex.pos",
+      "wrist_flex.pos",
+      "wrist_roll.pos",
+      "gripper.pos"
+    ],
+    "units": {
+      "action": "leader→follower 실제 전송 목표값 (LeRobot 정규화: 관절 -100~100, gripper 0~100)",
+      "observation.state": "follower Present_Position (LeRobot 정규화)",
+      "aux.leader_action": "리더암 원본 값 (step 제한 전)",
+      "aux.velocity": "Present_Velocity raw (x0.229 rpm)",
+      "aux.current": "Present_Current raw (XL330: 1 mA, XL430: Present_Load 0.1 %)",
+      "aux.gripper_current": "gripper Present_Current raw (XL330-M288: 1 mA)",
+      "aux.temperature": "Present_Temperature (°C), status_hz 주기로 갱신",
+      "aux.voltage": "Present_Input_Voltage (V), status_hz 주기로 갱신",
+      "aux.ee_pose": "FK 결과 x, y, z (m), roll, pitch, yaw (rad) — omx_f URDF 기준",
+      "episode_success": "1 = Success, 0 = Fail"
+    },
+    "success_labels": [
+      1
+    ],
+    "action": {
+      "min": [
+        -46.56898498535156,
+        -58.730159759521484,
+        -13.55311393737793,
+        -23.174602508544922,
+        -19.462759017944336,
+        46.93528747558594
+      ],
+      "max": [
+        7.985347747802734,
+        -9.352869033813477,
+        52.52747344970703,
+        58.730159759521484,
+        3.394383430480957,
+        69.20635223388672
+      ],
+      "median": [
+        1.3919414281845093,
+        -31.868131637573242,
+        23.174602508544922,
+        6.568986415863037,
+        -5.103785037994385,
+        47.10622787475586
+      ],
+      "nonfinite_count": 0
+    },
+    "state": {
+      "min": [
+        -46.03174591064453,
+        -58.77899932861328,
+        -12.967033386230469,
+        -20.341880798339844,
+        -19.267398834228516,
+        47.155067443847656
+      ],
+      "max": [
+        7.594627380371094,
+        -8.376068115234375,
+        52.625152587890625,
+        58.339439392089844,
+        3.443223476409912,
+        68.88888549804688
+      ],
+      "median": [
+        1.3919414281845093,
+        -31.4774112701416,
+        24.004884719848633,
+        8.864468574523926,
+        -4.9572649002075195,
+        54.72527313232422
+      ],
+      "nonfinite_count": 0
+    },
+    "abs_same_frame_action_state_error": {
+      "min": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "max": [
+        4.24908447265625,
+        2.9304046630859375,
+        3.2234420776367188,
+        7.0818071365356445,
+        3.1257631182670593,
+        11.379730224609375
+      ],
+      "median": [
+        0.1953582763671875,
+        0.6349220275878906,
+        0.4395618438720703,
+        2.1489620208740234,
+        0.14652013778686523,
+        0.3174629211425781
+      ],
+      "nonfinite_count": 0
+    },
+    "gripper_current_raw": {
+      "min": -496.0,
+      "max": 151.0,
+      "median": -6.0,
+      "nonfinite_count": 0
+    },
+    "gripper_current_nonzero_frames": 21085,
+    "episodes_detail": [
+      {
+        "episode": 0,
+        "frames": 728,
+        "duration_last_timestamp_s": 24.233333587646484,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -332.0,
+        "gripper_current_max_raw": 151.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 66.22710418701172
+      },
+      {
+        "episode": 1,
+        "frames": 664,
+        "duration_last_timestamp_s": 22.100000381469727,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -326.0,
+        "gripper_current_max_raw": 25.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 66.20268249511719
+      },
+      {
+        "episode": 2,
+        "frames": 679,
+        "duration_last_timestamp_s": 22.600000381469727,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -472.0,
+        "gripper_current_max_raw": 31.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 67.54578399658203
+      },
+      {
+        "episode": 3,
+        "frames": 658,
+        "duration_last_timestamp_s": 21.899999618530273,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -435.0,
+        "gripper_current_max_raw": 33.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 67.35042572021484
+      },
+      {
+        "episode": 4,
+        "frames": 660,
+        "duration_last_timestamp_s": 21.96666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -366.0,
+        "gripper_current_max_raw": 36.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 68.86447143554688
+      },
+      {
+        "episode": 5,
+        "frames": 570,
+        "duration_last_timestamp_s": 18.96666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -373.0,
+        "gripper_current_max_raw": 53.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 68.88888549804688
+      },
+      {
+        "episode": 6,
+        "frames": 629,
+        "duration_last_timestamp_s": 20.933332443237305,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -414.0,
+        "gripper_current_max_raw": 33.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 68.71794891357422
+      },
+      {
+        "episode": 7,
+        "frames": 632,
+        "duration_last_timestamp_s": 21.03333282470703,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -393.0,
+        "gripper_current_max_raw": 29.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 67.64347076416016
+      },
+      {
+        "episode": 8,
+        "frames": 601,
+        "duration_last_timestamp_s": 20.0,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -335.0,
+        "gripper_current_max_raw": 63.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 67.61904907226562
+      },
+      {
+        "episode": 9,
+        "frames": 614,
+        "duration_last_timestamp_s": 20.433332443237305,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -337.0,
+        "gripper_current_max_raw": 33.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 66.88644409179688
+      },
+      {
+        "episode": 10,
+        "frames": 629,
+        "duration_last_timestamp_s": 20.933332443237305,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -362.0,
+        "gripper_current_max_raw": 66.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 65.66544342041016
+      },
+      {
+        "episode": 11,
+        "frames": 527,
+        "duration_last_timestamp_s": 17.53333282470703,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -469.0,
+        "gripper_current_max_raw": 24.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 66.22710418701172
+      },
+      {
+        "episode": 12,
+        "frames": 581,
+        "duration_last_timestamp_s": 19.33333396911621,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -446.0,
+        "gripper_current_max_raw": 45.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 65.20146179199219
+      },
+      {
+        "episode": 13,
+        "frames": 587,
+        "duration_last_timestamp_s": 19.53333282470703,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -365.0,
+        "gripper_current_max_raw": 35.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 66.47130584716797
+      },
+      {
+        "episode": 14,
+        "frames": 593,
+        "duration_last_timestamp_s": 19.733333587646484,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -355.0,
+        "gripper_current_max_raw": 81.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 63.492061614990234
+      },
+      {
+        "episode": 15,
+        "frames": 541,
+        "duration_last_timestamp_s": 18.0,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -420.0,
+        "gripper_current_max_raw": 44.0,
+        "gripper_state_min": 47.25274658203125,
+        "gripper_state_max": 66.0805892944336
+      },
+      {
+        "episode": 16,
+        "frames": 519,
+        "duration_last_timestamp_s": 17.266666412353516,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -442.0,
+        "gripper_current_max_raw": 33.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 65.78754425048828
+      },
+      {
+        "episode": 17,
+        "frames": 509,
+        "duration_last_timestamp_s": 16.933332443237305,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -402.0,
+        "gripper_current_max_raw": 34.0,
+        "gripper_state_min": 47.25274658203125,
+        "gripper_state_max": 65.17704772949219
+      },
+      {
+        "episode": 18,
+        "frames": 664,
+        "duration_last_timestamp_s": 22.100000381469727,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -408.0,
+        "gripper_current_max_raw": 43.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 64.51770782470703
+      },
+      {
+        "episode": 19,
+        "frames": 537,
+        "duration_last_timestamp_s": 17.866666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -426.0,
+        "gripper_current_max_raw": 65.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 66.12942504882812
+      },
+      {
+        "episode": 20,
+        "frames": 609,
+        "duration_last_timestamp_s": 20.266666412353516,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -342.0,
+        "gripper_current_max_raw": 22.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 64.0048828125
+      },
+      {
+        "episode": 21,
+        "frames": 536,
+        "duration_last_timestamp_s": 17.83333396911621,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -385.0,
+        "gripper_current_max_raw": 44.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 64.12698364257812
+      },
+      {
+        "episode": 22,
+        "frames": 529,
+        "duration_last_timestamp_s": 17.600000381469727,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -410.0,
+        "gripper_current_max_raw": 36.0,
+        "gripper_state_min": 47.155067443847656,
+        "gripper_state_max": 67.4969482421875
+      },
+      {
+        "episode": 23,
+        "frames": 525,
+        "duration_last_timestamp_s": 17.46666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -351.0,
+        "gripper_current_max_raw": 49.0,
+        "gripper_state_min": 47.27716827392578,
+        "gripper_state_max": 65.3968276977539
+      },
+      {
+        "episode": 24,
+        "frames": 550,
+        "duration_last_timestamp_s": 18.299999237060547,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -457.0,
+        "gripper_current_max_raw": 33.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 64.0048828125
+      },
+      {
+        "episode": 25,
+        "frames": 540,
+        "duration_last_timestamp_s": 17.96666717529297,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -419.0,
+        "gripper_current_max_raw": 40.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 64.93284606933594
+      },
+      {
+        "episode": 26,
+        "frames": 567,
+        "duration_last_timestamp_s": 18.866666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -496.0,
+        "gripper_current_max_raw": 39.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 65.61660766601562
+      },
+      {
+        "episode": 27,
+        "frames": 573,
+        "duration_last_timestamp_s": 19.066667556762695,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -419.0,
+        "gripper_current_max_raw": 53.0,
+        "gripper_state_min": 47.25274658203125,
+        "gripper_state_max": 66.12942504882812
+      },
+      {
+        "episode": 28,
+        "frames": 548,
+        "duration_last_timestamp_s": 18.233333587646484,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -423.0,
+        "gripper_current_max_raw": 32.0,
+        "gripper_state_min": 47.32600784301758,
+        "gripper_state_max": 66.54456329345703
+      },
+      {
+        "episode": 29,
+        "frames": 580,
+        "duration_last_timestamp_s": 19.299999237060547,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -347.0,
+        "gripper_current_max_raw": 67.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 63.882781982421875
+      },
+      {
+        "episode": 30,
+        "frames": 535,
+        "duration_last_timestamp_s": 17.799999237060547,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -435.0,
+        "gripper_current_max_raw": 53.0,
+        "gripper_state_min": 47.27716827392578,
+        "gripper_state_max": 65.73870849609375
+      },
+      {
+        "episode": 31,
+        "frames": 522,
+        "duration_last_timestamp_s": 17.366666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -455.0,
+        "gripper_current_max_raw": 28.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 67.05738830566406
+      },
+      {
+        "episode": 32,
+        "frames": 518,
+        "duration_last_timestamp_s": 17.233333587646484,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -344.0,
+        "gripper_current_max_raw": 53.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 64.1025619506836
+      },
+      {
+        "episode": 33,
+        "frames": 483,
+        "duration_last_timestamp_s": 16.066667556762695,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -399.0,
+        "gripper_current_max_raw": 32.0,
+        "gripper_state_min": 47.20390701293945,
+        "gripper_state_max": 66.81318664550781
+      },
+      {
+        "episode": 34,
+        "frames": 481,
+        "duration_last_timestamp_s": 16.0,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -320.0,
+        "gripper_current_max_raw": 76.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 63.907203674316406
+      },
+      {
+        "episode": 35,
+        "frames": 522,
+        "duration_last_timestamp_s": 17.366666793823242,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -396.0,
+        "gripper_current_max_raw": 40.0,
+        "gripper_state_min": 47.228328704833984,
+        "gripper_state_max": 63.93162536621094
+      },
+      {
+        "episode": 36,
+        "frames": 544,
+        "duration_last_timestamp_s": 18.100000381469727,
+        "success_labels": [
+          1
+        ],
+        "nonincreasing_timestamp_count": 0,
+        "median_dt": 0.03333330154418945,
+        "gripper_current_min_raw": -451.0,
+        "gripper_current_max_raw": 55.0,
+        "gripper_state_min": 47.17948532104492,
+        "gripper_state_max": 64.1025619506836
+      }
+    ],
+    "warning": "Collector labels are not independent outcome validation; demonstrations are teleoperation, not ACT inference rollout. Current is not contact force/pressure. Same-frame error includes command timing/latency."
+  }
+}

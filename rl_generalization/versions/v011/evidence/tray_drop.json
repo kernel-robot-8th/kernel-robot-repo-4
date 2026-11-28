@@ -1,0 +1,6 @@
+{
+  "box_bottom_origin_z": 0.1398297969249509,
+  "expected_tray_floor_z": 0.14,
+  "warnings": 0,
+  "note": "Passive centered box drop only, not robot loading. Stiff contact assumption, not measured material."
+}

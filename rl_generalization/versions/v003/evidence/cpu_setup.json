@@ -1,0 +1,7 @@
+{
+  "version": "v003",
+  "requested_device": "cpu",
+  "device": "cpu",
+  "torch": "2.11.0+cpu",
+  "gpu": null
+}

@@ -1,0 +1,13 @@
+{
+  "version": "v023",
+  "purpose": "explicit LeRobot starts plus complete arrange-to-tray visual sequence",
+  "script": "code/full_sequence_preview.py",
+  "scene": ".local/robot_facing_hinge_v022/scene.xml",
+  "initial_pose_sources": {
+    "shoebox_D": "~/il_ws/omx_shoebox_d/init_pose.json",
+    "move_in_success": "explicit user-supplied LeRobot pose"
+  },
+  "physical_grasp_validated": false,
+  "transport_mode": "kinematic payload to stationary circular tray",
+  "measurement_tolerance_m": 0.0002
+}

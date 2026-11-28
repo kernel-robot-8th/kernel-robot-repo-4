@@ -1,0 +1,27 @@
+{
+  "schema_version": "0.1",
+  "status": "design_only_not_executable",
+  "timezone": "Asia/Seoul",
+  "created_date": "2026-11-18",
+  "base_frame": null,
+  "workspace_bounds_m": null,
+  "shoe_types": null,
+  "shoe_count": 2,
+  "shoe_yaw_range_deg": null,
+  "box_pose_fixed_initially": true,
+  "tray_pose_fixed_initially": true,
+  "train_positions_m": [],
+  "validation_positions_m": [],
+  "test_interpolation_positions_m": [],
+  "test_extrapolation_positions_m": [],
+  "position_grid_draft": [
+    3,
+    3
+  ],
+  "actual_control_hz": null,
+  "act_replan_steps": null,
+  "residual_bounds_robot_units": null,
+  "seed_list": [],
+  "trial_budget": null,
+  "notes": "실측 전. 빈 값은 실측과 평가 사전 계획으로 확정. 로봇 실행 설정이 아님."
+}
